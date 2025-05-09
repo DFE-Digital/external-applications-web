@@ -1,0 +1,15 @@
+﻿@using Microsoft.AspNetCore.Html;
+@model DfE.ExternalApplications.Web.Services.FieldViewModel
+@{
+    var isRequired = Model.Field.Required ? "true" : "false";
+    var validationAttributes = new HtmlString(Model.ValidationAttributes);
+}
+
+<govuk-input id="@Model.Id"
+             name="@Model.Name"
+             select-required="@isRequired"
+             select-validation="@validationAttributes">
+                  <govuk-input-label>@Model.Field.Label</govuk-input-label>
+                  <govuk-input-hint>@Model.Field.Tooltip</govuk-input-hint>
+</govuk-input>
+<govuk-error-message for="@Model.Id"></govuk-error-message>

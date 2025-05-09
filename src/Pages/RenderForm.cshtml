@@ -1,0 +1,52 @@
+﻿@page "/render-form/{pageId?}"
+@model RenderFormModel
+@inject DfE.ExternalApplications.Web.Services.IFieldRendererService FieldRenderer
+@{
+    ViewData["Title"] = "New application";
+}
+
+@{
+    if (!String.IsNullOrEmpty(Model.CurrentPageId))
+    {
+        <form method="post" asp-page-handler="Page">
+            <input type="hidden" asp-for="CurrentPageId" />
+            <govuk-back-link href="/render-form">Back</govuk-back-link>
+            @*<h1 class="govuk-heading-xl govuk-!-margin-bottom-6">@Model.CurrentTask.TaskName</h1>*@
+            @foreach (var field in Model.CurrentPage.Fields.OrderBy(f => f.Order))
+            {
+                @await FieldRenderer.RenderFieldAsync(field, "Data")
+            }
+
+            <govuk-button type="submit" name="handler" value="Page">Save and continue</govuk-button>
+        </form>
+    }
+
+
+    else
+    {
+        <h1 class="govuk-heading-xl govuk-!-margin-bottom-6">Your application</h1>
+        <govuk-inset-text>Application reference: <strong>250509-OZBY2</strong></govuk-inset-text>
+        @foreach (var group in Model.Template.TaskGroups.OrderBy(g => g.GroupOrder))
+        {
+            <h1 class="govuk-heading-m">
+                @group.GroupName
+            </h1>
+            <ul class="govuk-task-list">
+                @foreach (var task in group.Tasks.OrderBy(t => t.TaskOrder))
+                {
+                    <li class="govuk-task-list__item govuk-task-list__item--with-link">
+                        <div class="govuk-task-list__name-and-hint">
+                            <a class="govuk-link govuk-task-list__link" href="/render-form/@task.Pages[0].PageId" aria-describedby="task-@task.TaskName-status">
+                                @task.TaskName
+                            </a>
+                        </div>
+                        <div class="govuk-task-list__status" id="company-details-1-status">
+                            <govuk-tag>@task.TaskStatus</govuk-tag>
+                        </div>
+                    </li>
+                }
+            </ul>
+        }
+
+    }
+}
