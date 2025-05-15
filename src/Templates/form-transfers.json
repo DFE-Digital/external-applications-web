@@ -32,7 +32,24 @@
                   "order": 1,
                   "visibility": {
                     "default": true
-                  }
+                  },
+                  "validations": [
+                    {
+                      "type": "regex",
+                      "rule": "^[a-zA-Z0-9\\s&.,'-]{2,}$",
+                      "message": "Academy name contains invalid characters."
+                    },
+                    {
+                      "type": "maxLength",
+                      "rule": 100,
+                      "message": "Academy name cannot exceed 100 characters."
+                    },
+                    {
+                      "type": "required",
+                      "rule":  true,
+                      "message": "Academy name is required."
+                    }
+                  ]
                 },
                 {
                   "fieldId": "gender",
@@ -141,6 +158,7 @@
                 {
                   "fieldId": "extraQuestion",
                   "type": "text",
+                  "tooltip": "something",
                   "label": "Optional Question",
                   "placeholder": "Answer if shown",
                   "required": false,

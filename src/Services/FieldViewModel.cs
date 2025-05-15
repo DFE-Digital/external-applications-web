@@ -1,4 +1,5 @@
 ﻿using DfE.ExternalApplications.Web.Models;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using System.Linq;
 using System.Text;
 
@@ -9,11 +10,16 @@ namespace DfE.ExternalApplications.Web.Services
     {
         public Field Field { get; }
         public string Prefix { get; }
+        public string CurrentValue { get; }
 
-        public FieldViewModel(Field field, string prefix)
+        public string ErrorMessage { get; }
+
+        public FieldViewModel(Field field, string prefix, string currentValue, string errorMessage)
         {
             Field = field;
             Prefix = prefix;
+            CurrentValue = currentValue;
+            ErrorMessage = errorMessage;
         }
 
         public string Name => $"{Prefix}[{Field.FieldId}]";
@@ -33,12 +39,12 @@ namespace DfE.ExternalApplications.Web.Services
                 foreach (var v in Field.Validations)
                 {
                     // Emit conditional metadata if needed
-                    //if (v.Condition != null)
-                    //{
-                    //    sb.Append($" data-val-cond-field=\"{v.Condition.TriggerField}\"");
-                    //    sb.Append($" data-val-cond-operator=\"{v.Condition.Operator}\"");
-                    //    sb.Append($" data-val-cond-value=\"{v.Condition.Value}\"");
-                    //}
+                    if (v.Condition != null)
+                    {
+                        sb.Append($" data-val-cond-field=\"{v.Condition.TriggerField}\"");
+                        sb.Append($" data-val-cond-operator=\"{v.Condition.Operator}\"");
+                        sb.Append($" data-val-cond-value=\"{v.Condition.Value}\"");
+                    }
 
                     switch (v.Type)
                     {

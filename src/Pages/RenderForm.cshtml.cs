@@ -39,25 +39,37 @@ namespace DfE.ExternalApplications.Web.Pages
             LoadTemplate();
             InitializeCurrentPage(CurrentPageId);
 
+            foreach (var key in Request.Form.Keys)
+            {
+                Console.WriteLine($"Form Key: {key}, Value: {Request.Form[key]}");
+                var match = Regex.Match(key, @"^Data\[(.+?)\]$");
+
+                if (match.Success)
+                {
+                    var fieldId = match.Groups[1].Value;
+                    Data[fieldId] = Request.Form[key];
+                }
+            }
+
             ValidatePage(CurrentPage);
             if (!ModelState.IsValid)
+            {
                 return Page();
-
-            // TODO: persist Data
+            }
 
             var flatPages = Template.TaskGroups
                 .SelectMany(g => g.Tasks)
                 .SelectMany(t => t.Pages)
                 .OrderBy(p => p.PageOrder)
                 .ToList();
-            var idx = flatPages.FindIndex(p => p.PageId == CurrentPage.PageId);
-            if (idx >= 0 && idx < flatPages.Count - 1)
+            var index = flatPages.FindIndex(p => p.PageId == CurrentPage.PageId);
+            if (index >= 0 && index < CurrentTask.Pages.Count - 1)
             {
-                var next = flatPages[idx + 1];
+                var next = flatPages[index + 1];
                 return RedirectToPage(new { pageId = next.PageId });
             }
 
-            return RedirectToPage("Summary");
+            return Redirect("~/render-form");
         }
 
         private void LoadTemplate()
@@ -93,34 +105,34 @@ namespace DfE.ExternalApplications.Web.Pages
 
                 if (field.Validations == null) continue;
 
-                //foreach (var rule in field.Validations)
-                //{
-                //    // Conditional application
-                //    if (rule.Condition != null)
-                //    {
-                //        Data.TryGetValue(rule.Condition.TriggerField, out var condRaw);
-                //        var condVal = condRaw?.ToString();
-                //        var expected = rule.Condition.Value?.ToString();
-                //        if (rule.Condition.Operator == "equals" && condVal != expected)
-                //            continue;
-                //    }
+                foreach (var rule in field.Validations)
+                {
+                    // Conditional application
+                    if (rule.Condition != null)
+                    {
+                        Data.TryGetValue(rule.Condition.TriggerField, out var condRaw);
+                        var condVal = condRaw?.ToString();
+                        var expected = rule.Condition.Value?.ToString();
+                        if (rule.Condition.Operator == "equals" && condVal != expected)
+                            continue;
+                    }
 
-                //    switch (rule.Type)
-                //    {
-                //        case "required":
-                //            if (string.IsNullOrWhiteSpace(value))
-                //                ModelState.AddModelError(key, rule.Message);
-                //            break;
-                //        case "regex":
-                //            if (!Regex.IsMatch(value, rule.Rule.ToString()))
-                //                ModelState.AddModelError(key, rule.Message);
-                //            break;
-                //        case "maxLength":
-                //            if (value.Length > int.Parse(rule.Rule.ToString()))
-                //                ModelState.AddModelError(key, rule.Message);
-                //            break;
-                //    }
-                //}
+                    switch (rule.Type)
+                    {
+                        case "required":
+                            if (string.IsNullOrWhiteSpace(value))
+                                ModelState.AddModelError(key, rule.Message);
+                            break;
+                        case "regex":
+                            if (!Regex.IsMatch(value, rule.Rule.ToString()) && !String.IsNullOrWhiteSpace(value))
+                                ModelState.AddModelError(key, rule.Message);
+                            break;
+                        case "maxLength":
+                            if (value.Length > int.Parse(rule.Rule.ToString()))
+                                ModelState.AddModelError(key, rule.Message);
+                            break;
+                    }
+                }
             }
         }
     }

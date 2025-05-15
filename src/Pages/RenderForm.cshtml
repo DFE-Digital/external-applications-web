@@ -11,10 +11,14 @@
         <form method="post" asp-page-handler="Page">
             <input type="hidden" asp-for="CurrentPageId" />
             <govuk-back-link href="/render-form">Back</govuk-back-link>
-            @*<h1 class="govuk-heading-xl govuk-!-margin-bottom-6">@Model.CurrentTask.TaskName</h1>*@
+            <h1 class="govuk-heading-xl govuk-!-margin-bottom-6">@Model.CurrentTask.TaskName</h1>
             @foreach (var field in Model.CurrentPage.Fields.OrderBy(f => f.Order))
             {
-                @await FieldRenderer.RenderFieldAsync(field, "Data")
+                var currentValue = Model.Data.TryGetValue(field.FieldId, out var val) ? val.ToString() : String.Empty;
+                var fieldModelState = ModelState.Where(f => f.Key == field.FieldId).FirstOrDefault();
+                var errorMessage = fieldModelState.Value?.Errors?.FirstOrDefault()?.ErrorMessage ?? String.Empty;
+
+                @await FieldRenderer.RenderFieldAsync(field, "Data", currentValue, errorMessage)
             }
 
             <govuk-button type="submit" name="handler" value="Page">Save and continue</govuk-button>
@@ -26,7 +30,7 @@
     {
         <h1 class="govuk-heading-xl govuk-!-margin-bottom-6">Your application</h1>
         <govuk-inset-text>Application reference: <strong>250509-OZBY2</strong></govuk-inset-text>
-        @foreach (var group in Model.Template.TaskGroups.OrderBy(g => g.GroupOrder))
+        @foreach (var group in Model.Template.TaskGroups.OrderBy(g => g.GroupOrder))    
         {
             <h1 class="govuk-heading-m">
                 @group.GroupName

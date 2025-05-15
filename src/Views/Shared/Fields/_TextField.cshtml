@@ -5,11 +5,13 @@
     var validationAttributes = new HtmlString(Model.ValidationAttributes);
 }
 
+<govuk-error-message for="@Model.Id">@Model.ErrorMessage</govuk-error-message>
 <govuk-input id="@Model.Id"
-             name="@Model.Name"
+             name="Data[@Model.Field.FieldId]"
+             value="@Model.CurrentValue"
              select-required="@isRequired"
              select-validation="@validationAttributes">
                   <govuk-input-label>@Model.Field.Label</govuk-input-label>
                   <govuk-input-hint>@Model.Field.Tooltip</govuk-input-hint>
+
 </govuk-input>
-<govuk-error-message for="@Model.Id"></govuk-error-message>

@@ -20,7 +20,7 @@ namespace DfE.ExternalApplications.Web.Services
             _serviceProvider = serviceProvider;
         }
         
-        public async Task<IHtmlContent> RenderFieldAsync(Field field, string prefix)
+        public async Task<IHtmlContent> RenderFieldAsync(Field field, string prefix, string currentValue, string errorMessage)
         {
             var htmlHelper = _serviceProvider.GetRequiredService<IHtmlHelper>() as IViewContextAware;
 
@@ -30,7 +30,7 @@ namespace DfE.ExternalApplications.Web.Services
 
             var viewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary())
             {
-                Model = new FieldViewModel(field, prefix)
+                Model = new FieldViewModel(field, prefix, currentValue, errorMessage)
             };
 
             var tempData = new TempDataDictionary(actionContextAccessor.ActionContext.HttpContext, tempDataProvider);

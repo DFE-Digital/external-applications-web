@@ -110,6 +110,8 @@ namespace DfE.ExternalApplications.Web.Models
 
         [JsonPropertyName("complexField")]
         public string? ComplexField { get; set; }
+
+        public string? Value { get; set; }
     }
 
     public class Option
@@ -138,40 +140,40 @@ namespace DfE.ExternalApplications.Web.Models
         [JsonPropertyName("message")]
         public required string Message { get; set; }
 
-        //[JsonPropertyName("condition")]
-        //public Condition? Condition { get; set; }    // optional conditional application
+        [JsonPropertyName("condition")]
+        public Condition? Condition { get; set; }    // optional conditional application
     }
 
-    //public class ConditionalLogic
-    //{
-    //    [JsonPropertyName("conditionGroup")]
-    //    public required ConditionGroup ConditionGroup { get; set; }
+    public class ConditionalLogic
+    {
+        [JsonPropertyName("conditionGroup")]
+        public required ConditionGroup ConditionGroup { get; set; }
 
-    //    [JsonPropertyName("affectedElements")]
-    //    public required List<string> AffectedElements { get; set; }
+        [JsonPropertyName("affectedElements")]
+        public required List<string> AffectedElements { get; set; }
 
-    //    [JsonPropertyName("action")]
-    //    public required string Action { get; set; }
-    //}
+        [JsonPropertyName("action")]
+        public required string Action { get; set; }
+    }
 
-    //public class ConditionGroup
-    //{
-    //    [JsonPropertyName("logicalOperator")]
-    //    public required string LogicalOperator { get; set; }
+    public class ConditionGroup
+    {
+        [JsonPropertyName("logicalOperator")]
+        public required string LogicalOperator { get; set; }
 
-    //    [JsonPropertyName("conditions")]
-    //    public required List<Condition> Conditions { get; set; }
-    //}
+        [JsonPropertyName("conditions")]
+        public required List<Condition> Conditions { get; set; }
+    }
 
-    //public class Condition
-    //{
-    //    [JsonPropertyName("triggerField")]
-    //    public required string TriggerField { get; set; }
+    public class Condition
+    {
+        [JsonPropertyName("triggerField")]
+        public required string TriggerField { get; set; }
 
-    //    [JsonPropertyName("operator")]
-    //    public required string Operator { get; set; }
-        
-    //    [JsonPropertyName("value")]
-    //    public required object Value { get; set; }
-    //}
+        [JsonPropertyName("operator")]
+        public required string Operator { get; set; }
+
+        [JsonPropertyName("value")]
+        public required object Value { get; set; }
+    }
 }
