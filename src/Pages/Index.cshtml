@@ -1,7 +1,31 @@
 ﻿@page
+@using GovUk.Frontend.AspNetCore.TagHelpers
+@using Microsoft.AspNetCore.Authorization
+@addTagHelper *, DfE.CoreLibs.Security
 @model IndexModel
+@inject IAuthorizationService AuthService
+
 @{
     ViewData["Title"] = "Transfer academies to another academy trust";
 }
 
+<div class="text-center">
+
+    <p>
+        Hello, <strong>@Model.FirstName @Model.LastName</strong><br />
+        Your email is <strong>@Model.Email</strong>.<br/>
+        Your organisation is <strong>@Model.OrganisationName</strong>.
+    </p>
+
+    @if ((await AuthService.AuthorizeAsync(User, "task1", "CanRead")).Succeeded)
+    {
+    <p>User has Read Access to Task 1</p>
+    }
+    
+    <authorize resource="task2" policy="CanRead">
+        <p>User has Read Access to Task 2</p>
+    </authorize>
+    
+
+</div>
 <govuk-button-link is-start-button="true" href="/render-form">Start new application</govuk-button-link>
