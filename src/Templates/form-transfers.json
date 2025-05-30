@@ -5,7 +5,7 @@
   "taskGroups": [
     {
       "groupId": "group-1",
-      "groupName": "Personal Information",
+      "groupName": "Personal Information d",
       "groupOrder": 1,
       "groupStatus": "Incomplete",
       "tasks": [
@@ -25,9 +25,21 @@
                 {
                   "fieldId": "academyName",
                   "type": "text",
-                  "label": "Academy Name",
+                  "label": "Academy Name 1",
                   "placeholder": "Enter your Academy name here",
                   "tooltip": "Enter your Academy name",
+                  "required": true,
+                  "order": 1,
+                  "visibility": {
+                    "default": true
+                  }
+                },
+                {
+                  "fieldId": "schoolName",
+                  "type": "text",
+                  "label": "School Name",
+                  "placeholder": "Enter your School name here",
+                  "tooltip": "Enter your School name",
                   "required": true,
                   "order": 1,
                   "visibility": {
@@ -70,7 +82,7 @@
                 {
                   "fieldId": "age",
                   "type": "text",
-                  "label": "How old are you?",
+                  "label": "How old are you??",
                   "placeholder": "Enter your agee",
                   "tooltip": "Enter your age",
                   "required": true,

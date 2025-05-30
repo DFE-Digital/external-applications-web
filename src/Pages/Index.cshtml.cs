@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Authorization;
 
 namespace DfE.ExternalApplications.Web.Pages
 {
-
     public class IndexModel : PageModel
     {
         private readonly ILogger<IndexModel> _logger;
