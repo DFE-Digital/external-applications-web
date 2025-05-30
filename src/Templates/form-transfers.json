@@ -20,15 +20,17 @@
               "slug": "personal-info",
               "title": "Personal Information",
               "description": "Enter your personal details",
-              "pageOrder": 1,
+              "pageOrder": 5,
               "fields": [
                 {
                   "fieldId": "academyName",
                   "type": "text",
-                  "label": "Academy Name",
+                  "label": {
+                    "value": "Academy Name",
+                    "isPageHeading": true
+                  },
                   "placeholder": "Enter your Academy name here",
                   "tooltip": "Enter your Academy name",
-                  "required": true,
                   "order": 1,
                   "visibility": {
                     "default": true
@@ -43,18 +45,37 @@
                       "type": "maxLength",
                       "rule": 100,
                       "message": "Academy name cannot exceed 100 characters."
-                    },
+                    }
+                    ]
+                  },
+                {
+                  "fieldId": "academyProfile",
+                  "type": "character-count",
+                  "label": {
+                    "value": "Academy profile",
+                    "isPageHeading": true
+                  },
+                  "placeholder": "Enter your Academy profile here",
+                  "tooltip": "Academy profile",
+                  "order": 2,
+                  "visibility": {
+                    "default": true
+                  },
+                  "validations": [
                     {
-                      "type": "required",
-                      "rule":  true,
-                      "message": "Academy name is required."
+                      "type": "maxLength",
+                      "rule": 100,
+                      "message": "Academy profile cannot exceed 100 characters."
                     }
                   ]
                 },
                 {
                   "fieldId": "gender",
-                  "type": "select",
-                  "label": "Gender",
+                  "type": "radios",
+                  "label": {
+                    "value": "Gender",
+                    "isPageHeading":  true
+                  },
                   "options": [
                     {
                       "value": "male",
@@ -69,13 +90,14 @@
                       "label": "Other"
                     }
                   ],
-                  "required": true,
-                  "order": 4,
+                  "order": 3,
                   "visibility": {
                     "default": true
-                  }
+                  },
+                  "validations": [
+                  ]
                 }
-              ]
+          ]
             },
             {
               "pageId": "page-2",
@@ -87,14 +109,37 @@
                 {
                   "fieldId": "age",
                   "type": "text",
-                  "label": "How old are you?",
+                  "label": {
+                    "value": "How old are you?",
+                    "isPageHeading": false
+                  },
                   "placeholder": "Enter your agee",
                   "tooltip": "Enter your age",
-                  "required": true,
                   "order": 1,
                   "visibility": {
                     "default": true
                   }
+                },
+                {
+                  "fieldId": "dob",
+                  "type": "date",
+                  "label": {
+                    "value": "When were you born?",
+                    "isPageHeading": false
+                  },
+                  "placeholder": "Enter your date of birth",
+                  "tooltip": "Enter your date of birth",
+                  "order": 2,
+                  "visibility": {
+                    "default": true
+                  },
+                  "validations": [
+                    {
+                      "type": "required",
+                      "rule": true,
+                      "message": "Date of birth is required."
+                    }
+                  ]
                 }
               ]
             }
@@ -116,7 +161,9 @@
                 {
                   "fieldId": "employmentStatus",
                   "type": "select",
-                  "label": "Are you currently employed?",
+                  "label": {
+                    "value": "Are you currently employed?"
+                  },
                   "tooltip": "",
                   "options": [
                     {
@@ -128,7 +175,6 @@
                       "label": "No"
                     }
                   ],
-                  "required": true,
                   "order": 1,
                   "visibility": {
                     "default": true
@@ -138,7 +184,9 @@
                   "fieldId": "employerName",
                   "type": "text",
                   "tooltip": "something",
-                  "label": "Employer's' Name",
+                  "label": {
+                    "value": "Employer's' Name"
+                  },
                   "placeholder": "Enter your employer's name",
                   "required": false,
                   "order": 2,
@@ -159,10 +207,26 @@
                   "fieldId": "extraQuestion",
                   "type": "text",
                   "tooltip": "something",
-                  "label": "Optional Question",
+                  "label": {
+                    "value": "Optional Question"
+                  },
                   "placeholder": "Answer if shown",
                   "required": false,
                   "order": 1,
+                  "visibility": {
+                    "default": true
+                  }
+                },
+                {
+                  "fieldId": "textArea",
+                  "type": "text-area",
+                  "tooltip": "Something",
+                  "label": {
+                    "value": "Comments"
+                  },
+                  "placeholder": "Answer if shown",
+                  "required": false,
+                  "order": 2,
                   "visibility": {
                     "default": true
                   }

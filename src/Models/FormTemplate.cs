@@ -86,7 +86,7 @@ namespace DfE.ExternalApplications.Web.Models
         public required string Type { get; set; }
 
         [JsonPropertyName("label")]
-        public required string Label { get; set; }
+        public required Label Label { get; set; }
 
         [JsonPropertyName("placeholder")]
         public string? Placeholder { get; set; }
@@ -112,6 +112,14 @@ namespace DfE.ExternalApplications.Web.Models
         public string? ComplexField { get; set; }
 
         public string? Value { get; set; }
+    }
+
+    public class Label
+    {
+        [JsonPropertyName("value")]
+        public required string Value { get; set; }
+        [JsonPropertyName("isPageHeading")]
+        public bool IsPageHeading { get; set; } = false;
     }
 
     public class Option

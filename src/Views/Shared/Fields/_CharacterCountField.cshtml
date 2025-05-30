@@ -1,0 +1,23 @@
+﻿@using Microsoft.AspNetCore.Html;
+@model DfE.ExternalApplications.Web.Services.FieldViewModel
+@{
+    var isRequired = Model.Field.Required ? "true" : "false";
+    var validationAttributes = new HtmlString(Model.ValidationAttributes);
+    var maxLengthRule = Model.Field.Validations?.Where(v => v.Type == "maxLength").FirstOrDefault()?.Rule.ToString();
+    int.TryParse(maxLengthRule, out var maxLengthValue);
+
+    var labelClasses = Model.Field.Label.IsPageHeading ? "govuk-label--l" : "";
+}
+
+<govuk-error-message for="@Model.Id">@Model.ErrorMessage</govuk-error-message>
+<govuk-character-count id="@Model.Id" name="Data[@Model.Field.FieldId]" max-length="@maxLengthValue" label-class="@labelClasses">
+    <govuk-character-count-label is-page-heading="@Model.Field.Label.IsPageHeading">
+        @Model.Field.Label.Value
+    </govuk-character-count-label>
+    <govuk-character-count-hint>
+        @Model.Field.Tooltip
+    </govuk-character-count-hint>
+    <govuk-character-count-value>
+        @Model.CurrentValue
+    </govuk-character-count-value>
+</govuk-character-count>

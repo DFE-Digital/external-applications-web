@@ -49,7 +49,10 @@ namespace DfE.ExternalApplications.Web.Services
             {
                 "text" => "Fields/_TextField",
                 "select" => "Fields/_SelectField",
-                //"select-multi" => "Fields/_MultiSelectField",
+                "text-area" => "Fields/_TextAreaField",
+                "radios" => "Fields/_RadiosField",
+                "character-count" => "Fields/_CharacterCountField",
+                "date" => "Fields/_DateInputField",
                 _ => throw new NotSupportedException($"Field type '{field.Type}' not supported")
             };
 
