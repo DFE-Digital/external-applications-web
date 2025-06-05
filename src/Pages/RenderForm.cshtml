@@ -10,7 +10,7 @@
     {
         <form method="post" asp-page-handler="Page">
             <input type="hidden" asp-for="CurrentPageId" />
-            <govuk-back-link href="/render-form/@Model.PreviousPageId">Back</govuk-back-link>
+            <govuk-back-link href="/render-form/">Back</govuk-back-link>
             <h1 class="govuk-heading-xl govuk-!-margin-bottom-6">@Model.CurrentTask.TaskName</h1>
 
             <govuk-error-summary>
@@ -33,21 +33,7 @@
 
             @foreach (var field in Model.CurrentPage.Fields.OrderBy(f => f.Order))
             {
-                string currentValue;
-
-                // if (field.Type == "date")
-                // {
-                //     var dayValue = Model.Data.TryGetValue(field.FieldId + "Day", out var dayVal) ? dayVal.ToString() : String.Empty;
-                //     var monthValue = Model.Data.TryGetValue(field.FieldId + "Month", out var monthVal) ? monthVal.ToString() : String.Empty;
-                //     var yearValue = Model.Data.TryGetValue(field.FieldId + "Year", out var yearVal) ? yearVal.ToString() : String.Empty;
-
-                //     currentValue = DateTime.TryParse(yearValue + " " + monthValue + " " + dayValue, out DateTime currentDateValue) ? currentDateValue.ToString() : String.Empty;
-                // }
-
-                // else
-                // {
-                    currentValue = Model.Data.TryGetValue(field.FieldId, out var val) ? val.ToString() : String.Empty;
-                //}
+                var currentValue = Model.Data.TryGetValue(field.FieldId, out var val) ? val.ToString() : String.Empty;
 
                 var fieldModelState = ModelState.Where(f => f.Key == field.FieldId).FirstOrDefault();
                 var errorMessage = fieldModelState.Value?.Errors?.FirstOrDefault()?.ErrorMessage ?? String.Empty;

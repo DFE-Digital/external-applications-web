@@ -5,7 +5,7 @@
   "taskGroups": [
     {
       "groupId": "group-1",
-      "groupName": "Personal Information d",
+      "groupName": "Personal Information",
       "groupOrder": 1,
       "groupStatus": "Incomplete",
       "tasks": [
@@ -20,7 +20,7 @@
               "slug": "personal-info",
               "title": "Personal Information",
               "description": "Enter your personal details",
-              "pageOrder": 5,
+              "pageOrder": 1,
               "fields": [
                 {
                   "fieldId": "academyName",
@@ -45,8 +45,13 @@
                       "type": "maxLength",
                       "rule": 100,
                       "message": "Academy name cannot exceed 100 characters."
+                    },
+                    {
+                      "type": "required",
+                      "rule": true,
+                      "message": "Academy name is required."
                     }
-                    ]
+                  ]
                   },
                 {
                   "fieldId": "academyProfile",
@@ -66,7 +71,13 @@
                       "type": "maxLength",
                       "rule": 100,
                       "message": "Academy profile cannot exceed 100 characters."
+                    },
+                    {
+                      "type": "required",
+                      "rule": true,
+                      "message": "Academy profile is required."
                     }
+
                   ]
                 },
                 {
@@ -104,7 +115,7 @@
               "slug": "personal-info",
               "title": "Personal Information",
               "description": "Enter your personal details",
-              "pageOrder": 1,
+              "pageOrder": 2,
               "fields": [
                 {
                   "fieldId": "age",
@@ -119,27 +130,6 @@
                   "visibility": {
                     "default": true
                   }
-                },
-                {
-                  "fieldId": "dob",
-                  "type": "date",
-                  "label": {
-                    "value": "When were you born?",
-                    "isPageHeading": false
-                  },
-                  "placeholder": "Enter your date of birth",
-                  "tooltip": "Enter your date of birth",
-                  "order": 2,
-                  "visibility": {
-                    "default": true
-                  },
-                  "validations": [
-                    {
-                      "type": "required",
-                      "rule": true,
-                      "message": "Date of birth is required."
-                    }
-                  ]
                 }
               ]
             }
@@ -185,14 +175,20 @@
                   "type": "text",
                   "tooltip": "something",
                   "label": {
-                    "value": "Employer's' Name"
+                    "value": "Employer's Name"
                   },
                   "placeholder": "Enter your employer's name",
-                  "required": false,
                   "order": 2,
                   "visibility": {
                     "default": false
-                  }
+                  },
+                  "validations": [
+                    {
+                      "type": "required",
+                      "rule": true,
+                      "message": "Employer's name is required."
+                    }
+                  ]
                 }
               ]
             },

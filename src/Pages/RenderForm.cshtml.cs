@@ -8,8 +8,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using Page = DfE.ExternalApplications.Web.Models.Page;
-using System;
 
 namespace DfE.ExternalApplications.Web.Pages
 {
@@ -23,9 +21,6 @@ namespace DfE.ExternalApplications.Web.Pages
         public Models.Task CurrentTask { get; set; }
         public Models.Page CurrentPage { get; set; }
 
-        public string? PreviousPageId { get; set; }
-        public string? NextPageId { get; set; }
-
         private readonly IFieldRendererService _renderer;
         public RenderFormModel(IFieldRendererService renderer)
         {
@@ -37,17 +32,6 @@ namespace DfE.ExternalApplications.Web.Pages
             CurrentPageId = pageId;
             LoadTemplate();
             InitializeCurrentPage(CurrentPageId);
-
-            var flatPages = Template.TaskGroups
-               .SelectMany(g => g.Tasks)
-               .SelectMany(t => t.Pages)
-               .OrderBy(p => p.PageOrder)
-               .ToList();
-            var index = flatPages.FindIndex(p => p.PageId == CurrentPage.PageId);
-
-            if (index > 1) {
-                PreviousPageId = flatPages[index - 1].PageId;
-            }
         }
 
         public async Task<IActionResult> OnPostPageAsync()
@@ -55,57 +39,15 @@ namespace DfE.ExternalApplications.Web.Pages
             LoadTemplate();
             InitializeCurrentPage(CurrentPageId);
 
-            var flatPages = Template.TaskGroups
-               .SelectMany(g => g.Tasks)
-               .SelectMany(t => t.Pages)
-               .OrderBy(p => p.PageOrder)
-               .ToList();
-            var index = flatPages.FindIndex(p => p.PageId == CurrentPage.PageId);
-
-            if (index > 1)
-            {
-                PreviousPageId = flatPages[index - 1].PageId;
-            }
-
-            if (index >= 0 && index < CurrentTask.Pages.Count - 1)
-            {
-                var next = flatPages[index + 1];
-                NextPageId = next.PageId;
-            }
-
             foreach (var key in Request.Form.Keys)
             {
                 Console.WriteLine($"Form Key: {key}, Value: {Request.Form[key]}");
-                var match = Regex.Match(key, @"^Data\[(.+?)\]\$");
+                var match = Regex.Match(key, @"^Data\[(.+?)\]$");
 
-                if (match.Success)                                                    
+                if (match.Success)
                 {
                     var fieldId = match.Groups[1].Value;
                     Data[fieldId] = Request.Form[key];
-                }
-
-                if (
-                        key.EndsWith(".Day") &&
-                        Request.Form.ContainsKey(key.Replace(".Day", ".Month")) &&
-                        Request.Form.ContainsKey(key.Replace(".Day", ".Year"))
-                   )
-                {
-                    var day = Request.Form[key];
-                    var month = Request.Form[key.Replace(".Day", ".Month")];
-                    var year = Request.Form[key.Replace(".Day", ".Year")];
-
-                    int dayInt = int.TryParse(day, out int dayVal) ? dayVal : 0;
-                    int monthInt = int.TryParse(month, out int monthVal) ? monthVal : 0;
-                    int yearInt = int.TryParse(year, out int yearVal) ? yearVal : 0;
-
-                    if (dayInt != 0 && monthInt != 0 && yearInt != 0)
-                    {
-                        DateTime dateVal = new DateTime(yearInt, monthInt, dayInt);
-
-                        var fieldId = key.Replace(".Day", "");
-                        Data[fieldId] = dateVal;
-
-                    }
                 }
             }
 
@@ -115,14 +57,21 @@ namespace DfE.ExternalApplications.Web.Pages
                 return Page();
             }
 
-            if (!String.IsNullOrWhiteSpace(NextPageId))
+            var flatPages = Template.TaskGroups
+                .SelectMany(g => g.Tasks).Where(t => t.TaskId == CurrentTask.TaskId)
+                .SelectMany(t => t.Pages)
+                .OrderBy(p => p.PageOrder)
+
+                .ToList();
+
+            var index = flatPages.FindIndex(p => p.PageId == CurrentPage.PageId);
+            if (index >= 0 && index < CurrentTask.Pages.Count - 1)
             {
-                return RedirectToPage(new { pageId = NextPageId });
+                var next = flatPages[index + 1];
+                return RedirectToPage(new { pageId = next.PageId });
             }
 
             return Redirect("~/render-form");
-
-           
         }
 
         private void LoadTemplate()
