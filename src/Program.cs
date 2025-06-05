@@ -1,7 +1,55 @@
+using DfE.CoreLibs.Security.Authorization;
+using DfE.CoreLibs.Security.Interfaces;
+using DfE.CoreLibs.Security.OpenIdConnect;
+using DfE.ExternalApplications.Web.Security;
+using DfE.ExternalApplications.Web.Services;
+using GovUk.Frontend.AspNetCore;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
+using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
+
 var builder = WebApplication.CreateBuilder(args);
+
+ConfigurationManager configuration = builder.Configuration;
 
 // Add services to the container.
 builder.Services.AddRazorPages();
+
+builder.Services.AddRazorPages(options =>
+{
+    options.Conventions
+        .AuthorizeFolder("/", "OpenIdConnectPolicy");
+});
+
+builder.Services.AddHttpContextAccessor();
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
+})
+.AddCookie()
+.AddCustomOpenIdConnect(configuration, sectionName: "DfESignIn");
+
+builder.Services
+    .AddApplicationAuthorization(
+        configuration,
+        policyCustomizations: null,
+        apiAuthenticationScheme: null,
+        configureResourcePolicies: opts =>
+        {
+            opts.Actions.AddRange(["Read", "Write"]);
+            opts.ClaimType = "permission";
+        });
+
+builder.Services.AddScoped<ICustomClaimProvider, PermissionsClaimProvider>();
+
+builder.Services.AddGovUkFrontend();
+builder.Services.AddSingleton<IActionContextAccessor, ActionContextAccessor>();
+builder.Services.AddScoped<IHtmlHelper, HtmlHelper>();
+builder.Services.AddScoped<IFieldRendererService, FieldRendererService>();
 
 var app = builder.Build();
 
@@ -22,4 +70,4 @@ app.UseAuthorization();
 
 app.MapRazorPages();
 
-app.Run();
+await app.RunAsync();

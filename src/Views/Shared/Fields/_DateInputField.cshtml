@@ -1,0 +1,21 @@
+﻿@using Microsoft.AspNetCore.Html;
+@model DfE.ExternalApplications.Web.Services.FieldViewModel
+@{
+    var isRequired = Model.Field.Required ? "true" : "false";
+    var validationAttributes = new HtmlString(Model.ValidationAttributes);
+    var labelClasses = Model.Field.Label.IsPageHeading ? "govuk-label--l" : "";
+    DateTime value = DateTime.TryParse(Model.CurrentValue, out DateTime val) ? val : new DateTime();
+}
+
+<govuk-error-message for="@Model.Id">@Model.ErrorMessage</govuk-error-message>
+<govuk-date-input id="@Model.Id"
+             name-prefix="Data[@Model.Field.FieldId]"
+                value="@Model.CurrentValue">
+@if (Model.ErrorMessage != String.Empty)
+    {
+        <govuk-date-input-error-message>
+        @Model.ErrorMessage
+        </govuk-date-input-error-message>
+
+    }
+</govuk-date-input>

@@ -1,0 +1,32 @@
+﻿@using Microsoft.AspNetCore.Html;
+@model DfE.ExternalApplications.Web.Services.FieldViewModel
+@{
+    var isRequired = Model.Field.Required ? "true" : "false";
+    var validationAttributes = new HtmlString(Model.ValidationAttributes);
+    var options = Model.Field.Options ?? new List<DfE.ExternalApplications.Web.Models.Option>();
+    var legendClasses = Model.Field.Label.IsPageHeading == true ? "govuk-fieldset__legend--l" : "";
+}
+
+<govuk-radios id="@Model.Id" name="Data[@Model.Field.FieldId]">
+    <govuk-radios-fieldset>
+        <govuk-radios-fieldset-legend is-page-heading="@Model.Field.Label.IsPageHeading" class="@legendClasses">
+            @Model.Field.Label.Value
+        </govuk-radios-fieldset-legend>
+
+        <govuk-radios-hint>
+            @Model.Field.Tooltip
+        </govuk-radios-hint>
+
+        @if (Model.ErrorMessage != String.Empty)
+        {
+            <govuk-radios-error-message ignore-modelstate-errors>
+                @Model.ErrorMessage
+            </govuk-radios-error-message>
+        }
+
+        @foreach (var opt in options)
+        {
+            <govuk-radios-item checked="@Model.CurrentValue == opt.Value" value="@opt.Value">@opt.Label</govuk-radios-item>
+        }
+    </govuk-radios-fieldset>
+</govuk-radios>
