@@ -14,6 +14,7 @@ namespace DfE.ExternalApplications.Web.Pages
     public class RenderFormModel : PageModel
     {
         public FormTemplate Template { get; set; }
+        [BindProperty(SupportsGet = true, Name = "referenceNumber")] public string ReferenceNumber { get; set; }
         [BindProperty] public Dictionary<string, object> Data { get; set; } = new();
         [BindProperty] public string CurrentPageId { get; set; }
 
@@ -70,8 +71,8 @@ namespace DfE.ExternalApplications.Web.Pages
                 var next = flatPages[index + 1];
                 return RedirectToPage(new { pageId = next.PageId });
             }
-
-            return Redirect("~/render-form");
+            
+            return Redirect($"~/render-form/{ReferenceNumber}");
         }
 
         private void LoadTemplate()

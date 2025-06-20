@@ -1,4 +1,5 @@
 ﻿@page "/dashboard"
+@using DfE.ExternalApplications.Web.Models
 @using GovUk.Frontend.AspNetCore.TagHelpers
 @using Microsoft.AspNetCore.Authorization
 @addTagHelper *, DfE.CoreLibs.Security
@@ -9,14 +10,60 @@
     ViewData["Title"] = "Transfer academies to another academy trust";
 }
 
-<div class="text-center">
+<div class="govuk-grid-row">
+    <div class="govuk-grid-column-full govuk-!-margin-bottom-6">
+        <h1 class="govuk-heading-xl govuk-!-margin-bottom-9">
+            Your applications
+        </h1>
+        <p class="govuk-body">If you start an application, you will be the lead applicant for it.</p>
+        <form action="/render-form/240315-XYZ89" method="get">
+            <button class="govuk-button govuk-!-margin-bottom-9" type="submit">Start new application</button>
+        </form>
+        <h2 class="govuk-heading-l govuk-!-margin-bottom-3">
+            Applications in progress
+        </h2>
 
-    <p>
-        Hello, <strong>@Model.FirstName @Model.LastName</strong><br />
-        Your email is <strong>@Model.Email</strong>.<br/>
-        Your organisation is <strong>@Model.OrganisationName</strong>.
-    </p>
+        @if (Model.Applications.Count == 0)
+        {
+             <p class="govuk-body">You have no applications in progress.</p>
+        }
+        else
+        {
+            <table class="govuk-table">
+                <thead class="govuk-table__head">
+                    <tr class="govuk-table__row">
+                        <th scope="col" class="govuk-table__header">Reference number</th>
+                        <th scope="col" class="govuk-table__header">Date started</th>
+                        <th scope="col" class="govuk-table__header">Status</th>
+                        <th scope="col" class="govuk-table__header">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="govuk-table__body">
+                    @foreach (Application app in Model.Applications)
+                    {
+                        var action = @app.Status == "Submitted" ? "View application" : "Continue application";
+                        <tr class="govuk-table__row">
+                            <td class="govuk-table__cell">@app.ReferenceNumber</td>
+                            <td class="govuk-table__cell">@app.DateStarted.ToLongDateString()</td>
+                            <td class="govuk-table__cell">
+                                <strong class="govuk-tag govuk-tag--blue">
+                                    @app.Status
+                                </strong>
+                            </td>
+                            <td class="govuk-table__cell">
 
+                                <a href="/render-form/@app.ReferenceNumber" class="govuk-link">@action</a>
+
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+    </div>
+</div>
+@* 
     @if ((await AuthService.AuthorizeAsync(User, "task1", "CanRead")).Succeeded)
     {
     <p>User has Read Access to Task 1</p>
@@ -24,8 +71,5 @@
     
     <authorize resource="task2" policy="CanRead">
         <p>User has Read Access to Task 2</p>
-    </authorize>
+    </authorize> *@
     
-
-</div>
-<govuk-button-link is-start-button="true" href="/render-form">Start new application</govuk-button-link>
