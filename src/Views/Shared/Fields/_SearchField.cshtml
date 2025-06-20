@@ -1,0 +1,53 @@
+﻿@using Microsoft.AspNetCore.Html;
+
+@model DfE.ExternalApplications.Web.Services.FieldViewModel
+
+@{
+    var placeholderText = Html.Raw("e.g. st mary's primary school");
+    var labelClasses = Model.Field.Label.IsPageHeading ? "govuk-label--l" : "";
+    var endpoint = Html.Raw(Model.Field.Settings!.TryGetValue("searchEndpoint", out var e) ? e : "");
+    var fieldId = $"Data_{Model.Field.FieldId}";
+}
+
+<link rel="stylesheet" href="https://unpkg.com/accessible-autocomplete@2.0.4/dist/accessible-autocomplete.min.no-polyfill.css">
+
+<govuk-error-message for="@Model.Id">@Model.ErrorMessage</govuk-error-message>
+<govuk-input id="@Model.Id"
+             name="Data[@Model.Field.FieldId]"
+             value="@Model.CurrentValue">
+    <govuk-input-label is-page-heading="@Model.Field.Label.IsPageHeading"
+                       class="@labelClasses">
+        @Model.Field.Label.Value
+    </govuk-input-label>
+    <govuk-input-hint>
+        @Model.Field.Tooltip
+    </govuk-input-hint>
+
+</govuk-input>
+
+<script src="https://unpkg.com/accessible-autocomplete@2.0.4/dist/accessible-autocomplete.min.js"></script>
+<script>
+
+    const fieldId = "@fieldId"
+    const endpoint = "@endpoint"
+
+    accessibleAutocomplete({
+        element: document.querySelector(`#${fieldId}`).parentElement,
+        id: fieldId,
+        name: fieldId,
+        source: async function (query, populateResults) {
+            if (!query || query.length < 3) return;
+            try {
+                const response = await fetch(`?handler=SearchSuggestions&endpoint=${encodeURIComponent(endpoint)}&query=${encodeURIComponent(query)}`);
+                if (!response.ok) throw new Error('Network response was not ok');
+                const results = await response.json();
+                populateResults(results);
+            } catch (error) {
+                console.error("Autocomplete fetch failed:", error);
+                populateResults([]);
+            }
+        },
+        minLength: 3,         // :point_left: Triggers suggestions after 3 characters
+        autoselect: true
+    });
+</script>

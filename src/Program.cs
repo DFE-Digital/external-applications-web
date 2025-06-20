@@ -44,12 +44,20 @@ builder.Services
             opts.ClaimType = "permission";
         });
 
+builder.Services.AddHttpClient("academiesApiClient", client =>
+{
+    client.BaseAddress = new Uri("https://api.dev.academies.education.gov.uk/");
+    client.DefaultRequestHeaders.Add("X-API-Key", "0744908d-7fdb-4140-8141-6c69268b4d1a");
+});
+
 builder.Services.AddScoped<ICustomClaimProvider, PermissionsClaimProvider>();
 
 builder.Services.AddGovUkFrontend();
 builder.Services.AddSingleton<IActionContextAccessor, ActionContextAccessor>();
 builder.Services.AddScoped<IHtmlHelper, HtmlHelper>();
 builder.Services.AddScoped<IFieldRendererService, FieldRendererService>();
+
+builder.Services.AddHttpClient<ISearchService, SearchService>();
 
 var app = builder.Build();
 

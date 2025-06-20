@@ -111,6 +111,9 @@ namespace DfE.ExternalApplications.Web.Models
         [JsonPropertyName("complexField")]
         public string? ComplexField { get; set; }
 
+        [JsonPropertyName("settings")]
+        public Dictionary<string, object>? Settings { get; set; }
+
         public string? Value { get; set; }
     }
 

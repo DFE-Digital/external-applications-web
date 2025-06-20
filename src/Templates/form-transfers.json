@@ -118,17 +118,11 @@
               "pageOrder": 2,
               "fields": [
                 {
-                  "fieldId": "age",
-                  "type": "text",
+                  "fieldId": "trust",
+                  "type": "search",
                   "label": {
-                    "value": "How old are you?",
-                    "isPageHeading": false
-                  },
-                  "placeholder": "Enter your agee",
-                  "tooltip": "Enter your age",
-                  "order": 1,
-                  "visibility": {
-                    "default": true
+                    "value": "Choose a trust?",
+                    "isPageHeading": true
                   }
                 }
               ]

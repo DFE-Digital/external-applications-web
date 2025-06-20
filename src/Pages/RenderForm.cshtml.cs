@@ -4,15 +4,14 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Threading.Tasks;
 
 namespace DfE.ExternalApplications.Web.Pages
 {
     public class RenderFormModel : PageModel
     {
+        private readonly ISearchService _searchService;
+
         public FormTemplate Template { get; set; }
         [BindProperty] public Dictionary<string, object> Data { get; set; } = new();
         [BindProperty] public string CurrentPageId { get; set; }
@@ -22,16 +21,36 @@ namespace DfE.ExternalApplications.Web.Pages
         public Models.Page CurrentPage { get; set; }
 
         private readonly IFieldRendererService _renderer;
-        public RenderFormModel(IFieldRendererService renderer)
+        public RenderFormModel(IFieldRendererService renderer, ISearchService searchService)
         {
             _renderer = renderer;
+            _searchService = searchService;
         }
 
-        public void OnGet(string pageId)
+        public async void OnGet(string pageId)
         {
             CurrentPageId = pageId;
             LoadTemplate();
             InitializeCurrentPage(CurrentPageId);
+        }
+
+        public async Task<JsonResult> OnGetSearchSuggestionsAsync(string endpoint, string query)
+        {
+            if (string.IsNullOrWhiteSpace(query) || query.Length < 3)
+                return new JsonResult(Array.Empty<string>());
+
+            var results = await _searchService.Execute(endpoint + query);
+
+            List<string> names = new List<string>();
+
+            foreach (var item in results.Data)
+            {
+                names.Add((string)item.groupName);
+            }
+
+            return new JsonResult(names);
+
+
         }
 
         public async Task<IActionResult> OnPostPageAsync()
@@ -187,29 +206,6 @@ namespace DfE.ExternalApplications.Web.Pages
                       ""validations"": []
                     }
                   ]
-                },
-                {
-                  ""pageId"": ""page-2"",
-                  ""slug"": ""personal-info"",
-                  ""title"": ""Personal Information"",
-                  ""description"": ""Enter your personal details"",
-                  ""pageOrder"": 2,
-                  ""fields"": [
-                    {
-                      ""fieldId"": ""age"",
-                      ""type"": ""text"",
-                      ""label"": {
-                        ""value"": ""How old are you?"",
-                        ""isPageHeading"": false
-                      },
-                      ""placeholder"": ""Enter your agee"",
-                      ""tooltip"": ""Enter your age"",
-                      ""order"": 1,
-                      ""visibility"": {
-                        ""default"": true
-                      }
-                    }
-                  ]
                 }
               ]
             },
@@ -319,17 +315,35 @@ namespace DfE.ExternalApplications.Web.Pages
           ""tasks"": [
             {
               ""taskId"": ""task-3"",
-              ""taskName"": ""Final Questions"",
+              ""taskName"": ""Trust Information"",
               ""taskOrder"": 3,
               ""taskStatus"": ""Incomplete"",
               ""pages"": [
                 {
-                  ""pageId"": ""page-4"",
-                  ""slug"": ""final-details"",
-                  ""title"": ""Additional Information"",
-                  ""description"": ""Provide additional details"",
+                  ""pageId"": ""page-2"",
+                  ""slug"": ""personal-info"",
+                  ""title"": ""Personal Information"",
+                  ""description"": ""Enter your personal details"",
                   ""pageOrder"": 1,
-                  ""fields"": []
+                  ""fields"": [
+                    {
+                      ""fieldId"": ""choose-trust"",
+                      ""type"": ""search"",
+                      ""label"": {
+                        ""value"": ""Choose the trust"",
+                        ""isPageHeading"": false
+                      },
+                      ""placeholder"": ""Search for a trust"",
+                      ""tooltip"": ""Search for a trust"",
+                      ""order"": 1,
+                      ""visibility"": {
+                        ""default"": true
+                      },
+                      ""settings"": {
+                        ""searchEndpoint"": ""https://api.dev.academies.education.gov.uk/trusts?page=1&count=10&groupname=""
+                      }
+                    }
+                  ]
                 }
               ]
             }
