@@ -41,14 +41,14 @@ namespace DfE.ExternalApplications.Web.Pages
 
             var results = await _searchService.Execute(endpoint + query);
 
-            List<string> names = new List<string>();
+            List<SearchResult> searchResults = new List<SearchResult>();
 
             foreach (var item in results.Data)
             {
-                names.Add((string)item.groupName);
+                searchResults.Add(new SearchResult { Label = item.groupName, Hint = item.ukprn});
             }
 
-            return new JsonResult(names);
+            return new JsonResult(searchResults);
 
 
         }
