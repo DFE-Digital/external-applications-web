@@ -39,7 +39,7 @@ namespace DfE.ExternalApplications.Web.Pages
             if (string.IsNullOrWhiteSpace(query) || query.Length < 3)
                 return new JsonResult(Array.Empty<string>());
 
-            var results = await _searchService.Execute(endpoint + query);
+            var results = await _searchService.Execute(string.Format(endpoint, query));
 
             List<SearchResult> searchResults = new List<SearchResult>();
 
@@ -340,7 +340,7 @@ namespace DfE.ExternalApplications.Web.Pages
                         ""default"": true
                       },
                       ""settings"": {
-                        ""searchEndpoint"": ""https://api.dev.academies.education.gov.uk/trusts?page=1&count=10&groupname=""
+                        ""searchEndpoint"": ""https://api.dev.academies.education.gov.uk/trusts?page=1&count=10&groupname={0}&ukprn={0}&companieshousenumber={0}""
                       }
                     }
                   ]
