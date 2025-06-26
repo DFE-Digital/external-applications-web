@@ -1,6 +1,10 @@
 using DfE.CoreLibs.Security.Authorization;
 using DfE.CoreLibs.Security.Interfaces;
 using DfE.CoreLibs.Security.OpenIdConnect;
+using DfE.ExternalApplications.Application.Interfaces;
+using DfE.ExternalApplications.Infrastructure.Parsers;
+using DfE.ExternalApplications.Infrastructure.Providers;
+using DfE.ExternalApplications.Infrastructure.Stores;
 using DfE.ExternalApplications.Web.Security;
 using DfE.ExternalApplications.Web.Services;
 using GovUk.Frontend.AspNetCore;
@@ -15,12 +19,9 @@ var builder = WebApplication.CreateBuilder(args);
 ConfigurationManager configuration = builder.Configuration;
 
 // Add services to the container.
-builder.Services.AddRazorPages();
-
 builder.Services.AddRazorPages(options =>
 {
-    options.Conventions
-        .AuthorizeFolder("/", "OpenIdConnectPolicy");
+    options.Conventions.AuthorizeFolder("/", "OpenIdConnectPolicy");
 });
 
 builder.Services.AddHttpContextAccessor();
@@ -50,7 +51,12 @@ builder.Services.AddGovUkFrontend();
 builder.Services.AddSingleton<IActionContextAccessor, ActionContextAccessor>();
 builder.Services.AddScoped<IHtmlHelper, HtmlHelper>();
 builder.Services.AddScoped<IFieldRendererService, FieldRendererService>();
-
+builder.Services.AddHttpClient<ITemplateStore, ApiTemplateStore>(client =>
+{
+    client.BaseAddress = new Uri(configuration["Backend:BaseUrl"]!);
+});
+builder.Services.AddSingleton<IFormTemplateParser, JsonFormTemplateParser>();
+builder.Services.AddScoped<IFormTemplateProvider, FormTemplateProvider>();
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

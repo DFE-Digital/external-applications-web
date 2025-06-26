@@ -7,12 +7,15 @@
 }
 
 <govuk-error-message for="@Model.Id">@Model.ErrorMessage</govuk-error-message>
-<govuk-textarea
-             id="@Model.Id"
+<govuk-input id="@Model.Id"
              name="Data[@Model.Field.FieldId]"
              value="@Model.CurrentValue">
-     <govuk-textarea-label is-page-heading="@Model.Field.Label.IsPageHeading" class="@labelClasses">@Model.Field.Label.Value</govuk-textarea-label>
-     <govuk-textarea-hint>@Model.Field.Tooltip</govuk-textarea-hint>
-     <govuk-textarea-value>@Model.CurrentValue</govuk-textarea-value>
-</govuk-textarea>
+            <govuk-input-label is-page-heading="@Model.Field.Label.IsPageHeading"
+                               class="@(Model.Field.Label.IsPageHeading ? "govuk-label--l" : "")">
+                @Model.Field.Label.Value
+            </govuk-input-label>
+                  <govuk-input-hint>
+                      @Model.Field.Tooltip
+                  </govuk-input-hint>
 
+</govuk-input>

@@ -1,13 +1,11 @@
-using DfE.ExternalApplications.Web.Models;
+using DfE.ExternalApplications.Application.Interfaces;
+using DfE.ExternalApplications.Domain.Models;
 using DfE.ExternalApplications.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
+using Task = System.Threading.Tasks.Task;
 
 namespace DfE.ExternalApplications.Web.Pages
 {
@@ -15,28 +13,32 @@ namespace DfE.ExternalApplications.Web.Pages
     {
         public FormTemplate Template { get; set; }
         [BindProperty] public Dictionary<string, object> Data { get; set; } = new();
+        [BindProperty(SupportsGet = true)] public string TemplateId { get; set; }
         [BindProperty] public string CurrentPageId { get; set; }
 
         public TaskGroup CurrentGroup { get; set; }
-        public Models.Task CurrentTask { get; set; }
-        public Models.Page CurrentPage { get; set; }
+        public Domain.Models.Task CurrentTask { get; set; }
+        public Domain.Models.Page CurrentPage { get; set; }
 
         private readonly IFieldRendererService _renderer;
-        public RenderFormModel(IFieldRendererService renderer)
+        private readonly IFormTemplateProvider _templateProvider;
+        public RenderFormModel(IFieldRendererService renderer, IFormTemplateProvider templateProvider)
         {
             _renderer = renderer;
+            _templateProvider = templateProvider;
         }
 
-        public void OnGet(string pageId)
+        public async Task OnGetAsync(string templateId, string pageId)
         {
+            TemplateId = templateId;
             CurrentPageId = pageId;
-            LoadTemplate();
+            await LoadTemplateAsync();
             InitializeCurrentPage(CurrentPageId);
         }
 
         public async Task<IActionResult> OnPostPageAsync()
         {
-            LoadTemplate();
+            await LoadTemplateAsync();
             InitializeCurrentPage(CurrentPageId);
 
             foreach (var key in Request.Form.Keys)
@@ -68,15 +70,19 @@ namespace DfE.ExternalApplications.Web.Pages
             if (index >= 0 && index < CurrentTask.Pages.Count - 1)
             {
                 var next = flatPages[index + 1];
-                return RedirectToPage(new { pageId = next.PageId });
+                return RedirectToPage(new { templateId = TemplateId, pageId = next.PageId });
             }
 
-            return Redirect("~/render-form");
+            return Redirect($"~/render-form/{TemplateId}");
+        }
+
+        private async Task LoadTemplateAsync()
+        {
+            Template = await _templateProvider.GetTemplateAsync(TemplateId);
         }
 
         private void LoadTemplate()
         {
-            // Hard-coded JSON (verbatim string literal, with all " doubled)
             var json = @"
     {
       ""templateId"": ""form-001"",
@@ -360,7 +366,7 @@ namespace DfE.ExternalApplications.Web.Pages
             CurrentTask = pair.Task;
         }
 
-        private void ValidatePage(Models.Page page)
+        private void ValidatePage(Domain.Models.Page page)
         {
             foreach (var field in page.Fields)
             {

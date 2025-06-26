@@ -1,4 +1,4 @@
-﻿@page "/render-form/{pageId?}"
+﻿﻿@page "/render-form/{templateId}/{pageId?}"
 @model RenderFormModel
 @inject DfE.ExternalApplications.Web.Services.IFieldRendererService FieldRenderer
 @{
@@ -10,7 +10,7 @@
     {
         <form method="post" asp-page-handler="Page">
             <input type="hidden" asp-for="CurrentPageId" />
-            <govuk-back-link href="/render-form/">Back</govuk-back-link>
+            <govuk-back-link href="/render-form/@Model.TemplateId">Back</govuk-back-link>
             <h1 class="govuk-heading-xl govuk-!-margin-bottom-6">@Model.CurrentTask.TaskName</h1>
 
             <govuk-error-summary>

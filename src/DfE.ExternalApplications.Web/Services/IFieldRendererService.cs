@@ -1,8 +1,5 @@
-﻿using Microsoft.AspNetCore.Html;
-using System.Threading.Tasks;
-using DfE.ExternalApplications.Web.Models;
-using Microsoft.AspNetCore.Mvc.Rendering;
-using Microsoft.AspNetCore.Mvc.ModelBinding;
+﻿using DfE.ExternalApplications.Domain.Models;
+using Microsoft.AspNetCore.Html;
 
 namespace DfE.ExternalApplications.Web.Services
 {

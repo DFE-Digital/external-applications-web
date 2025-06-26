@@ -3,7 +3,7 @@
 @{
     var isRequired = Model.Field.Required ? "true" : "false";
     var validationAttributes = new HtmlString(Model.ValidationAttributes);
-    var options = Model.Field.Options ?? new List<DfE.ExternalApplications.Web.Models.Option>();
+    var options = Model.Field.Options ?? new List<DfE.ExternalApplications.Domain.Models.Option>();
     var legendClasses = Model.Field.Label.IsPageHeading == true ? "govuk-fieldset__legend--l" : "";
 }
 

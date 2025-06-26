@@ -1,7 +1,7 @@
-﻿using DfE.ExternalApplications.Web.Models;
-using Microsoft.AspNetCore.Mvc.ModelBinding;
+﻿using Microsoft.AspNetCore.Mvc.ModelBinding;
 using System.Linq;
 using System.Text;
+using DfE.ExternalApplications.Domain.Models;
 
 namespace DfE.ExternalApplications.Web.Services
 
