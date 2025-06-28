@@ -1,4 +1,4 @@
-﻿﻿@page "/render-form/{templateId}/{pageId?}"
+﻿@page "/render-form/{pageId?}"
 @model RenderFormModel
 @inject DfE.ExternalApplications.Web.Services.IFieldRendererService FieldRenderer
 @{
@@ -10,15 +10,15 @@
     {
         <form method="post" asp-page-handler="Page">
             <input type="hidden" asp-for="CurrentPageId" />
-            <govuk-back-link href="/render-form/@Model.TemplateId">Back</govuk-back-link>
+            <govuk-back-link href="/render-form">Back</govuk-back-link>
             <h1 class="govuk-heading-xl govuk-!-margin-bottom-6">@Model.CurrentTask.TaskName</h1>
 
             <govuk-error-summary>
-            @{
-                var ModelStateWithFieldProps = from m in ModelState
-                                                 join f in Model.CurrentPage.Fields on m.Key.ToString() equals f.FieldId
-                                                 select new { m, f };
-            }
+                @{
+                    var ModelStateWithFieldProps = from m in ModelState
+                        join f in Model.CurrentPage.Fields on m.Key.ToString() equals f.FieldId
+                        select new { m, f };
+                }
                 @foreach (var s in ModelStateWithFieldProps.OrderBy(s => s.f.Order))
                 {
                     foreach (var e in s.m.Value.Errors)
@@ -38,7 +38,7 @@
                 var fieldModelState = ModelState.Where(f => f.Key == field.FieldId).FirstOrDefault();
                 var errorMessage = fieldModelState.Value?.Errors?.FirstOrDefault()?.ErrorMessage ?? String.Empty;
 
-                @await FieldRenderer.RenderFieldAsync(field, "Data", currentValue, errorMessage)
+                @await FieldRenderer.RenderFieldAsync(field, "Data", currentValue, errorMessage);
             }
 
             <govuk-button type="submit" name="handler" value="Page">Save and continue</govuk-button>

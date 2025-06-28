@@ -2,6 +2,7 @@
 using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
+using DfE.ExternalApplications.Client.Contracts;
 
 namespace DfE.ExternalApplications.Web.Pages
 {
@@ -12,15 +13,18 @@ namespace DfE.ExternalApplications.Web.Pages
         public string? FirstName { get; private set; }
         public string? LastName { get; private set; }
         public string? OrganisationName { get; private set; }
+        private readonly IUsersClient _usersClient;
 
 
-        public IndexModel(ILogger<IndexModel> logger)
+        public IndexModel(ILogger<IndexModel> logger, IUsersClient usersClient)
         {
             _logger = logger;
+            _usersClient = usersClient;
         }
 
-        public void OnGet()
+        public async Task OnGet()
         {
+
             Email = User.FindFirst(ClaimTypes.Email)?.Value
                     ?? User.FindFirst("email")?.Value;
 

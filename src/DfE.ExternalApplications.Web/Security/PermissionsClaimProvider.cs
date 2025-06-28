@@ -1,29 +1,39 @@
 ﻿using DfE.CoreLibs.Security.Interfaces;
 using System.Security.Claims;
+using DfE.ExternalApplications.Client.Contracts;
+using Microsoft.Extensions.Caching.Memory;
+using DfE.ExternalApplications.Web.Middleware;
 
 namespace DfE.ExternalApplications.Web.Security;
 
-public record UserPermission(string ResourceKey, string Action);
-
-public class PermissionsClaimProvider() : ICustomClaimProvider
+public class PermissionsClaimProvider : ICustomClaimProvider
 {
-    public async Task<IEnumerable<Claim>> GetClaimsAsync(ClaimsPrincipal principal)
+    private readonly IMemoryCache _cache;
+
+    public PermissionsClaimProvider(IMemoryCache cache)
+    {
+        _cache = cache;
+    }
+
+    public Task<IEnumerable<Claim>> GetClaimsAsync(ClaimsPrincipal principal)
     {
         var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(userId))
-            return Array.Empty<Claim>();
+            return Task.FromResult(Enumerable.Empty<Claim>());
 
-        var permissions = new List<UserPermission>()
+        var cacheKey = $"{PermissionsCacheMiddleware.PermissionsCacheKeyPrefix}{userId}";
+        
+        if (_cache.TryGetValue(cacheKey, out dynamic permissions))
         {
-            new UserPermission("task1", "Read"),
-            new UserPermission("task2", "Write")
-        };
+            var claims = ((IEnumerable<dynamic>)permissions).Select(p =>
+                new Claim(
+                    "permission",
+                    $"{p.ResourceType}:{p.ResourceKey}:{p.AccessType}"
+                )
+            );
+            return Task.FromResult(claims);
+        }
 
-        return permissions.Select(p =>
-            new Claim(
-                "permission",
-                $"{p.ResourceKey}:{p.Action}"
-            )
-        );
+        return Task.FromResult(Enumerable.Empty<Claim>());
     }
 }

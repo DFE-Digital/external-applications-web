@@ -1,10 +1,14 @@
 using DfE.CoreLibs.Security.Authorization;
 using DfE.CoreLibs.Security.Interfaces;
 using DfE.CoreLibs.Security.OpenIdConnect;
+using DfE.ExternalApplications.Api.Client.Extensions;
 using DfE.ExternalApplications.Application.Interfaces;
+using DfE.ExternalApplications.Client;
+using DfE.ExternalApplications.Client.Contracts;
 using DfE.ExternalApplications.Infrastructure.Parsers;
 using DfE.ExternalApplications.Infrastructure.Providers;
 using DfE.ExternalApplications.Infrastructure.Stores;
+using DfE.ExternalApplications.Web.Middleware;
 using DfE.ExternalApplications.Web.Security;
 using DfE.ExternalApplications.Web.Services;
 using GovUk.Frontend.AspNetCore;
@@ -22,9 +26,14 @@ ConfigurationManager configuration = builder.Configuration;
 builder.Services.AddRazorPages(options =>
 {
     options.Conventions.AuthorizeFolder("/", "OpenIdConnectPolicy");
+    options.Conventions.AllowAnonymousToPage("/Index");
+
 });
 
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddDistributedMemoryCache();
+builder.Services.AddSession();
+builder.Services.AddMemoryCache();
 
 builder.Services.AddAuthentication(options =>
 {
@@ -47,14 +56,21 @@ builder.Services
 
 builder.Services.AddScoped<ICustomClaimProvider, PermissionsClaimProvider>();
 
+builder.Services.AddExternalApplicationsApiClient<ITokensClient, TokensClient>(configuration);
+builder.Services.AddExternalApplicationsApiClient<IUsersClient, UsersClient>(configuration);
+builder.Services.AddExternalApplicationsApiClient<IApplicationsClient, ApplicationsClient>(configuration);
+builder.Services.AddExternalApplicationsApiClient<ITemplatesClient, TemplatesClient>(configuration);
+
 builder.Services.AddGovUkFrontend();
 builder.Services.AddSingleton<IActionContextAccessor, ActionContextAccessor>();
 builder.Services.AddScoped<IHtmlHelper, HtmlHelper>();
 builder.Services.AddScoped<IFieldRendererService, FieldRendererService>();
-builder.Services.AddHttpClient<ITemplateStore, ApiTemplateStore>(client =>
-{
-    client.BaseAddress = new Uri(configuration["Backend:BaseUrl"]!);
-});
+builder.Services.AddSingleton<ITemplateStore, ApiTemplateStore>();
+
+//var templatesPath = Path.Combine(builder.Environment.ContentRootPath, "templates");
+//builder.Services.AddSingleton<ITemplateStore>(
+//    new JsonFileTemplateStore(templatesPath));
+
 builder.Services.AddSingleton<IFormTemplateParser, JsonFormTemplateParser>();
 builder.Services.AddScoped<IFormTemplateProvider, FormTemplateProvider>();
 var app = builder.Build();
@@ -72,6 +88,12 @@ app.UseStaticFiles();
 
 app.UseRouting();
 
+app.UseSession();
+app.UseHostTemplateResolution();
+
+app.UseAuthentication();
+app.UsePermissionsCache();
+app.UseTokenExpiryCheck();
 app.UseAuthorization();
 
 app.MapRazorPages();

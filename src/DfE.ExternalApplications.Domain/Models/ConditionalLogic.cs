@@ -1,5 +1,4 @@
 ﻿using System.Text.Json.Serialization;
-using DfE.ExternalApplications.Web.Models;
 
 namespace DfE.ExternalApplications.Domain.Models;
 
