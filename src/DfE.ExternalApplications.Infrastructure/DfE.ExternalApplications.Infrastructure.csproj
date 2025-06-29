@@ -7,7 +7,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="DfE.ExternalApplications.Api.Client" Version="1.0.0" />
+    <PackageReference Include="DfE.CoreLibs.Contracts" Version="1.0.20" />
+    <PackageReference Include="DfE.ExternalApplications.Api.Client" Version="1.0.2" />
   </ItemGroup>
 
   <ItemGroup>

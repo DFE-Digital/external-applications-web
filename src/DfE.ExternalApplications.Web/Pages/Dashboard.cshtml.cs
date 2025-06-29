@@ -2,8 +2,10 @@
 using System.Security.Claims;
 using System.Text.Json;
 using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response;
+using DfE.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using Microsoft.AspNetCore.Authorization;
 using DfE.ExternalApplications.Client.Contracts;
+using Microsoft.AspNetCore.Mvc;
 
 namespace DfE.ExternalApplications.Web.Pages
 {
@@ -33,6 +35,31 @@ namespace DfE.ExternalApplications.Web.Pages
         {
             await LoadUserDetailsAsync();
             await LoadApplicationsAsync();
+        }
+
+        public async Task<IActionResult> OnPostCreateApplicationAsync()
+        {
+            try
+            {
+                var templateId = HttpContext.Session.GetString("TemplateId") ?? string.Empty;
+
+                var response = await _applicationsClient.CreateApplicationAsync(new CreateApplicationRequest 
+                { 
+                    InitialResponseBody = "{}", 
+                    TemplateId = new Guid(templateId) 
+                });
+
+                return RedirectToPage("RenderForm", new { referenceNumber = response.ApplicationReference });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to create new application");
+                HasError = true;
+                ErrorMessage = "There was a problem creating your application. Please try again later.";
+                await LoadUserDetailsAsync();
+                await LoadApplicationsAsync();
+                return Page();
+            }
         }
 
         private async Task LoadApplicationsAsync()
