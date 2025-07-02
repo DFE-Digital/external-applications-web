@@ -5,15 +5,14 @@ ARG DOTNET_VERSION=8.0
 FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION}-azurelinux3.0 AS build
 WORKDIR /build
 
-# Mount GitHub Token as a Docker secret so that NuGet Feed can be accessed
-RUN --mount=type=secret,id=github_token dotnet nuget add source --username USERNAME --password $(cat /run/secrets/github_token) --store-password-in-clear-text --name github "https://nuget.pkg.github.com/DFE-Digital/index.json"
-
 # Copy the solution file and source code
 COPY ./DfE.ExternalApplications.Web.sln ./
 COPY ./src/ ./src/
 
-# Build and publish the dotnet solution
-RUN --mount=type=cache,target=/root/.nuget/packages \
+# Mount GitHub Token as a Docker secret, add NuGet source, and build the solution
+RUN --mount=type=secret,id=github_token \
+    --mount=type=cache,target=/root/.nuget/packages \
+    dotnet nuget add source --username USERNAME --password $(cat /run/secrets/github_token) --store-password-in-clear-text --name github "https://nuget.pkg.github.com/DFE-Digital/index.json" && \
     dotnet restore DfE.ExternalApplications.Web.sln && \
     dotnet build DfE.ExternalApplications.Web.sln --no-restore -c Release && \
     dotnet publish DfE.ExternalApplications.Web.sln --no-build -o /app
