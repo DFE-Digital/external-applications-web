@@ -8,14 +8,15 @@ WORKDIR /build
 # Mount GitHub Token as a Docker secret so that NuGet Feed can be accessed
 RUN --mount=type=secret,id=github_token dotnet nuget add source --username USERNAME --password $(cat /run/secrets/github_token) --store-password-in-clear-text --name github "https://nuget.pkg.github.com/DFE-Digital/index.json"
 
-# Copy the application code
-COPY ./src/ ./
+# Copy the solution file and source code
+COPY ./DfE.ExternalApplications.Web.sln ./
+COPY ./src/ ./src/
 
 # Build and publish the dotnet solution
 RUN --mount=type=cache,target=/root/.nuget/packages \
-    dotnet restore && \
-    dotnet build --no-restore -c Release && \
-    dotnet publish --no-build -o /app
+    dotnet restore DfE.ExternalApplications.Web.sln && \
+    dotnet build DfE.ExternalApplications.Web.sln --no-restore -c Release && \
+    dotnet publish DfE.ExternalApplications.Web.sln --no-build -o /app
 
 # Stage 2 - Build a runtime environment
 FROM mcr.microsoft.com/dotnet/aspnet:${DOTNET_VERSION}-azurelinux3.0 AS final
