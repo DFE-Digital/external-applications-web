@@ -1,6 +1,6 @@
-using DfE.ExternalApplications.Client.Contracts;
 using Microsoft.Extensions.Caching.Memory;
 using System.Security.Claims;
+using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 
 namespace DfE.ExternalApplications.Web.Middleware;
 

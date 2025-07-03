@@ -1,6 +1,6 @@
 ﻿using DfE.ExternalApplications.Application.Interfaces;
-using DfE.ExternalApplications.Client.Contracts;
 using System.Text;
+using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 
 namespace DfE.ExternalApplications.Infrastructure.Stores;
 

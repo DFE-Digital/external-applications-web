@@ -4,7 +4,7 @@ using System.Text.Json;
 using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using DfE.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using Microsoft.AspNetCore.Authorization;
-using DfE.ExternalApplications.Client.Contracts;
+using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DfE.ExternalApplications.Web.Pages

@@ -1,6 +1,5 @@
 ﻿using DfE.CoreLibs.Security.Interfaces;
 using System.Security.Claims;
-using DfE.ExternalApplications.Client.Contracts;
 using Microsoft.Extensions.Caching.Memory;
 using DfE.ExternalApplications.Web.Middleware;
 

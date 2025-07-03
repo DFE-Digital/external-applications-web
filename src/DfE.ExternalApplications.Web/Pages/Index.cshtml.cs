@@ -2,8 +2,7 @@
 using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
-using DfE.ExternalApplications.Client.Contracts;
-using DfE.ExternalApplications.Client;
+using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 
 namespace DfE.ExternalApplications.Web.Pages
 {
