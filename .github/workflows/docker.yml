@@ -1,6 +1,10 @@
 name: Dockerfile
 
 on:
+  push:
+    branches: [ main ]
+    paths:
+      - Dockerfile
   pull_request:
     paths:
       - Dockerfile
@@ -27,3 +31,23 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha
           push: false
+
+      - name: Export docker image as tar
+        run: docker save -o ${{ steps.build.outputs.imageid }}.tar ${{ steps.build.outputs.imageid }}
+
+      - name: Scan Docker image for CVEs
+        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # 0.30.0
+        with:
+          input: ${{ steps.build.outputs.imageid }}.tar
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          limit-severities-for-sarif: true
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+          github-pat: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload scan results to GitHub Security
+        uses: github/codeql-action/upload-sarif@181d5eefc20863364f96762470ba6f862bdef56b # v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
