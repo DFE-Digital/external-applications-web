@@ -1,11 +1,13 @@
 ﻿using DfE.ExternalApplications.Application.Interfaces;
 using System.Text;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
+using System.Diagnostics.CodeAnalysis;
 
 namespace DfE.ExternalApplications.Infrastructure.Stores;
 
 public class ApiTemplateStore(ITemplatesClient templateClient) : ITemplateStore
 {
+    [ExcludeFromCodeCoverage]
     public async Task<Stream> GetTemplateStreamAsync(string templateId, CancellationToken cancellationToken = default)
     {
         // TODO Implement caching

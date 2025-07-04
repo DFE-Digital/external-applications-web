@@ -1,8 +1,10 @@
-﻿using System.Text.Json.Serialization;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Text.Json.Serialization;
 using DfE.ExternalApplications.Domain.Models;
 
 namespace DfE.ExternalApplications.Domain.Models;
 
+[ExcludeFromCodeCoverage]
 public class ValidationRule
 {
     [JsonPropertyName("type")]

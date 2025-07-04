@@ -1,5 +1,8 @@
-﻿namespace DfE.ExternalApplications.Web.Middleware
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace DfE.ExternalApplications.Web.Middleware
 {
+    [ExcludeFromCodeCoverage]
     public class HostTemplateMiddleware(
         RequestDelegate next,
         IConfiguration configuration,

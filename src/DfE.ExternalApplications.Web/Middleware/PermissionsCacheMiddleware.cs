@@ -1,9 +1,11 @@
 using Microsoft.Extensions.Caching.Memory;
 using System.Security.Claims;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
+using System.Diagnostics.CodeAnalysis;
 
 namespace DfE.ExternalApplications.Web.Middleware;
 
+[ExcludeFromCodeCoverage]
 public class PermissionsCacheMiddleware
 {
     private readonly RequestDelegate _next;

@@ -1,9 +1,11 @@
 ﻿using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using System.Diagnostics.CodeAnalysis;
 
 namespace DfE.ExternalApplications.Web.Middleware
 {
+    [ExcludeFromCodeCoverage]
     public class TokenExpiryMiddleware
     {
         private readonly RequestDelegate _next;

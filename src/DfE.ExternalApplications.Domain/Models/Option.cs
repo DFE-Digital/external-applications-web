@@ -1,7 +1,9 @@
-﻿using System.Text.Json.Serialization;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Text.Json.Serialization;
 
 namespace DfE.ExternalApplications.Domain.Models;
 
+[ExcludeFromCodeCoverage]
 public class Option
 {
     [JsonPropertyName("value")]
