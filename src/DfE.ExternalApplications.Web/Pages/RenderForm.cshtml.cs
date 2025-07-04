@@ -46,7 +46,8 @@ namespace DfE.ExternalApplications.Web.Pages
 
             foreach (var key in Request.Form.Keys)
             {
-                var match = Regex.Match(key, @"^Data\[(.+?)\]$");
+
+                var match = Regex.Match(key, @"^Data\[(.+?)\]$", RegexOptions.None, TimeSpan.FromMilliseconds(200));
 
                 if (match.Success)
                 {
@@ -129,7 +130,7 @@ namespace DfE.ExternalApplications.Web.Pages
                                 ModelState.AddModelError(key, rule.Message);
                             break;
                         case "regex":
-                            if (!Regex.IsMatch(value, rule.Rule.ToString()) && !String.IsNullOrWhiteSpace(value))
+                            if (!Regex.IsMatch(value, rule.Rule.ToString(), RegexOptions.None, TimeSpan.FromMilliseconds(200)) && !String.IsNullOrWhiteSpace(value))
                                 ModelState.AddModelError(key, rule.Message);
                             break;
                         case "maxLength":
