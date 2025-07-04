@@ -43,6 +43,7 @@ jobs:
           echo "checked-out-sha=${CHECKED_OUT_SHA}" >> $GITHUB_OUTPUT
           echo "image-name=${{ env.IMAGE_NAME }}" >> $GITHUB_OUTPUT
 
+
   build-import-deploy:
     name: Deploy to ${{ needs.set-env.outputs.environment }}
     runs-on: ubuntu-24.04
@@ -54,6 +55,9 @@ jobs:
       id-token: write
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Build
         uses: DFE-Digital/deploy-azure-container-apps-action/.github/actions/build@v5.2.1
         with:

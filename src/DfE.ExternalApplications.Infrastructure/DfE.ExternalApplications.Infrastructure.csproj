@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DfE.CoreLibs.Contracts" Version="1.0.22" />
+    <PackageReference Include="GovUK.Dfe.ExternalApplications.Api.Client" Version="0.1.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DfE.ExternalApplications.Application\DfE.ExternalApplications.Application.csproj" />
+  </ItemGroup>
+
+</Project>
