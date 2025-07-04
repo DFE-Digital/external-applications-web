@@ -62,6 +62,7 @@ namespace DfE.ExternalApplications.Web.Services
         }
     }
 
+    [ExcludeFromCodeCoverage]
     internal class FakeView : IView
     {
         public string Path => string.Empty;

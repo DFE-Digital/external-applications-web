@@ -34,6 +34,7 @@ namespace DfE.ExternalApplications.Web.Middleware
         }
     }
 
+    [ExcludeFromCodeCoverage]
     public static class HostTemplateMiddlewareExtensions
     {
         public static IApplicationBuilder UseHostTemplateResolution(this IApplicationBuilder app)

@@ -19,6 +19,7 @@ using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 
+using System.Diagnostics.CodeAnalysis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -102,5 +103,6 @@ app.MapRazorPages();
 
 await app.RunAsync();
 
+
 [ExcludeFromCodeCoverage]
-public partial class Program { }
+public static partial class Program { }

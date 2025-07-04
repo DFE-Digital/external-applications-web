@@ -46,6 +46,7 @@ namespace DfE.ExternalApplications.Web.Middleware
         }
     }
 
+    [ExcludeFromCodeCoverage]
     public static class TokenExpiryMiddlewareExtensions
     {
         public static IApplicationBuilder UseTokenExpiryCheck(this IApplicationBuilder app)
