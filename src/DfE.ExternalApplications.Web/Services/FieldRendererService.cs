@@ -7,9 +7,11 @@ using DfE.ExternalApplications.Domain.Models;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.ViewEngines;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
+using System.Diagnostics.CodeAnalysis;
 
 namespace DfE.ExternalApplications.Web.Services
 {
+    [ExcludeFromCodeCoverage]
     public class FieldRendererService : IFieldRendererService
     {
         private readonly IServiceProvider _serviceProvider;

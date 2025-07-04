@@ -2,9 +2,11 @@
 using System.Security.Claims;
 using Microsoft.Extensions.Caching.Memory;
 using DfE.ExternalApplications.Web.Middleware;
+using System.Diagnostics.CodeAnalysis;
 
 namespace DfE.ExternalApplications.Web.Security;
 
+[ExcludeFromCodeCoverage]
 public class PermissionsClaimProvider : ICustomClaimProvider
 {
     private readonly IMemoryCache _cache;

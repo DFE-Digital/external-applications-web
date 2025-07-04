@@ -3,13 +3,13 @@ using DfE.ExternalApplications.Domain.Models;
 using DfE.ExternalApplications.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using System.Reflection;
-using System.Text.Json;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
 using Task = System.Threading.Tasks.Task;
 
 namespace DfE.ExternalApplications.Web.Pages
 {
+    [ExcludeFromCodeCoverage]
     public class RenderFormModel : PageModel
     {
         public FormTemplate Template { get; set; }

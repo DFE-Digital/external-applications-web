@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using DfE.CoreLibs.Security.Authorization;
 using DfE.CoreLibs.Security.Interfaces;
 using DfE.CoreLibs.Security.OpenIdConnect;
@@ -17,6 +18,7 @@ using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -99,3 +101,6 @@ app.UseAuthorization();
 app.MapRazorPages();
 
 await app.RunAsync();
+
+[ExcludeFromCodeCoverage]
+public partial class Program { }

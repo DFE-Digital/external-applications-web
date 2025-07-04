@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc.RazorPages;
+﻿using System.Diagnostics.CodeAnalysis;
+using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Security.Claims;
 using System.Text.Json;
 using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response;
@@ -9,6 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace DfE.ExternalApplications.Web.Pages
 {
+    [ExcludeFromCodeCoverage]
     [Authorize]
     public class DashboardModel : PageModel
     {

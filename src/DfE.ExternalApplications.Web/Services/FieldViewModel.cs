@@ -2,10 +2,12 @@
 using System.Linq;
 using System.Text;
 using DfE.ExternalApplications.Domain.Models;
+using System.Diagnostics.CodeAnalysis;
 
 namespace DfE.ExternalApplications.Web.Services
 
 {
+    [ExcludeFromCodeCoverage]
     public class FieldViewModel
     {
         public Field Field { get; }

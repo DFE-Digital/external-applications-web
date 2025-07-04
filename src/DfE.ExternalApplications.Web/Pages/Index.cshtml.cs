@@ -3,9 +3,11 @@ using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
+using System.Diagnostics.CodeAnalysis;
 
 namespace DfE.ExternalApplications.Web.Pages
 {
+    [ExcludeFromCodeCoverage]
     public class IndexModel : PageModel
     {
         private readonly ILogger<IndexModel> _logger;
