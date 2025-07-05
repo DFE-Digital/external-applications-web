@@ -1,6 +1,8 @@
 using DfE.ExternalApplications.Application.Interfaces;
 using DfE.ExternalApplications.Domain.Models;
 using DfE.ExternalApplications.Web.Services;
+using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Diagnostics.CodeAnalysis;
@@ -16,6 +18,7 @@ namespace DfE.ExternalApplications.Web.Pages
         [BindProperty(SupportsGet = true, Name = "referenceNumber")] public string ReferenceNumber { get; set; }
         [BindProperty] public Dictionary<string, object> Data { get; set; } = new();
         public string TemplateId { get; set; }
+        public Guid? ApplicationId { get; set; }
         [BindProperty] public string CurrentPageId { get; set; }
 
         public TaskGroup CurrentGroup { get; set; }
@@ -24,29 +27,49 @@ namespace DfE.ExternalApplications.Web.Pages
 
         private readonly IFieldRendererService _renderer;
         private readonly IFormTemplateProvider _templateProvider;
-        public RenderFormModel(IFieldRendererService renderer, IFormTemplateProvider templateProvider)
+        private readonly IApplicationResponseService _applicationResponseService;
+        private readonly IApplicationsClient _applicationsClient;
+        private readonly ILogger<RenderFormModel> _logger;
+
+        public RenderFormModel(
+            IFieldRendererService renderer, 
+            IFormTemplateProvider templateProvider,
+            IApplicationResponseService applicationResponseService,
+            IApplicationsClient applicationsClient,
+            ILogger<RenderFormModel> logger)
         {
             _renderer = renderer;
             _templateProvider = templateProvider;
+            _applicationResponseService = applicationResponseService;
+            _applicationsClient = applicationsClient;
+            _logger = logger;
         }
 
         public async Task OnGetAsync(string pageId)
         {
             TemplateId = HttpContext.Session.GetString("TemplateId") ?? string.Empty;
+            await EnsureApplicationIdAsync();
             CurrentPageId = pageId;
             await LoadTemplateAsync();
             InitializeCurrentPage(CurrentPageId);
+            
+            // If this is the first page and we have no accumulated data, start fresh
+            if (string.IsNullOrEmpty(CurrentPageId) && ApplicationId.HasValue)
+            {
+                // Clear any existing accumulated data when starting fresh
+                HttpContext.Session.Remove("AccumulatedFormData");
+            }
         }
 
         public async Task<IActionResult> OnPostPageAsync()
         {
             TemplateId = HttpContext.Session.GetString("TemplateId") ?? string.Empty;
+            await EnsureApplicationIdAsync();
             await LoadTemplateAsync();
             InitializeCurrentPage(CurrentPageId);
 
             foreach (var key in Request.Form.Keys)
             {
-
                 var match = Regex.Match(key, @"^Data\[(.+?)\]$", RegexOptions.None, TimeSpan.FromMilliseconds(200));
 
                 if (match.Success)
@@ -62,11 +85,27 @@ namespace DfE.ExternalApplications.Web.Pages
                 return Page();
             }
 
+            // Save the current page data to the API
+            if (ApplicationId.HasValue && Data.Any())
+            {
+                try
+                {
+                    await _applicationResponseService.SaveApplicationResponseAsync(ApplicationId.Value, Data, HttpContext.Session);
+                    _logger.LogInformation("Successfully saved response for Application {ApplicationId}, Page {PageId}", 
+                        ApplicationId.Value, CurrentPageId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to save response for Application {ApplicationId}, Page {PageId}", 
+                        ApplicationId.Value, CurrentPageId);
+                    // Continue with navigation even if save fails - we can show a warning to user later
+                }
+            }
+
             var flatPages = Template.TaskGroups
                 .SelectMany(g => g.Tasks).Where(t => t.TaskId == CurrentTask.TaskId)
                 .SelectMany(t => t.Pages)
                 .OrderBy(p => p.PageOrder)
-
                 .ToList();
 
             var index = flatPages.FindIndex(p => p.PageId == CurrentPage.PageId);
@@ -139,6 +178,47 @@ namespace DfE.ExternalApplications.Web.Pages
                             break;
                     }
                 }
+            }
+        }
+
+        private async Task EnsureApplicationIdAsync()
+        {
+            // First try to get ApplicationId from session (for newly created applications)
+            var applicationIdString = HttpContext.Session.GetString("ApplicationId");
+            var sessionReference = HttpContext.Session.GetString("ApplicationReference");
+
+            if (!string.IsNullOrEmpty(applicationIdString) && 
+                !string.IsNullOrEmpty(sessionReference) && 
+                sessionReference == ReferenceNumber)
+            {
+                if (Guid.TryParse(applicationIdString, out var sessionAppId))
+                {
+                    ApplicationId = sessionAppId;
+                    return;
+                }
+            }
+
+            // If not in session or different reference, try to get from API
+            try
+            {
+                var applications = await _applicationsClient.GetMyApplicationsAsync();
+                var application = applications.FirstOrDefault(a => a.ApplicationReference == ReferenceNumber);
+                
+                if (application != null)
+                {
+                    ApplicationId = application.ApplicationId;
+                    // Store in session for future use
+                    HttpContext.Session.SetString("ApplicationId", application.ApplicationId.ToString());
+                    HttpContext.Session.SetString("ApplicationReference", application.ApplicationReference);
+                }
+                else
+                {
+                    _logger.LogWarning("Could not find application with reference {ReferenceNumber}", ReferenceNumber);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to retrieve application information for reference {ReferenceNumber}", ReferenceNumber);
             }
         }
     }

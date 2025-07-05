@@ -5,6 +5,7 @@ using DfE.CoreLibs.Security.OpenIdConnect;
 using DfE.ExternalApplications.Application.Interfaces;
 using DfE.ExternalApplications.Infrastructure.Parsers;
 using DfE.ExternalApplications.Infrastructure.Providers;
+using DfE.ExternalApplications.Infrastructure.Services;
 using DfE.ExternalApplications.Infrastructure.Stores;
 using DfE.ExternalApplications.Web.Middleware;
 using DfE.ExternalApplications.Web.Security;
@@ -68,6 +69,7 @@ builder.Services.AddGovUkFrontend();
 builder.Services.AddSingleton<IActionContextAccessor, ActionContextAccessor>();
 builder.Services.AddScoped<IHtmlHelper, HtmlHelper>();
 builder.Services.AddScoped<IFieldRendererService, FieldRendererService>();
+builder.Services.AddScoped<IApplicationResponseService, ApplicationResponseService>();
 builder.Services.AddSingleton<ITemplateStore, ApiTemplateStore>();
 
 //var templatesPath = Path.Combine(builder.Environment.ContentRootPath, "templates");
