@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Claims;
 using System.Text.Json;
+using DfE.ExternalApplications.Application.Interfaces;
 
 namespace DfE.ExternalApplications.Web.Pages
 {
@@ -16,7 +17,8 @@ namespace DfE.ExternalApplications.Web.Pages
     public class DashboardModel(
         ILogger<DashboardModel> logger,
         IApplicationsClient applicationsClient,
-        IHttpContextAccessor httpContextAccessor)
+        IHttpContextAccessor httpContextAccessor,
+        IApplicationResponseService applicationResponseService)
         : PageModel
     {
         public string? Email { get; private set; }
@@ -47,6 +49,12 @@ namespace DfE.ExternalApplications.Web.Pages
 
                 HttpContext.Session.SetString("ApplicationId", response.ApplicationId.ToString());
                 HttpContext.Session.SetString("ApplicationReference", response.ApplicationReference);
+
+                // Clear any existing accumulated form data when starting a new application
+                applicationResponseService.ClearAccumulatedFormData(HttpContext.Session);
+                HttpContext.Session.SetString("CurrentAccumulatedApplicationId", response.ApplicationId.ToString());
+                
+                logger.LogInformation("Created new application {ApplicationId} and cleared accumulated form data", response.ApplicationId);
 
                 httpContextAccessor.ForceTokenRefresh();
 

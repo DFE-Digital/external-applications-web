@@ -53,12 +53,11 @@ namespace DfE.ExternalApplications.Web.Pages
             await LoadTemplateAsync();
             InitializeCurrentPage(CurrentPageId);
             
-            // If this is the first page and we have no accumulated data, start fresh
-            if (string.IsNullOrEmpty(CurrentPageId) && ApplicationId.HasValue)
-            {
-                // Clear any existing accumulated data when starting fresh
-                HttpContext.Session.Remove("AccumulatedFormData");
-            }
+            // Check if we need to clear session data for a new application
+            CheckAndClearSessionForNewApplication();
+            
+            // Load accumulated form data from session to pre-populate fields
+            LoadAccumulatedDataFromSession();
         }
 
         public async Task<IActionResult> OnPostPageAsync()
@@ -75,7 +74,21 @@ namespace DfE.ExternalApplications.Web.Pages
                 if (match.Success)
                 {
                     var fieldId = match.Groups[1].Value;
-                    Data[fieldId] = Request.Form[key];
+                    var formValue = Request.Form[key];
+                    
+                    // Convert StringValues to a simple string or array based on count
+                    if (formValue.Count == 1)
+                    {
+                        Data[fieldId] = formValue.ToString();
+                    }
+                    else if (formValue.Count > 1)
+                    {
+                        Data[fieldId] = formValue.ToArray();
+                    }
+                    else
+                    {
+                        Data[fieldId] = string.Empty;
+                    }
                 }
             }
 
@@ -178,6 +191,45 @@ namespace DfE.ExternalApplications.Web.Pages
                             break;
                     }
                 }
+            }
+        }
+
+        private void CheckAndClearSessionForNewApplication()
+        {
+            // Check if we're working with a different application than what's stored in session
+            var sessionApplicationId = HttpContext.Session.GetString("CurrentAccumulatedApplicationId");
+            var currentApplicationId = ApplicationId?.ToString();
+            
+            if (!string.IsNullOrEmpty(sessionApplicationId) && 
+                sessionApplicationId != currentApplicationId)
+            {
+                // Clear accumulated data for the previous application
+                _applicationResponseService.ClearAccumulatedFormData(HttpContext.Session);
+                _logger.LogInformation("Cleared accumulated form data for previous application {PreviousApplicationId}, now working with {CurrentApplicationId}", 
+                    sessionApplicationId, currentApplicationId);
+            }
+            
+            // Store the current application ID for future reference
+            if (ApplicationId.HasValue)
+            {
+                HttpContext.Session.SetString("CurrentAccumulatedApplicationId", ApplicationId.Value.ToString());
+            }
+        }
+
+        private void LoadAccumulatedDataFromSession()
+        {
+            // Get accumulated form data from session and populate the Data dictionary
+            var accumulatedData = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
+            
+            if (accumulatedData.Any())
+            {
+                // Populate the Data dictionary with accumulated data
+                foreach (var kvp in accumulatedData)
+                {
+                    Data[kvp.Key] = kvp.Value;
+                }
+                
+                _logger.LogInformation("Loaded {Count} accumulated form data entries from session", accumulatedData.Count);
             }
         }
 

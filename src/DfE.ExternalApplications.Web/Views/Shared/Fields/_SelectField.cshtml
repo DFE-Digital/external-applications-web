@@ -19,7 +19,7 @@
         <govuk-select-hint>@Model.Field.Tooltip</govuk-select-hint>
         @foreach (var opt in options)
         {
-            <govuk-select-item value="@opt.Value">@opt.Label</govuk-select-item>
+            <govuk-select-item value="@opt.Value" selected="@(Model.CurrentValue == opt.Value)">@opt.Label</govuk-select-item>
         }
 </govuk-select>
 <govuk-error-message for="@Model.Id"></govuk-error-message>

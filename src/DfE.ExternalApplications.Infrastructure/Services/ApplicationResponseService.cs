@@ -66,14 +66,56 @@ public class ApplicationResponseService(
         
         try
         {
-            return JsonSerializer.Deserialize<Dictionary<string, object>>(jsonString) 
-                   ?? new Dictionary<string, object>();
+            var rawData = JsonSerializer.Deserialize<Dictionary<string, object>>(jsonString) 
+                         ?? new Dictionary<string, object>();
+            
+            var cleanedData = new Dictionary<string, object>();
+            foreach (var kvp in rawData)
+            {
+                cleanedData[kvp.Key] = CleanFormValue(kvp.Value);
+            }
+            
+            return cleanedData;
         }
         catch (JsonException ex)
         {
             logger.LogWarning(ex, "Failed to deserialize accumulated form data from session. Starting fresh.");
             return new Dictionary<string, object>();
         }
+    }
+    
+    private object CleanFormValue(object value)
+    {
+        if (value == null)
+            return string.Empty;
+            
+        if (value is JsonElement jsonElement)
+        {
+            return jsonElement.ValueKind switch
+            {
+                JsonValueKind.String => jsonElement.GetString() ?? string.Empty,
+                JsonValueKind.Array => jsonElement.GetArrayLength() == 1 
+                    ? jsonElement[0].GetString() ?? string.Empty 
+                    : jsonElement.EnumerateArray().Select(x => x.GetString() ?? string.Empty).ToArray(),
+                JsonValueKind.Number => jsonElement.GetDecimal().ToString(),
+                JsonValueKind.True => "true",
+                JsonValueKind.False => "false",
+                _ => value.ToString() ?? string.Empty
+            };
+        }
+        
+        if (value is string[] stringArray && stringArray.Length == 1)
+        {
+            return stringArray[0];
+        }
+        
+        return value.ToString() ?? string.Empty;
+    }
+
+    public void ClearAccumulatedFormData(ISession session)
+    {
+        session.Remove(SessionKeyFormData);
+        logger.LogInformation("Cleared accumulated form data from session");
     }
 
     public string TransformToResponseJson(Dictionary<string, object> formData, IEnumerable<Field> pageFields)

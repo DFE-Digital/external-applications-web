@@ -10,4 +10,5 @@ public interface IApplicationResponseService
     string TransformToResponseJson(Dictionary<string, object> formData, IEnumerable<Field> pageFields);
     void AccumulateFormData(Dictionary<string, object> newData, ISession session);
     Dictionary<string, object> GetAccumulatedFormData(ISession session);
+    void ClearAccumulatedFormData(ISession session);
 } 
