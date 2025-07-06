@@ -3,7 +3,7 @@
 @model DfE.ExternalApplications.Web.Services.FieldViewModel
 
 @{
-    var isRequired = Model.Field.Required ? "true" : "false";
+    var isRequired = Model.Field.Required ?? true;
     var validationAttributes = new HtmlString(Model.ValidationAttributes);
     var options = Model.Field.Options ?? new List<DfE.ExternalApplications.Domain.Models.Option>();
     var labelClasses = Model.Field.Label.IsPageHeading ? "govuk-label--l" : "";

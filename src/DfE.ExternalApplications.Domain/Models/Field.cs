@@ -22,7 +22,7 @@ public class Field
     public string? Tooltip { get; set; }
 
     [JsonPropertyName("required")]
-    public bool Required { get; set; }
+    public bool? Required { get; set; }
 
     [JsonPropertyName("order")]
     public required int Order { get; set; }

@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
+using System.Text.Json;
+using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using Task = System.Threading.Tasks.Task;
 
 namespace DfE.ExternalApplications.Web.Pages
@@ -216,6 +218,59 @@ namespace DfE.ExternalApplications.Web.Pages
             }
         }
 
+        private async Task LoadResponseDataIntoSessionAsync(ApplicationDto application)
+        {
+            if (application.LatestResponse?.ResponseBody == null)
+            {
+                _logger.LogInformation("No existing response data found for application {ApplicationReference}", application.ApplicationReference);
+                return;
+            }
+
+            try
+            {
+                // Parse the response body JSON
+                var responseData = JsonSerializer.Deserialize<Dictionary<string, object>>(application.LatestResponse.ResponseBody);
+                
+                if (responseData != null && responseData.Any())
+                {
+                    // Extract field values from the response structure
+                    var formData = new Dictionary<string, object>();
+                    
+                    foreach (var kvp in responseData)
+                    {
+                        // The response structure contains objects with 'value' and 'completed' properties
+                        if (kvp.Value is JsonElement jsonElement && jsonElement.ValueKind == JsonValueKind.Object)
+                        {
+                            if (jsonElement.TryGetProperty("value", out var valueElement))
+                            {
+                                var value = valueElement.ValueKind switch
+                                {
+                                    JsonValueKind.String => valueElement.GetString() ?? string.Empty,
+                                    JsonValueKind.Number => valueElement.GetDecimal().ToString(),
+                                    JsonValueKind.True => "true",
+                                    JsonValueKind.False => "false",
+                                    JsonValueKind.Null => string.Empty,
+                                    _ => valueElement.ToString()
+                                };
+                                formData[kvp.Key] = value;
+                            }
+                        }
+                    }
+                    
+                    // Clear existing session data and load the API data
+                    _applicationResponseService.ClearAccumulatedFormData(HttpContext.Session);
+                    _applicationResponseService.AccumulateFormData(formData, HttpContext.Session);
+                    
+                    _logger.LogInformation("Loaded {Count} field responses from API into session for application {ApplicationReference}", 
+                        formData.Count, application.ApplicationReference);
+                }
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogError(ex, "Failed to parse response body for application {ApplicationReference}", application.ApplicationReference);
+            }
+        }
+
         private void LoadAccumulatedDataFromSession()
         {
             // Get accumulated form data from session and populate the Data dictionary
@@ -232,6 +287,50 @@ namespace DfE.ExternalApplications.Web.Pages
                 _logger.LogInformation("Loaded {Count} accumulated form data entries from session", accumulatedData.Count);
             }
         }
+
+        public Domain.Models.TaskStatus GetTaskStatusFromSession(string taskId)
+        {
+            if (ApplicationId.HasValue)
+            {
+                var sessionKey = $"TaskStatus_{ApplicationId.Value}_{taskId}";
+                var statusString = HttpContext.Session.GetString(sessionKey);
+                
+                if (!string.IsNullOrEmpty(statusString) && 
+                    Enum.TryParse<Domain.Models.TaskStatus>(statusString, out var status))
+                {
+                    return status;
+                }
+            }
+            
+            // Fall back to the template's task status
+            return Domain.Models.TaskStatus.NotStarted;
+        }
+
+        public string GetTaskStatusDisplayClass(Domain.Models.TaskStatus status)
+        {
+            return status switch
+            {
+                Domain.Models.TaskStatus.Completed => "govuk-tag--green",
+                Domain.Models.TaskStatus.InProgress => "govuk-tag--blue",
+                Domain.Models.TaskStatus.NotStarted => "govuk-tag--grey",
+                Domain.Models.TaskStatus.CannotStartYet => "govuk-tag--orange",
+                _ => "govuk-tag--grey"
+            };
+        }
+
+        public string GetTaskStatusDisplayText(Domain.Models.TaskStatus status)
+        {
+            return status switch
+            {
+                Domain.Models.TaskStatus.Completed => "Completed",
+                Domain.Models.TaskStatus.InProgress => "In Progress",
+                Domain.Models.TaskStatus.NotStarted => "Not Started",
+                Domain.Models.TaskStatus.CannotStartYet => "Cannot Start Yet",
+                _ => "Not Started"
+            };
+        }
+
+
 
         private async Task EnsureApplicationIdAsync()
         {
@@ -253,8 +352,7 @@ namespace DfE.ExternalApplications.Web.Pages
             // If not in session or different reference, try to get from API
             try
             {
-                var applications = await _applicationsClient.GetMyApplicationsAsync();
-                var application = applications.FirstOrDefault(a => a.ApplicationReference == ReferenceNumber);
+                var application = await _applicationsClient.GetApplicationByReferenceAsync(ReferenceNumber);
                 
                 if (application != null)
                 {
@@ -262,6 +360,9 @@ namespace DfE.ExternalApplications.Web.Pages
                     // Store in session for future use
                     HttpContext.Session.SetString("ApplicationId", application.ApplicationId.ToString());
                     HttpContext.Session.SetString("ApplicationReference", application.ApplicationReference);
+                    
+                    // Load existing response data into session for existing applications
+                    await LoadResponseDataIntoSessionAsync(application);
                 }
                 else
                 {
