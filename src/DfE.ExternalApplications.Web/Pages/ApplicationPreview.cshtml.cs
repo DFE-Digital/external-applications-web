@@ -20,6 +20,7 @@ namespace DfE.ExternalApplications.Web.Pages
         public string TemplateId { get; set; }
         public Guid? ApplicationId { get; set; }
         public Dictionary<string, object> FormData { get; set; } = new();
+        public string ApplicationStatus { get; set; } = "InProgress";
 
         private readonly IFieldRendererService _renderer;
         private readonly IFormTemplateProvider _templateProvider;
@@ -47,8 +48,16 @@ namespace DfE.ExternalApplications.Web.Pages
             await EnsureApplicationIdAsync();
             await LoadTemplateAsync();
             LoadFormDataFromSession();
+            LoadApplicationStatus();
 
-            // Check if all tasks are completed before allowing access
+            // If application is not in progress, still allow viewing but with restrictions
+            if (!IsApplicationEditable())
+            {
+                // Allow viewing but change links will be hidden
+                return Page();
+            }
+
+            // Check if all tasks are completed before allowing access (for InProgress applications)
             if (!AreAllTasksCompleted())
             {
                 return RedirectToPage("/RenderForm", new { referenceNumber = ReferenceNumber });
@@ -70,15 +79,60 @@ namespace DfE.ExternalApplications.Web.Pages
                 return RedirectToPage("/RenderForm", new { referenceNumber = ReferenceNumber });
             }
 
-            // Here you would typically update the application status to "Submitted" via API
-            // For now, we'll just redirect to the confirmation page
-            
-            return RedirectToPage("/ApplicationSubmitted", new { referenceNumber = ReferenceNumber });
+            if (!ApplicationId.HasValue)
+            {
+                _logger.LogError("ApplicationId not found during submission for reference {ReferenceNumber}", ReferenceNumber);
+                return RedirectToPage("/RenderForm", new { referenceNumber = ReferenceNumber });
+            }
+
+            try
+            {
+                // Submit the application via API
+                var submittedApplication = await _applicationsClient.SubmitApplicationAsync(ApplicationId.Value);
+                
+                // Update session with new application status
+                if (submittedApplication != null)
+                {
+                    var statusKey = $"ApplicationStatus_{ApplicationId.Value}";
+                    HttpContext.Session.SetString(statusKey, submittedApplication.Status?.ToString() ?? "Submitted");
+                    _logger.LogInformation("Successfully submitted application {ApplicationId} with reference {ReferenceNumber}", 
+                        ApplicationId.Value, ReferenceNumber);
+                }
+                
+                return RedirectToPage("/ApplicationSubmitted", new { referenceNumber = ReferenceNumber });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to submit application {ApplicationId} with reference {ReferenceNumber}", 
+                    ApplicationId.Value, ReferenceNumber);
+                
+                // You might want to show an error message to the user
+                // For now, redirect back to preview page
+                return RedirectToPage("/ApplicationPreview", new { referenceNumber = ReferenceNumber });
+            }
         }
 
         private void LoadFormDataFromSession()
         {
             FormData = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
+        }
+
+        private void LoadApplicationStatus()
+        {
+            if (ApplicationId.HasValue)
+            {
+                var statusKey = $"ApplicationStatus_{ApplicationId.Value}";
+                ApplicationStatus = HttpContext.Session.GetString(statusKey) ?? "InProgress";
+            }
+            else
+            {
+                ApplicationStatus = "InProgress";
+            }
+        }
+
+        public bool IsApplicationEditable()
+        {
+            return ApplicationStatus.Equals("InProgress", StringComparison.OrdinalIgnoreCase);
         }
 
         private async Task LoadTemplateAsync()
@@ -164,6 +218,13 @@ namespace DfE.ExternalApplications.Web.Pages
                     // Store in session for future use
                     HttpContext.Session.SetString("ApplicationId", application.ApplicationId.ToString());
                     HttpContext.Session.SetString("ApplicationReference", application.ApplicationReference);
+                    
+                    // Store application status in session
+                    if (application.Status != null)
+                    {
+                        var statusKey = $"ApplicationStatus_{application.ApplicationId}";
+                        HttpContext.Session.SetString(statusKey, application.Status.ToString());
+                    }
 
                     // Load existing response data into session for existing applications
                     await LoadResponseDataIntoSessionAsync(application);

@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-	  <PackageReference Include="GovUK.Dfe.ExternalApplications.Api.Client" Version="0.1.3-prerelease-2" />
+	  <PackageReference Include="GovUK.Dfe.ExternalApplications.Api.Client" Version="0.1.3-prerelease-3" />
 	  <PackageReference Include="GovUk.Frontend.AspNetCore" Version="2.8.1" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="DfE.CoreLibs.Security" Version="1.1.12" />

@@ -22,6 +22,7 @@ namespace DfE.ExternalApplications.Web.Pages
         public string TemplateId { get; set; }
         public Guid? ApplicationId { get; set; }
         [BindProperty] public string CurrentPageId { get; set; }
+        public string ApplicationStatus { get; set; } = "InProgress";
 
         public TaskGroup CurrentGroup { get; set; }
         public Domain.Models.Task CurrentTask { get; set; }
@@ -53,7 +54,19 @@ namespace DfE.ExternalApplications.Web.Pages
             await EnsureApplicationIdAsync();
             CurrentPageId = pageId;
             await LoadTemplateAsync();
-            InitializeCurrentPage(CurrentPageId);
+            LoadApplicationStatus();
+            
+            // If application is not editable and trying to access a specific page, redirect to preview
+            if (!IsApplicationEditable() && !string.IsNullOrEmpty(pageId))
+            {
+                Response.Redirect($"~/render-form/{ReferenceNumber}/preview");
+                return;
+            }
+            
+            if (!string.IsNullOrEmpty(pageId))
+            {
+                InitializeCurrentPage(CurrentPageId);
+            }
             
             // Check if we need to clear session data for a new application
             CheckAndClearSessionForNewApplication();
@@ -67,6 +80,14 @@ namespace DfE.ExternalApplications.Web.Pages
             TemplateId = HttpContext.Session.GetString("TemplateId") ?? string.Empty;
             await EnsureApplicationIdAsync();
             await LoadTemplateAsync();
+            LoadApplicationStatus();
+            
+            // Prevent editing if application is not editable
+            if (!IsApplicationEditable())
+            {
+                return RedirectToPage("/ApplicationPreview", new { referenceNumber = ReferenceNumber });
+            }
+            
             InitializeCurrentPage(CurrentPageId);
 
             foreach (var key in Request.Form.Keys)
@@ -310,6 +331,24 @@ namespace DfE.ExternalApplications.Web.Pages
             }
         }
 
+        private void LoadApplicationStatus()
+        {
+            if (ApplicationId.HasValue)
+            {
+                var statusKey = $"ApplicationStatus_{ApplicationId.Value}";
+                ApplicationStatus = HttpContext.Session.GetString(statusKey) ?? "InProgress";
+            }
+            else
+            {
+                ApplicationStatus = "InProgress";
+            }
+        }
+
+        public bool IsApplicationEditable()
+        {
+            return ApplicationStatus.Equals("InProgress", StringComparison.OrdinalIgnoreCase);
+        }
+
         public Domain.Models.TaskStatus GetTaskStatusFromSession(string taskId)
         {
             if (ApplicationId.HasValue)
@@ -400,7 +439,14 @@ namespace DfE.ExternalApplications.Web.Pages
                     // Store in session for future use
                     HttpContext.Session.SetString("ApplicationId", application.ApplicationId.ToString());
                     HttpContext.Session.SetString("ApplicationReference", application.ApplicationReference);
-                    
+
+                    // Store application status in session
+                    if (application.Status != null)
+                    {
+                        var statusKey = $"ApplicationStatus_{application.ApplicationId}";
+                        HttpContext.Session.SetString(statusKey, application.Status.ToString());
+                    }
+
                     // Load existing response data into session for existing applications
                     await LoadResponseDataIntoSessionAsync(application);
                 }

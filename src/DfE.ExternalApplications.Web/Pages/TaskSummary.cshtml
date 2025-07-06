@@ -47,30 +47,47 @@
                     }
                 </dd>
                 <dd class="govuk-summary-list__actions">
-                    <a class="govuk-link" href="@changeUrl">
-                        Change<span class="govuk-visually-hidden"> @field.Label.Value</span>
-                    </a>
+                    @if (Model.IsApplicationEditable())
+                    {
+                        <a class="govuk-link" href="@changeUrl">
+                            Change<span class="govuk-visually-hidden"> @field.Label.Value</span>
+                        </a>
+                    }
                 </dd>
             </div>
         }
     }
 </dl>
 
-<form method="post">
-    <input type="hidden" asp-for="TaskId" />
-    <input type="hidden" asp-for="ReferenceNumber" />
-    
-    <div class="govuk-checkboxes" data-module="govuk-checkboxes">
-        <div class="govuk-checkboxes__item">
-            <input class="govuk-checkboxes__input" id="IsTaskCompleted" name="IsTaskCompleted" type="checkbox" value="true" @(Model.IsTaskCompleted ? "checked" : "")>
-            <label class="govuk-label govuk-checkboxes__label" for="IsTaskCompleted">
-                Mark this section as complete, you can still make changes later
-            </label>
+@if (Model.IsApplicationEditable())
+{
+    <form method="post">
+        <input type="hidden" asp-for="TaskId" />
+        <input type="hidden" asp-for="ReferenceNumber" />
+        
+        <div class="govuk-checkboxes" data-module="govuk-checkboxes">
+            <div class="govuk-checkboxes__item">
+                <input class="govuk-checkboxes__input" id="IsTaskCompleted" name="IsTaskCompleted" type="checkbox" value="true" @(Model.IsTaskCompleted ? "checked" : "")>
+                <label class="govuk-label govuk-checkboxes__label" for="IsTaskCompleted">
+                    Mark this section as complete, you can still make changes later
+                </label>
+            </div>
         </div>
-    </div>
 
-    <div class="govuk-button-group govuk-!-margin-top-6">
-        <govuk-button type="submit">Save and continue</govuk-button>
+        <div class="govuk-button-group govuk-!-margin-top-6">
+            <govuk-button type="submit">Save and continue</govuk-button>
+            <a class="govuk-link" href="/render-form/@Model.ReferenceNumber">Return to application overview</a>
+        </div>
+    </form>
+}
+else
+{
+    <div class="govuk-inset-text govuk-!-margin-top-6">
+        <p>This application has been submitted and can no longer be changed.</p>
+        <p>Status: <strong>@Model.ApplicationStatus</strong></p>
+    </div>
+    
+    <div class="govuk-!-margin-top-6">
         <a class="govuk-link" href="/render-form/@Model.ReferenceNumber">Return to application overview</a>
     </div>
-</form> 
+} 

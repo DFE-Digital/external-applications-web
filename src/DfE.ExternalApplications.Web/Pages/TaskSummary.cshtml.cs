@@ -21,6 +21,7 @@ namespace DfE.ExternalApplications.Web.Pages
         [BindProperty] public bool IsTaskCompleted { get; set; }
         public string TemplateId { get; set; }
         public Guid? ApplicationId { get; set; }
+        public string ApplicationStatus { get; set; } = "InProgress";
 
         public TaskGroup CurrentGroup { get; set; }
         public Domain.Models.Task CurrentTask { get; set; }
@@ -53,6 +54,7 @@ namespace DfE.ExternalApplications.Web.Pages
             await LoadTemplateAsync();
             InitializeCurrentTask(TaskId);
             LoadFormDataFromSession();
+            LoadApplicationStatus();
             
             // Check if task is already marked as completed from session
             IsTaskCompleted = GetTaskStatusFromSession(TaskId) == Domain.Models.TaskStatus.Completed;
@@ -64,6 +66,13 @@ namespace DfE.ExternalApplications.Web.Pages
             await EnsureApplicationIdAsync();
             await LoadTemplateAsync();
             InitializeCurrentTask(TaskId);
+            LoadApplicationStatus();
+
+            // Prevent editing if application is not editable
+            if (!IsApplicationEditable())
+            {
+                return RedirectToPage("/ApplicationPreview", new { referenceNumber = ReferenceNumber });
+            }
 
             // Update task status based on checkbox
             var newStatus = IsTaskCompleted ? Domain.Models.TaskStatus.Completed : Domain.Models.TaskStatus.InProgress;
@@ -150,6 +159,24 @@ namespace DfE.ExternalApplications.Web.Pages
             return Domain.Models.TaskStatus.NotStarted;
         }
 
+        private void LoadApplicationStatus()
+        {
+            if (ApplicationId.HasValue)
+            {
+                var statusKey = $"ApplicationStatus_{ApplicationId.Value}";
+                ApplicationStatus = HttpContext.Session.GetString(statusKey) ?? "InProgress";
+            }
+            else
+            {
+                ApplicationStatus = "InProgress";
+            }
+        }
+
+        public bool IsApplicationEditable()
+        {
+            return ApplicationStatus.Equals("InProgress", StringComparison.OrdinalIgnoreCase);
+        }
+
         private async Task SaveTaskStatusAsync(Guid applicationId, string taskId, Domain.Models.TaskStatus status)
         {
             // Save task status to session
@@ -189,6 +216,12 @@ namespace DfE.ExternalApplications.Web.Pages
                     HttpContext.Session.SetString("ApplicationId", application.ApplicationId.ToString());
                     HttpContext.Session.SetString("ApplicationReference", application.ApplicationReference);
 
+                    // Store application status in session
+                    if (application.Status != null)
+                    {
+                        var statusKey = $"ApplicationStatus_{application.ApplicationId}";
+                        HttpContext.Session.SetString(statusKey, application.Status.ToString());
+                    }
                     // Load existing response data into session for existing applications
                     await LoadResponseDataIntoSessionAsync(application);
                 }
