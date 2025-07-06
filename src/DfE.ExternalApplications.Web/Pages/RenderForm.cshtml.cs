@@ -238,21 +238,43 @@ namespace DfE.ExternalApplications.Web.Pages
                     
                     foreach (var kvp in responseData)
                     {
-                        // The response structure contains objects with 'value' and 'completed' properties
-                        if (kvp.Value is JsonElement jsonElement && jsonElement.ValueKind == JsonValueKind.Object)
+                        // Check if this is a task status field
+                        if (kvp.Key.StartsWith("TaskStatus_"))
                         {
-                            if (jsonElement.TryGetProperty("value", out var valueElement))
+                            // Extract task ID from the key (format: TaskStatus_{TaskId})
+                            var taskId = kvp.Key.Substring("TaskStatus_".Length);
+                            
+                            if (kvp.Value is JsonElement jsonElement && jsonElement.ValueKind == JsonValueKind.Object)
                             {
-                                var value = valueElement.ValueKind switch
+                                if (jsonElement.TryGetProperty("value", out var valueElement))
                                 {
-                                    JsonValueKind.String => valueElement.GetString() ?? string.Empty,
-                                    JsonValueKind.Number => valueElement.GetDecimal().ToString(),
-                                    JsonValueKind.True => "true",
-                                    JsonValueKind.False => "false",
-                                    JsonValueKind.Null => string.Empty,
-                                    _ => valueElement.ToString()
-                                };
-                                formData[kvp.Key] = value;
+                                    var statusValue = valueElement.GetString();
+                                    if (!string.IsNullOrEmpty(statusValue) && ApplicationId.HasValue)
+                                    {
+                                        // Save task completion status back to session
+                                        _applicationResponseService.SaveTaskStatusToSession(ApplicationId.Value, taskId, statusValue, HttpContext.Session);
+                                    }
+                                }
+                            }
+                        }
+                        else
+                        {
+                            // Regular field data
+                            if (kvp.Value is JsonElement jsonElement && jsonElement.ValueKind == JsonValueKind.Object)
+                            {
+                                if (jsonElement.TryGetProperty("value", out var valueElement))
+                                {
+                                    var value = valueElement.ValueKind switch
+                                    {
+                                        JsonValueKind.String => valueElement.GetString() ?? string.Empty,
+                                        JsonValueKind.Number => valueElement.GetDecimal().ToString(),
+                                        JsonValueKind.True => "true",
+                                        JsonValueKind.False => "false",
+                                        JsonValueKind.Null => string.Empty,
+                                        _ => valueElement.ToString()
+                                    };
+                                    formData[kvp.Key] = value;
+                                }
                             }
                         }
                     }
@@ -328,6 +350,24 @@ namespace DfE.ExternalApplications.Web.Pages
                 Domain.Models.TaskStatus.CannotStartYet => "Cannot Start Yet",
                 _ => "Not Started"
             };
+        }
+
+        public bool AreAllTasksCompleted()
+        {
+            if (Template?.TaskGroups == null) return false;
+
+            var allTasks = Template.TaskGroups.SelectMany(g => g.Tasks).ToList();
+            
+            foreach (var task in allTasks)
+            {
+                var taskStatus = GetTaskStatusFromSession(task.TaskId);
+                if (taskStatus != Domain.Models.TaskStatus.Completed)
+                {
+                    return false;
+                }
+            }
+            
+            return allTasks.Any(); // Return true only if there are tasks and all are completed
         }
 
 

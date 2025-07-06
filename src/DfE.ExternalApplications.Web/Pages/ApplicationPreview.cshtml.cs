@@ -13,31 +13,26 @@ using Task = System.Threading.Tasks.Task;
 namespace DfE.ExternalApplications.Web.Pages
 {
     [ExcludeFromCodeCoverage]
-    public class TaskSummaryModel : PageModel
+    public class ApplicationPreviewModel : PageModel
     {
         public FormTemplate Template { get; set; }
         [BindProperty(SupportsGet = true, Name = "referenceNumber")] public string ReferenceNumber { get; set; }
-        [BindProperty(SupportsGet = true, Name = "taskId")] public string TaskId { get; set; }
-        [BindProperty] public bool IsTaskCompleted { get; set; }
         public string TemplateId { get; set; }
         public Guid? ApplicationId { get; set; }
-
-        public TaskGroup CurrentGroup { get; set; }
-        public Domain.Models.Task CurrentTask { get; set; }
         public Dictionary<string, object> FormData { get; set; } = new();
 
         private readonly IFieldRendererService _renderer;
         private readonly IFormTemplateProvider _templateProvider;
         private readonly IApplicationResponseService _applicationResponseService;
         private readonly IApplicationsClient _applicationsClient;
-        private readonly ILogger<TaskSummaryModel> _logger;
+        private readonly ILogger<ApplicationPreviewModel> _logger;
 
-        public TaskSummaryModel(
+        public ApplicationPreviewModel(
             IFieldRendererService renderer,
             IFormTemplateProvider templateProvider,
             IApplicationResponseService applicationResponseService,
             IApplicationsClient applicationsClient,
-            ILogger<TaskSummaryModel> logger)
+            ILogger<ApplicationPreviewModel> logger)
         {
             _renderer = renderer;
             _templateProvider = templateProvider;
@@ -46,49 +41,39 @@ namespace DfE.ExternalApplications.Web.Pages
             _logger = logger;
         }
 
-        public async Task OnGetAsync()
+        public async Task<IActionResult> OnGetAsync()
         {
             TemplateId = HttpContext.Session.GetString("TemplateId") ?? string.Empty;
             await EnsureApplicationIdAsync();
             await LoadTemplateAsync();
-            InitializeCurrentTask(TaskId);
             LoadFormDataFromSession();
-            
-            // Check if task is already marked as completed from session
-            IsTaskCompleted = GetTaskStatusFromSession(TaskId) == Domain.Models.TaskStatus.Completed;
-        }
 
-        public async Task<IActionResult> OnPostAsync()
-        {
-            TemplateId = HttpContext.Session.GetString("TemplateId") ?? string.Empty;
-            await EnsureApplicationIdAsync();
-            await LoadTemplateAsync();
-            InitializeCurrentTask(TaskId);
-
-            // Update task status based on checkbox
-            var newStatus = IsTaskCompleted ? Domain.Models.TaskStatus.Completed : Domain.Models.TaskStatus.InProgress;
-            
-            // Update the task status in the template (this will need to be persisted)
-            CurrentTask.TaskStatusString = newStatus.ToString();
-            
-            // Save the task status change
-            if (ApplicationId.HasValue)
+            // Check if all tasks are completed before allowing access
+            if (!AreAllTasksCompleted())
             {
-                try
-                {
-                    // Save task status to the API (we'll need to implement this)
-                    await SaveTaskStatusAsync(ApplicationId.Value, TaskId, newStatus);
-                    _logger.LogInformation("Successfully updated task status for Application {ApplicationId}, Task {TaskId} to {Status}",
-                        ApplicationId.Value, TaskId, newStatus);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to save task status for Application {ApplicationId}, Task {TaskId}",
-                        ApplicationId.Value, TaskId);
-                }
+                return RedirectToPage("/RenderForm", new { referenceNumber = ReferenceNumber });
             }
 
-            return RedirectToPage("/RenderForm", new { referenceNumber = ReferenceNumber });
+            return Page();
+        }
+
+        public async Task<IActionResult> OnPostSubmitAsync()
+        {
+            TemplateId = HttpContext.Session.GetString("TemplateId") ?? string.Empty;
+            await EnsureApplicationIdAsync();
+            await LoadTemplateAsync();
+            LoadFormDataFromSession();
+
+            // Check if all tasks are completed before allowing submission
+            if (!AreAllTasksCompleted())
+            {
+                return RedirectToPage("/RenderForm", new { referenceNumber = ReferenceNumber });
+            }
+
+            // Here you would typically update the application status to "Submitted" via API
+            // For now, we'll just redirect to the confirmation page
+            
+            return RedirectToPage("/ApplicationSubmitted", new { referenceNumber = ReferenceNumber });
         }
 
         private void LoadFormDataFromSession()
@@ -99,23 +84,6 @@ namespace DfE.ExternalApplications.Web.Pages
         private async Task LoadTemplateAsync()
         {
             Template = await _templateProvider.GetTemplateAsync(TemplateId);
-        }
-
-        private void InitializeCurrentTask(string taskId)
-        {
-            var allTasks = Template.TaskGroups
-                .SelectMany(g => g.Tasks.Select(t => new { Group = g, Task = t }))
-                .ToList();
-
-            var taskPair = allTasks.FirstOrDefault(x => x.Task.TaskId == taskId);
-            
-            if (taskPair == null)
-            {
-                throw new InvalidOperationException($"Task with ID '{taskId}' not found.");
-            }
-
-            CurrentGroup = taskPair.Group;
-            CurrentTask = taskPair.Task;
         }
 
         public string GetFieldValue(string fieldId)
@@ -139,25 +107,33 @@ namespace DfE.ExternalApplications.Web.Pages
             {
                 var sessionKey = $"TaskStatus_{ApplicationId.Value}_{taskId}";
                 var statusString = HttpContext.Session.GetString(sessionKey);
-                
-                if (!string.IsNullOrEmpty(statusString) && 
+
+                if (!string.IsNullOrEmpty(statusString) &&
                     Enum.TryParse<Domain.Models.TaskStatus>(statusString, out var status))
                 {
                     return status;
                 }
             }
-            
+
             return Domain.Models.TaskStatus.NotStarted;
         }
 
-        private async Task SaveTaskStatusAsync(Guid applicationId, string taskId, Domain.Models.TaskStatus status)
+        public bool AreAllTasksCompleted()
         {
-            // Save task status to session
-            _applicationResponseService.SaveTaskStatusToSession(applicationId, taskId, status.ToString(), HttpContext.Session);
-            
-            // Save all accumulated data (including task status) to API
-            var formData = new Dictionary<string, object>(); // Empty form data since we're just updating task status
-            await _applicationResponseService.SaveApplicationResponseAsync(applicationId, formData, HttpContext.Session);
+            if (Template?.TaskGroups == null) return false;
+
+            var allTasks = Template.TaskGroups.SelectMany(g => g.Tasks).ToList();
+
+            foreach (var task in allTasks)
+            {
+                var taskStatus = GetTaskStatusFromSession(task.TaskId);
+                if (taskStatus != Domain.Models.TaskStatus.Completed)
+                {
+                    return false;
+                }
+            }
+
+            return allTasks.Any();
         }
 
         private async Task EnsureApplicationIdAsync()

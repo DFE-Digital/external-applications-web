@@ -26,7 +26,10 @@ public class ApplicationResponseService(
             // Get all accumulated data
             var allFormData = GetAccumulatedFormData(session);
             
-            var responseJson = TransformToResponseJson(allFormData, Enumerable.Empty<Field>());
+            // Get task completion status from session
+            var taskStatusData = GetTaskStatusFromSession(applicationId, session);
+            
+            var responseJson = TransformToResponseJson(allFormData, taskStatusData);
             
             var request = new AddApplicationResponseRequest(responseJson);
             await applicationsClient.AddApplicationResponseAsync(applicationId, request, cancellationToken);
@@ -120,10 +123,11 @@ public class ApplicationResponseService(
         logger.LogInformation("Cleared accumulated form data from session");
     }
 
-    public string TransformToResponseJson(Dictionary<string, object> formData, IEnumerable<Field> pageFields)
+    public string TransformToResponseJson(Dictionary<string, object> formData, Dictionary<string, string> taskStatusData)
     {
         var responseData = new Dictionary<string, object>();
 
+        // Add form field data
         foreach (var kvp in formData)
         {
             var fieldId = kvp.Key;
@@ -139,11 +143,49 @@ public class ApplicationResponseService(
             };
         }
 
+        // Add task completion status
+        foreach (var kvp in taskStatusData)
+        {
+            var taskStatusKey = $"TaskStatus_{kvp.Key}";
+            responseData[taskStatusKey] = new
+            {
+                value = kvp.Value,
+                completed = true
+            };
+        }
+
         return JsonSerializer.Serialize(responseData, new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             WriteIndented = true
         });
+    }
+
+    public Dictionary<string, string> GetTaskStatusFromSession(Guid applicationId, ISession session)
+    {
+        var taskStatusData = new Dictionary<string, string>();
+        
+        // Get all session keys that match the pattern TaskStatus_{ApplicationId}_{TaskId}
+        var sessionKeys = session.Keys.Where(k => k.StartsWith($"TaskStatus_{applicationId}_")).ToList();
+        
+        foreach (var sessionKey in sessionKeys)
+        {
+            var taskId = sessionKey.Substring($"TaskStatus_{applicationId}_".Length);
+            var statusValue = session.GetString(sessionKey);
+            
+            if (!string.IsNullOrEmpty(statusValue))
+            {
+                taskStatusData[taskId] = statusValue;
+            }
+        }
+        
+        return taskStatusData;
+    }
+
+    public void SaveTaskStatusToSession(Guid applicationId, string taskId, string status, ISession session)
+    {
+        var sessionKey = $"TaskStatus_{applicationId}_{taskId}";
+        session.SetString(sessionKey, status);
     }
 
 
