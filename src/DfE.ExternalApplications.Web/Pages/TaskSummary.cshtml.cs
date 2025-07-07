@@ -246,68 +246,88 @@ namespace DfE.ExternalApplications.Web.Pages
 
             try
             {
-                // Parse the response body JSON
-                var responseData = JsonSerializer.Deserialize<Dictionary<string, object>>(application.LatestResponse.ResponseBody);
+                _logger.LogInformation("Loading response data for application {ApplicationReference}. Response body: {ResponseBody}", 
+                    application.ApplicationReference, application.LatestResponse.ResponseBody);
 
-                if (responseData != null && responseData.Any())
+                string responseJson;
+                
+                try
                 {
-                    // Extract field values from the response structure
-                    var formData = new Dictionary<string, object>();
+                    var decodedBytes = Convert.FromBase64String(application.LatestResponse.ResponseBody);
+                    responseJson = System.Text.Encoding.UTF8.GetString(decodedBytes);
+                    _logger.LogInformation("Successfully decoded Base64 response for application {ApplicationReference}", application.ApplicationReference);
+                }
+                catch (FormatException)
+                {
+                    // Not Base64, assume it's direct JSON (backward compatibility)
+                    responseJson = application.LatestResponse.ResponseBody;
+                    _logger.LogInformation("Using direct JSON response for application {ApplicationReference} (backward compatibility)", application.ApplicationReference);
+                }
 
-                    foreach (var kvp in responseData)
+                // Parse the response body JSON
+                var responseData = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(responseJson);
+
+                if (responseData == null)
+                {
+                    _logger.LogWarning("Failed to parse response JSON for application {ApplicationReference}", application.ApplicationReference);
+                    return;
+                }
+
+                var formDataDict = new Dictionary<string, object>();
+
+                foreach (var kvp in responseData)
+                {
+                    try
                     {
-                        // Check if this is a task status field
-                        if (kvp.Key.StartsWith("TaskStatus_"))
+                        // Handle both simple and complex field structures
+                        if (kvp.Value.ValueKind == JsonValueKind.Object && kvp.Value.TryGetProperty("value", out var valueElement))
                         {
-                            // Extract task ID from the key (format: TaskStatus_{TaskId})
-                            var taskId = kvp.Key.Substring("TaskStatus_".Length);
-                            
-                            if (kvp.Value is JsonElement jsonElement && jsonElement.ValueKind == JsonValueKind.Object)
-                            {
-                                if (jsonElement.TryGetProperty("value", out var valueElement))
-                                {
-                                    var statusValue = valueElement.GetString();
-                                    if (!string.IsNullOrEmpty(statusValue) && ApplicationId.HasValue)
-                                    {
-                                        // Save task completion status back to session
-                                        _applicationResponseService.SaveTaskStatusToSession(ApplicationId.Value, taskId, statusValue, HttpContext.Session);
-                                    }
-                                }
-                            }
+                            // Complex structure: {"field1": {"value": "actual_value", "completed": true}}
+                            formDataDict[kvp.Key] = GetJsonElementValue(valueElement);
                         }
                         else
                         {
-                            // Regular field data
-                            if (kvp.Value is JsonElement jsonElement && jsonElement.ValueKind == JsonValueKind.Object)
-                            {
-                                if (jsonElement.TryGetProperty("value", out var valueElement))
-                                {
-                                    var value = valueElement.ValueKind switch
-                                    {
-                                        JsonValueKind.String => valueElement.GetString() ?? string.Empty,
-                                        JsonValueKind.Number => valueElement.GetDecimal().ToString(),
-                                        JsonValueKind.True => "true",
-                                        JsonValueKind.False => "false",
-                                        JsonValueKind.Null => string.Empty,
-                                        _ => valueElement.ToString()
-                                    };
-                                    formData[kvp.Key] = value;
-                                }
-                            }
+                            // Simple structure: {"field1": "actual_value"}
+                            formDataDict[kvp.Key] = GetJsonElementValue(kvp.Value);
                         }
                     }
-
-                    // Clear existing session data and load the API data
-                    _applicationResponseService.ClearAccumulatedFormData(HttpContext.Session);
-                    _applicationResponseService.AccumulateFormData(formData, HttpContext.Session);
-
-                    _logger.LogInformation("Loaded {Count} field responses from API into session for application {ApplicationReference}",
-                        formData.Count, application.ApplicationReference);
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to process field {FieldName} for application {ApplicationReference}", 
+                            kvp.Key, application.ApplicationReference);
+                    }
                 }
+
+                // Store in session using the same key structure as form submission
+                _applicationResponseService.StoreFormDataInSession(formDataDict, HttpContext.Session);
+                _applicationResponseService.SetCurrentAccumulatedApplicationId(application.ApplicationId, HttpContext.Session);
+
+                _logger.LogInformation("Successfully loaded {FieldCount} fields from API into session for application {ApplicationReference}", 
+                    formDataDict.Count, application.ApplicationReference);
             }
-            catch (JsonException ex)
+            catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to parse response body for application {ApplicationReference}", application.ApplicationReference);
+                _logger.LogError(ex, "Failed to load response data for application {ApplicationReference}: {ErrorMessage}", 
+                    application.ApplicationReference, ex.Message);
+            }
+        }
+
+        private object GetJsonElementValue(JsonElement element)
+        {
+            switch (element.ValueKind)
+            {
+                case JsonValueKind.String:
+                    return element.GetString();
+                case JsonValueKind.Number:
+                    return element.GetDecimal();
+                case JsonValueKind.True:
+                    return true;
+                case JsonValueKind.False:
+                    return false;
+                case JsonValueKind.Null:
+                    return null;
+                default:
+                    return element.ToString();
             }
         }
     }

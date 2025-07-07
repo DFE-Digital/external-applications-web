@@ -13,4 +13,6 @@ public interface IApplicationResponseService
     void ClearAccumulatedFormData(ISession session);
     Dictionary<string, string> GetTaskStatusFromSession(Guid applicationId, ISession session);
     void SaveTaskStatusToSession(Guid applicationId, string taskId, string status, ISession session);
+    void StoreFormDataInSession(Dictionary<string, object> formData, ISession session);
+    void SetCurrentAccumulatedApplicationId(Guid applicationId, ISession session);
 } 

@@ -1,10 +1,9 @@
-using System.Text.Json;
 using DfE.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using DfE.ExternalApplications.Application.Interfaces;
-using DfE.ExternalApplications.Domain.Models;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 using Task = System.Threading.Tasks.Task;
 
 namespace DfE.ExternalApplications.Infrastructure.Services;
@@ -26,24 +25,28 @@ public class ApplicationResponseService(
             // Get all accumulated data
             var allFormData = GetAccumulatedFormData(session);
             
-            // Get task completion status from session
             var taskStatusData = GetTaskStatusFromSession(applicationId, session);
             
             var responseJson = TransformToResponseJson(allFormData, taskStatusData);
             
-            var request = new AddApplicationResponseRequest(responseJson);
+            var encodedResponse = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(responseJson));
+
+            var request = new AddApplicationResponseRequest { ResponseBody = encodedResponse };
             await applicationsClient.AddApplicationResponseAsync(applicationId, request, cancellationToken);
             
-            logger.LogInformation("Successfully saved application response for Application ID: {ApplicationId}", applicationId);
+            logger.LogInformation("Successfully saved application response for {ApplicationId}", applicationId);
+        }
+        catch (GovUK.Dfe.ExternalApplications.Api.Client.Contracts.ExternalApplicationsException ex) when (ex.Message.Contains("The HTTP status code of the response was not expected (200)"))
+        {
+            logger.LogInformation("Application response saved successfully for {ApplicationId} (API returned 200 instead of expected 201)", applicationId);
+            logger.LogDebug("API Response: {ApiResponse}", ex.Response);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to save application response for Application ID: {ApplicationId}", applicationId);
+            logger.LogError(ex, "Failed to save application response for application {ApplicationId}", applicationId);
             throw;
         }
     }
-
-
 
     public void AccumulateFormData(Dictionary<string, object> newData, ISession session)
     {
@@ -165,7 +168,6 @@ public class ApplicationResponseService(
     {
         var taskStatusData = new Dictionary<string, string>();
         
-        // Get all session keys that match the pattern TaskStatus_{ApplicationId}_{TaskId}
         var sessionKeys = session.Keys.Where(k => k.StartsWith($"TaskStatus_{applicationId}_")).ToList();
         
         foreach (var sessionKey in sessionKeys)
@@ -188,5 +190,15 @@ public class ApplicationResponseService(
         session.SetString(sessionKey, status);
     }
 
+    public void StoreFormDataInSession(Dictionary<string, object> formData, ISession session)
+    {
+        // Clear existing data and store new data
+        ClearAccumulatedFormData(session);
+        AccumulateFormData(formData, session);
+    }
 
+    public void SetCurrentAccumulatedApplicationId(Guid applicationId, ISession session)
+    {
+        session.SetString("CurrentAccumulatedApplicationId", applicationId.ToString());
+    }
 } 
