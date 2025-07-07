@@ -34,17 +34,50 @@ public class ApplicationResponseService(
             var request = new AddApplicationResponseRequest { ResponseBody = encodedResponse };
             await applicationsClient.AddApplicationResponseAsync(applicationId, request, cancellationToken);
             
+            // Update application status to InProgress when any data is saved
+            // This ensures the dashboard shows the correct status
+            await EnsureApplicationStatusIsInProgress(applicationId, allFormData, session, cancellationToken);
+            
             logger.LogInformation("Successfully saved application response for {ApplicationId}", applicationId);
         }
-        catch (GovUK.Dfe.ExternalApplications.Api.Client.Contracts.ExternalApplicationsException ex) when (ex.Message.Contains("The HTTP status code of the response was not expected (200)"))
+        catch (ExternalApplicationsException ex) when (ex.StatusCode == 200)
         {
-            logger.LogInformation("Application response saved successfully for {ApplicationId} (API returned 200 instead of expected 201)", applicationId);
-            logger.LogDebug("API Response: {ApiResponse}", ex.Response);
+            // Handle the case where API returns 200 instead of 201
+            logger.LogInformation("Application response saved successfully with status 200 for {ApplicationId}", applicationId);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to save application response for application {ApplicationId}", applicationId);
+            logger.LogError(ex, "Failed to save application response for {ApplicationId}", applicationId);
             throw;
+        }
+    }
+
+    private async Task EnsureApplicationStatusIsInProgress(Guid applicationId, Dictionary<string, object> allFormData, ISession session, CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Check if any form fields have data
+            var hasAnyData = allFormData.Any(kvp => !string.IsNullOrWhiteSpace(kvp.Value?.ToString()));
+            
+            if (hasAnyData)
+            {
+                // Get current application status from session
+                var statusKey = $"ApplicationStatus_{applicationId}";
+                var currentStatus = session.GetString(statusKey);
+                
+                // Only update if not already submitted
+                if (string.IsNullOrEmpty(currentStatus) || currentStatus.Equals("InProgress", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Update session status to InProgress
+                    session.SetString(statusKey, "InProgress");
+                    logger.LogInformation("Updated application {ApplicationId} status to InProgress due to form data being saved", applicationId);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to update application status for {ApplicationId}, continuing with save operation", applicationId);
+            // Don't throw - this is not critical to the save operation
         }
     }
 

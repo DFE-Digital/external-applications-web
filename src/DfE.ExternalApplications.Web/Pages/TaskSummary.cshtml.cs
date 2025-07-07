@@ -144,16 +144,60 @@ namespace DfE.ExternalApplications.Web.Pages
 
         public Domain.Models.TaskStatus GetTaskStatusFromSession(string taskId)
         {
+            return CalculateTaskStatus(taskId);
+        }
+
+        /// <summary>
+        /// Calculate task status based on actual form data completion
+        /// </summary>
+        private Domain.Models.TaskStatus CalculateTaskStatus(string taskId)
+        {
+            // If application is submitted, all tasks are completed
+            if (ApplicationStatus.Equals("Submitted", StringComparison.OrdinalIgnoreCase))
+            {
+                return Domain.Models.TaskStatus.Completed;
+            }
+            
+            // First check if task is explicitly marked as completed
             if (ApplicationId.HasValue)
             {
                 var sessionKey = $"TaskStatus_{ApplicationId.Value}_{taskId}";
                 var statusString = HttpContext.Session.GetString(sessionKey);
                 
                 if (!string.IsNullOrEmpty(statusString) && 
-                    Enum.TryParse<Domain.Models.TaskStatus>(statusString, out var status))
+                    Enum.TryParse<Domain.Models.TaskStatus>(statusString, out var explicitStatus) &&
+                    explicitStatus == Domain.Models.TaskStatus.Completed)
                 {
-                    return status;
+                    return Domain.Models.TaskStatus.Completed;
                 }
+            }
+            
+            // Get all form data from FormData dictionary 
+            var formData = FormData ?? new Dictionary<string, object>();
+            
+            // Find the task in the template
+            var task = Template?.TaskGroups?
+                .SelectMany(g => g.Tasks)
+                .FirstOrDefault(t => t.TaskId == taskId);
+                
+            if (task == null)
+            {
+                return Domain.Models.TaskStatus.NotStarted;
+            }
+            
+            // Check if any fields in this task have been completed
+            var taskFieldIds = task.Pages
+                .SelectMany(p => p.Fields)
+                .Select(f => f.FieldId)
+                .ToList();
+                
+            var hasAnyFieldCompleted = taskFieldIds.Any(fieldId => 
+                formData.ContainsKey(fieldId) && 
+                !string.IsNullOrWhiteSpace(formData[fieldId]?.ToString()));
+            
+            if (hasAnyFieldCompleted)
+            {
+                return Domain.Models.TaskStatus.InProgress;
             }
             
             return Domain.Models.TaskStatus.NotStarted;

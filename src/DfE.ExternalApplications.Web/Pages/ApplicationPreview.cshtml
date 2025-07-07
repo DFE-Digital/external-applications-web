@@ -9,6 +9,16 @@
 <h1 class="govuk-heading-xl govuk-!-margin-bottom-6">Your application</h1>
 <govuk-inset-text>Application reference: <strong>@Model.ReferenceNumber</strong></govuk-inset-text>
 
+@if (!ViewData.ModelState.IsValid)
+{
+    <govuk-error-summary>
+        @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+        {
+            <govuk-error-summary-item>@error.ErrorMessage</govuk-error-summary-item>
+        }
+    </govuk-error-summary>
+}
+
 <p class="govuk-body">Check your answers before submitting your application.</p>
 
 @foreach (var group in Model.Template.TaskGroups.OrderBy(g => g.GroupOrder))

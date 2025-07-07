@@ -76,17 +76,23 @@ namespace DfE.ExternalApplications.Web.Pages
             // Check if all tasks are completed before allowing submission
             if (!AreAllTasksCompleted())
             {
-                return RedirectToPage("/RenderForm", new { referenceNumber = ReferenceNumber });
+                _logger.LogWarning("Cannot submit application {ReferenceNumber} - not all tasks completed", ReferenceNumber);
+                ModelState.AddModelError("", "All sections must be completed before you can submit your application.");
+                return Page();
             }
 
             if (!ApplicationId.HasValue)
             {
                 _logger.LogError("ApplicationId not found during submission for reference {ReferenceNumber}", ReferenceNumber);
-                return RedirectToPage("/RenderForm", new { referenceNumber = ReferenceNumber });
+                ModelState.AddModelError("", "Application not found. Please try again.");
+                return Page();
             }
 
             try
             {
+                _logger.LogInformation("Attempting to submit application {ApplicationId} with reference {ReferenceNumber}", 
+                    ApplicationId.Value, ReferenceNumber);
+
                 // Submit the application via API
                 var submittedApplication = await _applicationsClient.SubmitApplicationAsync(ApplicationId.Value);
                 
@@ -98,6 +104,10 @@ namespace DfE.ExternalApplications.Web.Pages
                     _logger.LogInformation("Successfully submitted application {ApplicationId} with reference {ReferenceNumber}", 
                         ApplicationId.Value, ReferenceNumber);
                 }
+                else
+                {
+                    _logger.LogWarning("Submit API returned null for application {ApplicationId}", ApplicationId.Value);
+                }
                 
                 return RedirectToPage("/ApplicationSubmitted", new { referenceNumber = ReferenceNumber });
             }
@@ -106,10 +116,10 @@ namespace DfE.ExternalApplications.Web.Pages
                 _logger.LogError(ex, "Failed to submit application {ApplicationId} with reference {ReferenceNumber}", 
                     ApplicationId.Value, ReferenceNumber);
                 
-                // You might want to show an error message to the user
-                // For now, redirect back to preview page
-                return RedirectToPage("/ApplicationPreview", new { referenceNumber = ReferenceNumber });
+                ModelState.AddModelError("", $"An error occurred while submitting your application: {ex.Message}. Please try again.");
+                return Page();
             }
+
         }
 
         private void LoadFormDataFromSession()
@@ -157,37 +167,91 @@ namespace DfE.ExternalApplications.Web.Pages
 
         public Domain.Models.TaskStatus GetTaskStatusFromSession(string taskId)
         {
+            return CalculateTaskStatus(taskId);
+        }
+
+        /// <summary>
+        /// Calculate task status based on actual form data completion
+        /// </summary>
+        private Domain.Models.TaskStatus CalculateTaskStatus(string taskId)
+        {
+            // If application is submitted, all tasks are completed
+            if (ApplicationStatus.Equals("Submitted", StringComparison.OrdinalIgnoreCase))
+            {
+                return Domain.Models.TaskStatus.Completed;
+            }
+            
+            // First check if task is explicitly marked as completed
             if (ApplicationId.HasValue)
             {
                 var sessionKey = $"TaskStatus_{ApplicationId.Value}_{taskId}";
                 var statusString = HttpContext.Session.GetString(sessionKey);
-
-                if (!string.IsNullOrEmpty(statusString) &&
-                    Enum.TryParse<Domain.Models.TaskStatus>(statusString, out var status))
+                
+                if (!string.IsNullOrEmpty(statusString) && 
+                    Enum.TryParse<Domain.Models.TaskStatus>(statusString, out var explicitStatus) &&
+                    explicitStatus == Domain.Models.TaskStatus.Completed)
                 {
-                    return status;
+                    return Domain.Models.TaskStatus.Completed;
                 }
             }
-
+            
+            // Get all form data from FormData dictionary 
+            var formData = FormData ?? new Dictionary<string, object>();
+            
+            // Find the task in the template
+            var task = Template?.TaskGroups?
+                .SelectMany(g => g.Tasks)
+                .FirstOrDefault(t => t.TaskId == taskId);
+                
+            if (task == null)
+            {
+                return Domain.Models.TaskStatus.NotStarted;
+            }
+            
+            // Check if any fields in this task have been completed
+            var taskFieldIds = task.Pages
+                .SelectMany(p => p.Fields)
+                .Select(f => f.FieldId)
+                .ToList();
+                
+            var hasAnyFieldCompleted = taskFieldIds.Any(fieldId => 
+                formData.ContainsKey(fieldId) && 
+                !string.IsNullOrWhiteSpace(formData[fieldId]?.ToString()));
+            
+            if (hasAnyFieldCompleted)
+            {
+                return Domain.Models.TaskStatus.InProgress;
+            }
+            
             return Domain.Models.TaskStatus.NotStarted;
         }
 
         public bool AreAllTasksCompleted()
         {
-            if (Template?.TaskGroups == null) return false;
+            if (Template?.TaskGroups == null) 
+            {
+                _logger.LogWarning("AreAllTasksCompleted: Template or TaskGroups is null");
+                return false;
+            }
 
             var allTasks = Template.TaskGroups.SelectMany(g => g.Tasks).ToList();
+            _logger.LogDebug("AreAllTasksCompleted: Found {TaskCount} total tasks", allTasks.Count);
 
             foreach (var task in allTasks)
             {
                 var taskStatus = GetTaskStatusFromSession(task.TaskId);
+                _logger.LogDebug("Task {TaskId} status: {Status}", task.TaskId, taskStatus);
+                
                 if (taskStatus != Domain.Models.TaskStatus.Completed)
                 {
+                    _logger.LogWarning("AreAllTasksCompleted: Task {TaskId} is not completed (status: {Status})", task.TaskId, taskStatus);
                     return false;
                 }
             }
 
-            return allTasks.Any();
+            var result = allTasks.Any();
+            _logger.LogInformation("AreAllTasksCompleted: {Result} (checked {TaskCount} tasks)", result, allTasks.Count);
+            return result;
         }
 
         private async Task EnsureApplicationIdAsync()

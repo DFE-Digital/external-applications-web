@@ -58,9 +58,9 @@
                 <tbody class="govuk-table__body">
                     @foreach (var app in Model.Applications)
                     {
-                        var action = app.Status == ApplicationStatus.Submitted ? "View application" : "Continue application";
-                        var statusClass = app.Status == ApplicationStatus.Submitted ? "govuk-tag--green" :
-                            app.Status == ApplicationStatus.InProgress ? "govuk-tag--blue" : "govuk-tag--grey";
+                        var action = app.CalculatedStatus == ApplicationStatus.Submitted ? "View application" : "Continue application";
+                        var statusClass = app.CalculatedStatus == ApplicationStatus.Submitted ? "govuk-tag--green" :
+                            app.CalculatedStatus == ApplicationStatus.InProgress ? "govuk-tag--blue" : "govuk-tag--grey";
 
                         <tr class="govuk-table__row">
                             <td class="govuk-table__cell">@app.ApplicationReference</td>
@@ -71,7 +71,7 @@
                             </td>
                             <td class="govuk-table__cell">
                                 <strong class="govuk-tag @statusClass">
-                                    @app.Status
+                                    @app.CalculatedStatus
                                 </strong>
                             </td>
                             <td class="govuk-table__cell">
