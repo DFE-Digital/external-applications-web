@@ -8,8 +8,6 @@
 
 <h1 class="govuk-heading-xl govuk-!-margin-bottom-6">@Model.CurrentTask.TaskName</h1>
 
-<p class="govuk-body">You have completed this section. You can review your answers and make changes if you need to.</p>
-
 <dl class="govuk-summary-list">
     @foreach (var page in Model.CurrentTask.Pages.OrderBy(p => p.PageOrder))
     {
