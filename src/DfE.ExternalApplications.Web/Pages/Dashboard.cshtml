@@ -48,7 +48,6 @@
                 <thead class="govuk-table__head">
                     <tr class="govuk-table__row">
                         <th scope="col" class="govuk-table__header">Reference number</th>
-                        <th scope="col" class="govuk-table__header">Template</th>
                         <th scope="col" class="govuk-table__header">Date started</th>
                         <th scope="col" class="govuk-table__header">Date submitted</th>
                         <th scope="col" class="govuk-table__header">Status</th>
@@ -64,7 +63,6 @@
 
                         <tr class="govuk-table__row">
                             <td class="govuk-table__cell">@app.ApplicationReference</td>
-                            <td class="govuk-table__cell">@app.TemplateName</td>
                             <td class="govuk-table__cell">@app.DateCreated.ToString("d MMMM yyyy")</td>
                             <td class="govuk-table__cell">
                                 @(app.DateSubmitted?.ToString("d MMMM yyyy") ?? "Not submitted")
