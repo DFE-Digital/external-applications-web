@@ -72,6 +72,8 @@ builder.Services.AddScoped<IFieldRendererService, FieldRendererService>();
 builder.Services.AddScoped<IApplicationResponseService, ApplicationResponseService>();
 builder.Services.AddSingleton<ITemplateStore, ApiTemplateStore>();
 
+builder.Services.AddServiceCaching(configuration);
+
 //var templatesPath = Path.Combine(builder.Environment.ContentRootPath, "templates");
 //builder.Services.AddSingleton<ITemplateStore>(
 //    new JsonFileTemplateStore(templatesPath));
