@@ -13,7 +13,7 @@
           "taskId": "task-1",
           "taskName": "Personal Information",
           "taskOrder": 1,
-          "taskStatus": "Incomplete",
+          "taskStatus": "NotStarted",
           "pages": [
             {
               "pageId": "page-1",
@@ -139,7 +139,7 @@
           "taskId": "task-2",
           "taskName": "Employment Information",
           "taskOrder": 2,
-          "taskStatus": "Incomplete",
+          "taskStatus": "NotStarted",
           "pages": [
             {
               "pageId": "page-3",
@@ -243,7 +243,7 @@
           "taskId": "task-3",
           "taskName": "Final Questions",
           "taskOrder": 3,
-          "taskStatus": "Incomplete",
+          "taskStatus": "NotStarted",
           "pages": [
             {
               "pageId": "page-4",

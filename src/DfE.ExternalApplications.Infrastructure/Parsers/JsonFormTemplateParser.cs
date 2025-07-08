@@ -7,10 +7,15 @@ namespace DfE.ExternalApplications.Infrastructure.Parsers;
 
 public class JsonFormTemplateParser : IFormTemplateParser
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     [ExcludeFromCodeCoverage]
     public async Task<FormTemplate> ParseAsync(Stream templateStream, CancellationToken cancellationToken = default)
     {
-        var template = await JsonSerializer.DeserializeAsync<FormTemplate>(templateStream, cancellationToken: cancellationToken);
+        var template = await JsonSerializer.DeserializeAsync<FormTemplate>(templateStream, JsonOptions, cancellationToken);
         return template ?? throw new InvalidOperationException("Template could not be parsed.");
     }
 }

@@ -1,0 +1,107 @@
+@page "/render-form/{referenceNumber}/preview"
+@model ApplicationPreviewModel
+@{
+    ViewData["Title"] = "Preview application";
+}
+
+<govuk-back-link href="/render-form/@Model.ReferenceNumber">Back to application task list</govuk-back-link>
+
+<h1 class="govuk-heading-xl govuk-!-margin-bottom-6">Your application</h1>
+<govuk-inset-text>Application reference: <strong>@Model.ReferenceNumber</strong></govuk-inset-text>
+
+@if (!ViewData.ModelState.IsValid)
+{
+    <govuk-error-summary>
+        @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+        {
+            <govuk-error-summary-item>@error.ErrorMessage</govuk-error-summary-item>
+        }
+    </govuk-error-summary>
+}
+
+<p class="govuk-body">Check your answers before submitting your application.</p>
+
+@foreach (var group in Model.Template.TaskGroups.OrderBy(g => g.GroupOrder))
+{
+    @foreach (var task in group.Tasks.OrderBy(t => t.TaskOrder))
+    {
+        <div class="govuk-summary-card govuk-!-margin-bottom-6">
+            <div class="govuk-summary-card__title-wrapper">
+                <h2 class="govuk-summary-card__title">@task.TaskName</h2>
+                @if (Model.IsApplicationEditable())
+                {
+                    <ul class="govuk-summary-card__actions">
+                        <li class="govuk-summary-card__action">
+                            <a class="govuk-link" href="/render-form/@Model.ReferenceNumber/@task.TaskId/summary">
+                                Change<span class="govuk-visually-hidden"> @task.TaskName</span>
+                            </a>
+                        </li>
+                    </ul>
+                }
+            </div>
+            <div class="govuk-summary-card__content">
+                <dl class="govuk-summary-list">
+                    @foreach (var page in task.Pages.OrderBy(p => p.PageOrder))
+                    {
+                        @foreach (var field in page.Fields.OrderBy(f => f.Order))
+                        {
+                            var fieldValue = Model.GetFieldValue(field.FieldId);
+                            var hasValue = Model.HasFieldValue(field.FieldId);
+                            
+                            <div class="govuk-summary-list__row">
+                                <dt class="govuk-summary-list__key">
+                                    @field.Label.Value
+                                </dt>
+                                <dd class="govuk-summary-list__value">
+                                    @if (hasValue)
+                                    {
+                                        @if (field.Type == "radios" && field.Options != null)
+                                        {
+                                            var selectedOption = field.Options.FirstOrDefault(o => o.Value == fieldValue);
+                                            @(selectedOption?.Label ?? fieldValue)
+                                        }
+                                        else if (field.Type == "select" && field.Options != null)
+                                        {
+                                            var selectedOption = field.Options.FirstOrDefault(o => o.Value == fieldValue);
+                                            @(selectedOption?.Label ?? fieldValue)
+                                        }
+                                        else
+                                        {
+                                            @fieldValue
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span class="govuk-hint">Not answered</span>
+                                    }
+                                </dd>
+                            </div>
+                        }
+                    }
+                </dl>
+            </div>
+        </div>
+    }
+}
+
+@if (Model.IsApplicationEditable())
+{
+    <h2 class="govuk-heading-m govuk-!-margin-top-9">Now submit your application</h2>
+
+    <p class="govuk-body">By submitting this application you are confirming that, to the best of your knowledge, the details you are providing are correct.</p>
+
+    <form method="post" asp-page-handler="Submit">
+        <govuk-button type="submit" class="govuk-!-margin-bottom-6">Submit application</govuk-button>
+    </form>
+}
+else
+{
+    <div class="govuk-inset-text govuk-!-margin-top-6">
+        <p>This application has been submitted and can no longer be changed.</p>
+        <p>Status: <strong>@Model.ApplicationStatus</strong></p>
+    </div>
+}
+
+<div class="govuk-!-margin-top-6">
+    <a href="/render-form/@Model.ReferenceNumber" class="govuk-link">Return to application overview</a>
+</div> 

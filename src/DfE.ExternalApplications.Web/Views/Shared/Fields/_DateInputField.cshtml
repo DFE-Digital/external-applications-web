@@ -1,7 +1,7 @@
 ﻿@using Microsoft.AspNetCore.Html;
 @model DfE.ExternalApplications.Web.Services.FieldViewModel
 @{
-    var isRequired = Model.Field.Required ? "true" : "false";
+    var isRequired = Model.Field.Required ?? true;
     var validationAttributes = new HtmlString(Model.ValidationAttributes);
     var labelClasses = Model.Field.Label.IsPageHeading ? "govuk-label--l" : "";
     DateTime value = DateTime.TryParse(Model.CurrentValue, out DateTime val) ? val : new DateTime();

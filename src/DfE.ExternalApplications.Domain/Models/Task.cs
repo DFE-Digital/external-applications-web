@@ -16,7 +16,14 @@ public class Task
     public required int TaskOrder { get; set; }
 
     [JsonPropertyName("taskStatus")]
-    public required string TaskStatus { get; set; }
+    public required string TaskStatusString { get; set; }
+
+    [JsonIgnore]
+    public TaskStatus TaskStatus 
+    { 
+        get => Enum.TryParse<TaskStatus>(TaskStatusString, out var result) ? result : TaskStatus.NotStarted;
+        set => TaskStatusString = value.ToString();
+    }
 
     [JsonPropertyName("pages")]
     public required List<Page> Pages { get; set; }
