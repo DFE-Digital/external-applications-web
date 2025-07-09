@@ -9,53 +9,388 @@
     ViewData["Title"] = "Transfer academies to another academy trust";
 }
 
-<div class="text-center">
+<style>
+  .gem-c-contents-list__list-item--dashed {
+    display: flex;
+    align-items: baseline;
+    margin-bottom: 8px;
+  }
 
-    <div class="govuk-grid-row">
-        <div class="govuk-grid-column-full govuk-!-margin-bottom-6">
-            <h1 class="govuk-heading-xl govuk-!-margin-bottom-9">
-                Transfer academies to another trust
-            </h1>
-            <h2 class="govuk-heading-l">What this service is for</h2>
-            <p class="govuk-body">This service is for single and multi-academy trusts (SATs and MATs) wanting to transfer academies to another trust. </p>
-            <p class="govuk-body">This includes:</p>
-            <ul class="govuk-list govuk-list--bullet">
-                <li>merging a SAT with a MAT</li>
-                <li>moving academies from a MAT into another MAT</li>
-                <li>merging a MAT with another MAT</li>
-            </ul>
+  .gem-c-contents-list__list-item--dashed .gem-c-contents-list__list-item-dash::before {
+    content: "—";
+    margin-right: 8px;
+  }
 
-            <h2 class="govuk-heading-l">What this service is not for</h2>
-            <p class="govuk-body">This service is <strong>not</strong> for:</p>
-            <ul class="govuk-list govuk-list--bullet">
-                <li>MATs wanting to add schools that are not academies</li>
-                <li>groups of maintained schools forming a MAT</li>
-            </ul>
+  h2 {
+    margin: 0 0 20px 0 !important;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-size: 27px !important;
+    font-weight: 700;
+    font-size: 1.3125rem;
+    line-height: 1.1904761905;
+  }
+</style>
 
-            <p class="govuk-body">You will first need to <a class="govuk-link" href="https://www.gov.uk/government/publications/academy-conversion-application-forms">apply to convert the schools into academies</a>.</p>
+<main role="main" id="content" class="detailed-guide govuk-main-wrapper" lang="en">
+  <span id="Top"></span>
 
-            <h2 class="govuk-heading-l">Before you start</h2>
-            <p class="govuk-body">You'll need:</p>
 
-            <ul class="govuk-list govuk-list--bullet">
-                <li>details about the new trust’s financial planning approach</li>
-                <li>a diagram of your proposed MAT governance structure</li>
-                <li>a resolution from the relevant academy trust board for the transfer</li>
 
-            </ul>
-            <p class="govuk-body">We recommend reading the <a class="govuk-link" href="/alpha-sprint-12/govuk-guide-for-schools">guidance on transferring academies to another trust</a> to give us the best chance of approving your application.</p>
-            <p></p>
-            <p>
-                <a href="/dashboard" role="button" draggable="false" class="govuk-button govuk-button--start" data-module="govuk-button">
-                    Start
-                    <svg class="govuk-button__start-icon" xmlns="http://www.w3.org/2000/svg" width="17.5" height="19" viewBox="0 0 33 40" aria-hidden="true" focusable="false">
-                        <path fill="currentColor" d="M0 0h13l20 20-20 20H0l20-20z" />
-                    </svg>
-                </a>
-            </p>
-        </div>
+
+  <div class="govuk-grid-row gem-print-columns-none">
+    <div class="govuk-grid-column-two-thirds">
+
+      <div class="gem-c-heading govuk-!-margin-bottom-8">
+        <span class="govuk-caption-xl gem-c-heading__context">
+          Guidance
+        </span>
+
+
+        <h1 class="gem-c-heading__text govuk-heading-l">
+          Apply to transfer an academy to another trust
+        </h1>
+      </div>
     </div>
 
-    
+    <div class="govuk-grid-column-two-thirds">
+      <p class="gem-c-lead-paragraph govuk-body-l">
+        Make an application to transfer an academy from one trust to another.
+      </p>
+    </div>
+  </div>
 
-</div>
+  <div class="govuk-grid-row">
+    <div class="metadata-logo-wrapper gem-print-columns-none " style="border-top: 1px solid #b1b4b6;">
+      <div class="govuk-grid-column-two-thirds metadata-column">
+        <div data-module="metadata" class="gem-c-metadata" style="margin-bottom: 40px;" data-metadata-module-started="true">
+          <dl class="gem-c-metadata__list">
+            <dt class="gem-c-metadata__term govuk-body-s" style="float: inline-start;">From:</dt>
+            <dd class="gem-c-metadata__definition govuk-body-s" data-module="gem-toggle" data-gem-toggle-module-started="true">
+              <a class="govuk-link" href="/government/organisations/department-for-education">Department for
+                Education</a>
+
+            </dd>
+          </dl>
+        </div>
+      </div>
+      <div class="govuk-grid-column-one-third">
+      </div>
+    </div>
+  </div>
+
+
+
+  <div data-button-location="top" data-button-text-subscribe="Get emails about this page"
+    data-button-text-unsubscribe="Stop getting emails about this page" data-module="ga4-link-tracker"
+    class="gem-c-single-page-notification-button govuk-!-display-none-print govuk-!-margin-bottom-6"
+    data-ga4-link-tracker-module-started="true">
+    <form action="/email/subscriptions/single-page/new" method="POST">
+      <input type="hidden" name="base_path" value="/guidance/apply-to-transfer-an-academy-to-another-trust">
+      <button class="govuk-body-s gem-c-single-page-notification-button__submit" style="padding: 10px; background: none;margin: 0; border: 1px solid #505a5f;" type="submit"
+        data-ga4-link="{&quot;event_name&quot;:&quot;navigation&quot;,&quot;type&quot;:&quot;subscribe&quot;,&quot;index_link&quot;:1,&quot;index_total&quot;:2,&quot;section&quot;:&quot;Top&quot;,&quot;url&quot;:&quot;/email/subscriptions/single-page/new&quot;}">
+        <svg class="gem-c-single-page-notification-button__icon" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
+          height="18" width="18" viewBox="0 0 459.334 459.334">
+          <path fill="currentColor"
+            d="M177.216 404.514c-.001.12-.009.239-.009.359 0 30.078 24.383 54.461 54.461 54.461s54.461-24.383 54.461-54.461c0-.12-.008-.239-.009-.359H175.216zM403.549 336.438l-49.015-72.002v-89.83c0-60.581-43.144-111.079-100.381-122.459V24.485C254.152 10.963 243.19 0 229.667 0s-24.485 10.963-24.485 24.485v27.663c-57.237 11.381-100.381 61.879-100.381 122.459v89.83l-49.015 72.002a24.76 24.76 0 0 0 20.468 38.693H383.08a24.761 24.761 0 0 0 20.469-38.694z">
+          </path>
+        </svg><span class="gem-c-single-page-notication-button__text" style="color: #1d70b8; cursor: pointer;">Get emails about this page</span>
+      </button>
+    </form>
+  </div>
+
+
+  <div class="govuk-grid-row gem-print-columns-none">
+    <div class="govuk-grid-column-two-thirds">
+
+      <section data-ga4-devolved-nations-banner="England" data-module="ga4-link-tracker" data-ga4-track-links-only=""
+        data-ga4-set-indexes=""
+        data-ga4-link="{&quot;event_name&quot;:&quot;navigation&quot;,&quot;type&quot;:&quot;devolved nations banner&quot;,&quot;section&quot;:&quot;Applies to England&quot;}"
+        aria-label="Nation" class="gem-c-devolved-nations" style="background: #f3f2f1; margin-bottom: 50px; padding: 20px 30px;" data-ga4-link-tracker-module-started="true">
+        <h2 class="govuk-heading-s govuk-!-margin-bottom-0">
+          Applies to England
+        </h2>
+      </section>
+
+      <div id="contents" data-module="contents-list-with-body" class="gem-c-contents-list-with-body"
+        data-contents-list-with-body-module-started="true">
+        <div class="gem-c-contents-list-with-body__list-container" style="margin-bottom: 50px;">
+          <nav data-module="ga4-link-tracker" aria-label="Contents" class="gem-c-contents-list govuk-!-margin-bottom-4"
+            data-ga4-link-tracker-module-started="true">
+            <h2 class="gem-c-contents-list__title govuk-body-s">
+              Contents
+            </h2>
+            <ol class="gem-c-contents-list__list" style="margin: 0;padding: 0; list-style-type: none;">
+              <li class="gem-c-contents-list__list-item gem-c-contents-list__list-item--dashed">
+                <span class="gem-c-contents-list__list-item-dash" aria-hidden="true"></span>
+                <a class="gem-c-contents-list__link govuk-link gem-c-force-print-link-styles govuk-link--no-underline"
+                  data-ga4-link="{&quot;event_name&quot;:&quot;select_content&quot;,&quot;section&quot;:&quot;Contents&quot;,&quot;type&quot;:&quot;contents list&quot;,&quot;index_total&quot;:8,&quot;index_link&quot;:1}"
+                  href="#who-should-use-this-guidance">Who should use this guidance</a>
+              </li>
+              <li class="gem-c-contents-list__list-item gem-c-contents-list__list-item--dashed">
+                <span class="gem-c-contents-list__list-item-dash" aria-hidden="true"></span>
+                <a class="gem-c-contents-list__link govuk-link gem-c-force-print-link-styles govuk-link--no-underline"
+                  data-ga4-link="{&quot;event_name&quot;:&quot;select_content&quot;,&quot;section&quot;:&quot;Contents&quot;,&quot;type&quot;:&quot;contents list&quot;,&quot;index_total&quot;:8,&quot;index_link&quot;:2}"
+                  href="#other-support">Other support</a>
+              </li>
+              <li class="gem-c-contents-list__list-item gem-c-contents-list__list-item--dashed">
+                <span class="gem-c-contents-list__list-item-dash" aria-hidden="true"></span>
+                <a class="gem-c-contents-list__link govuk-link gem-c-force-print-link-styles govuk-link--no-underline"
+                  data-ga4-link="{&quot;event_name&quot;:&quot;select_content&quot;,&quot;section&quot;:&quot;Contents&quot;,&quot;type&quot;:&quot;contents list&quot;,&quot;index_total&quot;:8,&quot;index_link&quot;:3}"
+                  href="#before-you-start">Before you start</a>
+              </li>
+              <li class="gem-c-contents-list__list-item gem-c-contents-list__list-item--dashed">
+                <span class="gem-c-contents-list__list-item-dash" aria-hidden="true"></span>
+                <a class="gem-c-contents-list__link govuk-link gem-c-force-print-link-styles govuk-link--no-underline"
+                  data-ga4-link="{&quot;event_name&quot;:&quot;select_content&quot;,&quot;section&quot;:&quot;Contents&quot;,&quot;type&quot;:&quot;contents list&quot;,&quot;index_total&quot;:8,&quot;index_link&quot;:4}"
+                  href="#apply-to-transfer-an-academy">Apply to transfer an academy</a>
+              </li>
+              <li class="gem-c-contents-list__list-item gem-c-contents-list__list-item--dashed">
+                <span class="gem-c-contents-list__list-item-dash" aria-hidden="true"></span>
+                <a class="gem-c-contents-list__link govuk-link gem-c-force-print-link-styles govuk-link--no-underline"
+                  data-ga4-link="{&quot;event_name&quot;:&quot;select_content&quot;,&quot;section&quot;:&quot;Contents&quot;,&quot;type&quot;:&quot;contents list&quot;,&quot;index_total&quot;:8,&quot;index_link&quot;:5}"
+                  href="#what-happens-next">What happens next</a>
+              </li>
+              <li class="gem-c-contents-list__list-item gem-c-contents-list__list-item--dashed">
+                <span class="gem-c-contents-list__list-item-dash" aria-hidden="true"></span>
+                <a class="gem-c-contents-list__link govuk-link gem-c-force-print-link-styles govuk-link--no-underline"
+                  data-ga4-link="{&quot;event_name&quot;:&quot;select_content&quot;,&quot;section&quot;:&quot;Contents&quot;,&quot;type&quot;:&quot;contents list&quot;,&quot;index_total&quot;:8,&quot;index_link&quot;:6}"
+                  href="#get-a-decision-from-dfe-before-you-make-any-changes">Get a decision from DfE before you make
+                  any changes</a>
+              </li>
+              <li class="gem-c-contents-list__list-item gem-c-contents-list__list-item--dashed">
+                <span class="gem-c-contents-list__list-item-dash" aria-hidden="true"></span>
+                <a class="gem-c-contents-list__link govuk-link gem-c-force-print-link-styles govuk-link--no-underline"
+                  data-ga4-link="{&quot;event_name&quot;:&quot;select_content&quot;,&quot;section&quot;:&quot;Contents&quot;,&quot;type&quot;:&quot;contents list&quot;,&quot;index_total&quot;:8,&quot;index_link&quot;:7}"
+                  href="#get-a-solicitor">Get a solicitor</a>
+              </li>
+              <li class="gem-c-contents-list__list-item gem-c-contents-list__list-item--dashed">
+                <span class="gem-c-contents-list__list-item-dash" aria-hidden="true"></span>
+                <a class="gem-c-contents-list__link govuk-link gem-c-force-print-link-styles govuk-link--no-underline"
+                  data-ga4-link="{&quot;event_name&quot;:&quot;select_content&quot;,&quot;section&quot;:&quot;Contents&quot;,&quot;type&quot;:&quot;contents list&quot;,&quot;index_total&quot;:8,&quot;index_link&quot;:8}"
+                  href="#inform-parents-and-staff">Inform parents and staff</a>
+              </li>
+            </ol>
+          </nav>
+        </div>
+
+        <div class="gem-c-print-link govuk-!-display-none-print govuk-!-margin-bottom-6">
+          <button class="govuk-link govuk-body-s gem-c-print-link__button" data-module="print-link"
+            data-print-link-module-started="true">Print this page</button>
+        </div>
+
+        <div data-module="govspeak" class="gem-c-govspeak govuk-govspeak govuk-!-margin-bottom-0"
+          data-govspeak-module-started="true">
+
+          <div class="govspeak">
+            <h2 id="who-should-use-this-guidance" class="govuk-heading-m">Who should use this guidance</h2>
+
+            <ul class="govuk-list govuk-list--bullet">
+              <li>Single academy trusts (<abbr title="single academy trusts">SATs</abbr>) that want to add other
+                maintained schools or academies by using their existing legal entity, and becoming a new multi-academy
+                trust (<abbr title="multi-academy trust">MAT</abbr>)</li>
+              <li>
+                <abbr title="multi-academy trusts">MATs</abbr> that want to add an academy or academies from <abbr
+                  title="single academy trusts">SATs</abbr>
+              </li>
+              <li>
+                <abbr title="multi-academy trusts">MATs</abbr> that want to add an academy or academies from a different
+                <abbr title="multi-academy trust">MAT</abbr>
+              </li>
+              <li>
+                <abbr title="multi-academy trusts">MATs</abbr> merging or consolidating, where all the academies from
+                one trust are transferring to another trust
+              </li>
+            </ul>
+
+            <h2 id="other-support" class="govuk-heading-m">Other support</h2>
+
+            <ul class="govuk-list govuk-list--bullet">
+              <li>
+                <abbr title="single academy trusts">SATs</abbr> or <abbr title="multi-academy trusts">MATs</abbr> who
+                want to add a new free school to their trust must complete a <a
+                  href="https://www.gov.uk/government/collections/opening-a-free-school" class="govuk-link">free school
+                  application</a>
+              </li>
+              <li>
+                <abbr title="multi-academy trusts">MATs</abbr> who want to add schools that are applying to become
+                academies should direct schools to the <a
+                  href="https://www.gov.uk/government/publications/academy-conversion-application-forms"
+                  class="govuk-link">Apply to become an academy</a> online service - these schools may need additional
+                information from the trust to complete their application
+              </li>
+              <li>
+                <abbr title="multi-academy trusts">MATs</abbr> who want to merge or consolidate and form a new <abbr
+                  title="multi-academy trust">MAT</abbr> should discuss plans with their named Regions Group contactat
+                Department for Education (DfE)
+              </li>
+              <li>Groups of schools forming a new <abbr title="multi-academy trust">MAT</abbr> should apply to convert
+                using <a href="https://www.gov.uk/government/publications/academy-conversion-application-forms"
+                  class="govuk-link">Apply to become an academy</a> online service - the lead school should complete
+                this form using the <a href="https://www.gov.uk/guidance/convert-to-an-academy-information-for-schools"
+                  class="govuk-link">Convert to an academy: guide for schools</a>.</li>
+            </ul>
+
+            <h2 id="before-you-start" class="govuk-heading-m">Before you start</h2>
+
+            <p class="govuk-body">If you have already provided some information to DfE, speak to your DfE delivery officer or named contact
+              before completing this form. If you do not have a lead contact for your trust, find the Regional
+              Director's Office for your area using the About Us section of the <a
+                href="https://www.gov.uk/government/organisations/regional-department-for-education-dfe-directors/about"
+                class="govuk-link">Regional Department for Education Directors</a>.</p>
+
+            <h2 id="apply-to-transfer-an-academy" class="govuk-heading-m">Apply to transfer an academy</h2>
+
+            <p class="govuk-body">Fill in the online form to request to transfer an academy from one trust to another.</p>
+
+            <p class="govuk-body">You need names of the:</p>
+
+            <ul class="govuk-list govuk-list--bullet">
+              <li>academies involved, including unique reference numbers</li>
+              <li>trustees</li>
+              <li>members</li>
+              <li>the date you want to transfer</li>
+            </ul>
+
+            <a href="/dashboard" role="button" draggable="false" class="govuk-button govuk-button--start" data-module="govuk-button">
+                Start
+                <svg class="govuk-button__start-icon" xmlns="http://www.w3.org/2000/svg" width="17.5" height="19" viewBox="0 0 33 40" aria-hidden="true" focusable="false">
+                    <path fill="currentColor" d="M0 0h13l20 20-20 20H0l20-20z" />
+                </svg>
+            </a>
+
+            <h2 id="what-happens-next" class="govuk-heading-m">What happens next</h2>
+
+            <p class="govuk-body">All plans to grow an academy trust will need to be agreed by the Regions Group (RG) for your area.</p>
+
+            <p class="govuk-body"><strong>Additional sentence about what happens next, for example when trusts will find out DfE's
+                decision.</strong></p>
+
+            <p class="govuk-body"><a
+                href="https://www.gov.uk/government/publications/multi-academy-trusts-establishing-and-developing-your-trust"
+                class="govuk-link">Multi-academy trusts: establishing and developing your trust</a> has more information
+              about how <abbr title="multi-academy trusts">MATs</abbr> can grow their trust.</p>
+
+            <p class="govuk-body"><a href="https://www.gov.uk/government/publications/commissioning-high-quality-trusts"
+                class="govuk-link">Commissioning high-quality trusts</a> has information about how the DfE makes academy
+              trust commissioning decisions and the five pillars of strong trusts.</p>
+
+            <p class="govuk-body"><a href="https://www.gov.uk/government/publications/academy-transfers-information-for-academy-trusts"
+                class="govuk-link">Academy transfers: information for academy trusts</a> has information for existing
+              <abbr title="single academy trusts">SATs</abbr> or <abbr title="multi-academy trusts">MATs</abbr> that
+              want to add academies from another <abbr title="single academy trust">SAT</abbr> or <abbr
+                title="multi-academy trust">MAT</abbr>.</p>
+
+            <h2 id="get-a-decision-from-dfe-before-you-make-any-changes" class="govuk-heading-m">Get a decision from DfE before you make any
+              changes</h2>
+
+            <p class="govuk-body">You must have approval for your application from the DfE Regions Group before you make any changes to the
+              articles of association or any other trust documents.</p>
+
+            <p class="govuk-body">Academy transfers are decided based on the details given in their existing funding agreement. If current
+              provision is different from the funding agreement, you will need written approval from DfE through the <a
+                href="https://www.gov.uk/government/publications/making-significant-changes-to-an-existing-academy"
+                class="govuk-link">making a significant change process</a>. For example differences in capacity, age
+              range or resource provision. Discuss next steps with your DfE named contact if this applies to your
+              application. &nbsp;</p>
+
+            <h2 id="get-a-solicitor" class="govuk-heading-m">Get a solicitor</h2>
+
+            <p class="govuk-body">Consider getting a solicitor to advise you on the changes needed to:</p>
+
+            <ul class="govuk-list govuk-list--bullet">
+              <li>your trust documents</li>
+              <li>any other legal, charity or statutory requirements that may apply</li>
+            </ul>
+
+            <p class="govuk-body">For example <a rel="external" href="https://www.legislation.gov.uk/uksi/2006/246/contents"
+                class="govuk-link">The Transfer of Undertakings (Protection of Employment) Regulations 2006</a> (TUPE)
+              or the <a rel="external" href="https://www.legislation.gov.uk/ukpga/2010/15/contents"
+                class="govuk-link">Equality Act 2010</a>.</p>
+
+            <h2 id="inform-parents-and-staff" class="govuk-heading-m">Inform parents and staff</h2>
+
+            <p class="govuk-body">As public bodies, academy trusts should also consider whether they need to consult on their proposed
+              changes. In all cases, it is good practice for trusts to inform parents, staff and other interested
+              parties about their plans, and give them the opportunity to respond.</p>
+
+          </div>
+
+        </div>
+
+
+
+        <div class="published-dates-button-group">
+          <h2 class="govuk-visually-hidden">
+            Sign up for emails or print this page
+          </h2>
+
+          <div data-button-location="bottom" data-button-text-subscribe="Get emails about this page"
+            data-button-text-unsubscribe="Stop getting emails about this page" data-module="ga4-link-tracker"
+            class="gem-c-single-page-notification-button govuk-!-display-none-print govuk-!-margin-bottom-3"
+            data-ga4-link-tracker-module-started="true">
+            <form action="/email/subscriptions/single-page/new" method="POST">
+              <input type="hidden" name="base_path" value="/guidance/apply-to-transfer-an-academy-to-another-trust">
+              <button class="govuk-body-s gem-c-single-page-notification-button__submit" type="submit"
+                data-ga4-link="{&quot;event_name&quot;:&quot;navigation&quot;,&quot;type&quot;:&quot;subscribe&quot;,&quot;index_link&quot;:2,&quot;index_total&quot;:2,&quot;section&quot;:&quot;Footer&quot;,&quot;url&quot;:&quot;/email/subscriptions/single-page/new&quot;}">
+                <svg class="gem-c-single-page-notification-button__icon" aria-hidden="true"
+                  xmlns="http://www.w3.org/2000/svg" height="18" width="18" viewBox="0 0 459.334 459.334">
+                  <path fill="currentColor"
+                    d="M177.216 404.514c-.001.12-.009.239-.009.359 0 30.078 24.383 54.461 54.461 54.461s54.461-24.383 54.461-54.461c0-.12-.008-.239-.009-.359H175.216zM403.549 336.438l-49.015-72.002v-89.83c0-60.581-43.144-111.079-100.381-122.459V24.485C254.152 10.963 243.19 0 229.667 0s-24.485 10.963-24.485 24.485v27.663c-57.237 11.381-100.381 61.879-100.381 122.459v89.83l-49.015 72.002a24.76 24.76 0 0 0 20.468 38.693H383.08a24.761 24.761 0 0 0 20.469-38.694z">
+                  </path>
+                </svg><span class="gem-c-single-page-notication-button__text">Get emails about this page</span>
+              </button>
+            </form>
+          </div>
+          <div class="gem-c-print-link govuk-!-display-none-print govuk-!-margin-bottom-8">
+            <button class="govuk-link govuk-body-s gem-c-print-link__button" data-module="print-link"
+              data-print-link-module-started="true">Print this page</button>
+          </div>
+        </div>
+
+
+
+        <div data-sticky-element=""
+          class="gem-c-contents-list-with-body__link-wrapper gem-c-contents-list-with-body__sticky-element--hidden gem-c-contents-list-with-body__sticky-element--stuck-to-window gem-c-contents-list-with-body__sticky-element--enabled">
+          <div class="gem-c-contents-list-with-body__link-container">
+
+            <a class="govuk-link gem-c-back-to-top-link govuk-!-display-none-print" href="#contents">
+              <svg class="gem-c-back-to-top-link__icon" xmlns="http://www.w3.org/2000/svg" width="13" height="17"
+                viewBox="0 0 13 17" aria-hidden="true" focusable="false">
+                <path fill="currentColor" d="M6.5 0L0 6.5 1.4 8l4-4v12.7h2V4l4.3 4L13 6.4z"></path>
+              </svg>
+              Contents
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="govuk-grid-column-one-third">
+
+      <div class="gem-c-contextual-sidebar govuk-!-display-none-print"></div>
+    </div>
+
+  </div>
+
+  <div class="govuk-grid-row">
+    <div class="govuk-grid-column-two-thirds">
+
+      <div class="gem-c-contextual-footer govuk-!-display-none-print">
+        <div data-module="ga4-link-tracker" class="gem-c-related-navigation govuk-!-display-none-print"
+          data-ga4-link-tracker-module-started="true">
+
+
+
+          <nav class="gem-c-related-navigation__nav-section" aria-labelledby="related-nav-topics-8d52971e"
+            data-module="gem-toggle" data-gem-toggle-module-started="true">
+
+          </nav>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</main>
