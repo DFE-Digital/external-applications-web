@@ -65,6 +65,9 @@ builder.Services.AddRazorPages(options =>
     }
 });
 
+// Add controllers for API endpoints
+builder.Services.AddControllers();
+
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession();
@@ -110,6 +113,9 @@ builder.Services
 
 builder.Services.AddScoped<ICustomClaimProvider, PermissionsClaimProvider>();
 
+// Add HttpClient for API calls
+builder.Services.AddHttpClient();
+
 builder.Services.AddExternalApplicationsApiClient<ITokensClient, TokensClient>(configuration);
 builder.Services.AddExternalApplicationsApiClient<IUsersClient, UsersClient>(configuration);
 builder.Services.AddExternalApplicationsApiClient<IApplicationsClient, ApplicationsClient>(configuration);
@@ -120,6 +126,7 @@ builder.Services.AddSingleton<IActionContextAccessor, ActionContextAccessor>();
 builder.Services.AddScoped<IHtmlHelper, HtmlHelper>();
 builder.Services.AddScoped<IFieldRendererService, FieldRendererService>();
 builder.Services.AddScoped<IApplicationResponseService, ApplicationResponseService>();
+builder.Services.AddScoped<IAutocompleteService, AutocompleteService>();
 builder.Services.AddSingleton<ITemplateStore, ApiTemplateStore>();
 
 // Add test token handler and services when test authentication is enabled
@@ -161,6 +168,7 @@ app.UseTokenExpiryCheck();
 app.UseAuthorization();
 
 app.MapRazorPages();
+app.MapControllers();
 
 await app.RunAsync();
 

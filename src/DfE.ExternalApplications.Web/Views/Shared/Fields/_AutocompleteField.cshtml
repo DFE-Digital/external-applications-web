@@ -1,0 +1,803 @@
+@using Microsoft.AspNetCore.Html;
+@using System.Text.Json;
+@model DfE.ExternalApplications.Web.Services.FieldViewModel
+
+@{
+    var isRequired = Model.Field.Required ?? true;
+    var validationAttributes = new HtmlString(Model.ValidationAttributes);
+    var labelClasses = Model.Field.Label.IsPageHeading ? "govuk-label--l" : "";
+    
+    // Parse complex field configuration if present
+    var complexField = Model.Field.ComplexField != null ? 
+        JsonSerializer.Deserialize<Dictionary<string, object>>(Model.Field.ComplexField) : 
+        new Dictionary<string, object>();
+    
+    // Get properties from complexField
+    var properties = complexField.ContainsKey("properties") ? 
+        JsonSerializer.Deserialize<Dictionary<string, object>>(complexField["properties"].ToString()) : 
+        new Dictionary<string, object>();
+    
+    // Configuration options
+    var endpoint = properties.ContainsKey("endpoint") ? properties["endpoint"].ToString() : "";
+    var allowMultiple = properties.ContainsKey("allowMultiple") ? 
+        bool.Parse(properties["allowMultiple"].ToString()) : false;
+    var minLength = properties.ContainsKey("minLength") ? 
+        int.Parse(properties["minLength"].ToString()) : 3;
+    var placeholder = properties.ContainsKey("placeholder") ? 
+        properties["placeholder"].ToString() : "Start typing to search...";
+    
+    // Generate unique IDs
+    var inputId = $"{Model.Id}-autocomplete";
+    var selectId = $"{Model.Id}-select";
+    var selectedItemsId = $"{Model.Id}-selected-items";
+    var searchInputId = $"{Model.Id}-search-input";
+    
+    // Helper function to format display value
+    string FormatDisplayValue(object value)
+    {
+        if (value is Dictionary<string, object> dict)
+        {
+            var name = dict.ContainsKey("name") ? dict["name"]?.ToString() : "";
+            var ukprn = dict.ContainsKey("ukprn") ? dict["ukprn"]?.ToString() : "";
+            
+            if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(ukprn))
+            {
+                return $"{name} (UKPRN: {ukprn})";
+            }
+            else if (!string.IsNullOrEmpty(name))
+            {
+                return name;
+            }
+        }
+        return value?.ToString() ?? "";
+    }
+    
+    // Get current values (for multiple selection, stored as JSON array)
+    var currentValues = new List<object>();
+    if (!string.IsNullOrEmpty(Model.CurrentValue))
+    {
+        try
+        {
+            // Try to deserialize as array of objects first
+            using (var doc = JsonDocument.Parse(Model.CurrentValue))
+            {
+                if (doc.RootElement.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var element in doc.RootElement.EnumerateArray())
+                    {
+                        if (element.ValueKind == JsonValueKind.Object)
+                        {
+                            var obj = new Dictionary<string, object>();
+                            foreach (var property in element.EnumerateObject())
+                            {
+                                if (property.Value.ValueKind == JsonValueKind.String)
+                                {
+                                    obj[property.Name] = property.Value.GetString();
+                                }
+                                else if (property.Value.ValueKind == JsonValueKind.Number)
+                                {
+                                    obj[property.Name] = property.Value.GetInt64().ToString();
+                                }
+                            }
+                            currentValues.Add(obj);
+                        }
+                        else if (element.ValueKind == JsonValueKind.String)
+                        {
+                            currentValues.Add(element.GetString());
+                        }
+                    }
+                }
+                else if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                {
+                    // Single object
+                    var obj = new Dictionary<string, object>();
+                    foreach (var property in doc.RootElement.EnumerateObject())
+                    {
+                        if (property.Value.ValueKind == JsonValueKind.String)
+                        {
+                            obj[property.Name] = property.Value.GetString();
+                        }
+                        else if (property.Value.ValueKind == JsonValueKind.Number)
+                        {
+                            obj[property.Name] = property.Value.GetInt64().ToString();
+                        }
+                    }
+                    currentValues.Add(obj);
+                }
+                else
+                {
+                    // Single string value
+                    currentValues.Add(Model.CurrentValue);
+                }
+            }
+        }
+        catch
+        {
+            // If not JSON, treat as single string value
+            currentValues.Add(Model.CurrentValue);
+        }
+    }
+}
+
+<div class="govuk-form-group @(Model.ErrorMessage != "" ? "govuk-form-group--error" : "")">
+    <govuk-label for="@selectId" class="govuk-label @labelClasses">
+        @Model.Field.Label.Value
+        @if (isRequired)
+        {
+            <span class="govuk-visually-hidden">required</span>
+        }
+    </govuk-label>
+    
+    @if (!string.IsNullOrEmpty(Model.Field.Tooltip))
+    {
+        <div class="govuk-hint">
+            @Model.Field.Tooltip
+        </div>
+    }
+    
+    <govuk-error-message for="@Model.Id">@Model.ErrorMessage</govuk-error-message>
+    
+    <div class="autocomplete-container" data-module="autocomplete-field">
+        <!-- Hidden input for form submission -->
+        <input type="hidden" 
+               id="@Model.Id" 
+               name="Data[@Model.Field.FieldId]" 
+               value="@Model.CurrentValue" 
+               data-allow-multiple="@allowMultiple.ToString().ToLower()" />
+        
+        <!-- Container for autocomplete - library will create input here -->
+        <div id="@inputId-container" 
+             class="autocomplete-search-container"
+             data-endpoint="@endpoint"
+             data-min-length="@minLength"
+             data-allow-multiple="@allowMultiple.ToString().ToLower()"
+             data-target-input="@Model.Id"
+             data-selected-items-container="@selectedItemsId"
+             data-placeholder="@placeholder"
+             aria-describedby="@(inputId)-hint">
+        </div>
+        
+        <div id="@(inputId)-hint" class="govuk-visually-hidden">
+            Use this field to search and select options. Type at least @minLength characters to see results.
+            @if (allowMultiple)
+            {
+                <span>You can select multiple options.</span>
+            }
+        </div>
+        
+        <!-- Selected items container -->
+        @if (allowMultiple)
+        {
+            <div id="@selectedItemsId" class="autocomplete-selected-items">
+                @foreach (var selectedValue in currentValues)
+                {
+                    var displayValue = FormatDisplayValue(selectedValue);
+                    var dataValue = selectedValue is Dictionary<string, object> ? 
+                        JsonSerializer.Serialize(selectedValue) : selectedValue.ToString();
+                    
+                    <div class="govuk-inset-text autocomplete-selected-inset" data-value="@dataValue">
+                        @if (selectedValue is Dictionary<string, object> dict)
+                        {
+                            var name = dict.ContainsKey("name") ? dict["name"]?.ToString() : "";
+                            var ukprn = dict.ContainsKey("ukprn") ? dict["ukprn"]?.ToString() : "";
+                            
+                            <p class="govuk-body">
+                                <strong>@name</strong>
+                                @if (!string.IsNullOrEmpty(ukprn))
+                                {
+                                    <br />
+                                    <span class="govuk-hint">UKPRN: @ukprn</span>
+                                }
+                            </p>
+                        }
+                        else
+                        {
+                            <p class="govuk-body"><strong>@displayValue</strong></p>
+                        }
+                        
+                        <button type="button" 
+                                class="govuk-button govuk-button--secondary govuk-button--small autocomplete-remove-item"
+                                aria-label="Remove @displayValue">
+                            Remove
+                        </button>
+                    </div>
+                }
+            </div>
+        }
+        else if (currentValues.Any())
+        {
+            <div id="@selectedItemsId" class="autocomplete-selected-items">
+                @{
+                    var selectedValue = currentValues.First();
+                    var displayValue = FormatDisplayValue(selectedValue);
+                    var dataValue = selectedValue is Dictionary<string, object> ? 
+                        JsonSerializer.Serialize(selectedValue) : selectedValue.ToString();
+                }
+                
+                <div class="govuk-inset-text autocomplete-selected-inset" data-value="@dataValue">
+                    @if (selectedValue is Dictionary<string, object> dict)
+                    {
+                        var name = dict.ContainsKey("name") ? dict["name"]?.ToString() : "";
+                        var ukprn = dict.ContainsKey("ukprn") ? dict["ukprn"]?.ToString() : "";
+                        
+                        <p class="govuk-body">
+                            <strong>@name</strong>
+                            @if (!string.IsNullOrEmpty(ukprn))
+                            {
+                                <br />
+                                <span class="govuk-hint">UKPRN: @ukprn</span>
+                            }
+                        </p>
+                    }
+                    else
+                    {
+                        <p class="govuk-body"><strong>@displayValue</strong></p>
+                    }
+                    
+                    <button type="button" 
+                            class="govuk-button govuk-button--secondary govuk-button--small autocomplete-remove-item"
+                            aria-label="Remove @displayValue">
+                        Remove
+                    </button>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div id="@selectedItemsId" class="autocomplete-selected-items"></div>
+        }
+    </div>
+</div>
+
+<style>
+    .autocomplete-container {
+        position: relative;
+    }
+    
+    .autocomplete-selected-items {
+        margin-top: 15px;
+    }
+    
+    /* Custom autocomplete suggestion styling */
+    .autocomplete-suggestion {
+        padding: 2px 0;
+    }
+    
+    .autocomplete-suggestion-name {
+        font-weight: 400;
+        color: #0b0c0c;
+        line-height: 1.2;
+    }
+    
+    .autocomplete-suggestion-identifiers {
+        font-size: 16px;
+        color: #6f777b;
+        font-weight: 400;
+        margin-top: 2px;
+        line-height: 1.2;
+    }
+    
+    /* Selected items styling - GovUK Design System inspired */
+    .autocomplete-selected-item {
+        display: inline-flex;
+        align-items: flex-start;
+        background-color: #f3f2f1;
+        border: 2px solid #b1b4b6;
+        border-radius: 4px;
+        padding: 10px 15px;
+        margin-right: 10px;
+        margin-bottom: 10px;
+        font-family: "GDS Transport", arial, sans-serif;
+        font-size: 16px;
+        line-height: 1.25;
+        max-width: 100%;
+        position: relative;
+    }
+    
+    .autocomplete-selected-item-content {
+        display: flex;
+        align-items: flex-start;
+        width: 100%;
+        gap: 15px;
+    }
+    
+    .autocomplete-selected-item-main {
+        flex: 1;
+        min-width: 0;
+        word-wrap: break-word;
+    }
+    
+    .autocomplete-selected-item-name {
+        font-weight: 600;
+        color: #0b0c0c;
+        margin-bottom: 2px;
+        word-break: break-word;
+    }
+    
+    .autocomplete-selected-item-urn {
+        font-size: 14px;
+        color: #6f777b;
+        font-weight: 400;
+        word-break: break-word;
+    }
+    
+    .autocomplete-remove-item {
+        background-color: #d4351c;
+        color: white;
+        border: 2px solid #d4351c;
+        border-radius: 4px;
+        padding: 5px 10px;
+        font-size: 14px;
+        font-weight: 400;
+        line-height: 1;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 30px;
+        min-height: 30px;
+        flex-shrink: 0;
+        transition: background-color 0.2s ease;
+    }
+    
+    .autocomplete-remove-item:hover {
+        background-color: #aa2a16;
+        border-color: #aa2a16;
+        color: white;
+    }
+    
+    .autocomplete-remove-item:focus {
+        outline: 3px solid #ffdd00;
+        outline-offset: 0;
+        background-color: #aa2a16;
+        border-color: #aa2a16;
+    }
+    
+    .autocomplete-remove-item:active {
+        background-color: #942119;
+        border-color: #942119;
+    }
+    
+    .autocomplete-remove-item span {
+        font-size: 16px;
+        font-weight: bold;
+        line-height: 1;
+    }
+    
+    /* Accessible autocomplete styling overrides */
+    .autocomplete__wrapper {
+        position: relative;
+    }
+    
+    .autocomplete__input {
+        border: 2px solid #0b0c0c;
+        border-radius: 0;
+        box-sizing: border-box;
+        font-family: "GDS Transport", arial, sans-serif;
+        font-size: 16px;
+        font-weight: 400;
+        line-height: 1.25;
+        padding: 5px 4px 4px;
+        width: 100%;
+        background-color: #ffffff;
+        color: #0b0c0c;
+    }
+    
+    .autocomplete__input:focus {
+        outline: 3px solid #ffdd00;
+        outline-offset: 0;
+        box-shadow: inset 0 0 0 2px;
+    }
+    
+    /* Error state styling */
+    .govuk-form-group--error .autocomplete__input {
+        border-color: #d4351c;
+    }
+    
+    .autocomplete__menu {
+        background-color: #ffffff;
+        border: 2px solid #0b0c0c;
+        border-top: 0;
+        color: #0b0c0c;
+        margin: 0;
+        max-height: 342px;
+        overflow-x: hidden;
+        overflow-y: auto;
+        padding: 0;
+        width: 100%;
+        z-index: 100;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    
+    .autocomplete__option {
+        border-bottom: solid #b1b4b6;
+        border-width: 1px 0;
+        cursor: pointer;
+        display: block;
+        position: relative;
+        padding: 10px;
+        font-family: "GDS Transport", arial, sans-serif;
+        font-size: 16px;
+        font-weight: 400;
+        line-height: 1.25;
+        color: #0b0c0c;
+    }
+    
+    .autocomplete__option > * {
+        pointer-events: none;
+    }
+    
+    .autocomplete__option:focus,
+    .autocomplete__option:hover {
+        background-color: #1d70b8;
+        border-color: #1d70b8;
+        color: #ffffff;
+        outline: none;
+    }
+    
+    .autocomplete__option--odd {
+        background-color: #fafafa;
+    }
+    
+    .autocomplete__option--focused,
+    .autocomplete__option--selected {
+        background-color: #1d70b8;
+        border-color: #1d70b8;
+        color: #ffffff;
+    }
+    
+    .autocomplete__hint {
+        color: #6f777b;
+        position: absolute;
+        right: 0;
+        top: 0;
+    }
+    
+    /* Responsive design */
+    @@media (max-width: 640px) {
+        .autocomplete-selected-item {
+            display: block;
+            margin-right: 0;
+            margin-bottom: 15px;
+        }
+        
+        .autocomplete-selected-item-content {
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .autocomplete-remove-item {
+            align-self: flex-end;
+            margin-top: 5px;
+        }
+    }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Test if accessible-autocomplete is available
+    console.log('DOM loaded. Testing accessible-autocomplete...');
+    console.log('accessibleAutocomplete:', typeof accessibleAutocomplete);
+    
+    // Initialize autocomplete functionality
+    const containers = document.querySelectorAll('[data-module="autocomplete-field"]');
+    console.log('Found containers:', containers.length);
+    
+    containers.forEach(function(container) {
+        // Check if this container has already been initialized
+        if (container.dataset.initialized === 'true') {
+            console.log('Container already initialized, skipping...');
+            return;
+        }
+        
+        const autocompleteContainer = container.querySelector('[data-endpoint]');
+        const hiddenInput = container.querySelector('input[type="hidden"]');
+        const selectedItemsContainer = container.querySelector('.autocomplete-selected-items');
+        const allowMultiple = autocompleteContainer.dataset.allowMultiple === 'true';
+        const endpoint = autocompleteContainer.dataset.endpoint;
+        const minLength = parseInt(autocompleteContainer.dataset.minLength) || 3;
+        const placeholder = autocompleteContainer.dataset.placeholder;
+        
+        console.log('Initializing autocomplete for container element:', autocompleteContainer);
+        console.log('Endpoint:', endpoint);
+        console.log('Placeholder:', placeholder);
+        
+        // Initialize accessible autocomplete on the container element
+        if (typeof accessibleAutocomplete !== 'undefined') {
+            try {
+                accessibleAutocomplete({
+                    element: autocompleteContainer,
+                    id: autocompleteContainer.id,
+                    placeholder: placeholder,
+                    showAllValues: false,
+                    templates: {
+                        inputValue: function(result) {
+                            if (typeof result === 'object' && result !== null && result.name) {
+                                return result.name;
+                            }
+                            return result ? result.toString() : '';
+                        },
+                        suggestion: function(result) {
+                            if (typeof result === 'object' && result !== null && result.name) {
+                                var html = '<div class="autocomplete-suggestion">';
+                                html += '<div class="autocomplete-suggestion-name">' + escapeHtml(result.name) + '</div>';
+                                
+                                if (result.ukprn) {
+                                    html += '<div class="autocomplete-suggestion-identifiers">UKPRN: ' + escapeHtml(result.ukprn) + '</div>';
+                                }
+                                
+                                html += '</div>';
+                                return html;
+                            }
+                            return result ? escapeHtml(result.toString()) : '';
+                        }
+                    },
+                    source: function(query, populateResults) {
+                        console.log('Source called with query:', query);
+                        console.log('Query length:', query.length, 'Min length:', minLength);
+                        
+                        // If query is empty or too short, don't show any results
+                        if (!query || query.length < minLength) {
+                            console.log('Query too short, returning empty results');
+                            populateResults([]);
+                            return;
+                        }
+                        
+                        if (endpoint) {
+                            // Use the generic autocomplete search endpoint
+                            var requestUrl = '/api/autocomplete/search?endpoint=' + encodeURIComponent(endpoint) + '&query=' + encodeURIComponent(query);
+                            console.log('Making API call to:', requestUrl);
+                            
+                            // Make API call to the endpoint
+                            fetch(requestUrl)
+                                .then(response => {
+                                    console.log('API response status:', response.status);
+                                    console.log('API response ok:', response.ok);
+                                    return response.json();
+                                })
+                                .then(data => {
+                                    console.log('Raw API response:', data);
+                                    // The service now returns a simple array of objects or strings
+                                    var results = Array.isArray(data) ? data : [];
+                                    console.log('Results before filtering:', results);
+                                    // Filter out empty values
+                                    results = results.filter(function(item) {
+                                        if (typeof item === 'object' && item !== null) {
+                                            return item.name && item.name.toString().trim() !== '';
+                                        }
+                                        return item && item.toString().trim() !== '';
+                                    });
+                                    console.log('Final filtered results:', results);
+                                    populateResults(results);
+                                })
+                                .catch(error => {
+                                    console.error('Autocomplete API error:', error);
+                                    populateResults([]);
+                                });
+                        } else {
+                            console.log('No endpoint provided, returning empty results');
+                            populateResults([]);
+                        }
+                    },
+                    minLength: minLength,
+                    onConfirm: function(option) {
+                        console.log('Option confirmed:', option);
+                        if (option && (typeof option === 'string' && option.trim() !== '' || typeof option === 'object' && option.name)) {
+                            addSelectedItem(option);
+                            // Clear the input after selection
+                            const autocompleteInput = container.querySelector('.autocomplete__input');
+                            if (autocompleteInput) {
+                                autocompleteInput.value = '';
+                            }
+                        }
+                    }
+                });
+                
+                console.log('Autocomplete initialized successfully');
+                
+                // Mark this container as initialized
+                container.dataset.initialized = 'true';
+                
+                // Apply GovUK styling to the created input after a short delay
+                setTimeout(function() {
+                    const autocompleteInput = container.querySelector('.autocomplete__input');
+                    if (autocompleteInput) {
+                        autocompleteInput.classList.add('govuk-input');
+                        if (container.closest('.govuk-form-group--error')) {
+                            autocompleteInput.classList.add('govuk-input--error');
+                        }
+                        console.log('Applied GovUK styling to autocomplete input');
+                    }
+                }, 100);
+                
+            } catch (error) {
+                console.error('Error initializing accessible-autocomplete:', error);
+            }
+        } else {
+            console.error('accessibleAutocomplete is not available');
+        }
+        
+        // Attach event listeners to existing remove buttons (for server-rendered items)
+        attachRemoveButtonListeners();
+        
+        function attachRemoveButtonListeners() {
+            const existingRemoveButtons = selectedItemsContainer.querySelectorAll('.autocomplete-remove-item');
+            existingRemoveButtons.forEach(function(button) {
+                button.addEventListener('click', function() {
+                    const itemElement = button.closest('.autocomplete-selected-inset');
+                    if (itemElement) {
+                        const dataValue = itemElement.getAttribute('data-value');
+                        let valueToRemove;
+                        
+                        try {
+                            // Try to parse as JSON object
+                            valueToRemove = JSON.parse(dataValue);
+                        } catch {
+                            // If not JSON, use as string
+                            valueToRemove = dataValue;
+                        }
+                        
+                        console.log('Removing value:', valueToRemove);
+                        removeSelectedItem(valueToRemove);
+                    }
+                });
+            });
+        }
+        
+        function addSelectedItem(value) {
+            const currentValues = getCurrentValues();
+            
+            if (!allowMultiple) {
+                // Single selection - replace existing
+                currentValues.length = 0;
+                currentValues.push(value);
+            } else {
+                // Multiple selection - add if not already present
+                if (!isValueAlreadySelected(value, currentValues)) {
+                    currentValues.push(value);
+                }
+            }
+            
+            updateSelectedItems(currentValues);
+            updateHiddenInput(currentValues);
+        }
+        
+        function removeSelectedItem(value) {
+            const currentValues = getCurrentValues();
+            const index = findValueIndex(value, currentValues);
+            if (index > -1) {
+                currentValues.splice(index, 1);
+            }
+            
+            updateSelectedItems(currentValues);
+            updateHiddenInput(currentValues);
+        }
+        
+        function isValueAlreadySelected(value, currentValues) {
+            return findValueIndex(value, currentValues) > -1;
+        }
+        
+        function findValueIndex(value, currentValues) {
+            for (let i = 0; i < currentValues.length; i++) {
+                if (valuesEqual(value, currentValues[i])) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+        
+        function valuesEqual(value1, value2) {
+            // If both are objects, compare their JSON representation
+            if (typeof value1 === 'object' && typeof value2 === 'object' && value1 !== null && value2 !== null) {
+                return JSON.stringify(value1) === JSON.stringify(value2);
+            }
+            // If both are strings or one is string, compare as strings
+            return value1.toString() === value2.toString();
+        }
+        
+        function getCurrentValues() {
+            const hiddenValue = hiddenInput.value;
+            if (!hiddenValue) return [];
+            
+            try {
+                const parsed = JSON.parse(hiddenValue);
+                // If it's already an array, return it
+                if (Array.isArray(parsed)) {
+                    return parsed;
+                }
+                // If it's a single object, wrap it in an array
+                return [parsed];
+            } catch {
+                // If not JSON, treat as single string value
+                return [hiddenValue];
+            }
+        }
+        
+        function updateSelectedItems(values) {
+            selectedItemsContainer.innerHTML = '';
+            
+            values.forEach(function(value) {
+                const itemElement = document.createElement('div');
+                itemElement.className = 'autocomplete-selected-inset';
+                
+                // Handle both object and string values
+                var displayName, ukprnText = '';
+                if (typeof value === 'object' && value !== null) {
+                    displayName = value.name || value.toString();
+                    if (value.ukprn) {
+                        ukprnText = 'UKPRN: ' + value.ukprn;
+                    }
+                    itemElement.setAttribute('data-value', JSON.stringify(value));
+                } else {
+                    displayName = value.toString();
+                    itemElement.setAttribute('data-value', value);
+                }
+                
+                var html = '<div class="govuk-inset-text autocomplete-selected-inset" data-value="@dataValue">';
+                html += '<p class="govuk-body">';
+                html += '<strong>' + escapeHtml(displayName) + '</strong>';
+                if (ukprnText) {
+                    html += '<br />';
+                    html += '<span class="govuk-hint">' + ukprnText + '</span>';
+                }
+                html += '</p>';
+                html += '<button type="button" class="govuk-button govuk-button--secondary govuk-button--small autocomplete-remove-item" aria-label="Remove ' + escapeHtml(displayName) + '">';
+                html += 'Remove';
+                html += '</button>';
+                html += '</div>';
+                
+                itemElement.innerHTML = html;
+                
+                const removeButton = itemElement.querySelector('.autocomplete-remove-item');
+                removeButton.addEventListener('click', function() {
+                    removeSelectedItem(value);
+                });
+                
+                selectedItemsContainer.appendChild(itemElement);
+            });
+        }
+        
+        function updateHiddenInput(values) {
+            if (allowMultiple) {
+                hiddenInput.value = JSON.stringify(values);
+            } else {
+                // For single selection, still serialize objects to JSON
+                if (values.length > 0) {
+                    const value = values[0];
+                    if (typeof value === 'object' && value !== null) {
+                        hiddenInput.value = JSON.stringify(value);
+                    } else {
+                        hiddenInput.value = value;
+                    }
+                } else {
+                    hiddenInput.value = '';
+                }
+            }
+        }
+        
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+        }
+    });
+    
+    // Global escapeHtml function for templates
+    window.escapeHtml = function(text) {
+        const map = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+        return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+    };
+});
+</script> 

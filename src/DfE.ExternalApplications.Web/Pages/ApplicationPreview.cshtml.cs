@@ -154,9 +154,121 @@ namespace DfE.ExternalApplications.Web.Pages
         {
             if (FormData.TryGetValue(fieldId, out var value))
             {
-                return value?.ToString() ?? string.Empty;
+                if (value == null)
+                {
+                    return string.Empty;
+                }
+
+                // If it's already a string, return it
+                if (value is string stringValue)
+                {
+                    return stringValue;
+                }
+
+                // If it's an object (like from autocomplete), serialize it to JSON
+                try
+                {
+                    return JsonSerializer.Serialize(value);
+                }
+                catch
+                {
+                    return value.ToString() ?? string.Empty;
+                }
             }
             return string.Empty;
+        }
+
+        public string GetFormattedFieldValue(string fieldId)
+        {
+            var fieldValue = GetFieldValue(fieldId);
+            
+            if (string.IsNullOrEmpty(fieldValue))
+            {
+                return string.Empty;
+            }
+
+            // Try to format as autocomplete data if it looks like JSON
+            if (fieldValue.StartsWith("{") || fieldValue.StartsWith("["))
+            {
+                return FormatAutocompleteValue(fieldValue);
+            }
+
+            return fieldValue;
+        }
+
+        private string FormatAutocompleteValue(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return string.Empty;
+            }
+
+            try
+            {
+                using (var doc = JsonDocument.Parse(value))
+                {
+                    if (doc.RootElement.ValueKind == JsonValueKind.Array)
+                    {
+                        var displayValues = new List<string>();
+                        foreach (var element in doc.RootElement.EnumerateArray())
+                        {
+                            displayValues.Add(FormatSingleAutocompleteValue(element));
+                        }
+                        return string.Join(", ", displayValues);
+                    }
+                    else if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                    {
+                        return FormatSingleAutocompleteValue(doc.RootElement);
+                    }
+                }
+            }
+            catch
+            {
+                // If not JSON, return as is
+            }
+
+            return value;
+        }
+
+        private string FormatSingleAutocompleteValue(JsonElement element)
+        {
+            if (element.ValueKind == JsonValueKind.Object)
+            {
+                string name = "";
+                string ukprn = "";
+
+                if (element.TryGetProperty("name", out var nameProperty) && nameProperty.ValueKind == JsonValueKind.String)
+                {
+                    name = nameProperty.GetString() ?? "";
+                }
+
+                if (element.TryGetProperty("ukprn", out var ukprnProperty))
+                {
+                    if (ukprnProperty.ValueKind == JsonValueKind.String)
+                    {
+                        ukprn = ukprnProperty.GetString() ?? "";
+                    }
+                    else if (ukprnProperty.ValueKind == JsonValueKind.Number)
+                    {
+                        ukprn = ukprnProperty.GetInt64().ToString();
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(ukprn))
+                {
+                    return $"{name} (UKPRN: {ukprn})";
+                }
+                else if (!string.IsNullOrEmpty(name))
+                {
+                    return name;
+                }
+            }
+            else if (element.ValueKind == JsonValueKind.String)
+            {
+                return element.GetString() ?? "";
+            }
+
+            return element.ToString();
         }
 
         public bool HasFieldValue(string fieldId)

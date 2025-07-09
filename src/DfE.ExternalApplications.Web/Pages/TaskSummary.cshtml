@@ -34,6 +34,10 @@
                             var selectedOption = field.Options.FirstOrDefault(o => o.Value == fieldValue);
                             @(selectedOption?.Label ?? fieldValue)
                         }
+                        else if (field.Type == "autocomplete")
+                        {
+                            @Model.GetFormattedFieldValue(field.FieldId)
+                        }
                         else
                         {
                             @fieldValue

@@ -13,7 +13,7 @@
           "taskId": "task-1",
           "taskName": "Personal Information",
           "taskOrder": 1,
-          "taskStatus": "NotStarted",
+          "taskStatus": "Incomplete",
           "pages": [
             {
               "pageId": "page-1",
@@ -32,9 +32,7 @@
                   "placeholder": "Enter your Academy name here",
                   "tooltip": "Enter your Academy name",
                   "order": 1,
-                  "visibility": {
-                    "default": true
-                  },
+                  "visibility": { "default": true },
                   "validations": [
                     {
                       "type": "regex",
@@ -52,7 +50,7 @@
                       "message": "Academy name is required."
                     }
                   ]
-                  },
+                },
                 {
                   "fieldId": "academyProfile",
                   "type": "character-count",
@@ -63,9 +61,7 @@
                   "placeholder": "Enter your Academy profile here",
                   "tooltip": "Academy profile",
                   "order": 2,
-                  "visibility": {
-                    "default": true
-                  },
+                  "visibility": { "default": true },
                   "validations": [
                     {
                       "type": "maxLength",
@@ -77,7 +73,6 @@
                       "rule": true,
                       "message": "Academy profile is required."
                     }
-
                   ]
                 },
                 {
@@ -85,7 +80,7 @@
                   "type": "radios",
                   "label": {
                     "value": "Gender",
-                    "isPageHeading":  true
+                    "isPageHeading": true
                   },
                   "options": [
                     {
@@ -102,13 +97,10 @@
                     }
                   ],
                   "order": 3,
-                  "visibility": {
-                    "default": true
-                  },
-                  "validations": [
-                  ]
+                  "visibility": { "default": true },
+                  "validations": []
                 }
-          ]
+              ]
             },
             {
               "pageId": "page-2",
@@ -127,9 +119,7 @@
                   "placeholder": "Enter your agee",
                   "tooltip": "Enter your age",
                   "order": 1,
-                  "visibility": {
-                    "default": true
-                  }
+                  "visibility": { "default": true }
                 }
               ]
             }
@@ -139,7 +129,7 @@
           "taskId": "task-2",
           "taskName": "Employment Information",
           "taskOrder": 2,
-          "taskStatus": "NotStarted",
+          "taskStatus": "Incomplete",
           "pages": [
             {
               "pageId": "page-3",
@@ -151,9 +141,7 @@
                 {
                   "fieldId": "employmentStatus",
                   "type": "select",
-                  "label": {
-                    "value": "Are you currently employed?"
-                  },
+                  "label": { "value": "Are you currently employed?" },
                   "tooltip": "",
                   "options": [
                     {
@@ -166,22 +154,16 @@
                     }
                   ],
                   "order": 1,
-                  "visibility": {
-                    "default": true
-                  }
+                  "visibility": { "default": true }
                 },
                 {
                   "fieldId": "employerName",
                   "type": "text",
                   "tooltip": "something",
-                  "label": {
-                    "value": "Employer's Name"
-                  },
+                  "label": { "value": "Employer's Name" },
                   "placeholder": "Enter your employer's name",
                   "order": 2,
-                  "visibility": {
-                    "default": false
-                  },
+                  "visibility": { "default": false },
                   "validations": [
                     {
                       "type": "required",
@@ -203,29 +185,21 @@
                   "fieldId": "extraQuestion",
                   "type": "text",
                   "tooltip": "something",
-                  "label": {
-                    "value": "Optional Question"
-                  },
+                  "label": { "value": "Optional Question" },
                   "placeholder": "Answer if shown",
                   "required": false,
                   "order": 1,
-                  "visibility": {
-                    "default": true
-                  }
+                  "visibility": { "default": true }
                 },
                 {
                   "fieldId": "textArea",
                   "type": "text-area",
                   "tooltip": "Something",
-                  "label": {
-                    "value": "Comments"
-                  },
+                  "label": { "value": "Comments" },
                   "placeholder": "Answer if shown",
                   "required": false,
                   "order": 2,
-                  "visibility": {
-                    "default": true
-                  }
+                  "visibility": { "default": true }
                 }
               ]
             }
@@ -243,15 +217,31 @@
           "taskId": "task-3",
           "taskName": "Final Questions",
           "taskOrder": 3,
-          "taskStatus": "NotStarted",
+          "taskStatus": "Incomplete",
           "pages": [
             {
-              "pageId": "page-4",
+              "pageId": "page-5",
               "slug": "final-details",
               "title": "Additional Information",
               "description": "Provide additional details",
               "pageOrder": 1,
-              "fields": []
+              "fields": [
+                {
+                  "fieldId": "trustSearch",
+                  "type": "autocomplete",
+                  "label": {
+                    "value": "Search for a trust",
+                    "isPageHeading": false
+                  },
+                  "placeholder": "Start typing to search for trusts...",
+                  "tooltip": "Type at least 3 characters to search for trusts by name, UKPRN, or Companies House number",
+                  "order": 6,
+                  "visibility": {
+                    "default": true
+                  },
+                  "complexField": "{\"properties\":{\"endpoint\":\"https://api.dev.academies.education.gov.uk/trusts?page=1&count=10&groupname={0}&ukprn={0}&companieshousenumber={0}\",\"allowMultiple\":true,\"minLength\":3,\"placeholder\":\"Start typing to search for trusts...\"}}"
+                }
+              ]
             }
           ]
         }
