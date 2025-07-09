@@ -55,6 +55,7 @@ builder.Services.AddRazorPages(options =>
 {
     options.Conventions.AuthorizeFolder("/", "OpenIdConnectPolicy");
     options.Conventions.AllowAnonymousToPage("/Index");
+    options.Conventions.AllowAnonymousToPage("/Logout");
     
     // Allow anonymous access to test login page when test auth is enabled
     if (isTestAuthEnabled)
@@ -77,6 +78,7 @@ if (isTestAuthEnabled)
         options.DefaultScheme = TestAuthenticationHandler.SchemeName;
         options.DefaultChallengeScheme = TestAuthenticationHandler.SchemeName;
         options.DefaultSignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+        options.DefaultSignOutScheme = CookieAuthenticationDefaults.AuthenticationScheme;
     })
     .AddCookie()
     .AddScheme<TestAuthenticationSchemeOptions, TestAuthenticationHandler>(
@@ -89,6 +91,7 @@ else
     {
         options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
         options.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
+        options.DefaultSignOutScheme = OpenIdConnectDefaults.AuthenticationScheme;
     })
     .AddCookie()
     .AddCustomOpenIdConnect(configuration, sectionName: "DfESignIn");
