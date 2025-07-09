@@ -7,8 +7,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="DfE.CoreLibs.Caching" Version="1.0.11-prerelease-77" />
-    <PackageReference Include="DfE.CoreLibs.Contracts" Version="1.0.24" />
+    <PackageReference Include="DfE.CoreLibs.Caching" Version="1.0.10" />
+    <PackageReference Include="DfE.CoreLibs.Contracts" Version="1.0.25-prerelease-8" />
     <PackageReference Include="GovUK.Dfe.ExternalApplications.Api.Client" Version="0.1.4" />
     <PackageReference Include="Microsoft.AspNetCore.Http.Extensions" Version="2.3.0" />
   </ItemGroup>
