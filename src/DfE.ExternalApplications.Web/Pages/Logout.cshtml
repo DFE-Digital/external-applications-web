@@ -1,0 +1,42 @@
+@page
+@model LogoutModel
+@{
+    ViewData["Title"] = "Sign out";
+}
+
+<div class="govuk-grid-row">
+    <div class="govuk-grid-column-two-thirds">
+        <h1 class="govuk-heading-xl">Sign out</h1>
+        
+        <p class="govuk-body">
+            Are you sure you want to sign out? You will need to sign in again to continue using the application.
+        </p>
+
+        <form method="post">
+            <button type="submit" class="govuk-button govuk-button--warning" data-module="govuk-button">
+                Sign out
+            </button>
+            
+            <a href="/Dashboard" class="govuk-link govuk-body">Cancel</a>
+        </form>
+
+        <details class="govuk-details" data-module="govuk-details">
+            <summary class="govuk-details__summary">
+                <span class="govuk-details__summary-text">
+                    What happens when I sign out?
+                </span>
+            </summary>
+            <div class="govuk-details__text">
+                <p class="govuk-body">
+                    When you sign out:
+                </p>
+                <ul class="govuk-list govuk-list--bullet">
+                    <li>Your current session will be cleared</li>
+                    <li>You will be signed out from all authentication providers</li>
+                    <li>You will be redirected to the home page</li>
+                    <li>You will need to sign in again to access protected areas</li>
+                </ul>
+            </div>
+        </details>
+    </div>
+</div> 

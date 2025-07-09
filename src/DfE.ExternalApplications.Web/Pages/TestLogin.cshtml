@@ -1,0 +1,82 @@
+@page
+@model TestLoginModel
+@{
+    ViewData["Title"] = "Test Login";
+}
+
+<div class="govuk-grid-row">
+    <div class="govuk-grid-column-two-thirds">
+        <h1 class="govuk-heading-xl">Test Authentication</h1>
+        
+        <div class="govuk-warning-text">
+            <span class="govuk-warning-text__icon" aria-hidden="true">!</span>
+            <strong class="govuk-warning-text__text">
+                <span class="govuk-warning-text__assistive">Warning</span>
+                This is a test authentication page for development purposes only.
+            </strong>
+        </div>
+
+        @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+        {
+            <div class="govuk-error-summary" aria-labelledby="error-summary-title" role="alert" data-module="govuk-error-summary">
+                <h2 class="govuk-error-summary__title" id="error-summary-title">
+                    There is a problem
+                </h2>
+                <div class="govuk-error-summary__body">
+                    <ul class="govuk-list govuk-error-summary__list">
+                        <li>
+                            @Model.ErrorMessage
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        }
+
+        <form method="post">
+            <div class="govuk-form-group @(Html.ValidationMessageFor(m => m.Input.Email) == null ? "" : "govuk-form-group--error")">
+                <label class="govuk-label govuk-label--m" for="Input.Email">
+                    Enter your email address
+                </label>
+                <div class="govuk-hint" id="email-hint">
+                    This will be used to simulate authentication for testing purposes.
+                </div>
+                @if (Html.ValidationMessageFor(m => m.Input.Email) != null)
+                {
+                    <p id="email-error" class="govuk-error-message">
+                        <span class="govuk-visually-hidden">Error:</span>
+                        @Html.ValidationMessageFor(m => m.Input.Email)
+                    </p>
+                }
+                <input class="govuk-input @(Html.ValidationMessageFor(m => m.Input.Email) == null ? "" : "govuk-input--error")" 
+                       id="Input.Email" 
+                       name="Input.Email" 
+                       type="email" 
+                       value="@Model.Input.Email"
+                       autocomplete="email"
+                       aria-describedby="@(Html.ValidationMessageFor(m => m.Input.Email) == null ? "email-hint" : "email-hint email-error")">
+            </div>
+
+            <button type="submit" class="govuk-button" data-module="govuk-button">
+                Continue
+            </button>
+        </form>
+
+        <details class="govuk-details" data-module="govuk-details">
+            <summary class="govuk-details__summary">
+                <span class="govuk-details__summary-text">
+                    What is this page for?
+                </span>
+            </summary>
+            <div class="govuk-details__text">
+                <p class="govuk-body">
+                    This test authentication page allows developers and testers to bypass the normal OIDC authentication flow
+                    for development and testing purposes.
+                </p>
+                <p class="govuk-body">
+                    Simply enter any valid email address to authenticate as that user. This feature is only available
+                    when test authentication is enabled in the application configuration.
+                </p>
+            </div>
+        </details>
+    </div>
+</div> 
