@@ -1,0 +1,31 @@
+@page
+@model TestLogoutModel
+@{
+    ViewData["Title"] = "Test Logout";
+}
+
+<div class="govuk-grid-row">
+    <div class="govuk-grid-column-two-thirds">
+        <h1 class="govuk-heading-xl">Sign out</h1>
+        
+        <div class="govuk-warning-text">
+            <span class="govuk-warning-text__icon" aria-hidden="true">!</span>
+            <strong class="govuk-warning-text__text">
+                <span class="govuk-warning-text__assistive">Warning</span>
+                You are about to sign out of the test authentication session.
+            </strong>
+        </div>
+
+        <p class="govuk-body">
+            Are you sure you want to sign out? You will need to enter your email address again to continue using the application.
+        </p>
+
+        <form method="post">
+            <button type="submit" class="govuk-button govuk-button--warning" data-module="govuk-button">
+                Sign out
+            </button>
+            
+            <a href="/Dashboard" class="govuk-link govuk-body">Cancel</a>
+        </form>
+    </div>
+</div> 

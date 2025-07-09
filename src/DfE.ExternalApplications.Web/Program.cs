@@ -7,6 +7,7 @@ using DfE.ExternalApplications.Infrastructure.Parsers;
 using DfE.ExternalApplications.Infrastructure.Providers;
 using DfE.ExternalApplications.Infrastructure.Services;
 using DfE.ExternalApplications.Infrastructure.Stores;
+using DfE.ExternalApplications.Web.Authentication;
 using DfE.ExternalApplications.Web.Middleware;
 using DfE.ExternalApplications.Web.Security;
 using DfE.ExternalApplications.Web.Services;
@@ -21,17 +22,46 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 
 using System.Diagnostics.CodeAnalysis;
+using DfE.CoreLibs.Security;
+using DfE.CoreLibs.Security.Configurations;
+using Microsoft.Extensions.Http;
 
 var builder = WebApplication.CreateBuilder(args);
 
 ConfigurationManager configuration = builder.Configuration;
+
+// Configure test authentication options
+builder.Services.Configure<TestAuthenticationOptions>(
+    configuration.GetSection(TestAuthenticationOptions.SectionName));
+
+// Check if test authentication is enabled
+var testAuthOptions = configuration.GetSection(TestAuthenticationOptions.SectionName).Get<TestAuthenticationOptions>();
+var isTestAuthEnabled = testAuthOptions?.Enabled ?? false;
+
+// Configure token settings for test authentication
+if (isTestAuthEnabled && testAuthOptions != null)
+{
+    builder.Services.Configure<DfE.CoreLibs.Security.Configurations.TokenSettings>(options =>
+    {
+        options.SecretKey = testAuthOptions.JwtSigningKey;
+        options.Issuer = testAuthOptions.JwtIssuer;
+        options.Audience = testAuthOptions.JwtAudience;
+        options.TokenLifetimeMinutes = 60; // 1 hour default
+    });
+}
 
 // Add services to the container.
 builder.Services.AddRazorPages(options =>
 {
     options.Conventions.AuthorizeFolder("/", "OpenIdConnectPolicy");
     options.Conventions.AllowAnonymousToPage("/Index");
-
+    
+    // Allow anonymous access to test login page when test auth is enabled
+    if (isTestAuthEnabled)
+    {
+        options.Conventions.AllowAnonymousToPage("/TestLogin");
+        options.Conventions.AllowAnonymousToPage("/TestLogout");
+    }
 });
 
 builder.Services.AddHttpContextAccessor();
@@ -39,13 +69,30 @@ builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession();
 builder.Services.AddMemoryCache();
 
-builder.Services.AddAuthentication(options =>
+// Configure authentication based on test mode
+if (isTestAuthEnabled)
 {
-    options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
-})
-.AddCookie()
-.AddCustomOpenIdConnect(configuration, sectionName: "DfESignIn");
+    builder.Services.AddAuthentication(options =>
+    {
+        options.DefaultScheme = TestAuthenticationHandler.SchemeName;
+        options.DefaultChallengeScheme = TestAuthenticationHandler.SchemeName;
+        options.DefaultSignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+    })
+    .AddCookie()
+    .AddScheme<TestAuthenticationSchemeOptions, TestAuthenticationHandler>(
+        TestAuthenticationHandler.SchemeName, 
+        options => { });
+}
+else
+{
+    builder.Services.AddAuthentication(options =>
+    {
+        options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
+    })
+    .AddCookie()
+    .AddCustomOpenIdConnect(configuration, sectionName: "DfESignIn");
+}
 
 builder.Services
     .AddApplicationAuthorization(
@@ -71,6 +118,12 @@ builder.Services.AddScoped<IHtmlHelper, HtmlHelper>();
 builder.Services.AddScoped<IFieldRendererService, FieldRendererService>();
 builder.Services.AddScoped<IApplicationResponseService, ApplicationResponseService>();
 builder.Services.AddSingleton<ITemplateStore, ApiTemplateStore>();
+
+// Add test token handler and services when test authentication is enabled
+if (isTestAuthEnabled)
+{
+    builder.Services.AddUserTokenService(configuration);
+}
 
 builder.Services.AddServiceCaching(configuration);
 
@@ -99,7 +152,7 @@ app.UseSession();
 app.UseHostTemplateResolution();
 
 app.UseAuthentication();
-app.UsePermissionsCache();
+//app.UsePermissionsCache();
 app.UseTokenExpiryCheck();
 app.UseAuthorization();
 

@@ -1,6 +1,8 @@
-﻿using Microsoft.AspNetCore.Authentication;
+﻿using DfE.CoreLibs.Security.Configurations;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.Extensions.Options;
 using System.Diagnostics.CodeAnalysis;
 
 namespace DfE.ExternalApplications.Web.Middleware
@@ -10,16 +12,28 @@ namespace DfE.ExternalApplications.Web.Middleware
     {
         private readonly RequestDelegate _next;
         private readonly ILogger<TokenExpiryMiddleware> _logger;
+        private readonly TestAuthenticationOptions _testAuthOptions;
         private static readonly TimeSpan ExpiryThreshold = TimeSpan.FromMinutes(10);
 
-        public TokenExpiryMiddleware(RequestDelegate next, ILogger<TokenExpiryMiddleware> logger)
+        public TokenExpiryMiddleware(
+            RequestDelegate next, 
+            ILogger<TokenExpiryMiddleware> logger,
+            IOptions<TestAuthenticationOptions> testAuthOptions)
         {
             _next = next;
             _logger = logger;
+            _testAuthOptions = testAuthOptions.Value;
         }
 
         public async Task InvokeAsync(HttpContext context)
         {
+            // Skip token expiry checks when test authentication is enabled
+            if (_testAuthOptions.Enabled)
+            {
+                await _next(context);
+                return;
+            }
+
             var result = await context.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             if (result.Succeeded)
             {
