@@ -123,6 +123,7 @@ builder.Services.AddSingleton<ITemplateStore, ApiTemplateStore>();
 if (isTestAuthEnabled)
 {
     builder.Services.AddUserTokenService(configuration);
+    builder.Services.AddScoped<ITestAuthenticationService, TestAuthenticationService>();
 }
 
 builder.Services.AddServiceCaching(configuration);
@@ -152,7 +153,7 @@ app.UseSession();
 app.UseHostTemplateResolution();
 
 app.UseAuthentication();
-//app.UsePermissionsCache();
+app.UsePermissionsCache();
 app.UseTokenExpiryCheck();
 app.UseAuthorization();
 

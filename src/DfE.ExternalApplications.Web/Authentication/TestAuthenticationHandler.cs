@@ -10,6 +10,18 @@ namespace DfE.ExternalApplications.Web.Authentication;
 public class TestAuthenticationHandler : AuthenticationHandler<TestAuthenticationSchemeOptions>
 {
     public const string SchemeName = "TestAuthentication";
+    
+    private static class SessionKeys
+    {
+        public const string Email = "TestAuth:Email";
+        public const string Token = "TestAuth:Token";
+    }
+
+    private static class TokenNames
+    {
+        public const string IdToken = "id_token";
+        public const string AccessToken = "access_token";
+    }
 
     public TestAuthenticationHandler(
         IOptionsMonitor<TestAuthenticationSchemeOptions> options,
@@ -22,20 +34,15 @@ public class TestAuthenticationHandler : AuthenticationHandler<TestAuthenticatio
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        var email = Context.Session.GetString("TestAuth:Email");
-        var token = Context.Session.GetString("TestAuth:Token");
+        var email = Context.Session.GetString(SessionKeys.Email);
+        var token = Context.Session.GetString(SessionKeys.Token);
 
         if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(token))
         {
             return Task.FromResult(AuthenticateResult.NoResult());
         }
 
-        var claims = new[]
-        {
-            new Claim(ClaimTypes.Name, email),
-            new Claim(ClaimTypes.Email, email)
-        };
-
+        var claims = CreateUserClaims(email);
         var identity = new ClaimsIdentity(claims, SchemeName);
         var principal = new ClaimsPrincipal(identity);
         var ticket = new AuthenticationTicket(principal, CreateAuthenticationProperties(token), SchemeName);
@@ -45,17 +52,34 @@ public class TestAuthenticationHandler : AuthenticationHandler<TestAuthenticatio
 
     protected override Task HandleChallengeAsync(AuthenticationProperties properties)
     {
-        Response.Redirect("/TestLogin");
+        var returnUrl = properties?.RedirectUri;
+        var loginUrl = string.IsNullOrEmpty(returnUrl) 
+            ? "/TestLogin" 
+            : $"/TestLogin?returnUrl={Uri.EscapeDataString(returnUrl)}";
+            
+        Response.Redirect(loginUrl);
         return Task.CompletedTask;
     }
 
-    private AuthenticationProperties CreateAuthenticationProperties(string token)
+    private static IEnumerable<Claim> CreateUserClaims(string email)
+    {
+        return new[]
+        {
+            new Claim(ClaimTypes.Name, email),
+            new Claim(ClaimTypes.Email, email),
+            new Claim(ClaimTypes.NameIdentifier, email),
+            new Claim("sub", email),
+            new Claim("email", email)
+        };
+    }
+
+    private static AuthenticationProperties CreateAuthenticationProperties(string token)
     {
         var properties = new AuthenticationProperties();
         properties.StoreTokens(new[]
         {
-            new AuthenticationToken { Name = "id_token", Value = token },
-            new AuthenticationToken { Name = "access_token", Value = token }
+            new AuthenticationToken { Name = TokenNames.IdToken, Value = token },
+            new AuthenticationToken { Name = TokenNames.AccessToken, Value = token }
         });
         return properties;
     }
@@ -64,5 +88,5 @@ public class TestAuthenticationHandler : AuthenticationHandler<TestAuthenticatio
 [ExcludeFromCodeCoverage]
 public class TestAuthenticationSchemeOptions : AuthenticationSchemeOptions
 {
-    // Empty options class for now, can be extended if needed
+    // Options class for future extensibility
 } 
