@@ -209,28 +209,79 @@
     },
     {
       "groupId": "group-2",
-      "groupName": "Academy Information",
+      "groupName": "About the sponsoring trust",
       "groupOrder": 2,
       "groupStatus": "Incomplete",
       "tasks": [
         {
           "taskId": "task-3",
-          "taskName": "Final Questions",
+          "taskName": "Trust details",
           "taskOrder": 3,
           "taskStatus": "Incomplete",
           "pages": [
             {
               "pageId": "page-5",
-              "slug": "final-details",
-              "title": "Additional Information",
-              "description": "Provide additional details",
+              "slug": "new-trust-formation",
+              "title": "Employment Information",
+              "description": "Employment status and employer details",
+              "pageOrder": 1,
+              "fields": [
+                {
+                  "fieldId": "newTrustFormation",
+                  "type": "radios",
+                  "label": {
+                    "value": "Is the result of this transfer the formation of a new trust?",
+                    "isPageHeading": true
+                  },
+                  "tooltip": "",
+                  "options": [
+                    {
+                      "value": "yes",
+                      "label": "Yes"
+                    },
+                    {
+                      "value": "no",
+                      "label": "No"
+                    }
+                  ],
+                  "order": 1,
+                  "visibility": { "default": true }
+                }
+              ]
+            },
+            {
+              "pageId": "page-6",
+              "slug": "new-trust-name",
+              "title": "Enter the new trust name",
+              "description": "Enter the new trust name",
+              "pageOrder": 1,
+              "fields": [
+                {
+                  "fieldId": "new-trust-name",
+                  "type": "text",
+                  "label": {
+                    "value": "Enter the new trust name",
+                    "isPageHeading": true
+                  },
+                  "placeholder": "",
+                  "tooltip": "",
+                  "order": 1,
+                  "visibility": { "default": true }
+                }
+              ]
+            },
+            {
+              "pageId": "page-7",
+              "slug": "-details",
+              "title": "Search for an trust by name or reference number",
+              "description": "For example, search by unique reference number (URN)",
               "pageOrder": 1,
               "fields": [
                 {
                   "fieldId": "trustSearch",
                   "type": "autocomplete",
                   "label": {
-                    "value": "Search for a trust",
+                    "value": "Trust",
                     "isPageHeading": false
                   },
                   "placeholder": "Start typing to search for trusts...",
@@ -239,7 +290,47 @@
                   "visibility": {
                     "default": true
                   },
-                  "complexField": "{\"properties\":{\"endpoint\":\"https://api.dev.academies.education.gov.uk/trusts?page=1&count=10&groupname={0}&ukprn={0}&companieshousenumber={0}\",\"allowMultiple\":true,\"minLength\":3,\"placeholder\":\"Start typing to search for trusts...\"}}"
+                  "complexField": "{\"properties\":{\"endpoint\":\"https://api.dev.academies.education.gov.uk/trusts?page=1&count=10&groupname={0}&ukprn={0}&companieshousenumber={0}\",\"allowMultiple\":false,\"minLength\":3,\"placeholder\":\"Start typing to search for trusts...\"}}"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "groupId": "group-3",
+      "groupName": "About transferring academies",
+      "groupOrder": 2,
+      "groupStatus": "Incomplete",
+      "tasks": [
+        {
+          "taskId": "task-4",
+          "taskName": "Details of academies",
+          "taskOrder": 3,
+          "taskStatus": "Incomplete",
+          "pages": [
+            {
+              "pageId": "page-8",
+              "slug": "-details",
+              "title": "Search for an academy by name or reference number",
+              "description": "For example, search by unique reference number (URN)",
+              "pageOrder": 1,
+              "fields": [
+                {
+                  "fieldId": "academiesSearch",
+                  "type": "autocomplete",
+                  "label": {
+                    "value": "Academies",
+                    "isPageHeading": false
+                  },
+                  "placeholder": "Start typing to search for trusts...",
+                  "tooltip": "Type at least 3 characters to search for trusts by name, UKPRN, or Companies House number",
+                  "order": 6,
+                  "visibility": {
+                    "default": true
+                  },
+                  "complexField": "{\"properties\":{\"endpoint\":\"https://api.dev.academies.education.gov.uk/trusts?page=1&count=10&groupname={0}&ukprn={0}&companieshousenumber={0}\",\"allowMultiple\":true,\"maxSelections\":5,\"minLength\":3,\"label\":\"Academy\",\"placeholder\":\"Start typing to search for trusts...\"}}"
                 }
               ]
             }

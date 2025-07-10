@@ -25,6 +25,8 @@
         int.Parse(properties["minLength"].ToString()) : 3;
     var placeholder = properties.ContainsKey("placeholder") ? 
         properties["placeholder"].ToString() : "Start typing to search...";
+    var maxSelections = properties.ContainsKey("maxSelections") ? 
+        int.Parse(properties["maxSelections"].ToString()) : 0; // 0 means no limit
     
     // Generate unique IDs
     var inputId = $"{Model.Id}-autocomplete";
@@ -151,6 +153,7 @@
              data-endpoint="@endpoint"
              data-min-length="@minLength"
              data-allow-multiple="@allowMultiple.ToString().ToLower()"
+             data-max-selections="@maxSelections"
              data-target-input="@Model.Id"
              data-selected-items-container="@selectedItemsId"
              data-placeholder="@placeholder"
@@ -164,6 +167,14 @@
                 <span>You can select multiple options.</span>
             }
         </div>
+        
+        <!-- Maximum selections message -->
+        @if (allowMultiple && maxSelections > 0)
+        {
+            <div id="@(inputId)-max-message" class="govuk-inset-text" style="display: none;">
+                <p class="govuk-body">You have reached the maximum number of selections (@maxSelections). Remove a selection to add a different one.</p>
+            </div>
+        }
         
         <!-- Selected items container -->
         @if (allowMultiple)
@@ -254,8 +265,30 @@
         position: relative;
     }
     
+    /* Selected items styling - GovUK Inset Text */
     .autocomplete-selected-items {
         margin-top: 15px;
+    }
+    
+    .autocomplete-selected-inset {
+        position: relative;
+        margin-bottom: 15px;
+    }
+    
+    .autocomplete-selected-inset:last-child {
+        margin-bottom: 0;
+    }
+    
+    .autocomplete-selected-inset .govuk-body {
+        margin-bottom: 15px;
+    }
+    
+    .autocomplete-selected-inset .govuk-hint {
+        margin-top: 0;
+    }
+    
+    .autocomplete-selected-inset .govuk-button {
+        margin-top: 0;
     }
     
     /* Custom autocomplete suggestion styling */
@@ -275,94 +308,6 @@
         font-weight: 400;
         margin-top: 2px;
         line-height: 1.2;
-    }
-    
-    /* Selected items styling - GovUK Design System inspired */
-    .autocomplete-selected-item {
-        display: inline-flex;
-        align-items: flex-start;
-        background-color: #f3f2f1;
-        border: 2px solid #b1b4b6;
-        border-radius: 4px;
-        padding: 10px 15px;
-        margin-right: 10px;
-        margin-bottom: 10px;
-        font-family: "GDS Transport", arial, sans-serif;
-        font-size: 16px;
-        line-height: 1.25;
-        max-width: 100%;
-        position: relative;
-    }
-    
-    .autocomplete-selected-item-content {
-        display: flex;
-        align-items: flex-start;
-        width: 100%;
-        gap: 15px;
-    }
-    
-    .autocomplete-selected-item-main {
-        flex: 1;
-        min-width: 0;
-        word-wrap: break-word;
-    }
-    
-    .autocomplete-selected-item-name {
-        font-weight: 600;
-        color: #0b0c0c;
-        margin-bottom: 2px;
-        word-break: break-word;
-    }
-    
-    .autocomplete-selected-item-urn {
-        font-size: 14px;
-        color: #6f777b;
-        font-weight: 400;
-        word-break: break-word;
-    }
-    
-    .autocomplete-remove-item {
-        background-color: #d4351c;
-        color: white;
-        border: 2px solid #d4351c;
-        border-radius: 4px;
-        padding: 5px 10px;
-        font-size: 14px;
-        font-weight: 400;
-        line-height: 1;
-        cursor: pointer;
-        text-decoration: none;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 30px;
-        min-height: 30px;
-        flex-shrink: 0;
-        transition: background-color 0.2s ease;
-    }
-    
-    .autocomplete-remove-item:hover {
-        background-color: #aa2a16;
-        border-color: #aa2a16;
-        color: white;
-    }
-    
-    .autocomplete-remove-item:focus {
-        outline: 3px solid #ffdd00;
-        outline-offset: 0;
-        background-color: #aa2a16;
-        border-color: #aa2a16;
-    }
-    
-    .autocomplete-remove-item:active {
-        background-color: #942119;
-        border-color: #942119;
-    }
-    
-    .autocomplete-remove-item span {
-        font-size: 16px;
-        font-weight: bold;
-        line-height: 1;
     }
     
     /* Accessible autocomplete styling overrides */
@@ -453,25 +398,6 @@
         right: 0;
         top: 0;
     }
-    
-    /* Responsive design */
-    @@media (max-width: 640px) {
-        .autocomplete-selected-item {
-            display: block;
-            margin-right: 0;
-            margin-bottom: 15px;
-        }
-        
-        .autocomplete-selected-item-content {
-            flex-direction: column;
-            gap: 10px;
-        }
-        
-        .autocomplete-remove-item {
-            align-self: flex-end;
-            margin-top: 5px;
-        }
-    }
 </style>
 
 <script>
@@ -498,10 +424,12 @@ document.addEventListener('DOMContentLoaded', function() {
         const endpoint = autocompleteContainer.dataset.endpoint;
         const minLength = parseInt(autocompleteContainer.dataset.minLength) || 3;
         const placeholder = autocompleteContainer.dataset.placeholder;
+        const maxSelections = parseInt(autocompleteContainer.dataset.maxSelections) || 0;
         
         console.log('Initializing autocomplete for container element:', autocompleteContainer);
         console.log('Endpoint:', endpoint);
         console.log('Placeholder:', placeholder);
+        console.log('Max selections:', maxSelections);
         
         // Initialize accessible autocomplete on the container element
         if (typeof accessibleAutocomplete !== 'undefined') {
@@ -621,6 +549,10 @@ document.addEventListener('DOMContentLoaded', function() {
         // Attach event listeners to existing remove buttons (for server-rendered items)
         attachRemoveButtonListeners();
         
+        // Check initial selection limit state
+        const initialValues = getCurrentValues();
+        updateSelectionLimitUI(initialValues);
+        
         function attachRemoveButtonListeners() {
             const existingRemoveButtons = selectedItemsContainer.querySelectorAll('.autocomplete-remove-item');
             existingRemoveButtons.forEach(function(button) {
@@ -648,6 +580,12 @@ document.addEventListener('DOMContentLoaded', function() {
         function addSelectedItem(value) {
             const currentValues = getCurrentValues();
             
+            // Check maximum selections limit for multiple selection
+            if (allowMultiple && maxSelections > 0 && currentValues.length >= maxSelections) {
+                console.log('Maximum selections reached:', maxSelections);
+                return; // Don't add more items
+            }
+            
             if (!allowMultiple) {
                 // Single selection - replace existing
                 currentValues.length = 0;
@@ -661,6 +599,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             updateSelectedItems(currentValues);
             updateHiddenInput(currentValues);
+            updateSelectionLimitUI(currentValues);
         }
         
         function removeSelectedItem(value) {
@@ -672,6 +611,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             updateSelectedItems(currentValues);
             updateHiddenInput(currentValues);
+            updateSelectionLimitUI(currentValues);
         }
         
         function isValueAlreadySelected(value, currentValues) {
@@ -719,7 +659,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             values.forEach(function(value) {
                 const itemElement = document.createElement('div');
-                itemElement.className = 'autocomplete-selected-inset';
+                itemElement.className = 'govuk-inset-text autocomplete-selected-inset';
                 
                 // Handle both object and string values
                 var displayName, ukprnText = '';
@@ -734,8 +674,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     itemElement.setAttribute('data-value', value);
                 }
                 
-                var html = '<div class="govuk-inset-text autocomplete-selected-inset" data-value="@dataValue">';
-                html += '<p class="govuk-body">';
+                var html = '<p class="govuk-body">';
                 html += '<strong>' + escapeHtml(displayName) + '</strong>';
                 if (ukprnText) {
                     html += '<br />';
@@ -745,7 +684,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 html += '<button type="button" class="govuk-button govuk-button--secondary govuk-button--small autocomplete-remove-item" aria-label="Remove ' + escapeHtml(displayName) + '">';
                 html += 'Remove';
                 html += '</button>';
-                html += '</div>';
                 
                 itemElement.innerHTML = html;
                 
@@ -772,6 +710,33 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 } else {
                     hiddenInput.value = '';
+                }
+            }
+        }
+        
+        function updateSelectionLimitUI(currentValues) {
+            if (!allowMultiple || maxSelections === 0) return;
+            
+            const autocompleteInput = container.querySelector('.autocomplete__input');
+            const maxMessage = document.getElementById(autocompleteContainer.id.replace('-container', '') + '-max-message');
+            
+            if (currentValues.length >= maxSelections) {
+                // Hide autocomplete input and show message
+                if (autocompleteInput) {
+                    autocompleteInput.style.display = 'none';
+                    autocompleteInput.disabled = true;
+                }
+                if (maxMessage) {
+                    maxMessage.style.display = 'block';
+                }
+            } else {
+                // Show autocomplete input and hide message
+                if (autocompleteInput) {
+                    autocompleteInput.style.display = 'block';
+                    autocompleteInput.disabled = false;
+                }
+                if (maxMessage) {
+                    maxMessage.style.display = 'none';
                 }
             }
         }
