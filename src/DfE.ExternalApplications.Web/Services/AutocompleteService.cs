@@ -85,8 +85,7 @@ namespace DfE.ExternalApplications.Web.Services
         {
             // Check if this endpoint requires API key authentication
             // This could be made more sophisticated with endpoint-specific config
-            var uri = new Uri(endpoint);
-            var hostKey = $"ApiKeys:{uri.Host}";
+            var hostKey = $"ApiKeys:AcademiesApi";
             var apiKey = _configuration[hostKey];
             
             _logger.LogDebug("Looking for API key with configuration key: {HostKey}", hostKey);
@@ -94,11 +93,6 @@ namespace DfE.ExternalApplications.Web.Services
             if (!string.IsNullOrEmpty(apiKey))
             {
                 request.Headers.Add("ApiKey", apiKey);
-                _logger.LogDebug("Added API key authentication for host: {Host}", uri.Host);
-            }
-            else
-            {
-                _logger.LogWarning("No API key found for host: {Host} (config key: {HostKey})", uri.Host, hostKey);
             }
             
             // Could add other authentication methods here based on configuration

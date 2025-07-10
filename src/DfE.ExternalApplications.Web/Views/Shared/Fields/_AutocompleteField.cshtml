@@ -473,8 +473,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                         
                         if (endpoint) {
-                            // Use the generic autocomplete search endpoint
-                            var requestUrl = '/api/autocomplete/search?endpoint=' + encodeURIComponent(endpoint) + '&query=' + encodeURIComponent(query);
+                            // Use the page handler for autocomplete search
+                            var requestUrl = window.location.pathname + '?handler=autocomplete&endpoint=' + encodeURIComponent(endpoint) + '&query=' + encodeURIComponent(query);
                             console.log('Making API call to:', requestUrl);
                             
                             // Make API call to the endpoint

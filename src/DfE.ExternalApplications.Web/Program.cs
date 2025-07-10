@@ -20,11 +20,8 @@ using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
-
-using System.Diagnostics.CodeAnalysis;
 using DfE.CoreLibs.Security;
 using DfE.CoreLibs.Security.Configurations;
-using Microsoft.Extensions.Http;
 
 var builder = WebApplication.CreateBuilder(args);
 

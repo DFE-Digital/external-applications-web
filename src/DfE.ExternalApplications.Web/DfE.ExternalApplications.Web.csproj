@@ -25,11 +25,5 @@
     <ProjectReference Include="..\DfE.ExternalApplications.Infrastructure\DfE.ExternalApplications.Infrastructure.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Content Update="templates\form-transfers.json">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
-
 
 </Project>
