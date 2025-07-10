@@ -35,7 +35,7 @@ namespace DfE.ExternalApplications.Web.Pages
         private readonly ILogger<RenderFormModel> _logger;
 
         public RenderFormModel(
-            IFieldRendererService renderer, 
+            IFieldRendererService renderer,
             IFormTemplateProvider templateProvider,
             IApplicationResponseService applicationResponseService,
             IApplicationsClient applicationsClient,
@@ -55,22 +55,22 @@ namespace DfE.ExternalApplications.Web.Pages
             CurrentPageId = pageId;
             await LoadTemplateAsync();
             LoadApplicationStatus();
-            
+
             // If application is not editable and trying to access a specific page, redirect to preview
             if (!IsApplicationEditable() && !string.IsNullOrEmpty(pageId))
             {
                 Response.Redirect($"~/render-form/{ReferenceNumber}/preview");
                 return;
             }
-            
+
             if (!string.IsNullOrEmpty(pageId))
             {
                 InitializeCurrentPage(CurrentPageId);
             }
-            
+
             // Check if we need to clear session data for a new application
             CheckAndClearSessionForNewApplication();
-            
+
             // Load accumulated form data from session to pre-populate fields
             LoadAccumulatedDataFromSession();
         }
@@ -81,13 +81,13 @@ namespace DfE.ExternalApplications.Web.Pages
             await EnsureApplicationIdAsync();
             await LoadTemplateAsync();
             LoadApplicationStatus();
-            
+
             // Prevent editing if application is not editable
             if (!IsApplicationEditable())
             {
                 return RedirectToPage("/ApplicationPreview", new { referenceNumber = ReferenceNumber });
             }
-            
+
             InitializeCurrentPage(CurrentPageId);
 
             foreach (var key in Request.Form.Keys)
@@ -98,7 +98,7 @@ namespace DfE.ExternalApplications.Web.Pages
                 {
                     var fieldId = match.Groups[1].Value;
                     var formValue = Request.Form[key];
-                    
+
                     // Convert StringValues to a simple string or array based on count
                     if (formValue.Count == 1)
                     {
@@ -127,12 +127,12 @@ namespace DfE.ExternalApplications.Web.Pages
                 try
                 {
                     await _applicationResponseService.SaveApplicationResponseAsync(ApplicationId.Value, Data, HttpContext.Session);
-                    _logger.LogInformation("Successfully saved response for Application {ApplicationId}, Page {PageId}", 
+                    _logger.LogInformation("Successfully saved response for Application {ApplicationId}, Page {PageId}",
                         ApplicationId.Value, CurrentPageId);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to save response for Application {ApplicationId}, Page {PageId}", 
+                    _logger.LogError(ex, "Failed to save response for Application {ApplicationId}, Page {PageId}",
                         ApplicationId.Value, CurrentPageId);
                     // Continue with navigation even if save fails - we can show a warning to user later
                 }
@@ -222,16 +222,16 @@ namespace DfE.ExternalApplications.Web.Pages
             // Check if we're working with a different application than what's stored in session
             var sessionApplicationId = HttpContext.Session.GetString("CurrentAccumulatedApplicationId");
             var currentApplicationId = ApplicationId?.ToString();
-            
-            if (!string.IsNullOrEmpty(sessionApplicationId) && 
+
+            if (!string.IsNullOrEmpty(sessionApplicationId) &&
                 sessionApplicationId != currentApplicationId)
             {
                 // Clear accumulated data for the previous application
                 _applicationResponseService.ClearAccumulatedFormData(HttpContext.Session);
-                _logger.LogInformation("Cleared accumulated form data for previous application {PreviousApplicationId}, now working with {CurrentApplicationId}", 
+                _logger.LogInformation("Cleared accumulated form data for previous application {PreviousApplicationId}, now working with {CurrentApplicationId}",
                     sessionApplicationId, currentApplicationId);
             }
-            
+
             // Store the current application ID for future reference
             if (ApplicationId.HasValue)
             {
@@ -249,23 +249,10 @@ namespace DfE.ExternalApplications.Web.Pages
 
             try
             {
-                _logger.LogInformation("Loading response data for application {ApplicationReference}. Response body: {ResponseBody}", 
-                    application.ApplicationReference, application.LatestResponse.ResponseBody);
+                _logger.LogInformation("Loading response data for application {ApplicationReference}.",
+                    application.ApplicationReference);
 
-                string responseJson;
-                
-                try
-                {
-                    var decodedBytes = Convert.FromBase64String(application.LatestResponse.ResponseBody);
-                    responseJson = System.Text.Encoding.UTF8.GetString(decodedBytes);
-                    _logger.LogInformation("Successfully decoded Base64 response for application {ApplicationReference}", application.ApplicationReference);
-                }
-                catch (FormatException)
-                {
-                    // Not Base64, assume it's direct JSON (backward compatibility)
-                    responseJson = application.LatestResponse.ResponseBody;
-                    _logger.LogInformation("Using direct JSON response for application {ApplicationReference} (backward compatibility)", application.ApplicationReference);
-                }
+                var responseJson = application.LatestResponse.ResponseBody;
 
                 // Parse the response body JSON
                 var responseData = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(responseJson);
@@ -296,7 +283,7 @@ namespace DfE.ExternalApplications.Web.Pages
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogWarning(ex, "Failed to process field {FieldName} for application {ApplicationReference}", 
+                        _logger.LogWarning(ex, "Failed to process field {FieldName} for application {ApplicationReference}",
                             kvp.Key, application.ApplicationReference);
                     }
                 }
@@ -305,12 +292,12 @@ namespace DfE.ExternalApplications.Web.Pages
                 _applicationResponseService.StoreFormDataInSession(formDataDict, HttpContext.Session);
                 _applicationResponseService.SetCurrentAccumulatedApplicationId(application.ApplicationId, HttpContext.Session);
 
-                _logger.LogInformation("Successfully loaded {FieldCount} fields from API into session for application {ApplicationReference}", 
+                _logger.LogInformation("Successfully loaded {FieldCount} fields from API into session for application {ApplicationReference}",
                     formDataDict.Count, application.ApplicationReference);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to load response data for application {ApplicationReference}: {ErrorMessage}", 
+                _logger.LogError(ex, "Failed to load response data for application {ApplicationReference}: {ErrorMessage}",
                     application.ApplicationReference, ex.Message);
             }
         }
@@ -338,7 +325,7 @@ namespace DfE.ExternalApplications.Web.Pages
         {
             // Get accumulated form data from session and populate the Data dictionary
             var accumulatedData = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
-            
+
             if (accumulatedData.Any())
             {
                 // Populate the Data dictionary with accumulated data
@@ -346,7 +333,7 @@ namespace DfE.ExternalApplications.Web.Pages
                 {
                     Data[kvp.Key] = kvp.Value;
                 }
-                
+
                 _logger.LogInformation("Loaded {Count} accumulated form data entries from session", accumulatedData.Count);
             }
         }
@@ -384,49 +371,49 @@ namespace DfE.ExternalApplications.Web.Pages
             {
                 return Domain.Models.TaskStatus.Completed;
             }
-            
+
             // First check if task is explicitly marked as completed
             if (ApplicationId.HasValue)
             {
                 var sessionKey = $"TaskStatus_{ApplicationId.Value}_{taskId}";
                 var statusString = HttpContext.Session.GetString(sessionKey);
-                
-                if (!string.IsNullOrEmpty(statusString) && 
+
+                if (!string.IsNullOrEmpty(statusString) &&
                     Enum.TryParse<Domain.Models.TaskStatus>(statusString, out var explicitStatus) &&
                     explicitStatus == Domain.Models.TaskStatus.Completed)
                 {
                     return Domain.Models.TaskStatus.Completed;
                 }
             }
-            
+
             // Get all form data accumulated so far
             var accumulatedData = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
-            
+
             // Find the task in the template
             var task = Template?.TaskGroups?
                 .SelectMany(g => g.Tasks)
                 .FirstOrDefault(t => t.TaskId == taskId);
-                
+
             if (task == null)
             {
                 return Domain.Models.TaskStatus.NotStarted;
             }
-            
+
             // Check if any fields in this task have been completed
             var taskFieldIds = task.Pages
                 .SelectMany(p => p.Fields)
                 .Select(f => f.FieldId)
                 .ToList();
-                
-            var hasAnyFieldCompleted = taskFieldIds.Any(fieldId => 
-                accumulatedData.ContainsKey(fieldId) && 
+
+            var hasAnyFieldCompleted = taskFieldIds.Any(fieldId =>
+                accumulatedData.ContainsKey(fieldId) &&
                 !string.IsNullOrWhiteSpace(accumulatedData[fieldId]?.ToString()));
-            
+
             if (hasAnyFieldCompleted)
             {
                 return Domain.Models.TaskStatus.InProgress;
             }
-            
+
             return Domain.Models.TaskStatus.NotStarted;
         }
 
@@ -439,16 +426,16 @@ namespace DfE.ExternalApplications.Web.Pages
             {
                 return "InProgress";
             }
-            
+
             var allTasks = Template.TaskGroups.SelectMany(g => g.Tasks).ToList();
-            
+
             // If any task is in progress or completed, application is in progress
-            var hasAnyTaskWithProgress = allTasks.Any(task => 
+            var hasAnyTaskWithProgress = allTasks.Any(task =>
             {
                 var status = CalculateTaskStatus(task.TaskId);
                 return status == Domain.Models.TaskStatus.InProgress || status == Domain.Models.TaskStatus.Completed;
             });
-            
+
             return hasAnyTaskWithProgress ? "InProgress" : "InProgress"; // Always InProgress until submitted
         }
 
@@ -481,7 +468,7 @@ namespace DfE.ExternalApplications.Web.Pages
             if (Template?.TaskGroups == null) return false;
 
             var allTasks = Template.TaskGroups.SelectMany(g => g.Tasks).ToList();
-            
+
             foreach (var task in allTasks)
             {
                 var taskStatus = GetTaskStatusFromSession(task.TaskId);
@@ -490,7 +477,7 @@ namespace DfE.ExternalApplications.Web.Pages
                     return false;
                 }
             }
-            
+
             return allTasks.Any(); // Return true only if there are tasks and all are completed
         }
 
@@ -500,8 +487,8 @@ namespace DfE.ExternalApplications.Web.Pages
             var applicationIdString = HttpContext.Session.GetString("ApplicationId");
             var sessionReference = HttpContext.Session.GetString("ApplicationReference");
 
-            if (!string.IsNullOrEmpty(applicationIdString) && 
-                !string.IsNullOrEmpty(sessionReference) && 
+            if (!string.IsNullOrEmpty(applicationIdString) &&
+                !string.IsNullOrEmpty(sessionReference) &&
                 sessionReference == ReferenceNumber)
             {
                 if (Guid.TryParse(applicationIdString, out var sessionAppId))
@@ -515,7 +502,7 @@ namespace DfE.ExternalApplications.Web.Pages
             try
             {
                 var application = await _applicationsClient.GetApplicationByReferenceAsync(ReferenceNumber);
-                
+
                 if (application != null)
                 {
                     ApplicationId = application.ApplicationId;

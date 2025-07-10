@@ -314,23 +314,10 @@ namespace DfE.ExternalApplications.Web.Pages
 
             try
             {
-                _logger.LogInformation("Loading response data for application {ApplicationReference}. Response body: {ResponseBody}", 
-                    application.ApplicationReference, application.LatestResponse.ResponseBody);
+                _logger.LogInformation("Loading response data for application {ApplicationReference}.",
+                    application.ApplicationReference);
 
-                string responseJson;
-                
-                try
-                {
-                    var decodedBytes = Convert.FromBase64String(application.LatestResponse.ResponseBody);
-                    responseJson = System.Text.Encoding.UTF8.GetString(decodedBytes);
-                    _logger.LogInformation("Successfully decoded Base64 response for application {ApplicationReference}", application.ApplicationReference);
-                }
-                catch (FormatException)
-                {
-                    // Not Base64, assume it's direct JSON (backward compatibility)
-                    responseJson = application.LatestResponse.ResponseBody;
-                    _logger.LogInformation("Using direct JSON response for application {ApplicationReference} (backward compatibility)", application.ApplicationReference);
-                }
+                var responseJson = application.LatestResponse.ResponseBody;
 
                 // Parse the response body JSON
                 var responseData = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(responseJson);
