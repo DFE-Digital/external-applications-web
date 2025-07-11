@@ -1,5 +1,6 @@
-using System.Diagnostics.CodeAnalysis;
+using DfE.CoreLibs.Security;
 using DfE.CoreLibs.Security.Authorization;
+using DfE.CoreLibs.Security.Configurations;
 using DfE.CoreLibs.Security.Interfaces;
 using DfE.CoreLibs.Security.OpenIdConnect;
 using DfE.ExternalApplications.Application.Interfaces;
@@ -11,10 +12,10 @@ using DfE.ExternalApplications.Web.Authentication;
 using DfE.ExternalApplications.Web.Middleware;
 using DfE.ExternalApplications.Web.Security;
 using DfE.ExternalApplications.Web.Services;
+using GovUk.Frontend.AspNetCore;
 using GovUK.Dfe.ExternalApplications.Api.Client;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using GovUK.Dfe.ExternalApplications.Api.Client.Extensions;
-using GovUk.Frontend.AspNetCore;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
@@ -22,6 +23,8 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using DfE.CoreLibs.Security;
 using DfE.CoreLibs.Security.Configurations;
+using System.Diagnostics.CodeAnalysis;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -123,7 +126,11 @@ builder.Services.AddSingleton<IActionContextAccessor, ActionContextAccessor>();
 builder.Services.AddScoped<IHtmlHelper, HtmlHelper>();
 builder.Services.AddScoped<IFieldRendererService, FieldRendererService>();
 builder.Services.AddScoped<IApplicationResponseService, ApplicationResponseService>();
+
 builder.Services.AddScoped<IAutocompleteService, AutocompleteService>();
+builder.Services.AddScoped<IApiErrorParser, ApiErrorParser>();
+builder.Services.AddScoped<IModelStateErrorHandler, ModelStateErrorHandler>();
+
 builder.Services.AddSingleton<ITemplateStore, ApiTemplateStore>();
 
 // Add test token handler and services when test authentication is enabled
@@ -135,9 +142,6 @@ if (isTestAuthEnabled)
 
 builder.Services.AddServiceCaching(configuration);
 
-//var templatesPath = Path.Combine(builder.Environment.ContentRootPath, "templates");
-//builder.Services.AddSingleton<ITemplateStore>(
-//    new JsonFileTemplateStore(templatesPath));
 
 builder.Services.AddSingleton<IFormTemplateParser, JsonFormTemplateParser>();
 builder.Services.AddScoped<IFormTemplateProvider, FormTemplateProvider>();
