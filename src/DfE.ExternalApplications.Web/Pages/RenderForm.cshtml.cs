@@ -170,6 +170,7 @@ namespace DfE.ExternalApplications.Web.Pages
 
         private async Task LoadTemplateAsync()
         {
+            _logger.LogDebug("Loading template {TemplateId} for RenderForm", TemplateId);
             Template = await _templateProvider.GetTemplateAsync(TemplateId);
         }
 

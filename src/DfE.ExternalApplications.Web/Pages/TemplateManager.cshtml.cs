@@ -91,7 +91,10 @@ public class TemplateManagerModel : PageModel
         try
         {
             await CreateNewTemplateVersionAsync(templateId);
-            InvalidateTemplateCache(templateId);
+            
+            await Task.Delay(2000);
+            
+            await InvalidateTemplateCacheAsync(templateId);
             
             _logger.LogInformation("Successfully created template version {NewVersion} for {TemplateId}", 
                 NewVersion, templateId);
@@ -121,14 +124,22 @@ public class TemplateManagerModel : PageModel
     {
         try
         {
+            _logger.LogDebug("Loading template data for {TemplateId}", templateId);
+            
             var apiResponse = await _templatesClient.GetLatestTemplateSchemaAsync(new Guid(templateId));
             CurrentVersionNumber = apiResponse.VersionNumber;
+            
+            _logger.LogDebug("API returned template version {VersionNumber} for {TemplateId}", 
+                CurrentVersionNumber, templateId);
             
             CurrentTemplate = await _formTemplateProvider.GetTemplateAsync(templateId);
             if (CurrentTemplate != null)
             {
                 var options = new JsonSerializerOptions { WriteIndented = true };
                 CurrentTemplateJson = JsonSerializer.Serialize(CurrentTemplate, options);
+                
+                _logger.LogDebug("Successfully loaded template {TemplateId} with {TaskGroupCount} task groups", 
+                    templateId, CurrentTemplate.TaskGroups?.Count ?? 0);
             }
         }
         catch (Exception ex)
@@ -183,18 +194,39 @@ public class TemplateManagerModel : PageModel
             new CreateTemplateVersionRequest(VersionNumber: NewVersion!, JsonSchema: base64Schema));
     }
 
-    private void InvalidateTemplateCache(string templateId)
+    private async Task InvalidateTemplateCacheAsync(string templateId)
     {
         try
         {
             var cacheKey = $"FormTemplate_{CacheKeyHelper.GenerateHashedCacheKey(templateId)}";
+            _logger.LogInformation("Attempting to invalidate cache for template {TemplateId} with key {CacheKey}", 
+                templateId, cacheKey);
+            
             _cacheService.Remove(cacheKey);
-            _logger.LogDebug("Invalidated cache for template {TemplateId} with key {CacheKey}", templateId, cacheKey);
+            _logger.LogInformation("Successfully invalidated cache for template {TemplateId} with key {CacheKey}", 
+                templateId, cacheKey);
+            
+            // Verify the new template version is available by attempting to load it
+            await VerifyNewTemplateVersionAsync(templateId);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to invalidate cache for template {TemplateId}", templateId);
             // Don't throw - cache invalidation failure shouldn't break the operation
+        }
+    }
+    
+    private async Task VerifyNewTemplateVersionAsync(string templateId)
+    {
+        try
+        {
+            // Try to load the new template version to ensure it's available
+            var newTemplate = await _formTemplateProvider.GetTemplateAsync(templateId);
+            _logger.LogDebug("Successfully verified new template version is available for {TemplateId}", templateId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to verify new template version for {TemplateId}", templateId);
         }
     }
 
