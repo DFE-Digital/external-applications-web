@@ -54,6 +54,7 @@ namespace DfE.ExternalApplications.Web.Services
                 "radios" => "Fields/_RadiosField",
                 "character-count" => "Fields/_CharacterCountField",
                 "date" => "Fields/_DateInputField",
+                "autocomplete" => "Fields/_AutocompleteField",
                 _ => throw new NotSupportedException($"Field type '{field.Type}' not supported")
             };
 

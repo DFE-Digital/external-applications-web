@@ -21,7 +21,10 @@ using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using DfE.CoreLibs.Security;
+using DfE.CoreLibs.Security.Configurations;
 using System.Diagnostics.CodeAnalysis;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -61,6 +64,9 @@ builder.Services.AddRazorPages(options =>
         options.Conventions.AllowAnonymousToPage("/TestLogout");
     }
 });
+
+// Add controllers for API endpoints
+builder.Services.AddControllers();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddDistributedMemoryCache();
@@ -107,6 +113,9 @@ builder.Services
 
 builder.Services.AddScoped<ICustomClaimProvider, PermissionsClaimProvider>();
 
+// Add HttpClient for API calls
+builder.Services.AddHttpClient();
+
 builder.Services.AddExternalApplicationsApiClient<ITokensClient, TokensClient>(configuration);
 builder.Services.AddExternalApplicationsApiClient<IUsersClient, UsersClient>(configuration);
 builder.Services.AddExternalApplicationsApiClient<IApplicationsClient, ApplicationsClient>(configuration);
@@ -117,8 +126,11 @@ builder.Services.AddSingleton<IActionContextAccessor, ActionContextAccessor>();
 builder.Services.AddScoped<IHtmlHelper, HtmlHelper>();
 builder.Services.AddScoped<IFieldRendererService, FieldRendererService>();
 builder.Services.AddScoped<IApplicationResponseService, ApplicationResponseService>();
+
+builder.Services.AddScoped<IAutocompleteService, AutocompleteService>();
 builder.Services.AddScoped<IApiErrorParser, ApiErrorParser>();
 builder.Services.AddScoped<IModelStateErrorHandler, ModelStateErrorHandler>();
+
 builder.Services.AddSingleton<ITemplateStore, ApiTemplateStore>();
 
 // Add test token handler and services when test authentication is enabled
@@ -157,6 +169,7 @@ app.UseTokenExpiryCheck();
 app.UseAuthorization();
 
 app.MapRazorPages();
+app.MapControllers();
 
 await app.RunAsync();
 

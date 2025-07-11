@@ -32,6 +32,7 @@ namespace DfE.ExternalApplications.Web.Pages
         private readonly IFormTemplateProvider _templateProvider;
         private readonly IApplicationResponseService _applicationResponseService;
         private readonly IApplicationsClient _applicationsClient;
+        private readonly IAutocompleteService _autocompleteService;
         private readonly ILogger<RenderFormModel> _logger;
 
         public RenderFormModel(
@@ -39,12 +40,14 @@ namespace DfE.ExternalApplications.Web.Pages
             IFormTemplateProvider templateProvider,
             IApplicationResponseService applicationResponseService,
             IApplicationsClient applicationsClient,
+            IAutocompleteService autocompleteService,
             ILogger<RenderFormModel> logger)
         {
             _renderer = renderer;
             _templateProvider = templateProvider;
             _applicationResponseService = applicationResponseService;
             _applicationsClient = applicationsClient;
+            _autocompleteService = autocompleteService;
             _logger = logger;
         }
 
@@ -140,6 +143,29 @@ namespace DfE.ExternalApplications.Web.Pages
 
             // Redirect to the task summary page after saving
             return RedirectToPage("/TaskSummary", new { referenceNumber = ReferenceNumber, taskId = CurrentTask.TaskId });
+        }
+
+        public async Task<IActionResult> OnGetAutocompleteAsync(string endpoint, string query)
+        {
+            _logger.LogInformation("Autocomplete search called with endpoint: {Endpoint}, query: {Query}", endpoint, query);
+            
+            if (string.IsNullOrWhiteSpace(endpoint))
+            {
+                _logger.LogWarning("Autocomplete search called without endpoint");
+                return new JsonResult(new List<object>());
+            }
+
+            try
+            {
+                var results = await _autocompleteService.SearchAsync(endpoint, query);
+                _logger.LogInformation("Autocomplete search returned {Count} results", results.Count);
+                return new JsonResult(results);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in autocomplete search endpoint: {Endpoint}, query: {Query}", endpoint, query);
+                return new JsonResult(new List<object>());
+            }
         }
 
         private async Task LoadTemplateAsync()
