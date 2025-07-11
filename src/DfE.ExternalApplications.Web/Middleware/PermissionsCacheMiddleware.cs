@@ -2,26 +2,19 @@ using Microsoft.Extensions.Caching.Memory;
 using System.Security.Claims;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using System.Diagnostics.CodeAnalysis;
+using DfE.ExternalApplications.Domain.Models;
+using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response;
+using Task = System.Threading.Tasks.Task;
 
 namespace DfE.ExternalApplications.Web.Middleware;
 
 [ExcludeFromCodeCoverage]
-public class PermissionsCacheMiddleware
+public class PermissionsCacheMiddleware(
+    RequestDelegate next,
+    IMemoryCache cache,
+    IUsersClient usersClient)
 {
-    private readonly RequestDelegate _next;
-    private readonly IMemoryCache _cache;
-    private readonly IUsersClient _usersClient;
     public const string PermissionsCacheKeyPrefix = "UserPermissions_";
-
-    public PermissionsCacheMiddleware(
-        RequestDelegate next,
-        IMemoryCache cache,
-        IUsersClient usersClient)
-    {
-        _next = next;
-        _cache = cache;
-        _usersClient = usersClient;
-    }
 
     public async Task InvokeAsync(HttpContext context)
     {
@@ -32,22 +25,27 @@ public class PermissionsCacheMiddleware
             if (!string.IsNullOrEmpty(userId))
             {
                 var cacheKey = $"{PermissionsCacheKeyPrefix}{userId}";
-                if (!_cache.TryGetValue(cacheKey, out _))
+                if (!cache.TryGetValue(cacheKey, out _))
                 {
                     try
                     {
-                        var permissions = await _usersClient.GetMyPermissionsAsync();
-                        _cache.Set(cacheKey, permissions, TimeSpan.FromMinutes(5));
+                        var permissions = await usersClient.GetMyPermissionsAsync();
+                        cache.Set(cacheKey, permissions, TimeSpan.FromMinutes(5));
                     }
                     catch (Exception)
                     {
-                        // Log error if needed, but continue the request
-                        _cache.Set(cacheKey, Array.Empty<dynamic>(), TimeSpan.FromMinutes(1));
+                        // Cache empty auth data on error
+                        var emptyAuthData = new UserAuthorizationDto
+                        {
+                            Permissions = Enumerable.Empty<UserPermissionDto>(),
+                            Roles = Enumerable.Empty<string>()
+                        };
+                        cache.Set(cacheKey, emptyAuthData, TimeSpan.FromMinutes(1));
                     }
                 }
             }
         }
 
-        await _next(context);
+        await next(context);
     }
 } 
