@@ -138,20 +138,8 @@ namespace DfE.ExternalApplications.Web.Pages
                 }
             }
 
-            var flatPages = Template.TaskGroups
-                .SelectMany(g => g.Tasks).Where(t => t.TaskId == CurrentTask.TaskId)
-                .SelectMany(t => t.Pages)
-                .OrderBy(p => p.PageOrder)
-                .ToList();
-
-            var index = flatPages.FindIndex(p => p.PageId == CurrentPage.PageId);
-            if (index >= 0 && index < CurrentTask.Pages.Count - 1)
-            {
-                var next = flatPages[index + 1];
-                return RedirectToPage(new { pageId = next.PageId });
-            }
-
-            return Redirect($"~/render-form/{ReferenceNumber}");
+            // Redirect to the task summary page after saving
+            return RedirectToPage("/TaskSummary", new { referenceNumber = ReferenceNumber, taskId = CurrentTask.TaskId });
         }
 
         private async Task LoadTemplateAsync()
