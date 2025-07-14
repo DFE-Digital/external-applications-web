@@ -29,19 +29,27 @@ namespace DfE.ExternalApplications.Web.Pages
 
         private readonly IFieldRendererService _renderer;
         private readonly IFormTemplateProvider _templateProvider;
+        private readonly IFormTemplateParser _templateParser;
         private readonly IApplicationResponseService _applicationResponseService;
         private readonly IApplicationsClient _applicationsClient;
         private readonly ILogger<TaskSummaryModel> _logger;
 
+        /// <summary>
+        /// Stores the current application data to access template schema for existing applications
+        /// </summary>
+        private ApplicationDto? _currentApplication;
+
         public TaskSummaryModel(
             IFieldRendererService renderer,
             IFormTemplateProvider templateProvider,
+            IFormTemplateParser templateParser,
             IApplicationResponseService applicationResponseService,
             IApplicationsClient applicationsClient,
             ILogger<TaskSummaryModel> logger)
         {
             _renderer = renderer;
             _templateProvider = templateProvider;
+            _templateParser = templateParser;
             _applicationResponseService = applicationResponseService;
             _applicationsClient = applicationsClient;
             _logger = logger;
@@ -105,9 +113,56 @@ namespace DfE.ExternalApplications.Web.Pages
             FormData = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
         }
 
+        /// <summary>
+        /// Loads the appropriate template schema based on whether this is a new or existing application.
+        /// For new applications, loads the latest template schema.
+        /// For existing applications, loads the template schema version that was used when the application was created.
+        /// </summary>
         private async Task LoadTemplateAsync()
         {
-            Template = await _templateProvider.GetTemplateAsync(TemplateId);
+            try
+            {
+                // If we have an existing application with template schema, use that version
+                if (_currentApplication?.TemplateSchema != null)
+                {
+                    _logger.LogDebug("Using template schema from existing application {ApplicationId} with template version {TemplateVersionId}", 
+                        _currentApplication.ApplicationId, _currentApplication.TemplateVersionId);
+                    
+                    Template = await LoadTemplateFromSchemaAsync(_currentApplication.TemplateSchema.JsonSchema);
+                }
+                else
+                {
+                    // For new applications or when template schema is not available, use the latest template
+                    _logger.LogDebug("Loading latest template schema for template {TemplateId}", TemplateId);
+                    Template = await _templateProvider.GetTemplateAsync(TemplateId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to load template {TemplateId}", TemplateId);
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Converts a TemplateSchemaDto to a FormTemplate using the template parser.
+        /// This ensures consistent parsing logic regardless of the template source.
+        /// </summary>
+        private async Task<FormTemplate> LoadTemplateFromSchemaAsync(string templateSchema)
+        {
+            try
+            {
+                // Convert to stream for parser
+                using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(templateSchema));
+                
+                // Use the same parser that's used for API templates to ensure consistency
+                return await _templateParser.ParseAsync(stream);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to parse template schema from application");
+                throw new InvalidOperationException("Failed to parse template schema from application", ex);
+            }
         }
 
         private void InitializeCurrentTask(string taskId)
@@ -462,7 +517,16 @@ namespace DfE.ExternalApplications.Web.Pages
 
         private async Task EnsureApplicationIdAsync()
         {
-            // First try to get ApplicationId from session (for newly created applications)
+            // First check if we have template schema stored in session for this reference
+            var templateSchemaKey = $"TemplateSchema_{ReferenceNumber}";
+            var templateVersionIdKey = $"TemplateVersionId_{ReferenceNumber}";
+            var templateVersionNoKey = $"TemplateVersionNo_{ReferenceNumber}";
+            var storedTemplateSchema = HttpContext.Session.GetString(templateSchemaKey);
+            var storedTemplateVersionId = HttpContext.Session.GetString(templateVersionIdKey);
+            var storedTemplateId = HttpContext.Session.GetString("TemplateId");
+            var storedTemplateVersionNo = HttpContext.Session.GetString(templateVersionNoKey);
+
+            // Check if we have basic application data in session
             var applicationIdString = HttpContext.Session.GetString("ApplicationId");
             var sessionReference = HttpContext.Session.GetString("ApplicationReference");
 
@@ -473,11 +537,39 @@ namespace DfE.ExternalApplications.Web.Pages
                 if (Guid.TryParse(applicationIdString, out var sessionAppId))
                 {
                     ApplicationId = sessionAppId;
-                    return;
+                    
+                    // If we have template schema in session, create a minimal ApplicationDto
+                    if (!string.IsNullOrEmpty(storedTemplateSchema) && !string.IsNullOrEmpty(storedTemplateVersionId))
+                    {
+                        _currentApplication = new ApplicationDto
+                        {
+                            ApplicationId = sessionAppId,
+                            ApplicationReference = sessionReference,
+                            TemplateVersionId = Guid.Parse(storedTemplateVersionId),
+                            TemplateSchema = new TemplateSchemaDto
+                            {
+                                JsonSchema = storedTemplateSchema,
+                                TemplateVersionId = new Guid(storedTemplateVersionId),
+                                TemplateId = new Guid(storedTemplateId),
+                                VersionNumber = storedTemplateVersionNo ?? String.Empty
+
+                            }
+                        };
+
+                        _logger.LogDebug("Using cached template schema for application {ApplicationId} with template version {TemplateVersionId}", 
+                            sessionAppId, storedTemplateVersionId);
+                        return;
+                    }
+                    else
+                    {
+                        // For newly created applications, we don't have template schema
+                        _logger.LogDebug("Using session-based application {ApplicationId} (no template schema available)", sessionAppId);
+                        return;
+                    }
                 }
             }
 
-            // If not in session or different reference, try to get from API
+            // If not in session or incomplete data, fetch from API
             try
             {
                 var application = await _applicationsClient.GetApplicationByReferenceAsync(ReferenceNumber);
@@ -485,9 +577,22 @@ namespace DfE.ExternalApplications.Web.Pages
                 if (application != null)
                 {
                     ApplicationId = application.ApplicationId;
-                    // Store in session for future use
+                    _currentApplication = application; // Store for template loading
+                    
+                    // Store application data in session for future use
                     HttpContext.Session.SetString("ApplicationId", application.ApplicationId.ToString());
                     HttpContext.Session.SetString("ApplicationReference", application.ApplicationReference);
+
+                    // Store template schema in session for future use
+                    if (application.TemplateSchema?.JsonSchema != null)
+                    {
+                        HttpContext.Session.SetString(templateSchemaKey, application.TemplateSchema.JsonSchema);
+                        HttpContext.Session.SetString(templateVersionIdKey, application.TemplateVersionId.ToString());
+                        HttpContext.Session.SetString(templateVersionNoKey, application.TemplateSchema.VersionNumber);
+
+                        _logger.LogDebug("Cached template schema for reference {ReferenceNumber} with template version {TemplateVersionId}", 
+                            ReferenceNumber, application.TemplateVersionId);
+                    }
 
                     // Store application status in session
                     if (application.Status != null)
@@ -497,6 +602,10 @@ namespace DfE.ExternalApplications.Web.Pages
                     }
                     // Load existing response data into session for existing applications
                     await LoadResponseDataIntoSessionAsync(application);
+                    
+                    _logger.LogDebug("Loaded application {ApplicationId} from API with template version {TemplateVersionId}", 
+                        application.ApplicationId, application.TemplateVersionId);
+                    return;
                 }
                 else
                 {
@@ -505,8 +614,10 @@ namespace DfE.ExternalApplications.Web.Pages
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to retrieve application information for reference {ReferenceNumber}", ReferenceNumber);
+                _logger.LogError(ex, "Failed to retrieve application information from API for reference {ReferenceNumber}", ReferenceNumber);
             }
+
+            _logger.LogWarning("Could not determine ApplicationId for reference {ReferenceNumber}", ReferenceNumber);
         }
 
         private async Task LoadResponseDataIntoSessionAsync(ApplicationDto application)
