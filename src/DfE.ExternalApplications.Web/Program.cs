@@ -127,6 +127,11 @@ builder.Services.AddScoped<IHtmlHelper, HtmlHelper>();
 builder.Services.AddScoped<IFieldRendererService, FieldRendererService>();
 builder.Services.AddScoped<IApplicationResponseService, ApplicationResponseService>();
 
+// New refactored services for Clean Architecture
+builder.Services.AddScoped<IFieldFormattingService, FieldFormattingService>();
+builder.Services.AddScoped<ITemplateManagementService, TemplateManagementService>();
+builder.Services.AddScoped<IApplicationStateService, ApplicationStateService>();
+
 builder.Services.AddScoped<IAutocompleteService, AutocompleteService>();
 builder.Services.AddScoped<IApiErrorParser, ApiErrorParser>();
 builder.Services.AddScoped<IModelStateErrorHandler, ModelStateErrorHandler>();

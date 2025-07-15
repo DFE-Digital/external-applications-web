@@ -1,8 +1,8 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using System.Diagnostics.CodeAnalysis;
 
-namespace DfE.ExternalApplications.Web.Pages
+namespace DfE.ExternalApplications.Web.Pages.Applications
 {
     [ExcludeFromCodeCoverage]
     public class ApplicationSubmittedModel : PageModel

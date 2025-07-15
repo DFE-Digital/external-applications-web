@@ -64,7 +64,7 @@ public class TestAuthenticationService : ITestAuthenticationService
 
             _logger.LogInformation("Test authentication successful for email: {Email}", email);
 
-            return TestAuthenticationResult.Success("/Dashboard");
+            return TestAuthenticationResult.Success("/applications/dashboard");
         }
         catch (Exception ex)
         {

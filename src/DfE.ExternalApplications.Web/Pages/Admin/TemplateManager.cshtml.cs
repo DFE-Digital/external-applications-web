@@ -12,7 +12,7 @@ using Task = System.Threading.Tasks.Task;
 using DfE.CoreLibs.Caching.Interfaces;
 using DfE.CoreLibs.Caching.Helpers;
 
-namespace DfE.ExternalApplications.Web.Pages;
+namespace DfE.ExternalApplications.Web.Pages.Admin;
 
 [Authorize(Roles = "Admin")]
 public class TemplateManagerModel : PageModel

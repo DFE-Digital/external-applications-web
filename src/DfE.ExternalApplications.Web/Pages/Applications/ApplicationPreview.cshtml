@@ -1,10 +1,10 @@
-@page "/render-form/{referenceNumber}/preview"
+@page "/applications/{referenceNumber}/preview"
 @model ApplicationPreviewModel
 @{
     ViewData["Title"] = "Preview application";
 }
 
-<govuk-back-link href="/render-form/@Model.ReferenceNumber">Back to application task list</govuk-back-link>
+<govuk-back-link href="/form-engine/render-form/@Model.ReferenceNumber">Back to application task list</govuk-back-link>
 
 <h1 class="govuk-heading-xl govuk-!-margin-bottom-6">Your application</h1>
 <govuk-inset-text>Application reference: <strong>@Model.ReferenceNumber</strong></govuk-inset-text>
@@ -32,7 +32,7 @@
                 {
                     <ul class="govuk-summary-card__actions">
                         <li class="govuk-summary-card__action">
-                            <a class="govuk-link" href="/render-form/@Model.ReferenceNumber/@task.TaskId/summary">
+                            <a class="govuk-link" href="/applications/@Model.ReferenceNumber/@task.TaskId/summary">
                                 Change<span class="govuk-visually-hidden"> @task.TaskName</span>
                             </a>
                         </li>
@@ -120,7 +120,7 @@
     <p class="govuk-body">By submitting this application you are confirming that, to the best of your knowledge, the details you are providing are correct.</p>
 
     <form method="post" asp-page-handler="Submit">
-        <govuk-button type="submit" class="govuk-!-margin-bottom-6">Submit application</govuk-button>
+        <govuk-button type="submit" class="govuk-!-margin-bottom-6" id="submit-application-button">Submit application</govuk-button>
     </form>
 }
 else
@@ -132,5 +132,5 @@ else
 }
 
 <div class="govuk-!-margin-top-6">
-    <a href="/render-form/@Model.ReferenceNumber" class="govuk-link">Return to application overview</a>
+    <a href="/form-engine/render-form/@Model.ReferenceNumber" class="govuk-link">Return to application overview</a>
 </div> 

@@ -1,4 +1,4 @@
-﻿@page "/render-form/{referenceNumber}/{pageId?}"
+﻿@page "/form-engine/render-form/{referenceNumber}/{pageId?}"
 @model RenderFormModel
 @inject DfE.ExternalApplications.Web.Services.IFieldRendererService FieldRenderer
 @{
@@ -10,7 +10,7 @@
 {
     <form method="post" asp-page-handler="Page">
         <input type="hidden" asp-for="CurrentPageId"/>
-        <govuk-back-link href="/render-form/@Model.ReferenceNumber">Back</govuk-back-link>
+        <govuk-back-link href="/form-engine/render-form/@Model.ReferenceNumber">Back</govuk-back-link>
         <h1 class="govuk-heading-xl govuk-!-margin-bottom-6">@Model.CurrentTask.TaskName</h1>
 
         <govuk-error-summary>
@@ -41,11 +41,13 @@
             @await FieldRenderer.RenderFieldAsync(field, "Data", currentValue, errorMessage);
         }
 
-        <govuk-button type="submit" name="handler" value="Page">Save and continue</govuk-button>
+        <govuk-button type="submit" name="handler" value="Page" id="save-and-continue-button">Save and continue</govuk-button>
     </form>
 }
 else
 {
+    <govuk-back-link href="/applications/dashboard">Back to dashboard</govuk-back-link>
+
     <h1 class="govuk-heading-xl govuk-!-margin-bottom-6">Your application</h1>
     <govuk-inset-text>Application reference: <strong>@Model.ReferenceNumber</strong></govuk-inset-text>
     @foreach (var group in Model.Template.TaskGroups.OrderBy(g => g.GroupOrder))
@@ -64,7 +66,7 @@ else
                         <div class="govuk-task-list__name-and-hint">
                             @if (Model.IsApplicationEditable())
                             {
-                                <a class="govuk-link govuk-task-list__link" href="/render-form/@Model.ReferenceNumber/@task.TaskId/summary" aria-describedby="task-@task.TaskName-status">
+                                <a class="govuk-link govuk-task-list__link" href="/applications/@Model.ReferenceNumber/@task.TaskId/summary" aria-describedby="task-@task.TaskName-status">
                                     @task.TaskName
                                 </a>
                             }
@@ -85,7 +87,7 @@ else
         {
             @if (allTasksCompleted)
             {
-                <a href="/render-form/@Model.ReferenceNumber/preview" class="govuk-button" role="button">
+                <a href="/applications/@Model.ReferenceNumber/preview" class="govuk-button" role="button">
                     Preview application
                 </a>
             }
@@ -101,7 +103,7 @@ else
         }
         else
         {
-            <a href="/render-form/@Model.ReferenceNumber/preview" class="govuk-button" role="button">
+            <a href="/applications/@Model.ReferenceNumber/preview" class="govuk-button" role="button">
                 View application
             </a>
             <div class="govuk-inset-text govuk-!-margin-top-4">

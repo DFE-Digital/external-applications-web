@@ -1,19 +1,18 @@
-﻿using DfE.CoreLibs.Contracts.ExternalApplications.Models.Request;
-using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Security.Claims;
+using System.Text.Json;
 using DfE.CoreLibs.Contracts.ExternalApplications.Enums;
+using DfE.CoreLibs.Contracts.ExternalApplications.Models.Request;
+using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using DfE.ExternalApplications.Application.Interfaces;
-using DfE.ExternalApplications.Domain.Models;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using GovUK.Dfe.ExternalApplications.Api.Client.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using System.Diagnostics.CodeAnalysis;
-using System.Security.Claims;
-using System.Text.Json;
 using SystemTask = System.Threading.Tasks.Task;
 
-namespace DfE.ExternalApplications.Web.Pages
+namespace DfE.ExternalApplications.Web.Pages.Applications
 {
     [ExcludeFromCodeCoverage]
     [Authorize]
@@ -138,7 +137,7 @@ namespace DfE.ExternalApplications.Web.Pages
 
                 httpContextAccessor.ForceTokenRefresh();
 
-                return RedirectToPage("RenderForm", new { referenceNumber = response.ApplicationReference });
+                return RedirectToPage("/FormEngine/RenderForm", new { referenceNumber = response.ApplicationReference });
             }
             catch (Exception ex)
             {
