@@ -1,70 +1,140 @@
 using System.Text.Json;
+using DfE.ExternalApplications.Application.Interfaces;
+using DfE.ExternalApplications.Domain.Models;
 
 namespace DfE.ExternalApplications.Web.Services
 {
     public class AutocompleteService : IAutocompleteService
     {
         private readonly HttpClient _httpClient;
-        private readonly IConfiguration _configuration;
+        private readonly IComplexFieldConfigurationService _complexFieldConfigurationService;
         private readonly ILogger<AutocompleteService> _logger;
 
-        public AutocompleteService(HttpClient httpClient, IConfiguration configuration, ILogger<AutocompleteService> logger)
+        public AutocompleteService(
+            HttpClient httpClient, 
+            IComplexFieldConfigurationService complexFieldConfigurationService,
+            ILogger<AutocompleteService> logger)
         {
             _httpClient = httpClient;
-            _configuration = configuration;
+            _complexFieldConfigurationService = complexFieldConfigurationService;
             _logger = logger;
         }
 
-        public async Task<List<object>> SearchAsync(string endpoint, string query)
+        public async Task<List<object>> SearchAsync(string complexFieldId, string query)
         {
-            if (string.IsNullOrWhiteSpace(query) || query.Length < 3)
+            if (string.IsNullOrWhiteSpace(query))
             {
                 return new List<object>();
             }
 
-            if (string.IsNullOrWhiteSpace(endpoint))
+            var configuration = _complexFieldConfigurationService.GetConfiguration(complexFieldId);
+            
+            if (string.IsNullOrWhiteSpace(configuration.ApiEndpoint))
             {
-                _logger.LogWarning("No endpoint provided for autocomplete search");
+                _logger.LogWarning("No API endpoint configured for complex field: {ComplexFieldId}", complexFieldId);
+                return new List<object>();
+            }
+
+            if (query.Length < configuration.MinLength)
+            {
+                _logger.LogDebug("Query too short for complex field {ComplexFieldId}: {QueryLength} < {MinLength}", 
+                    complexFieldId, query.Length, configuration.MinLength);
                 return new List<object>();
             }
 
             try
             {
                 // Build the request URL with query parameter
-                var requestUrl = BuildRequestUrl(endpoint, query);
+                var requestUrl = BuildRequestUrl(configuration.ApiEndpoint, query);
                 
-                _logger.LogDebug("Making autocomplete request to: {RequestUrl}", requestUrl);
+                _logger.LogDebug("Making autocomplete request to: {RequestUrl} for complex field: {ComplexFieldId}", requestUrl, complexFieldId);
 
                 // Create the request
                 using var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
                 
-                // Add authentication headers if configured for this endpoint
-                AddAuthenticationHeaders(request, endpoint);
+                // Add authentication headers if configured
+                AddAuthenticationHeaders(request, configuration);
 
                 // Make the API call
                 var response = await _httpClient.SendAsync(request);
                 
-                _logger.LogDebug("HTTP response status: {StatusCode} for endpoint: {Endpoint}", response.StatusCode, endpoint);
+                _logger.LogDebug("HTTP response status: {StatusCode} for complex field: {ComplexFieldId}", response.StatusCode, complexFieldId);
                 
                 if (!response.IsSuccessStatusCode)
                 {
                     var errorContent = await response.Content.ReadAsStringAsync();
-                    _logger.LogWarning("Autocomplete API call failed with status {StatusCode} for endpoint: {Endpoint}. Response: {ErrorContent}", response.StatusCode, endpoint, errorContent);
+                    _logger.LogWarning("Autocomplete API call failed with status {StatusCode} for complex field: {ComplexFieldId}. Response: {ErrorContent}", 
+                        response.StatusCode, complexFieldId, errorContent);
                     return new List<object>();
                 }
 
                 var jsonResponse = await response.Content.ReadAsStringAsync();
                 var results = ParseResponse(jsonResponse);
 
-                _logger.LogDebug("Found {Count} results for query: {Query} from endpoint: {Endpoint}", results.Count, query, endpoint);
+                _logger.LogDebug("Found {Count} results for query: {Query} from complex field: {ComplexFieldId}", 
+                    results.Count, query, complexFieldId);
                 return results;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error calling autocomplete API for endpoint: {Endpoint}, query: {Query}", endpoint, query);
+                _logger.LogError(ex, "Error calling autocomplete API for complex field: {ComplexFieldId}, query: {Query}", complexFieldId, query);
                 return new List<object>();
             }
         }
+
+        //// Legacy method for backward compatibility
+        //public async Task<List<object>> SearchAsync(string endpoint, string query)
+        //{
+        //    _logger.LogWarning("Using legacy SearchAsync method with endpoint. Consider using complex field ID instead.");
+            
+        //    if (string.IsNullOrWhiteSpace(query) || query.Length < 3)
+        //    {
+        //        return new List<object>();
+        //    }
+
+        //    if (string.IsNullOrWhiteSpace(endpoint))
+        //    {
+        //        _logger.LogWarning("No endpoint provided for autocomplete search");
+        //        return new List<object>();
+        //    }
+
+        //    try
+        //    {
+        //        // Build the request URL with query parameter
+        //        var requestUrl = BuildRequestUrl(endpoint, query);
+                
+        //        _logger.LogDebug("Making autocomplete request to: {RequestUrl}", requestUrl);
+
+        //        // Create the request
+        //        using var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
+                
+        //        // Add authentication headers if configured for this endpoint
+        //        AddAuthenticationHeaders(request, endpoint);
+
+        //        // Make the API call
+        //        var response = await _httpClient.SendAsync(request);
+                
+        //        _logger.LogDebug("HTTP response status: {StatusCode} for endpoint: {Endpoint}", response.StatusCode, endpoint);
+                
+        //        if (!response.IsSuccessStatusCode)
+        //        {
+        //            var errorContent = await response.Content.ReadAsStringAsync();
+        //            _logger.LogWarning("Autocomplete API call failed with status {StatusCode} for endpoint: {Endpoint}. Response: {ErrorContent}", response.StatusCode, endpoint, errorContent);
+        //            return new List<object>();
+        //        }
+
+        //        var jsonResponse = await response.Content.ReadAsStringAsync();
+        //        var results = ParseResponse(jsonResponse);
+
+        //        _logger.LogDebug("Found {Count} results for query: {Query} from endpoint: {Endpoint}", results.Count, query, endpoint);
+        //        return results;
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        _logger.LogError(ex, "Error calling autocomplete API for endpoint: {Endpoint}, query: {Query}", endpoint, query);
+        //        return new List<object>();
+        //    }
+        //}
 
         private string BuildRequestUrl(string endpoint, string query)
         {
@@ -81,19 +151,20 @@ namespace DfE.ExternalApplications.Web.Services
             return $"{endpoint}{separator}q={encodedQuery}";
         }
 
+        private void AddAuthenticationHeaders(HttpRequestMessage request, ComplexFieldConfiguration configuration)
+        {
+            if (!string.IsNullOrEmpty(configuration.ApiKey))
+            {
+                request.Headers.Add("ApiKey", configuration.ApiKey);
+                _logger.LogDebug("Added API key authentication header for complex field");
+            }
+        }
+
         private void AddAuthenticationHeaders(HttpRequestMessage request, string endpoint)
         {
-            // Check if this endpoint requires API key authentication
-            // This could be made more sophisticated with endpoint-specific config
-            var hostKey = $"ApiKeys:AcademiesApi";
-            var apiKey = _configuration[hostKey];
-            
-            _logger.LogDebug("Looking for API key with configuration key: {HostKey}", hostKey);
-            
-            if (!string.IsNullOrEmpty(apiKey))
-            {
-                request.Headers.Add("ApiKey", apiKey);
-            }
+            // For legacy endpoint-based authentication, we'll use a default configuration
+            // This maintains backward compatibility but new implementations should use complex field IDs
+            _logger.LogDebug("Using legacy authentication for endpoint: {Endpoint}", endpoint);
             
             // Could add other authentication methods here based on configuration
             // e.g., Bearer tokens, Basic auth, etc.

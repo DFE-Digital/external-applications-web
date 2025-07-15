@@ -55,6 +55,7 @@ namespace DfE.ExternalApplications.Web.Services
                 "character-count" => "Fields/_CharacterCountField",
                 "date" => "Fields/_DateInputField",
                 "autocomplete" => "Fields/_AutocompleteField",
+                "complexField" => "Fields/_ComplexField",
                 _ => throw new NotSupportedException($"Field type '{field.Type}' not supported")
             };
 

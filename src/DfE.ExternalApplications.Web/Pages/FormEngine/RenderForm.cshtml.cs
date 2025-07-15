@@ -145,6 +145,29 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
         }
 
+        public async Task<IActionResult> OnGetComplexFieldAsync(string complexFieldId, string query)
+        {
+            _logger.LogInformation("Complex field search called with complexFieldId: {ComplexFieldId}, query: {Query}", complexFieldId, query);
+
+            if (string.IsNullOrWhiteSpace(complexFieldId))
+            {
+                _logger.LogWarning("Complex field search called without complexFieldId");
+                return new JsonResult(new List<object>());
+            }
+
+            try
+            {
+                var results = await autocompleteService.SearchAsync(complexFieldId, query);
+                _logger.LogInformation("Complex field search returned {Count} results for {ComplexFieldId}", results.Count, complexFieldId);
+                return new JsonResult(results);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in complex field search complexFieldId: {ComplexFieldId}, query: {Query}", complexFieldId, query);
+                return new JsonResult(new List<object>());
+            }
+        }
+
 
 
         private void ValidatePage(Domain.Models.Page page)

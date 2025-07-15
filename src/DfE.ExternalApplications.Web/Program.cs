@@ -135,6 +135,7 @@ builder.Services.AddScoped<IApplicationStateService, ApplicationStateService>();
 builder.Services.AddScoped<IAutocompleteService, AutocompleteService>();
 builder.Services.AddScoped<IApiErrorParser, ApiErrorParser>();
 builder.Services.AddScoped<IModelStateErrorHandler, ModelStateErrorHandler>();
+builder.Services.AddScoped<IComplexFieldConfigurationService, ComplexFieldConfigurationService>();
 
 builder.Services.AddSingleton<ITemplateStore, ApiTemplateStore>();
 
