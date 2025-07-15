@@ -10,21 +10,8 @@
     var validationAttributes = new HtmlString(Model.ValidationAttributes);
     var labelClasses = Model.Field.Label.IsPageHeading ? "govuk-label--l" : "";
     
-    // Parse complex field configuration if present
-    var complexField = Model.Field.ComplexField != null ? 
-        JsonSerializer.Deserialize<Dictionary<string, object>>(Model.Field.ComplexField) : 
-        new Dictionary<string, object>();
-    
-    // Get the complex field ID
-    var complexFieldId = complexField.ContainsKey("id") ? complexField["id"].ToString() : "";
-    
-    if (string.IsNullOrEmpty(complexFieldId))
-    {
-        <div class="govuk-form-group govuk-form-group--error">
-            <govuk-error-message>Complex field configuration is missing or invalid</govuk-error-message>
-        </div>
-        return;
-    }
+    // Get the complex field ID from the ComplexField object
+    var complexFieldId = Model.Field.ComplexField?.Id ?? "";
     
     // Get configuration from appsettings
     var configuration = ComplexFieldConfigurationService.GetConfiguration(complexFieldId);
@@ -122,14 +109,22 @@
     }
 }
 
-<div class="govuk-form-group @(Model.ErrorMessage != "" ? "govuk-form-group--error" : "")">
-    <govuk-label for="@selectId" class="govuk-label @labelClasses">
-        @Model.Field.Label.Value
-        @if (isRequired)
-        {
-            <span class="govuk-visually-hidden">required</span>
-        }
-    </govuk-label>
+@if (string.IsNullOrEmpty(complexFieldId))
+{
+    <div class="govuk-form-group govuk-form-group--error">
+        <govuk-error-message>Complex field configuration is missing or invalid</govuk-error-message>
+    </div>
+}
+else
+{
+    <div class="govuk-form-group @(Model.ErrorMessage != "" ? "govuk-form-group--error" : "")">
+        <govuk-label for="@selectId" class="govuk-label @labelClasses">
+            @Model.Field.Label.Value
+            @if (isRequired)
+            {
+                <span class="govuk-visually-hidden">required</span>
+            }
+        </govuk-label>
     
     @if (!string.IsNullOrEmpty(Model.Field.Tooltip))
     {
@@ -260,6 +255,7 @@
         }
     </div>
 </div>
+}
 
 <style>
     .complex-field-container {

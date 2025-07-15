@@ -33,7 +33,8 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                 AllowMultiple = bool.TryParse(configSection["AllowMultiple"], out var allowMultiple) ? allowMultiple : false,
                 MinLength = int.TryParse(configSection["MinLength"], out var minLength) ? minLength : 3,
                 Placeholder = configSection["Placeholder"] ?? "Start typing to search...",
-                MaxSelections = int.TryParse(configSection["MaxSelections"], out var maxSelections) ? maxSelections : 0
+                MaxSelections = int.TryParse(configSection["MaxSelections"], out var maxSelections) ? maxSelections : 0,
+                Label = configSection["Label"] ?? "Item"
             };
 
             _logger.LogDebug("Loaded complex field configuration for {ComplexFieldId}: Endpoint={Endpoint}, AllowMultiple={AllowMultiple}, MinLength={MinLength}", 

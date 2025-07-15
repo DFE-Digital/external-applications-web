@@ -9,6 +9,13 @@ namespace DfE.ExternalApplications.Infrastructure.Services
     /// </summary>
     public class FieldFormattingService : IFieldFormattingService
     {
+        private readonly IComplexFieldConfigurationService _complexFieldConfigurationService;
+
+        public FieldFormattingService(IComplexFieldConfigurationService complexFieldConfigurationService)
+        {
+            _complexFieldConfigurationService = complexFieldConfigurationService;
+        }
+
         public string GetFieldValue(string fieldId, Dictionary<string, object> formData)
         {
             if (formData.TryGetValue(fieldId, out var value))
@@ -82,24 +89,11 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                 .SelectMany(p => p.Fields)
                 .FirstOrDefault(f => f.FieldId == fieldId);
 
-            if (field?.ComplexField != null)
+            if (field?.ComplexField != null && !string.IsNullOrEmpty(field.ComplexField.Id))
             {
-                try
-                {
-                    var complexField = JsonSerializer.Deserialize<Dictionary<string, object>>(field.ComplexField);
-                    if (complexField?.ContainsKey("properties") == true)
-                    {
-                        var properties = JsonSerializer.Deserialize<Dictionary<string, object>>(complexField["properties"].ToString());
-                        if (properties?.ContainsKey("label") == true)
-                        {
-                            return properties["label"].ToString();
-                        }
-                    }
-                }
-                catch
-                {
-                    // If parsing fails, return default
-                }
+                // Get configuration from the service to determine the appropriate label
+                var configuration = _complexFieldConfigurationService.GetConfiguration(field.ComplexField.Id);
+                return configuration.Label;
             }
 
             // Default label if not found in properties
@@ -115,24 +109,11 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                 .SelectMany(p => p.Fields)
                 .FirstOrDefault(f => f.FieldId == fieldId);
 
-            if (field?.ComplexField != null)
+            if (field?.ComplexField != null && !string.IsNullOrEmpty(field.ComplexField.Id))
             {
-                try
-                {
-                    var complexField = JsonSerializer.Deserialize<Dictionary<string, object>>(field.ComplexField);
-                    if (complexField?.ContainsKey("properties") == true)
-                    {
-                        var properties = JsonSerializer.Deserialize<Dictionary<string, object>>(complexField["properties"].ToString());
-                        if (properties?.ContainsKey("allowMultiple") == true)
-                        {
-                            return bool.Parse(properties["allowMultiple"].ToString());
-                        }
-                    }
-                }
-                catch
-                {
-                    // If parsing fails, return default
-                }
+                // Get configuration from the service
+                var configuration = _complexFieldConfigurationService.GetConfiguration(field.ComplexField.Id);
+                return configuration.AllowMultiple;
             }
 
             return false; // Default to single selection
