@@ -1,71 +1,37 @@
 using DfE.ExternalApplications.Application.Interfaces;
 using DfE.ExternalApplications.Domain.Models;
+using DfE.ExternalApplications.Web.Pages.Shared;
 using DfE.ExternalApplications.Web.Services;
-using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
-using System.Text.Json;
-using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using Task = System.Threading.Tasks.Task;
 
 namespace DfE.ExternalApplications.Web.Pages
 {
     [ExcludeFromCodeCoverage]
-    public class RenderFormModel : PageModel
+    public class RenderFormModel(
+        IFieldRendererService renderer,
+        IApplicationResponseService applicationResponseService,
+        IFieldFormattingService fieldFormattingService,
+        ITemplateManagementService templateManagementService,
+        IApplicationStateService applicationStateService,
+        IAutocompleteService autocompleteService,
+        ILogger<RenderFormModel> logger)
+        : BaseFormPageModel(renderer, applicationResponseService, fieldFormattingService, templateManagementService,
+            applicationStateService, logger)
     {
-        public FormTemplate Template { get; set; }
-        [BindProperty(SupportsGet = true, Name = "referenceNumber")] public string ReferenceNumber { get; set; }
         [BindProperty] public Dictionary<string, object> Data { get; set; } = new();
-        public string TemplateId { get; set; }
-        public Guid? ApplicationId { get; set; }
         [BindProperty] public string CurrentPageId { get; set; }
-        public string ApplicationStatus { get; set; } = "InProgress";
 
         public TaskGroup CurrentGroup { get; set; }
         public Domain.Models.Task CurrentTask { get; set; }
         public Domain.Models.Page CurrentPage { get; set; }
 
-        private readonly IFieldRendererService _renderer;
-        private readonly IFormTemplateProvider _templateProvider;
-        private readonly IFormTemplateParser _templateParser;
-        private readonly IApplicationResponseService _applicationResponseService;
-        private readonly IApplicationsClient _applicationsClient;
-        private readonly IAutocompleteService _autocompleteService;
-        private readonly ILogger<RenderFormModel> _logger;
-
-        /// <summary>
-        /// Stores the current application data to access template schema for existing applications
-        /// </summary>
-        private ApplicationDto? _currentApplication;
-
-        public RenderFormModel(
-            IFieldRendererService renderer,
-            IFormTemplateProvider templateProvider,
-            IFormTemplateParser templateParser,
-            IApplicationResponseService applicationResponseService,
-            IApplicationsClient applicationsClient,
-            IAutocompleteService autocompleteService,
-            ILogger<RenderFormModel> logger)
-        {
-            _renderer = renderer;
-            _templateProvider = templateProvider;
-            _templateParser = templateParser;
-            _applicationResponseService = applicationResponseService;
-            _applicationsClient = applicationsClient;
-            _autocompleteService = autocompleteService;
-            _logger = logger;
-        }
-
         public async Task OnGetAsync(string pageId)
         {
-            TemplateId = HttpContext.Session.GetString("TemplateId") ?? string.Empty;
-            await EnsureApplicationIdAsync();
+            await CommonInitializationAsync();
             CurrentPageId = pageId;
-            await LoadTemplateAsync();
-            LoadApplicationStatus();
 
             // If application is not editable and trying to access a specific page, redirect to preview
             if (!IsApplicationEditable() && !string.IsNullOrEmpty(pageId))
@@ -76,7 +42,10 @@ namespace DfE.ExternalApplications.Web.Pages
 
             if (!string.IsNullOrEmpty(pageId))
             {
-                InitializeCurrentPage(CurrentPageId);
+                var (group, task, page) = InitializeCurrentPage(CurrentPageId);
+                CurrentGroup = group;
+                CurrentTask = task;
+                CurrentPage = page;
             }
 
             // Check if we need to clear session data for a new application
@@ -88,10 +57,7 @@ namespace DfE.ExternalApplications.Web.Pages
 
         public async Task<IActionResult> OnPostPageAsync()
         {
-            TemplateId = HttpContext.Session.GetString("TemplateId") ?? string.Empty;
-            await EnsureApplicationIdAsync();
-            await LoadTemplateAsync();
-            LoadApplicationStatus();
+            await CommonInitializationAsync();
 
             // Prevent editing if application is not editable
             if (!IsApplicationEditable())
@@ -99,7 +65,10 @@ namespace DfE.ExternalApplications.Web.Pages
                 return RedirectToPage("/ApplicationPreview", new { referenceNumber = ReferenceNumber });
             }
 
-            InitializeCurrentPage(CurrentPageId);
+            var (group, task, page) = InitializeCurrentPage(CurrentPageId);
+            CurrentGroup = group;
+            CurrentTask = task;
+            CurrentPage = page;
 
             foreach (var key in Request.Form.Keys)
             {
@@ -165,7 +134,7 @@ namespace DfE.ExternalApplications.Web.Pages
 
             try
             {
-                var results = await _autocompleteService.SearchAsync(endpoint, query);
+                var results = await autocompleteService.SearchAsync(endpoint, query);
                 _logger.LogInformation("Autocomplete search returned {Count} results", results.Count);
                 return new JsonResult(results);
             }
@@ -176,80 +145,7 @@ namespace DfE.ExternalApplications.Web.Pages
             }
         }
 
-        /// <summary>
-        /// Loads the appropriate template schema based on whether this is a new or existing application.
-        /// For new applications, loads the latest template schema.
-        /// For existing applications, loads the template schema version that was used when the application was created.
-        /// </summary>
-        private async Task LoadTemplateAsync()
-        {
-            try
-            {
-                _logger.LogDebug("Loading template {TemplateId} for RenderForm", TemplateId);
-                
-                // If we have an existing application with template schema, use that version
-                if (_currentApplication?.TemplateSchema != null)
-                {
-                    _logger.LogDebug("Using template schema from existing application {ApplicationId} with template version {TemplateVersionId}", 
-                        _currentApplication.ApplicationId, _currentApplication.TemplateVersionId);
-                    
-                    Template = await LoadTemplateFromSchemaAsync(_currentApplication.TemplateSchema.JsonSchema);
-                }
-                else
-                {
-                    // For new applications or when template schema is not available, use the latest template
-                    _logger.LogDebug("Loading latest template schema for template {TemplateId}", TemplateId);
-                    Template = await _templateProvider.GetTemplateAsync(TemplateId);
-                }
-                
-                _logger.LogDebug("Successfully loaded template with {TaskGroupCount} task groups", 
-                    Template?.TaskGroups?.Count ?? 0);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to load template {TemplateId}", TemplateId);
-                throw;
-            }
-        }
 
-        /// <summary>
-        /// Converts a TemplateSchemaDto to a FormTemplate using the template parser.
-        /// This ensures consistent parsing logic regardless of the template source.
-        /// </summary>
-        private async Task<FormTemplate> LoadTemplateFromSchemaAsync(string templateSchema)
-        {
-            try
-            {
-                
-                // Convert to stream for parser
-                using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(templateSchema));
-                
-                // Use the same parser that's used for API templates to ensure consistency
-                return await _templateParser.ParseAsync(stream);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to parse template schema from application");
-                throw new InvalidOperationException("Failed to parse template schema from application", ex);
-            }
-        }
-
-        private void InitializeCurrentPage(string pageId)
-        {
-            var allPages = Template.TaskGroups
-                .SelectMany(g => g.Tasks)
-                .SelectMany(t => t.Pages)
-                .ToList();
-
-            CurrentPage = allPages.FirstOrDefault(p => p.PageId == pageId) ?? allPages.First();
-
-            var pair = Template.TaskGroups
-                .SelectMany(g => g.Tasks.Select(t => new { Group = g, Task = t }))
-                .First(x => x.Task.Pages.Contains(CurrentPage));
-
-            CurrentGroup = pair.Group;
-            CurrentTask = pair.Task;
-        }
 
         private void ValidatePage(Domain.Models.Page page)
         {
@@ -314,87 +210,7 @@ namespace DfE.ExternalApplications.Web.Pages
             }
         }
 
-        private async Task LoadResponseDataIntoSessionAsync(ApplicationDto application)
-        {
-            if (application.LatestResponse?.ResponseBody == null)
-            {
-                _logger.LogInformation("No existing response data found for application {ApplicationReference}", application.ApplicationReference);
-                return;
-            }
 
-            try
-            {
-                _logger.LogInformation("Loading response data for application {ApplicationReference}.",
-                    application.ApplicationReference);
-
-                var responseJson = application.LatestResponse.ResponseBody;
-
-                // Parse the response body JSON
-                var responseData = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(responseJson);
-
-                if (responseData == null)
-                {
-                    _logger.LogWarning("Failed to parse response JSON for application {ApplicationReference}", application.ApplicationReference);
-                    return;
-                }
-
-                var formDataDict = new Dictionary<string, object>();
-
-                foreach (var kvp in responseData)
-                {
-                    try
-                    {
-                        // Handle both simple and complex field structures
-                        if (kvp.Value.ValueKind == JsonValueKind.Object && kvp.Value.TryGetProperty("value", out var valueElement))
-                        {
-                            // Complex structure: {"field1": {"value": "actual_value", "completed": true}}
-                            formDataDict[kvp.Key] = GetJsonElementValue(valueElement);
-                        }
-                        else
-                        {
-                            // Simple structure: {"field1": "actual_value"}
-                            formDataDict[kvp.Key] = GetJsonElementValue(kvp.Value);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex, "Failed to process field {FieldName} for application {ApplicationReference}",
-                            kvp.Key, application.ApplicationReference);
-                    }
-                }
-
-                // Store in session using the same key structure as form submission
-                _applicationResponseService.StoreFormDataInSession(formDataDict, HttpContext.Session);
-                _applicationResponseService.SetCurrentAccumulatedApplicationId(application.ApplicationId, HttpContext.Session);
-
-                _logger.LogInformation("Successfully loaded {FieldCount} fields from API into session for application {ApplicationReference}",
-                    formDataDict.Count, application.ApplicationReference);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to load response data for application {ApplicationReference}: {ErrorMessage}",
-                    application.ApplicationReference, ex.Message);
-            }
-        }
-
-        private object GetJsonElementValue(JsonElement element)
-        {
-            switch (element.ValueKind)
-            {
-                case JsonValueKind.String:
-                    return element.GetString();
-                case JsonValueKind.Number:
-                    return element.GetDecimal();
-                case JsonValueKind.True:
-                    return true;
-                case JsonValueKind.False:
-                    return false;
-                case JsonValueKind.Null:
-                    return null;
-                default:
-                    return element.ToString();
-            }
-        }
 
         private void LoadAccumulatedDataFromSession()
         {
@@ -413,84 +229,7 @@ namespace DfE.ExternalApplications.Web.Pages
             }
         }
 
-        private void LoadApplicationStatus()
-        {
-            if (ApplicationId.HasValue)
-            {
-                var statusKey = $"ApplicationStatus_{ApplicationId.Value}";
-                ApplicationStatus = HttpContext.Session.GetString(statusKey) ?? "InProgress";
-            }
-            else
-            {
-                ApplicationStatus = "InProgress";
-            }
-        }
 
-        public bool IsApplicationEditable()
-        {
-            return ApplicationStatus.Equals("InProgress", StringComparison.OrdinalIgnoreCase);
-        }
-
-        public Domain.Models.TaskStatus GetTaskStatusFromSession(string taskId)
-        {
-            return CalculateTaskStatus(taskId);
-        }
-
-        /// <summary>
-        /// Calculate task status based on actual form data completion
-        /// </summary>
-        private Domain.Models.TaskStatus CalculateTaskStatus(string taskId)
-        {
-            // If application is submitted, all tasks are completed
-            if (ApplicationStatus.Equals("Submitted", StringComparison.OrdinalIgnoreCase))
-            {
-                return Domain.Models.TaskStatus.Completed;
-            }
-
-            // First check if task is explicitly marked as completed
-            if (ApplicationId.HasValue)
-            {
-                var sessionKey = $"TaskStatus_{ApplicationId.Value}_{taskId}";
-                var statusString = HttpContext.Session.GetString(sessionKey);
-
-                if (!string.IsNullOrEmpty(statusString) &&
-                    Enum.TryParse<Domain.Models.TaskStatus>(statusString, out var explicitStatus) &&
-                    explicitStatus == Domain.Models.TaskStatus.Completed)
-                {
-                    return Domain.Models.TaskStatus.Completed;
-                }
-            }
-
-            // Get all form data accumulated so far
-            var accumulatedData = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
-
-            // Find the task in the template
-            var task = Template?.TaskGroups?
-                .SelectMany(g => g.Tasks)
-                .FirstOrDefault(t => t.TaskId == taskId);
-
-            if (task == null)
-            {
-                return Domain.Models.TaskStatus.NotStarted;
-            }
-
-            // Check if any fields in this task have been completed
-            var taskFieldIds = task.Pages
-                .SelectMany(p => p.Fields)
-                .Select(f => f.FieldId)
-                .ToList();
-
-            var hasAnyFieldCompleted = taskFieldIds.Any(fieldId =>
-                accumulatedData.ContainsKey(fieldId) &&
-                !string.IsNullOrWhiteSpace(accumulatedData[fieldId]?.ToString()));
-
-            if (hasAnyFieldCompleted)
-            {
-                return Domain.Models.TaskStatus.InProgress;
-            }
-
-            return Domain.Models.TaskStatus.NotStarted;
-        }
 
         /// <summary>
         /// Calculate overall application status based on task statuses
@@ -507,160 +246,16 @@ namespace DfE.ExternalApplications.Web.Pages
             // If any task is in progress or completed, application is in progress
             var hasAnyTaskWithProgress = allTasks.Any(task =>
             {
-                var status = CalculateTaskStatus(task.TaskId);
+                var status = GetTaskStatusFromSession(task.TaskId);
                 return status == Domain.Models.TaskStatus.InProgress || status == Domain.Models.TaskStatus.Completed;
             });
 
             return hasAnyTaskWithProgress ? "InProgress" : "InProgress"; // Always InProgress until submitted
         }
 
-        public string GetTaskStatusDisplayClass(Domain.Models.TaskStatus status)
-        {
-            return status switch
-            {
-                Domain.Models.TaskStatus.Completed => "govuk-tag--green",
-                Domain.Models.TaskStatus.InProgress => "govuk-tag--blue",
-                Domain.Models.TaskStatus.NotStarted => "govuk-tag--grey",
-                Domain.Models.TaskStatus.CannotStartYet => "govuk-tag--orange",
-                _ => "govuk-tag--grey"
-            };
-        }
 
-        public string GetTaskStatusDisplayText(Domain.Models.TaskStatus status)
-        {
-            return status switch
-            {
-                Domain.Models.TaskStatus.Completed => "Completed",
-                Domain.Models.TaskStatus.InProgress => "In Progress",
-                Domain.Models.TaskStatus.NotStarted => "Not Started",
-                Domain.Models.TaskStatus.CannotStartYet => "Cannot Start Yet",
-                _ => "Not Started"
-            };
-        }
 
-        public bool AreAllTasksCompleted()
-        {
-            if (Template?.TaskGroups == null) return false;
 
-            var allTasks = Template.TaskGroups.SelectMany(g => g.Tasks).ToList();
-
-            foreach (var task in allTasks)
-            {
-                var taskStatus = GetTaskStatusFromSession(task.TaskId);
-                if (taskStatus != Domain.Models.TaskStatus.Completed)
-                {
-                    return false;
-                }
-            }
-
-            return allTasks.Any(); // Return true only if there are tasks and all are completed
-        }
-
-        private async Task EnsureApplicationIdAsync()
-        {
-            // First check if we have template schema stored in session for this reference
-            var templateSchemaKey = $"TemplateSchema_{ReferenceNumber}";
-            var templateVersionIdKey = $"TemplateVersionId_{ReferenceNumber}";
-            var templateVersionNoKey = $"TemplateVersionNo_{ReferenceNumber}";
-            var storedTemplateSchema = HttpContext.Session.GetString(templateSchemaKey);
-            var storedTemplateVersionId = HttpContext.Session.GetString(templateVersionIdKey);
-            var storedTemplateId = HttpContext.Session.GetString("TemplateId");
-            var storedTemplateVersionNo = HttpContext.Session.GetString(templateVersionNoKey);
-
-            // Check if we have basic application data in session
-            var applicationIdString = HttpContext.Session.GetString("ApplicationId");
-            var sessionReference = HttpContext.Session.GetString("ApplicationReference");
-
-            if (!string.IsNullOrEmpty(applicationIdString) &&
-                !string.IsNullOrEmpty(sessionReference) &&
-                sessionReference == ReferenceNumber)
-            {
-                if (Guid.TryParse(applicationIdString, out var sessionAppId))
-                {
-                    ApplicationId = sessionAppId;
-                    
-                    // If we have template schema in session, create a minimal ApplicationDto
-                    if (!string.IsNullOrEmpty(storedTemplateSchema) && !string.IsNullOrEmpty(storedTemplateVersionId))
-                    {
-                        _currentApplication = new ApplicationDto
-                        {
-                            ApplicationId = sessionAppId,
-                            ApplicationReference = sessionReference,
-                            TemplateVersionId = Guid.Parse(storedTemplateVersionId),
-                            TemplateSchema = new TemplateSchemaDto
-                            {
-                                JsonSchema = storedTemplateSchema,
-                                TemplateVersionId = new Guid(storedTemplateVersionId),
-                                TemplateId = new Guid(storedTemplateId),
-                                VersionNumber = storedTemplateVersionNo ?? String.Empty
-
-                            }
-                        };
-                        
-                        _logger.LogDebug("Using cached template schema for application {ApplicationId} with template version {TemplateVersionId}", 
-                            sessionAppId, storedTemplateVersionId);
-                        return;
-                    }
-                    else
-                    {
-                        // For newly created applications, we don't have template schema
-                        _logger.LogDebug("Using session-based application {ApplicationId} (no template schema available)", sessionAppId);
-                        return;
-                    }
-                }
-            }
-
-            // If not in session or incomplete data, fetch from API
-            try
-            {
-                var application = await _applicationsClient.GetApplicationByReferenceAsync(ReferenceNumber);
-
-                if (application != null)
-                {
-                    ApplicationId = application.ApplicationId;
-                    _currentApplication = application; // Store for template loading
-                    
-                    // Store application data in session for future use
-                    HttpContext.Session.SetString("ApplicationId", application.ApplicationId.ToString());
-                    HttpContext.Session.SetString("ApplicationReference", application.ApplicationReference);
-
-                    // Store template schema in session for future use
-                    if (application.TemplateSchema?.JsonSchema != null)
-                    {
-                        HttpContext.Session.SetString(templateSchemaKey, application.TemplateSchema.JsonSchema);
-                        HttpContext.Session.SetString(templateVersionIdKey, application.TemplateVersionId.ToString());
-                        HttpContext.Session.SetString(templateVersionNoKey, application.TemplateSchema.VersionNumber);
-
-                        _logger.LogDebug("Cached template schema for reference {ReferenceNumber} with template version {TemplateVersionId}", 
-                            ReferenceNumber, application.TemplateVersionId);
-                    }
-
-                    // Store application status in session
-                    if (application.Status != null)
-                    {
-                        var statusKey = $"ApplicationStatus_{application.ApplicationId}";
-                        HttpContext.Session.SetString(statusKey, application.Status.ToString());
-                    }
-
-                    // Load existing response data into session for existing applications
-                    await LoadResponseDataIntoSessionAsync(application);
-                    
-                    _logger.LogDebug("Loaded application {ApplicationId} from API with template version {TemplateVersionId}", 
-                        application.ApplicationId, application.TemplateVersionId);
-                    return;
-                }
-                else
-                {
-                    _logger.LogWarning("Could not find application with reference {ReferenceNumber}", ReferenceNumber);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to retrieve application information from API for reference {ReferenceNumber}", ReferenceNumber);
-            }
-
-            _logger.LogWarning("Could not determine ApplicationId for reference {ReferenceNumber}", ReferenceNumber);
-        }
     }
 }
 
