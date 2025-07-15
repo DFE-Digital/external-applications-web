@@ -5,7 +5,7 @@ using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics.CodeAnalysis;
 
-namespace DfE.ExternalApplications.Web.Pages
+namespace DfE.ExternalApplications.Web.Pages.Applications
 {
     [ExcludeFromCodeCoverage]
     public class ApplicationPreviewModel(
@@ -33,7 +33,7 @@ namespace DfE.ExternalApplications.Web.Pages
             // Check if all tasks are completed before allowing access (for InProgress applications)
             if (!AreAllTasksCompleted())
             {
-                return RedirectToPage("/RenderForm", new { referenceNumber = ReferenceNumber });
+                return RedirectToPage("/FormEngine/RenderForm", new { referenceNumber = ReferenceNumber });
             }
 
             return Page();
@@ -79,7 +79,7 @@ namespace DfE.ExternalApplications.Web.Pages
                     _logger.LogWarning("Submit API returned null for application {ApplicationId}", ApplicationId.Value);
                 }
                 
-                return RedirectToPage("/ApplicationSubmitted", new { referenceNumber = ReferenceNumber });
+                return RedirectToPage("/Applications/ApplicationSubmitted", new { referenceNumber = ReferenceNumber });
             }
             catch (Exception ex)
             {

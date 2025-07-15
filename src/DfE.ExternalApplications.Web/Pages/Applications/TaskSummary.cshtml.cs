@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics.CodeAnalysis;
 using Task = System.Threading.Tasks.Task;
 
-namespace DfE.ExternalApplications.Web.Pages
+namespace DfE.ExternalApplications.Web.Pages.Applications
 {
     [ExcludeFromCodeCoverage]
     public class TaskSummaryModel(
@@ -46,7 +46,7 @@ namespace DfE.ExternalApplications.Web.Pages
             // Prevent editing if application is not editable
             if (!IsApplicationEditable())
             {
-                return RedirectToPage("/ApplicationPreview", new { referenceNumber = ReferenceNumber });
+                return RedirectToPage("/Applications/ApplicationPreview", new { referenceNumber = ReferenceNumber });
             }
 
             // Update task status based on checkbox
@@ -71,7 +71,7 @@ namespace DfE.ExternalApplications.Web.Pages
                 }
             }
 
-            return RedirectToPage("/RenderForm", new { referenceNumber = ReferenceNumber });
+            return RedirectToPage("/FormEngine/RenderForm", new { referenceNumber = ReferenceNumber });
         }
     }
 } 

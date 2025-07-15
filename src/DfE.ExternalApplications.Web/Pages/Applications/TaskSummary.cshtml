@@ -1,10 +1,10 @@
-@page "/render-form/{referenceNumber}/{taskId}/summary"
+@page "/applications/{referenceNumber}/{taskId}/summary"
 @model TaskSummaryModel
 @{
     ViewData["Title"] = Model.CurrentTask?.TaskName ?? "Task Summary";
 }
 
-<govuk-back-link href="/render-form/@Model.ReferenceNumber">Back to application task list</govuk-back-link>
+<govuk-back-link href="/form-engine/render-form/@Model.ReferenceNumber">Back to application task list</govuk-back-link>
 
 <h1 class="govuk-heading-xl govuk-!-margin-bottom-6">@Model.CurrentTask.TaskName</h1>
 
@@ -15,7 +15,7 @@
         {
             var fieldValue = Model.GetFieldValue(field.FieldId);
             var hasValue = Model.HasFieldValue(field.FieldId);
-            var changeUrl = $"/render-form/{Model.ReferenceNumber}/{page.PageId}";
+            var changeUrl = $"/form-engine/render-form/{Model.ReferenceNumber}/{page.PageId}";
             
             if (field.Type == "autocomplete" && hasValue)
             {
@@ -111,7 +111,7 @@
 
         <div class="govuk-button-group govuk-!-margin-top-6">
             <govuk-button type="submit">Save and continue</govuk-button>
-            <a class="govuk-link" href="/render-form/@Model.ReferenceNumber">Return to application overview</a>
+            <a class="govuk-link" href="/form-engine/render-form/@Model.ReferenceNumber">Return to application overview</a>
         </div>
     </form>
 }
@@ -123,6 +123,6 @@ else
     </div>
     
     <div class="govuk-!-margin-top-6">
-        <a class="govuk-link" href="/render-form/@Model.ReferenceNumber">Return to application overview</a>
+        <a class="govuk-link" href="/form-engine/render-form/@Model.ReferenceNumber">Return to application overview</a>
     </div>
 } 

@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Diagnostics.CodeAnalysis;
 using Task = System.Threading.Tasks.Task;
 
-namespace DfE.ExternalApplications.Web.Pages
+namespace DfE.ExternalApplications.Web.Pages.Admin
 {
     [ExcludeFromCodeCoverage]
     [Authorize(Roles = "Admin")]
@@ -81,7 +81,7 @@ namespace DfE.ExternalApplications.Web.Pages
 
         public IActionResult OnPostGoToTemplateManager()
         {
-            return RedirectToPage("/TemplateManager");
+            return RedirectToPage("/Admin/TemplateManager");
         }
 
         private async Task LoadTemplateInformationAsync(bool afterSessionClear = false)

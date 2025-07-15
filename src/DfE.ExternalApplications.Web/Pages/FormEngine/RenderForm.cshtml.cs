@@ -1,13 +1,13 @@
+using System.Diagnostics.CodeAnalysis;
+using System.Text.RegularExpressions;
 using DfE.ExternalApplications.Application.Interfaces;
 using DfE.ExternalApplications.Domain.Models;
 using DfE.ExternalApplications.Web.Pages.Shared;
 using DfE.ExternalApplications.Web.Services;
 using Microsoft.AspNetCore.Mvc;
-using System.Diagnostics.CodeAnalysis;
-using System.Text.RegularExpressions;
 using Task = System.Threading.Tasks.Task;
 
-namespace DfE.ExternalApplications.Web.Pages
+namespace DfE.ExternalApplications.Web.Pages.FormEngine
 {
     [ExcludeFromCodeCoverage]
     public class RenderFormModel(
@@ -125,7 +125,7 @@ namespace DfE.ExternalApplications.Web.Pages
         public async Task<IActionResult> OnGetAutocompleteAsync(string endpoint, string query)
         {
             _logger.LogInformation("Autocomplete search called with endpoint: {Endpoint}, query: {Query}", endpoint, query);
-            
+
             if (string.IsNullOrWhiteSpace(endpoint))
             {
                 _logger.LogWarning("Autocomplete search called without endpoint");

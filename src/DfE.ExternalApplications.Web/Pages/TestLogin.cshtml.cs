@@ -65,7 +65,7 @@ public class TestLoginModel : PageModel
         }
 
         // Redirect to return URL or use the result's redirect URL
-        var redirectUrl = ReturnUrl ?? result.RedirectUrl ?? "/Dashboard";
+        var redirectUrl = ReturnUrl ?? result.RedirectUrl ?? "applications/dashboard";
         return Redirect(redirectUrl);
     }
 
