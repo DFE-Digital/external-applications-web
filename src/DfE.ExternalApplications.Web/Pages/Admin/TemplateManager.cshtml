@@ -67,7 +67,7 @@
             </dl>
 
             <form method="post" asp-page-handler="ShowAddForm">
-                <button class="govuk-button govuk-!-margin-bottom-6" type="submit">Add New Template Version</button>
+                <button class="govuk-button govuk-!-margin-bottom-6" type="submit" id="add-new-template-version-button">Add New Template Version</button>
             </form>
             
             <h2 class="govuk-heading-m">Current Schema</h2>
@@ -142,8 +142,8 @@
                 </div>
 
                 <div class="govuk-button-group">
-                    <button class="govuk-button" type="submit">Save New Version</button>
-                    <button class="govuk-button govuk-button--secondary" type="submit" asp-page-handler="CancelAdd">Cancel</button>
+                    <button class="govuk-button" type="submit" id="save-new-version-button">Save New Version</button>
+                    <button class="govuk-button govuk-button--secondary" type="submit" asp-page-handler="CancelAdd" id="cancel-add-version-button">Cancel</button>
                 </div>
             </form>
         }

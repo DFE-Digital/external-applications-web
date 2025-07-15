@@ -122,13 +122,13 @@
             <div class="govuk-summary-card__content">
                 <div class="govuk-button-group">
                     <form method="post" asp-page-handler="ClearAll" style="display: inline;">
-                        <button type="submit" class="govuk-button govuk-button--warning" data-module="govuk-button">
+                        <button type="submit" class="govuk-button govuk-button--warning" data-module="govuk-button" id="clear-all-sessions-button">
                             Clear All Sessions & Caches
                         </button>
                     </form>
                     
                     <form method="post" asp-page-handler="GoToTemplateManager" style="display: inline;">
-                        <button type="submit" class="govuk-button" data-module="govuk-button">
+                        <button type="submit" class="govuk-button" data-module="govuk-button" id="go-to-template-manager-button">
                             Go to Template Manager
                         </button>
                     </form>

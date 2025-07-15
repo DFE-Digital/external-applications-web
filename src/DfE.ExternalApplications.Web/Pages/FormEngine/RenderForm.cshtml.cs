@@ -119,7 +119,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
 
             // Redirect to the task summary page after saving
-            return RedirectToPage("/TaskSummary", new { referenceNumber = ReferenceNumber, taskId = CurrentTask.TaskId });
+            return RedirectToPage("/Applications/TaskSummary", new { referenceNumber = ReferenceNumber, taskId = CurrentTask.TaskId });
         }
 
         public async Task<IActionResult> OnGetAutocompleteAsync(string endpoint, string query)
