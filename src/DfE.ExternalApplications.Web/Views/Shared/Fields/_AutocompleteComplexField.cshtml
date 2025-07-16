@@ -171,7 +171,25 @@ else
             }
             
             <!-- Selected items container -->
-            <div id="@selectedItemsId" class="complex-field-selected-items"></div>
+            <div id="@selectedItemsId" class="complex-field-selected-items">
+                @if (currentValues.Any())
+                {
+                    foreach (var value in currentValues)
+                    {
+                        var displayValue = FormatDisplayValue(value);
+                        var valueJson = JsonSerializer.Serialize(value);
+                        
+                        <div class="complex-field-selected-inset govuk-inset-text" data-value="@valueJson">
+                            <p class="govuk-body">@displayValue</p>
+                            <button type="button" class="govuk-button govuk-button--secondary govuk-button--small remove-selected-item" 
+                                    data-field-id="@Model.Id" 
+                                    data-value="@valueJson">
+                                Remove
+                            </button>
+                        </div>
+                    }
+                }
+            </div>
         </div>
     </div>
 }
@@ -316,6 +334,32 @@ else
 </style>
 
 <script>
+// Helper function to update hidden input value based on selected items
+function updateHiddenInputValue(hiddenInput, allowMultiple) {
+    const selectedItems = hiddenInput.closest('.complex-field-container').querySelectorAll('.complex-field-selected-inset');
+    const values = [];
+    
+    selectedItems.forEach(function(item) {
+        const valueData = item.dataset.value;
+        if (valueData) {
+            try {
+                const parsedValue = JSON.parse(valueData);
+                values.push(parsedValue);
+            } catch (e) {
+                console.error('Error parsing value data:', e);
+            }
+        }
+    });
+    
+    if (allowMultiple) {
+        hiddenInput.value = JSON.stringify(values);
+    } else {
+        hiddenInput.value = values.length > 0 ? JSON.stringify(values[0]) : '';
+    }
+    
+    console.log('Updated hidden input value:', hiddenInput.value);
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     // Test if accessible-autocomplete is available
     console.log('DOM loaded. Testing accessible-autocomplete...');
@@ -354,6 +398,22 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('Complex Field ID:', complexFieldId);
         console.log('Placeholder:', placeholder);
         console.log('Max selections:', maxSelections);
+        
+        // Initialize remove buttons for existing selected items
+        const removeButtons = container.querySelectorAll('.remove-selected-item');
+        removeButtons.forEach(function(button) {
+            button.addEventListener('click', function() {
+                const valueToRemove = this.dataset.value;
+                const fieldId = this.dataset.fieldId;
+                const hiddenInput = document.getElementById(fieldId);
+                
+                // Remove the selected item from the DOM
+                this.closest('.complex-field-selected-inset').remove();
+                
+                // Update the hidden input value
+                updateHiddenInputValue(hiddenInput, allowMultiple);
+            });
+        });
         
         // Initialize accessible autocomplete on the container element
         if (typeof accessibleAutocomplete !== 'undefined') {
