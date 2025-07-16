@@ -121,7 +121,7 @@ builder.Services.AddExternalApplicationsApiClient<IUsersClient, UsersClient>(con
 builder.Services.AddExternalApplicationsApiClient<IApplicationsClient, ApplicationsClient>(configuration);
 builder.Services.AddExternalApplicationsApiClient<ITemplatesClient, TemplatesClient>(configuration);
 
-builder.Services.AddGovUkFrontend();
+builder.Services.AddGovUkFrontend(options => options.Rebrand = true);
 builder.Services.AddSingleton<IActionContextAccessor, ActionContextAccessor>();
 builder.Services.AddScoped<IHtmlHelper, HtmlHelper>();
 builder.Services.AddScoped<IFieldRendererService, FieldRendererService>();
@@ -175,6 +175,8 @@ app.UseAuthorization();
 
 app.MapRazorPages();
 app.MapControllers();
+
+app.UseGovUkFrontend();
 
 await app.RunAsync();
 
