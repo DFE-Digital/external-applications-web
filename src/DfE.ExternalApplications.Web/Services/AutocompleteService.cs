@@ -22,12 +22,16 @@ namespace DfE.ExternalApplications.Web.Services
 
         public async Task<List<object>> SearchAsync(string complexFieldId, string query)
         {
+            _logger.LogInformation("AutocompleteService.SearchAsync called with complexFieldId: {ComplexFieldId}, query: {Query}", complexFieldId, query);
+            
             if (string.IsNullOrWhiteSpace(query))
             {
+                _logger.LogDebug("Query is empty, returning empty results");
                 return new List<object>();
             }
 
             var configuration = _complexFieldConfigurationService.GetConfiguration(complexFieldId);
+            _logger.LogInformation("Retrieved configuration for complexFieldId: {ComplexFieldId}, ApiEndpoint: {ApiEndpoint}", complexFieldId, configuration.ApiEndpoint);
             
             if (string.IsNullOrWhiteSpace(configuration.ApiEndpoint))
             {
@@ -47,7 +51,7 @@ namespace DfE.ExternalApplications.Web.Services
                 // Build the request URL with query parameter
                 var requestUrl = BuildRequestUrl(configuration.ApiEndpoint, query);
                 
-                _logger.LogDebug("Making autocomplete request to: {RequestUrl} for complex field: {ComplexFieldId}", requestUrl, complexFieldId);
+                _logger.LogInformation("Making autocomplete request to: {RequestUrl} for complex field: {ComplexFieldId}", requestUrl, complexFieldId);
 
                 // Create the request
                 using var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
@@ -69,6 +73,8 @@ namespace DfE.ExternalApplications.Web.Services
                 }
 
                 var jsonResponse = await response.Content.ReadAsStringAsync();
+                _logger.LogDebug("Raw JSON response for complex field {ComplexFieldId}: {JsonResponse}", complexFieldId, jsonResponse);
+                
                 var results = ParseResponse(jsonResponse);
 
                 _logger.LogDebug("Found {Count} results for query: {Query} from complex field: {ComplexFieldId}", 
@@ -143,7 +149,8 @@ namespace DfE.ExternalApplications.Web.Services
             // If endpoint contains {0} placeholders, replace them with the query
             if (endpoint.Contains("{0}"))
             {
-                return endpoint.Split("{0}").Aggregate((current, next) => current + encodedQuery + next);
+                // Replace all {0} placeholders with the encoded query
+                return endpoint.Replace("{0}", encodedQuery);
             }
             
             // Otherwise, append as a query parameter

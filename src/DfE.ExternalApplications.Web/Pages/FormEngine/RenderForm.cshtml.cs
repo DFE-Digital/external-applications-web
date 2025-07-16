@@ -157,6 +157,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
             try
             {
+                _logger.LogInformation("Calling autocompleteService.SearchAsync with complexFieldId: {ComplexFieldId}, query: {Query}", complexFieldId, query);
                 var results = await autocompleteService.SearchAsync(complexFieldId, query);
                 _logger.LogInformation("Complex field search returned {Count} results for {ComplexFieldId}", results.Count, complexFieldId);
                 return new JsonResult(results);

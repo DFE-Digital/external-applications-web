@@ -17,9 +17,9 @@
             var hasValue = Model.HasFieldValue(field.FieldId);
             var changeUrl = $"/form-engine/render-form/{Model.ReferenceNumber}/{page.PageId}";
             
-            if (field.Type == "autocomplete" && hasValue)
+            if ((field.Type == "autocomplete" || field.Type == "complexField") && hasValue)
             {
-                // Handle multiple autocomplete values as separate rows
+                // Handle multiple autocomplete/complex field values as separate rows
                 var formattedValues = Model.GetFormattedFieldValues(field.FieldId);
                 var itemLabel = Model.GetFieldItemLabel(field.FieldId);
                 var allowMultiple = Model.IsFieldAllowMultiple(field.FieldId);

@@ -3,6 +3,7 @@
 @using DfE.ExternalApplications.Application.Interfaces;
 @using DfE.ExternalApplications.Domain.Models;
 @inject IComplexFieldConfigurationService ComplexFieldConfigurationService
+@inject IComplexFieldRendererFactory ComplexFieldRendererFactory
 @model DfE.ExternalApplications.Web.Services.FieldViewModel
 
 @{
@@ -117,144 +118,17 @@
 }
 else
 {
-    <div class="govuk-form-group @(Model.ErrorMessage != "" ? "govuk-form-group--error" : "")">
-        <govuk-label for="@selectId" class="govuk-label @labelClasses">
-            @Model.Field.Label.Value
-            @if (isRequired)
-            {
-                <span class="govuk-visually-hidden">required</span>
-            }
-        </govuk-label>
-    
-    @if (!string.IsNullOrEmpty(Model.Field.Tooltip))
+    var renderer = ComplexFieldRendererFactory.GetRenderer(configuration.FieldType);
+    if (renderer != null)
     {
-        <div class="govuk-hint">
-            @Model.Field.Tooltip
+        @Html.Raw(renderer.Render(configuration, Model.Id, Model.CurrentValue, Model.ErrorMessage, Model.Field.Label.Value, Model.Field.Tooltip, isRequired))
+    }
+    else
+    {
+        <div class="govuk-form-group govuk-form-group--error">
+            <govuk-error-message>Complex field renderer not found for type: @configuration.FieldType</govuk-error-message>
         </div>
     }
-    
-    <govuk-error-message for="@Model.Id">@Model.ErrorMessage</govuk-error-message>
-    
-    <div class="complex-field-container" data-module="complex-field" data-field-type="@complexFieldId">
-        <!-- Hidden input for form submission -->
-        <input type="hidden" 
-               id="@Model.Id" 
-               name="Data[@Model.Field.FieldId]" 
-               value="@Model.CurrentValue" 
-               data-allow-multiple="@configuration.AllowMultiple.ToString().ToLower()" />
-        
-        <!-- Container for autocomplete - library will create input here -->
-        <div id="@inputId-container" 
-             class="complex-field-search-container"
-             data-complex-field-id="@complexFieldId"
-             data-min-length="@configuration.MinLength"
-             data-allow-multiple="@configuration.AllowMultiple.ToString().ToLower()"
-             data-max-selections="@configuration.MaxSelections"
-             data-target-input="@Model.Id"
-             data-selected-items-container="@selectedItemsId"
-             data-placeholder="@configuration.Placeholder"
-             aria-describedby="@(inputId)-hint">
-        </div>
-        
-        <div id="@(inputId)-hint" class="govuk-visually-hidden">
-            Use this field to search and select options. Type at least @configuration.MinLength characters to see results.
-            @if (configuration.AllowMultiple)
-            {
-                <span>You can select multiple options.</span>
-            }
-        </div>
-        
-        <!-- Maximum selections message -->
-        @if (configuration.AllowMultiple && configuration.MaxSelections > 0)
-        {
-            <div id="@(inputId)-max-message" class="govuk-inset-text" style="display: none;">
-                <p class="govuk-body">You have reached the maximum number of selections (@configuration.MaxSelections). Remove a selection to add a different one.</p>
-            </div>
-        }
-        
-        <!-- Selected items container -->
-        @if (configuration.AllowMultiple)
-        {
-            <div id="@selectedItemsId" class="complex-field-selected-items">
-                @foreach (var selectedValue in currentValues)
-                {
-                    var displayValue = FormatDisplayValue(selectedValue);
-                    var dataValue = selectedValue is Dictionary<string, object> ? 
-                        JsonSerializer.Serialize(selectedValue) : selectedValue.ToString();
-                    
-                    <div class="govuk-inset-text complex-field-selected-inset" data-value="@dataValue">
-                        @if (selectedValue is Dictionary<string, object> dict)
-                        {
-                            var name = dict.ContainsKey("name") ? dict["name"]?.ToString() : "";
-                            var ukprn = dict.ContainsKey("ukprn") ? dict["ukprn"]?.ToString() : "";
-                            
-                            <p class="govuk-body">
-                                <strong>@name</strong>
-                                @if (!string.IsNullOrEmpty(ukprn))
-                                {
-                                    <br />
-                                    <span class="govuk-hint">UKPRN: @ukprn</span>
-                                }
-                            </p>
-                        }
-                        else
-                        {
-                            <p class="govuk-body"><strong>@displayValue</strong></p>
-                        }
-                        
-                        <button type="button" 
-                                class="govuk-button govuk-button--secondary govuk-button--small complex-field-remove-item"
-                                aria-label="Remove @displayValue">
-                            Remove
-                        </button>
-                    </div>
-                }
-            </div>
-        }
-        else if (currentValues.Any())
-        {
-            <div id="@selectedItemsId" class="complex-field-selected-items">
-                @{
-                    var selectedValue = currentValues.First();
-                    var displayValue = FormatDisplayValue(selectedValue);
-                    var dataValue = selectedValue is Dictionary<string, object> ? 
-                        JsonSerializer.Serialize(selectedValue) : selectedValue.ToString();
-                }
-                
-                <div class="govuk-inset-text complex-field-selected-inset" data-value="@dataValue">
-                    @if (selectedValue is Dictionary<string, object> dict)
-                    {
-                        var name = dict.ContainsKey("name") ? dict["name"]?.ToString() : "";
-                        var ukprn = dict.ContainsKey("ukprn") ? dict["ukprn"]?.ToString() : "";
-                        
-                        <p class="govuk-body">
-                            <strong>@name</strong>
-                            @if (!string.IsNullOrEmpty(ukprn))
-                            {
-                                <br />
-                                <span class="govuk-hint">UKPRN: @ukprn</span>
-                            }
-                        </p>
-                    }
-                    else
-                    {
-                        <p class="govuk-body"><strong>@displayValue</strong></p>
-                    }
-                    
-                    <button type="button" 
-                            class="govuk-button govuk-button--secondary govuk-button--small complex-field-remove-item"
-                            aria-label="Remove @displayValue">
-                        Remove
-                    </button>
-                </div>
-            </div>
-        }
-        else
-        {
-            <div id="@selectedItemsId" class="complex-field-selected-items"></div>
-        }
-    </div>
-</div>
 }
 
 <style>
@@ -417,7 +291,16 @@ document.addEventListener('DOMContentLoaded', function() {
         const hiddenInput = container.querySelector('input[type="hidden"]');
         const selectedItemsContainer = container.querySelector('.complex-field-selected-items');
         const complexFieldId = complexFieldContainer.dataset.complexFieldId;
+        const fieldId = hiddenInput.id; // Use the actual field ID for form submission
         const allowMultiple = complexFieldContainer.dataset.allowMultiple === 'true';
+        
+        // Extract the actual field ID without the "Data_" prefix
+        const actualFieldId = fieldId.startsWith('Data_') ? fieldId.substring(5) : fieldId;
+        
+        console.log('Field ID for form submission:', fieldId);
+        console.log('Actual field ID (without Data_ prefix):', actualFieldId);
+        console.log('Hidden input name:', hiddenInput.name);
+        console.log('Hidden input value:', hiddenInput.value);
         const minLength = parseInt(complexFieldContainer.dataset.minLength) || 3;
         const placeholder = complexFieldContainer.dataset.placeholder;
         const maxSelections = parseInt(complexFieldContainer.dataset.maxSelections) || 0;
@@ -688,6 +571,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         function updateHiddenInput(values) {
+            console.log('updateHiddenInput called with values:', values);
+            console.log('Current fieldId:', fieldId);
+            console.log('Actual field ID:', actualFieldId);
+            
             if (allowMultiple) {
                 hiddenInput.value = JSON.stringify(values);
             } else {
@@ -703,6 +590,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     hiddenInput.value = '';
                 }
             }
+            
+            // Ensure the hidden input has the correct name attribute for form submission
+            if (hiddenInput.name !== `Data[${actualFieldId}]`) {
+                hiddenInput.name = `Data[${actualFieldId}]`;
+            }
+            
+            console.log('Updated hidden input value:', hiddenInput.value);
+            console.log('Updated hidden input name:', hiddenInput.name);
         }
         
         function updateSelectionLimitUI(currentValues) {
