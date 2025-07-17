@@ -36,7 +36,7 @@ public class Field
     public List<Option>? Options { get; set; }
 
     [JsonPropertyName("complexField")]
-    public string? ComplexField { get; set; }
+    public ComplexField? ComplexField { get; set; }
 
     public string? Value { get; set; }
 }

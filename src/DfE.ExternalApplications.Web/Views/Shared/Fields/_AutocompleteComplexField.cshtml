@@ -1,35 +1,23 @@
 @using Microsoft.AspNetCore.Html;
 @using System.Text.Json;
+@using DfE.ExternalApplications.Application.Interfaces;
+@using DfE.ExternalApplications.Domain.Models;
+@inject IComplexFieldConfigurationService ComplexFieldConfigurationService
 @model DfE.ExternalApplications.Web.Services.FieldViewModel
 
 @{
     var isRequired = Model.Field.Required ?? true;
     var validationAttributes = new HtmlString(Model.ValidationAttributes);
-    var labelClasses = Model.Field.Label.IsPageHeading ? "govuk-label--l" : "";
+    var labelClasses = "govuk-label" + (Model.Field.Label.IsPageHeading ? " govuk-label--l" : "");
     
-    // Parse complex field configuration if present
-    var complexField = Model.Field.ComplexField != null ? 
-        JsonSerializer.Deserialize<Dictionary<string, object>>(Model.Field.ComplexField) : 
-        new Dictionary<string, object>();
+    // Get the complex field ID from the ComplexField object
+    var complexFieldId = Model.Field.ComplexField?.Id ?? "";
     
-    // Get properties from complexField
-    var properties = complexField.ContainsKey("properties") ? 
-        JsonSerializer.Deserialize<Dictionary<string, object>>(complexField["properties"].ToString()) : 
-        new Dictionary<string, object>();
-    
-    // Configuration options
-    var endpoint = properties.ContainsKey("endpoint") ? properties["endpoint"].ToString() : "";
-    var allowMultiple = properties.ContainsKey("allowMultiple") ? 
-        bool.Parse(properties["allowMultiple"].ToString()) : false;
-    var minLength = properties.ContainsKey("minLength") ? 
-        int.Parse(properties["minLength"].ToString()) : 3;
-    var placeholder = properties.ContainsKey("placeholder") ? 
-        properties["placeholder"].ToString() : "Start typing to search...";
-    var maxSelections = properties.ContainsKey("maxSelections") ? 
-        int.Parse(properties["maxSelections"].ToString()) : 0; // 0 means no limit
+    // Get configuration from appsettings
+    var configuration = ComplexFieldConfigurationService.GetConfiguration(complexFieldId);
     
     // Generate unique IDs
-    var inputId = $"{Model.Id}-autocomplete";
+    var inputId = $"{Model.Id}-complex-field";
     var selectId = $"{Model.Id}-select";
     var selectedItemsId = $"{Model.Id}-selected-items";
     var searchInputId = $"{Model.Id}-search-input";
@@ -121,188 +109,134 @@
     }
 }
 
-<div class="govuk-form-group @(Model.ErrorMessage != "" ? "govuk-form-group--error" : "")">
-    <govuk-label for="@selectId" class="govuk-label @labelClasses">
-        @Model.Field.Label.Value
-        @if (isRequired)
-        {
-            <span class="govuk-visually-hidden">required</span>
-        }
-    </govuk-label>
-    
-    @if (!string.IsNullOrEmpty(Model.Field.Tooltip))
-    {
-        <div class="govuk-hint">
-            @Model.Field.Tooltip
-        </div>
-    }
-    
-    <govuk-error-message for="@Model.Id">@Model.ErrorMessage</govuk-error-message>
-    
-    <div class="autocomplete-container" data-module="autocomplete-field">
-        <!-- Hidden input for form submission -->
-        <input type="hidden" 
-               id="@Model.Id" 
-               name="Data[@Model.Field.FieldId]" 
-               value="@Model.CurrentValue" 
-               data-allow-multiple="@allowMultiple.ToString().ToLower()" />
-        
-        <!-- Container for autocomplete - library will create input here -->
-        <div id="@inputId-container" 
-             class="autocomplete-search-container"
-             data-endpoint="@endpoint"
-             data-min-length="@minLength"
-             data-allow-multiple="@allowMultiple.ToString().ToLower()"
-             data-max-selections="@maxSelections"
-             data-target-input="@Model.Id"
-             data-selected-items-container="@selectedItemsId"
-             data-placeholder="@placeholder"
-             aria-describedby="@(inputId)-hint">
-        </div>
-        
-        <div id="@(inputId)-hint" class="govuk-visually-hidden">
-            Use this field to search and select options. Type at least @minLength characters to see results.
-            @if (allowMultiple)
-            {
-                <span>You can select multiple options.</span>
-            }
-        </div>
-        
-        <!-- Maximum selections message -->
-        @if (allowMultiple && maxSelections > 0)
-        {
-            <div id="@(inputId)-max-message" class="govuk-inset-text" style="display: none;">
-                <p class="govuk-body">You have reached the maximum number of selections (@maxSelections). Remove a selection to add a different one.</p>
-            </div>
-        }
-        
-        <!-- Selected items container -->
-        @if (allowMultiple)
-        {
-            <div id="@selectedItemsId" class="autocomplete-selected-items">
-                @foreach (var selectedValue in currentValues)
-                {
-                    var displayValue = FormatDisplayValue(selectedValue);
-                    var dataValue = selectedValue is Dictionary<string, object> ? 
-                        JsonSerializer.Serialize(selectedValue) : selectedValue.ToString();
-                    
-                    <div class="govuk-inset-text autocomplete-selected-inset" data-value="@dataValue">
-                        @if (selectedValue is Dictionary<string, object> dict)
-                        {
-                            var name = dict.ContainsKey("name") ? dict["name"]?.ToString() : "";
-                            var ukprn = dict.ContainsKey("ukprn") ? dict["ukprn"]?.ToString() : "";
-                            
-                            <p class="govuk-body">
-                                <strong>@name</strong>
-                                @if (!string.IsNullOrEmpty(ukprn))
-                                {
-                                    <br />
-                                    <span class="govuk-hint">UKPRN: @ukprn</span>
-                                }
-                            </p>
-                        }
-                        else
-                        {
-                            <p class="govuk-body"><strong>@displayValue</strong></p>
-                        }
-                        
-                        <button type="button" 
-                                class="govuk-button govuk-button--secondary govuk-button--small autocomplete-remove-item"
-                                aria-label="Remove @displayValue">
-                            Remove
-                        </button>
-                    </div>
-                }
-            </div>
-        }
-        else if (currentValues.Any())
-        {
-            <div id="@selectedItemsId" class="autocomplete-selected-items">
-                @{
-                    var selectedValue = currentValues.First();
-                    var displayValue = FormatDisplayValue(selectedValue);
-                    var dataValue = selectedValue is Dictionary<string, object> ? 
-                        JsonSerializer.Serialize(selectedValue) : selectedValue.ToString();
-                }
-                
-                <div class="govuk-inset-text autocomplete-selected-inset" data-value="@dataValue">
-                    @if (selectedValue is Dictionary<string, object> dict)
-                    {
-                        var name = dict.ContainsKey("name") ? dict["name"]?.ToString() : "";
-                        var ukprn = dict.ContainsKey("ukprn") ? dict["ukprn"]?.ToString() : "";
-                        
-                        <p class="govuk-body">
-                            <strong>@name</strong>
-                            @if (!string.IsNullOrEmpty(ukprn))
-                            {
-                                <br />
-                                <span class="govuk-hint">UKPRN: @ukprn</span>
-                            }
-                        </p>
-                    }
-                    else
-                    {
-                        <p class="govuk-body"><strong>@displayValue</strong></p>
-                    }
-                    
-                    <button type="button" 
-                            class="govuk-button govuk-button--secondary govuk-button--small autocomplete-remove-item"
-                            aria-label="Remove @displayValue">
-                        Remove
-                    </button>
-                </div>
-            </div>
-        }
-        else
-        {
-            <div id="@selectedItemsId" class="autocomplete-selected-items"></div>
-        }
+@if (string.IsNullOrEmpty(complexFieldId))
+{
+    <div class="govuk-form-group govuk-form-group--error">
+        <govuk-error-message>Complex field configuration is missing or invalid</govuk-error-message>
     </div>
-</div>
+}
+else
+{
+    <div class="govuk-form-group @(string.IsNullOrEmpty(Model.ErrorMessage) ? "" : "govuk-form-group--error")">
+        <label class="@labelClasses" for="@selectId">
+            @Model.Field.Label.Value
+            @if (isRequired)
+            {
+                <span class="govuk-visually-hidden">required</span>
+            }
+        </label>
+        
+        @if (!string.IsNullOrEmpty(Model.Field.Tooltip))
+        {
+            <div class="govuk-hint">@Model.Field.Tooltip</div>
+        }
+        
+        @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+        {
+            <div class="govuk-error-message">@Model.ErrorMessage</div>
+        }
+        
+        <div class="complex-field-container" data-module="autocomplete-complex-field" data-field-type="autocomplete">
+            <!-- Hidden input for form submission -->
+            <input type="hidden" 
+                   id="@Model.Id" 
+                   name="Data[@Model.Id]" 
+                   value="@Model.CurrentValue" 
+                   data-allow-multiple="@configuration.AllowMultiple.ToString().ToLower()" />
+            
+            <!-- Container for autocomplete - library will create input here -->
+            <div id="@inputId-container" 
+                 class="complex-field-search-container"
+                 data-complex-field-id="@complexFieldId"
+                 data-min-length="@configuration.MinLength"
+                 data-allow-multiple="@configuration.AllowMultiple.ToString().ToLower()"
+                 data-max-selections="@configuration.MaxSelections"
+                 data-target-input="@Model.Id"
+                 data-selected-items-container="@selectedItemsId"
+                 data-placeholder="@configuration.Placeholder"
+                 aria-describedby="@inputId-hint">
+            </div>
+            
+            <div id="@inputId-hint" class="govuk-visually-hidden">
+                Use this field to search and select options. Type at least @configuration.MinLength characters to see results.
+                @(configuration.AllowMultiple ? "<span>You can select multiple options.</span>" : "")
+            </div>
+            
+            <!-- Maximum selections message -->
+            @if (configuration.AllowMultiple && configuration.MaxSelections > 0)
+            {
+                <div id="@inputId-max-message" class="govuk-inset-text" style="display: none;">
+                    <p class="govuk-body">You have reached the maximum number of selections (@configuration.MaxSelections). Remove a selection to add a different one.</p>
+                </div>
+            }
+            
+            <!-- Selected items container -->
+            <div id="@selectedItemsId" class="complex-field-selected-items">
+                @if (currentValues.Any())
+                {
+                    foreach (var value in currentValues)
+                    {
+                        var displayValue = FormatDisplayValue(value);
+                        var valueJson = JsonSerializer.Serialize(value);
+                        
+                        <div class="complex-field-selected-inset govuk-inset-text" data-value="@valueJson">
+                            <p class="govuk-body">@displayValue</p>
+                            <button type="button" class="govuk-button govuk-button--secondary govuk-button--small remove-selected-item" 
+                                    data-field-id="@Model.Id" 
+                                    data-value="@valueJson">
+                                Remove
+                            </button>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+}
 
 <style>
-    .autocomplete-container {
+    .complex-field-container {
         position: relative;
     }
     
     /* Selected items styling - GovUK Inset Text */
-    .autocomplete-selected-items {
+    .complex-field-selected-items {
         margin-top: 15px;
     }
     
-    .autocomplete-selected-inset {
+    .complex-field-selected-inset {
         position: relative;
         margin-bottom: 15px;
     }
     
-    .autocomplete-selected-inset:last-child {
+    .complex-field-selected-inset:last-child {
         margin-bottom: 0;
     }
     
-    .autocomplete-selected-inset .govuk-body {
+    .complex-field-selected-inset .govuk-body {
         margin-bottom: 15px;
     }
     
-    .autocomplete-selected-inset .govuk-hint {
+    .complex-field-selected-inset .govuk-hint {
         margin-top: 0;
     }
     
-    .autocomplete-selected-inset .govuk-button {
+    .complex-field-selected-inset .govuk-button {
         margin-top: 0;
     }
     
     /* Custom autocomplete suggestion styling */
-    .autocomplete-suggestion {
+    .complex-field-suggestion {
         padding: 2px 0;
     }
     
-    .autocomplete-suggestion-name {
+    .complex-field-suggestion-name {
         font-weight: 400;
         color: #0b0c0c;
         line-height: 1.2;
     }
     
-    .autocomplete-suggestion-identifiers {
+    .complex-field-suggestion-identifiers {
         font-size: 16px;
         color: #6f777b;
         font-weight: 400;
@@ -378,7 +312,6 @@
         background-color: #1d70b8;
         border-color: #1d70b8;
         color: #ffffff;
-        outline: none;
     }
     
     .autocomplete__option--odd {
@@ -401,14 +334,40 @@
 </style>
 
 <script>
+// Helper function to update hidden input value based on selected items
+function updateHiddenInputValue(hiddenInput, allowMultiple) {
+    const selectedItems = hiddenInput.closest('.complex-field-container').querySelectorAll('.complex-field-selected-inset');
+    const values = [];
+    
+    selectedItems.forEach(function(item) {
+        const valueData = item.dataset.value;
+        if (valueData) {
+            try {
+                const parsedValue = JSON.parse(valueData);
+                values.push(parsedValue);
+            } catch (e) {
+                console.error('Error parsing value data:', e);
+            }
+        }
+    });
+    
+    if (allowMultiple) {
+        hiddenInput.value = JSON.stringify(values);
+    } else {
+        hiddenInput.value = values.length > 0 ? JSON.stringify(values[0]) : '';
+    }
+    
+    console.log('Updated hidden input value:', hiddenInput.value);
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     // Test if accessible-autocomplete is available
     console.log('DOM loaded. Testing accessible-autocomplete...');
     console.log('accessibleAutocomplete:', typeof accessibleAutocomplete);
     
-    // Initialize autocomplete functionality
-    const containers = document.querySelectorAll('[data-module="autocomplete-field"]');
-    console.log('Found containers:', containers.length);
+    // Initialize autocomplete complex field functionality
+    const containers = document.querySelectorAll('[data-module="autocomplete-complex-field"]');
+    console.log('Found autocomplete complex field containers:', containers.length);
     
     containers.forEach(function(container) {
         // Check if this container has already been initialized
@@ -417,26 +376,51 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        const autocompleteContainer = container.querySelector('[data-endpoint]');
+        const complexFieldContainer = container.querySelector('[data-complex-field-id]');
         const hiddenInput = container.querySelector('input[type="hidden"]');
-        const selectedItemsContainer = container.querySelector('.autocomplete-selected-items');
-        const allowMultiple = autocompleteContainer.dataset.allowMultiple === 'true';
-        const endpoint = autocompleteContainer.dataset.endpoint;
-        const minLength = parseInt(autocompleteContainer.dataset.minLength) || 3;
-        const placeholder = autocompleteContainer.dataset.placeholder;
-        const maxSelections = parseInt(autocompleteContainer.dataset.maxSelections) || 0;
+        const selectedItemsContainer = container.querySelector('.complex-field-selected-items');
+        const complexFieldId = complexFieldContainer.dataset.complexFieldId;
+        const fieldId = hiddenInput.id; // Use the actual field ID for form submission
+        const allowMultiple = complexFieldContainer.dataset.allowMultiple === 'true';
         
-        console.log('Initializing autocomplete for container element:', autocompleteContainer);
-        console.log('Endpoint:', endpoint);
+        // Extract the actual field ID without the "Data_" prefix
+        const actualFieldId = fieldId.startsWith('Data_') ? fieldId.substring(5) : fieldId;
+        
+        console.log('Field ID for form submission:', fieldId);
+        console.log('Actual field ID (without Data_ prefix):', actualFieldId);
+        console.log('Hidden input name:', hiddenInput.name);
+        console.log('Hidden input value:', hiddenInput.value);
+        const minLength = parseInt(complexFieldContainer.dataset.minLength) || 3;
+        const placeholder = complexFieldContainer.dataset.placeholder;
+        const maxSelections = parseInt(complexFieldContainer.dataset.maxSelections) || 0;
+        
+        console.log('Initializing autocomplete complex field for container element:', complexFieldContainer);
+        console.log('Complex Field ID:', complexFieldId);
         console.log('Placeholder:', placeholder);
         console.log('Max selections:', maxSelections);
+        
+        // Initialize remove buttons for existing selected items
+        const removeButtons = container.querySelectorAll('.remove-selected-item');
+        removeButtons.forEach(function(button) {
+            button.addEventListener('click', function() {
+                const valueToRemove = this.dataset.value;
+                const fieldId = this.dataset.fieldId;
+                const hiddenInput = document.getElementById(fieldId);
+                
+                // Remove the selected item from the DOM
+                this.closest('.complex-field-selected-inset').remove();
+                
+                // Update the hidden input value
+                updateHiddenInputValue(hiddenInput, allowMultiple);
+            });
+        });
         
         // Initialize accessible autocomplete on the container element
         if (typeof accessibleAutocomplete !== 'undefined') {
             try {
                 accessibleAutocomplete({
-                    element: autocompleteContainer,
-                    id: autocompleteContainer.id,
+                    element: complexFieldContainer,
+                    id: complexFieldContainer.id,
                     placeholder: placeholder,
                     showAllValues: false,
                     templates: {
@@ -448,11 +432,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         },
                         suggestion: function(result) {
                             if (typeof result === 'object' && result !== null && result.name) {
-                                var html = '<div class="autocomplete-suggestion">';
-                                html += '<div class="autocomplete-suggestion-name">' + escapeHtml(result.name) + '</div>';
+                                var html = '<div class="complex-field-suggestion">';
+                                html += '<div class="complex-field-suggestion-name">' + escapeHtml(result.name) + '</div>';
                                 
                                 if (result.ukprn) {
-                                    html += '<div class="autocomplete-suggestion-identifiers">UKPRN: ' + escapeHtml(result.ukprn) + '</div>';
+                                    html += '<div class="complex-field-suggestion-identifiers">UKPRN: ' + escapeHtml(result.ukprn) + '</div>';
                                 }
                                 
                                 html += '</div>';
@@ -472,41 +456,36 @@ document.addEventListener('DOMContentLoaded', function() {
                             return;
                         }
                         
-                        if (endpoint) {
-                            // Use the page handler for autocomplete search
-                            var requestUrl = window.location.pathname + '?handler=autocomplete&endpoint=' + encodeURIComponent(endpoint) + '&query=' + encodeURIComponent(query);
-                            console.log('Making API call to:', requestUrl);
-                            
-                            // Make API call to the endpoint
-                            fetch(requestUrl)
-                                .then(response => {
-                                    console.log('API response status:', response.status);
-                                    console.log('API response ok:', response.ok);
-                                    return response.json();
-                                })
-                                .then(data => {
-                                    console.log('Raw API response:', data);
-                                    // The service now returns a simple array of objects or strings
-                                    var results = Array.isArray(data) ? data : [];
-                                    console.log('Results before filtering:', results);
-                                    // Filter out empty values
-                                    results = results.filter(function(item) {
-                                        if (typeof item === 'object' && item !== null) {
-                                            return item.name && item.name.toString().trim() !== '';
-                                        }
-                                        return item && item.toString().trim() !== '';
-                                    });
-                                    console.log('Final filtered results:', results);
-                                    populateResults(results);
-                                })
-                                .catch(error => {
-                                    console.error('Autocomplete API error:', error);
-                                    populateResults([]);
+                        // Use the complex field ID for the API call
+                        var requestUrl = window.location.pathname + '?handler=complexField&complexFieldId=' + encodeURIComponent(complexFieldId) + '&query=' + encodeURIComponent(query);
+                        console.log('Making API call to:', requestUrl);
+                        
+                        // Make API call to the endpoint
+                        fetch(requestUrl)
+                            .then(response => {
+                                console.log('API response status:', response.status);
+                                console.log('API response ok:', response.ok);
+                                return response.json();
+                            })
+                            .then(data => {
+                                console.log('Raw API response:', data);
+                                // The service now returns a simple array of objects or strings
+                                var results = Array.isArray(data) ? data : [];
+                                console.log('Results before filtering:', results);
+                                // Filter out empty values
+                                results = results.filter(function(item) {
+                                    if (typeof item === 'object' && item !== null) {
+                                        return item.name && item.name.toString().trim() !== '';
+                                    }
+                                    return item && item.toString().trim() !== '';
                                 });
-                        } else {
-                            console.log('No endpoint provided, returning empty results');
-                            populateResults([]);
-                        }
+                                console.log('Final filtered results:', results);
+                                populateResults(results);
+                            })
+                            .catch(error => {
+                                console.error('Complex field API error:', error);
+                                populateResults([]);
+                            });
                     },
                     minLength: minLength,
                     onConfirm: function(option) {
@@ -522,7 +501,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 });
                 
-                console.log('Autocomplete initialized successfully');
+                console.log('Autocomplete complex field initialized successfully');
                 
                 // Mark this container as initialized
                 container.dataset.initialized = 'true';
@@ -535,12 +514,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (container.closest('.govuk-form-group--error')) {
                             autocompleteInput.classList.add('govuk-input--error');
                         }
-                        console.log('Applied GovUK styling to autocomplete input');
+                        console.log('Applied GovUK styling to autocomplete complex field input');
                     }
                 }, 100);
                 
             } catch (error) {
-                console.error('Error initializing accessible-autocomplete:', error);
+                console.error('Error initializing accessible-autocomplete for autocomplete complex field:', error);
             }
         } else {
             console.error('accessibleAutocomplete is not available');
@@ -554,10 +533,10 @@ document.addEventListener('DOMContentLoaded', function() {
         updateSelectionLimitUI(initialValues);
         
         function attachRemoveButtonListeners() {
-            const existingRemoveButtons = selectedItemsContainer.querySelectorAll('.autocomplete-remove-item');
+            const existingRemoveButtons = selectedItemsContainer.querySelectorAll('.complex-field-remove-item');
             existingRemoveButtons.forEach(function(button) {
                 button.addEventListener('click', function() {
-                    const itemElement = button.closest('.autocomplete-selected-inset');
+                    const itemElement = button.closest('.complex-field-selected-inset');
                     if (itemElement) {
                         const dataValue = itemElement.getAttribute('data-value');
                         let valueToRemove;
@@ -659,7 +638,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             values.forEach(function(value) {
                 const itemElement = document.createElement('div');
-                itemElement.className = 'govuk-inset-text autocomplete-selected-inset';
+                itemElement.className = 'govuk-inset-text complex-field-selected-inset';
                 
                 // Handle both object and string values
                 var displayName, ukprnText = '';
@@ -681,13 +660,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     html += '<span class="govuk-hint">' + ukprnText + '</span>';
                 }
                 html += '</p>';
-                html += '<button type="button" class="govuk-button govuk-button--secondary govuk-button--small autocomplete-remove-item" aria-label="Remove ' + escapeHtml(displayName) + '">';
+                html += '<button type="button" class="govuk-button govuk-button--secondary govuk-button--small complex-field-remove-item" aria-label="Remove ' + escapeHtml(displayName) + '">';
                 html += 'Remove';
                 html += '</button>';
                 
                 itemElement.innerHTML = html;
                 
-                const removeButton = itemElement.querySelector('.autocomplete-remove-item');
+                const removeButton = itemElement.querySelector('.complex-field-remove-item');
                 removeButton.addEventListener('click', function() {
                     removeSelectedItem(value);
                 });
@@ -697,6 +676,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         function updateHiddenInput(values) {
+            console.log('updateHiddenInput called with values:', values);
+            console.log('Current fieldId:', fieldId);
+            console.log('Actual field ID:', actualFieldId);
+            
             if (allowMultiple) {
                 hiddenInput.value = JSON.stringify(values);
             } else {
@@ -712,13 +695,21 @@ document.addEventListener('DOMContentLoaded', function() {
                     hiddenInput.value = '';
                 }
             }
+            
+            // Ensure the hidden input has the correct name attribute for form submission
+            if (hiddenInput.name !== `Data[${actualFieldId}]`) {
+                hiddenInput.name = `Data[${actualFieldId}]`;
+            }
+            
+            console.log('Updated hidden input value:', hiddenInput.value);
+            console.log('Updated hidden input name:', hiddenInput.name);
         }
         
         function updateSelectionLimitUI(currentValues) {
             if (!allowMultiple || maxSelections === 0) return;
             
             const autocompleteInput = container.querySelector('.autocomplete__input');
-            const maxMessage = document.getElementById(autocompleteContainer.id.replace('-container', '') + '-max-message');
+            const maxMessage = document.getElementById(complexFieldContainer.id.replace('-container', '') + '-max-message');
             
             if (currentValues.length >= maxSelections) {
                 // Hide autocomplete input and show message
