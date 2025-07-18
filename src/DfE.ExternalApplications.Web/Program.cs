@@ -116,6 +116,8 @@ builder.Services.AddScoped<ICustomClaimProvider, PermissionsClaimProvider>();
 // Add HttpClient for API calls
 builder.Services.AddHttpClient();
 
+builder.Services.AddScoped<IContributorService, ContributorService>();
+
 builder.Services.AddExternalApplicationsApiClient<ITokensClient, TokensClient>(configuration);
 builder.Services.AddExternalApplicationsApiClient<IUsersClient, UsersClient>(configuration);
 builder.Services.AddExternalApplicationsApiClient<IApplicationsClient, ApplicationsClient>(configuration);

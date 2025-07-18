@@ -137,7 +137,7 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
 
                 httpContextAccessor.ForceTokenRefresh();
 
-                return RedirectToPage("/FormEngine/RenderForm", new { referenceNumber = response.ApplicationReference });
+                return RedirectToPage("/Applications/Contributors", new { referenceNumber = response.ApplicationReference });
             }
             catch (Exception ex)
             {
