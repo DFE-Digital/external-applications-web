@@ -180,4 +180,5 @@ terraform.rc*
 .terraform/
 backend.vars
 /Benchmarks/Dfe.PersonsApi.Benchmarks/BenchmarkDotNet.Artifacts/results
+/.cursor/rules
 *.mdc
