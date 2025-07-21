@@ -2,6 +2,10 @@
 @model ContributorsModel
 @{
     ViewData["Title"] = "Invite contributors";
+
+    var applicationId = HttpContext.Session.GetString("ApplicationId");
+    var leadApplicantName = HttpContext.Session.GetString($"ApplicationLeadApplicantName_{applicationId}");
+    var leadApplicantEmail = HttpContext.Session.GetString($"ApplicationLeadApplicantEmail_{applicationId}");
 }
 
 <div class="govuk-grid-row">
@@ -40,7 +44,7 @@
                     Add a contributor
                 </button>
             </form>
-            
+
             <form method="post">
                 <button class="govuk-button govuk-button--secondary" type="submit" asp-page-handler="ProceedToForm" data-module="govuk-button">
                     Proceed to the application form
@@ -63,6 +67,10 @@
                     </tr>
                 </thead>
                 <tbody class="govuk-table__body">
+                    <tr class="govuk-table__row">
+                        <td class="govuk-table__cell">@leadApplicantEmail</td>
+                        <td class="govuk-table__cell">@leadApplicantName</td>
+                    </tr>
                     @foreach (var contributor in Model.Contributors)
                     {
                         <tr class="govuk-table__row">
@@ -72,10 +80,10 @@
                                 <form method="post" style="display: inline;">
                                     <input type="hidden" name="contributorId" value="@contributor.ContributorId" />
                                     <button type="submit" 
-                                            asp-page-handler="RemoveContributor" 
-                                            class="govuk-button govuk-button--warning govuk-button--small" 
-                                            data-module="govuk-button"
-                                            onclick="return confirm('Are you sure you want to remove this contributor?');">
+                                    asp-page-handler="RemoveContributor" 
+                                    class="govuk-button govuk-button--warning govuk-button--small" 
+                                    data-module="govuk-button"
+                                    onclick="return confirm('Are you sure you want to remove this contributor?');">
                                         Remove
                                     </button>
                                 </form>
@@ -86,4 +94,4 @@
             </table>
         }
     </div>
-</div> 
+</div>

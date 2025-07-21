@@ -100,6 +100,17 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                         session.SetString(statusKey, application.Status.ToString());
                     }
 
+                    // Store application lead applicant in session
+                    var leadApplicantNameKey = $"ApplicationLeadApplicantName_{application.ApplicationId}";
+                    var leadApplicantEmailKey = $"ApplicationLeadApplicantEmail_{application.ApplicationId}";
+                    var leadApplicantUserIdKey = $"ApplicationLeadApplicantUserId_{application.ApplicationId}";
+
+                    session.SetString(leadApplicantNameKey, application.CreatedBy!.Name);
+                    session.SetString(leadApplicantEmailKey, application.CreatedBy.Email);
+                    session.SetString(leadApplicantUserIdKey, application.CreatedBy.UserId.ToString());
+
+
+
                     // Load existing response data into session for existing applications
                     await LoadResponseDataIntoSessionAsync(application, session);
                     
