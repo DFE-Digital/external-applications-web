@@ -4,6 +4,7 @@ using DfE.ExternalApplications.Application.Interfaces;
 using DfE.ExternalApplications.Domain.Models;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Diagnostics.CodeAnalysis;
@@ -25,6 +26,7 @@ namespace DfE.ExternalApplications.Web.Pages.Admin
         public string? ErrorMessage { get; set; }
         public bool ShowSuccess { get; set; }
         public string? SuccessMessage { get; set; }
+        public string? TestToken { get; set; }
 
         private readonly IFormTemplateProvider _templateProvider;
         private readonly ITemplatesClient _templatesClient;
@@ -88,6 +90,9 @@ namespace DfE.ExternalApplications.Web.Pages.Admin
         {
             try
             {
+                // retrieve the test token
+                TestToken = HttpContext.Session.GetString("TestAuth:Token");
+
                 TemplateId = HttpContext.Session.GetString("TemplateId");
 
                 if (afterSessionClear)
