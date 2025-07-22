@@ -30,18 +30,14 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
                 return Page();
             }
 
-            // Check if all tasks are completed before allowing access (for InProgress applications)
-            if (!AreAllTasksCompleted())
-            {
-                return RedirectToPage("/FormEngine/RenderForm", new { referenceNumber = ReferenceNumber });
-            }
-
             return Page();
         }
 
         public async Task<IActionResult> OnPostSubmitAsync()
         {
             await CommonInitializationAsync();
+
+            //if (HttpContext.Session.GetString(""))
 
             // Check if all tasks are completed before allowing submission
             if (!AreAllTasksCompleted())

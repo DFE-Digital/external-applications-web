@@ -4,6 +4,12 @@
 @{
     ViewData["Title"] = "New application";
     var allTasksCompleted = Model.AreAllTasksCompleted();
+
+    var applicationId = HttpContext.Session.GetString("ApplicationId");
+    var leadApplicantName = HttpContext.Session.GetString($"ApplicationLeadApplicantName_{applicationId}");
+    var leadApplicantEmail = HttpContext.Session.GetString($"ApplicationLeadApplicantEmail_{applicationId}");
+
+    var currentUser = HttpContext.User.Identity!.Name;
 }
 
 @if (!String.IsNullOrEmpty(Model.CurrentPageId))
@@ -48,67 +54,83 @@ else
 {
     <govuk-back-link href="/applications/dashboard">Back to dashboard</govuk-back-link>
 
-    <h1 class="govuk-heading-xl govuk-!-margin-bottom-6">Your application</h1>
-    <govuk-inset-text>Application reference: <strong>@Model.ReferenceNumber</strong></govuk-inset-text>
-    @foreach (var group in Model.Template.TaskGroups.OrderBy(g => g.GroupOrder))
-    {
-        <h1 class="govuk-heading-m">
-            @group.GroupName
-        </h1>
-        <ul class="govuk-task-list">
-            @foreach (var task in group.Tasks.OrderBy(t => t.TaskOrder))
+    <div class="govuk-grid-row">
+        <div class="govuk-grid-column-two-thirds">
+            <h1 class="govuk-heading-xl govuk-!-margin-bottom-6">Your application</h1>
+            <div class="govuk-!-margin-bottom-6" style="border-left: 4px solid #b1b4b6; padding-left: 15px;">
+                <p class="govuk-body govuk-!-margin-bottom-1">Application reference: <strong>@Model.ReferenceNumber</strong></p>
+                <p class="govuk-body govuk-!-margin-bottom-0">Lead applicant: <strong>@leadApplicantName</strong></p>
+            </div>
+            @foreach (var group in Model.Template.TaskGroups.OrderBy(g => g.GroupOrder))
             {
-                var currentTaskStatus = Model.GetTaskStatusFromSession(task.TaskId);
-                var statusClass = Model.GetTaskStatusDisplayClass(currentTaskStatus);
-                var statusText = Model.GetTaskStatusDisplayText(currentTaskStatus);
+                <h1 class="govuk-heading-m">
+                    @group.GroupName
+                </h1>
+                <ul class="govuk-task-list">
+                    @foreach (var task in group.Tasks.OrderBy(t => t.TaskOrder))
+                    {
+                        var currentTaskStatus = Model.GetTaskStatusFromSession(task.TaskId);
+                        var statusClass = Model.GetTaskStatusDisplayClass(currentTaskStatus);
+                        var statusText = Model.GetTaskStatusDisplayText(currentTaskStatus);
 
-                                    <li class="govuk-task-list__item govuk-task-list__item--with-link">
-                        <div class="govuk-task-list__name-and-hint">
-                            @if (Model.IsApplicationEditable())
-                            {
-                                <a class="govuk-link govuk-task-list__link" href="/applications/@Model.ReferenceNumber/@task.TaskId/summary" aria-describedby="task-@task.TaskName-status">
-                                    @task.TaskName
-                                </a>
-                            }
-                            else
-                            {
-                                <span class="govuk-task-list__link">@task.TaskName</span>
-                            }
-                        </div>
-                        <div class="govuk-task-list__status" id="task-@task.TaskId-status">
-                            <govuk-tag class="@statusClass">@statusText</govuk-tag>
-                        </div>
-                    </li>
+                        <li class="govuk-task-list__item govuk-task-list__item--with-link">
+                            <div class="govuk-task-list__name-and-hint">
+                                @if (Model.IsApplicationEditable())
+                                {
+                                    <a class="govuk-link govuk-task-list__link" href="/applications/@Model.ReferenceNumber/@task.TaskId/summary" aria-describedby="task-@task.TaskName-status">
+                                        @task.TaskName
+                                    </a>
+                                }
+                                else
+                                {
+                                    <span class="govuk-task-list__link">@task.TaskName</span>
+                                }
+                            </div>
+                            <div class="govuk-task-list__status" id="task-@task.TaskId-status">
+                                <govuk-tag class="@statusClass">@statusText</govuk-tag>
+                            </div>
+                        </li>
+                    }
+                </ul>
             }
-        </ul>
-    }
-    <div class="govuk-!-margin-top-6">
-        @if (Model.IsApplicationEditable())
+            <div class="govuk-!-margin-top-6">
+                @if (Model.IsApplicationEditable())
+                {
+                    <a href="/applications/@Model.ReferenceNumber/preview" class="govuk-button" role="button">
+                        Preview application
+                    </a>
+                }
+                else
+                {
+                    <a href="/applications/@Model.ReferenceNumber/preview" class="govuk-button" role="button">
+                        View application
+                    </a>
+                    <div class="govuk-inset-text govuk-!-margin-top-4">
+                        <p>This application has been submitted and can no longer be changed.</p>
+                        <p>Status: <strong>@Model.ApplicationStatus</strong></p>
+                    </div>
+                }
+            </div>
+        </div>
+        
+        @if (currentUser == leadApplicantEmail)
         {
-            @if (allTasksCompleted)
-            {
-                <a href="/applications/@Model.ReferenceNumber/preview" class="govuk-button" role="button">
-                    Preview application
-                </a>
-            }
-            else
-            {
-                <button class="govuk-button govuk-button--disabled" disabled>
-                    Preview application
-                </button>
-                <p class="govuk-body govuk-hint govuk-!-margin-top-2">
-                    Complete all sections to preview your application
-                </p>
-            }
-        }
-        else
-        {
-            <a href="/applications/@Model.ReferenceNumber/preview" class="govuk-button" role="button">
-                View application
-            </a>
-            <div class="govuk-inset-text govuk-!-margin-top-4">
-                <p>This application has been submitted and can no longer be changed.</p>
-                <p>Status: <strong>@Model.ApplicationStatus</strong></p>
+            <div class="govuk-grid-column-one-third">
+                <div class="govuk-!-margin-top-6">
+                    <h2 class="govuk-heading-m">Inviting contributors</h2>
+                    <p class="govuk-body">You can invite other people to complete parts of this application.</p>
+                
+                    @if (Model.IsApplicationEditable())
+                    {
+                        <a href="/applications/@Model.ReferenceNumber/contributors" class="govuk-button govuk-button--secondary" role="button">
+                            Invite contributors
+                        </a>
+                    }
+                    else
+                    {
+                        <p class="govuk-body govuk-hint">Contributors cannot be invited to submitted applications.</p>
+                    }
+                </div>
             </div>
         }
     </div>
