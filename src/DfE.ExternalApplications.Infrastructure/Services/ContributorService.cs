@@ -2,6 +2,7 @@ using DfE.ExternalApplications.Application.Interfaces;
 using DfE.ExternalApplications.Domain.Models;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using DfE.CoreLibs.Contracts.ExternalApplications.Models.Request;
+using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics.CodeAnalysis;
 
@@ -18,7 +19,7 @@ public class ContributorService(
     /// <summary>
     /// Gets all contributors for a specific application
     /// </summary>
-    public async Task<IReadOnlyList<ContributorDto>> GetApplicationContributorsAsync(Guid applicationId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<UserDto>> GetApplicationContributorsAsync(Guid applicationId, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -26,53 +27,32 @@ public class ContributorService(
 
             var users = await applicationsClient.GetContributorsAsync(applicationId, includePermissionDetails: false, cancellationToken);
             
-            // Convert UserDto to ContributorDto
-            var contributors = users?.Select(user => new ContributorDto
-            {
-                ContributorId = user.UserId,
-                EmailAddress = user.Email,
-                Name = user.Name,
-                Status = "Active", // Default status - could be enhanced based on UserDto properties
-                DateInvited = DateTime.UtcNow, // Default date - could be enhanced if available in UserDto
-                DateJoined = DateTime.UtcNow
-            }).ToList().AsReadOnly() ?? new List<ContributorDto>().AsReadOnly();
-            
-            logger.LogInformation("Successfully retrieved {Count} contributors for application {ApplicationId}", 
-                contributors.Count, applicationId);
-            
-            return contributors;
+            return users.AsReadOnly();
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error getting contributors for application {ApplicationId}", applicationId);
-            return new List<ContributorDto>().AsReadOnly();
+            return new List<UserDto>().AsReadOnly();
         }
     }
 
     /// <summary>
     /// Invites a new contributor to an application
     /// </summary>
-    public async System.Threading.Tasks.Task InviteContributorAsync(Guid applicationId, InviteContributorRequest request, CancellationToken cancellationToken = default)
+    public async System.Threading.Tasks.Task InviteContributorAsync(Guid applicationId, AddContributorRequest request, CancellationToken cancellationToken = default)
     {
         try
         {
-            logger.LogInformation("Inviting contributor {Name} ({Email}) to application {ApplicationId}", request.Name, request.EmailAddress, applicationId);
+            logger.LogInformation("Inviting contributor {Name} ({Email}) to application {ApplicationId}", request.Name, request.Email, applicationId);
 
-            // Convert InviteContributorRequest to AddContributorRequest
-            var addContributorRequest = new AddContributorRequest
-            {
-                Email = request.EmailAddress,
-                Name = request.Name
-            };
-
-            var user = await applicationsClient.AddContributorAsync(applicationId, addContributorRequest, cancellationToken);
+            var user = await applicationsClient.AddContributorAsync(applicationId, request, cancellationToken);
             
             logger.LogInformation("Successfully invited contributor {Name} ({Email}) to application {ApplicationId}", 
-                request.Name, request.EmailAddress, applicationId);
+                request.Name, request.Email, applicationId);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error inviting contributor {Email} to application {ApplicationId}", request.EmailAddress, applicationId);
+            logger.LogError(ex, "Error inviting contributor {Email} to application {ApplicationId}", request.Email, applicationId);
             throw;
         }
     }

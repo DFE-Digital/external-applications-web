@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using DfE.ExternalApplications.Application.Interfaces;
 using DfE.ExternalApplications.Domain.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -21,7 +22,7 @@ public class ContributorsModel(
     public string ReferenceNumber { get; set; } = string.Empty;
 
     public Guid? ApplicationId { get; private set; }
-    public IReadOnlyList<ContributorDto> Contributors { get; private set; } = Array.Empty<ContributorDto>();
+    public IReadOnlyList<UserDto> Contributors { get; private set; } = Array.Empty<UserDto>();
     public bool HasError { get; private set; }
     public string? ErrorMessage { get; private set; }
 

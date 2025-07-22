@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
 using DfE.ExternalApplications.Application.Interfaces;
-using DfE.ExternalApplications.Domain.Models;
+using DfE.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -89,9 +89,9 @@ public class ContributorsInviteModel(
             }
 
             // Create invitation request
-            var inviteRequest = new InviteContributorRequest
+            var inviteRequest = new AddContributorRequest
             {
-                EmailAddress = EmailAddress,
+                Email = EmailAddress,
                 Name = Name
             };
 
