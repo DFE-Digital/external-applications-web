@@ -4,6 +4,7 @@ using System.IO;
 using System.Threading.Tasks;
 using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using DfE.ExternalApplications.Application.Interfaces;
+using DfE.ExternalApplications.Infrastructure.Services;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -11,14 +12,11 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace DfE.ExternalApplications.Web.Pages.FormEngine
 {
-    public class UploadFileModel : PageModel
+    public class UploadFileModel(
+        IFileUploadService fileUploadService,
+        IApplicationResponseService applicationResponseService)
+        : PageModel
     {
-        private readonly IFileUploadService _fileUploadService;
-        public UploadFileModel(IFileUploadService fileUploadService)
-        {
-            _fileUploadService = fileUploadService;
-        }
-
         [BindProperty(SupportsGet = true)]
         public string ApplicationId { get; set; }
         [BindProperty(SupportsGet = true)]
@@ -31,7 +29,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         {
             if (!Guid.TryParse(ApplicationId, out var appId))
                 return NotFound();
-            Files = await _fileUploadService.GetFilesForApplicationAsync(appId);
+            Files = await fileUploadService.GetFilesForApplicationAsync(appId);
             return Page();
         }
 
@@ -45,22 +43,28 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             if (file == null || file.Length == 0)
             {
                 ErrorMessage = "Please select a file to upload.";
-                Files = await _fileUploadService.GetFilesForApplicationAsync(appId);
+                Files = await fileUploadService.GetFilesForApplicationAsync(appId);
                 return Page();
             }
             try
             {
                 using var stream = file.OpenReadStream();
                 var fileParam = new FileParameter(stream, file.FileName, file.ContentType);
-                await _fileUploadService.UploadFileAsync(appId, name, description, fileParam);
+                await fileUploadService.UploadFileAsync(appId, name, description, fileParam);
                 SuccessMessage = $"Your file '{file.FileName}' uploaded.";
             }
             catch
             {
                 ErrorMessage = "There was a problem uploading your file.";
             }
-            Files = await _fileUploadService.GetFilesForApplicationAsync(appId);
+            Files = await fileUploadService.GetFilesForApplicationAsync(appId);
             UpdateSessionFileList(appId, FieldId, Files);
+
+            if (string.IsNullOrEmpty(ErrorMessage))
+            {
+                await SaveUploadedFilesToResponseAsync(appId, FieldId, Files);
+            }
+
             return Page();
         }
 
@@ -72,20 +76,26 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             if (!Guid.TryParse(fileIdStr, out var fileId))
             {
                 ErrorMessage = "Invalid file ID.";
-                Files = await _fileUploadService.GetFilesForApplicationAsync(appId);
+                Files = await fileUploadService.GetFilesForApplicationAsync(appId);
                 return Page();
             }
             try
             {
-                await _fileUploadService.DeleteFileAsync(fileId, appId);
+                await fileUploadService.DeleteFileAsync(fileId, appId);
                 SuccessMessage = "File deleted.";
             }
             catch
             {
                 ErrorMessage = "There was a problem deleting the file.";
             }
-            Files = await _fileUploadService.GetFilesForApplicationAsync(appId);
+            Files = await fileUploadService.GetFilesForApplicationAsync(appId);
             UpdateSessionFileList(appId, FieldId, Files);
+
+            if (string.IsNullOrEmpty(ErrorMessage))
+            {
+                await SaveUploadedFilesToResponseAsync(appId, FieldId, Files);
+            }
+
             return Page();
         }
 
@@ -104,6 +114,20 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         {
             var key = $"UploadedFiles_{appId}_{fieldId}";
             HttpContext.Session.SetString(key, System.Text.Json.JsonSerializer.Serialize(files));
+        }
+
+        private async Task SaveUploadedFilesToResponseAsync(Guid appId, string fieldId, IReadOnlyList<UploadDto> files)
+        {
+            var fileNames = files.Select(f => f.OriginalFileName ?? string.Empty).ToArray();
+            var data = new Dictionary<string, object> { { fieldId, fileNames } };
+            try
+            {
+                await applicationResponseService.SaveApplicationResponseAsync(appId, data, HttpContext.Session);
+            }
+            catch
+            {
+                // Intentionally swallow errors to avoid blocking the upload flow
+            }
         }
     }
 } 
