@@ -1,18 +1,37 @@
 @using System.Collections
+@using System.Text.Json
 @using DfE.ExternalApplications.Web.Services
 @using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response
 @model FieldViewModel
 @{
     var applicationId = ViewData["applicationId"] as string ?? Context.Session.GetString("ApplicationId");
     var fieldId = Model.Field.FieldId;
-    var files = ViewData[$"{fieldId}_Files"] as IEnumerable<UploadDto> ?? new List<UploadDto>();
+
+    var files = ViewData[$"{fieldId}_Files"] as IEnumerable<UploadDto>;
+    if (files == null || !files.Any())
+    {
+        var key = $"UploadedFiles_{applicationId}_{fieldId}";
+        var json = Context.Session.GetString(key);
+        if (!string.IsNullOrEmpty(json))
+        {
+            try
+            {
+                files = JsonSerializer.Deserialize<List<UploadDto>>(json);
+            }
+            catch
+            {
+                files = new List<UploadDto>();
+            }
+        }
+        files ??= new List<UploadDto>();
+    }
+    else
+    {
+        files = files.ToList();
+    }
+
     var successMessage = ViewData[$"{fieldId}_UploadSuccess"] as string;
     var errorMessage = ViewData[$"{fieldId}_UploadError"] as string;
-
-    <pre>Key: @($"{fieldId}_Files")</pre>
-    <pre>Type: @(ViewData[$"{fieldId}_Files"]?.GetType()?.FullName ?? "null")</pre>
-    <pre>Value: @System.Text.Json.JsonSerializer.Serialize(ViewData[$"{fieldId}_Files"])</pre>
-
 }
 @if (!string.IsNullOrEmpty(successMessage))
 {
@@ -36,7 +55,8 @@
         </div>
     </div>
 }
-<a class="govuk-button" href="/form-engine/upload-file?applicationId=@applicationId&amp;fieldId=@fieldId">Upload Files</a>
+
+<a class="govuk-button" href="/form-engine/upload-file?applicationId=@applicationId&amp;fieldId=@fieldId">Upload and Manage Files</a>
 @if (files.Any())
 {
     <h3 class="govuk-heading-m">Uploaded files</h3>
@@ -62,10 +82,6 @@
                     <form method="post" asp-route-applicationId="@applicationId" asp-page-handler="DownloadFile" style="display:inline">
                         <input type="hidden" name="FileId" value="@file.Id" />
                         <button class="govuk-link" type="submit">Download</button>
-                    </form>
-                    <form method="post" asp-route-applicationId="@applicationId" asp-page-handler="DeleteFile" style="display:inline" onsubmit="return confirm('Are you sure you want to delete this file?');">
-                        <input type="hidden" name="FileId" value="@file.Id" />
-                        <button class="govuk-link govuk-link--destructive" type="submit">Remove</button>
                     </form>
                 </td>
             </tr>

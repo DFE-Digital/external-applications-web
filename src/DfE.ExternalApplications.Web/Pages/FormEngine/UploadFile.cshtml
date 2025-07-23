@@ -48,15 +48,6 @@
     </div>
     <button class="govuk-button" type="submit">Upload</button>
 </form>
-@if (!string.IsNullOrEmpty(successMessage))
-{
-    <form method="get">
-        <input type="hidden" name="applicationId" value="@applicationId" />
-        <input type="hidden" name="fieldId" value="@fieldId" />
-        <button class="govuk-button govuk-button--secondary" type="submit">Upload another file</button>
-    </form>
-    <a class="govuk-link" href="/form-engine/render-form/@applicationId">Return to form</a>
-}
 @if (files.Any())
 {
     <h3 class="govuk-heading-m">Uploaded files</h3>
