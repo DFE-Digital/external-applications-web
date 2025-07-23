@@ -6,6 +6,12 @@ using DfE.ExternalApplications.Web.Pages.Shared;
 using DfE.ExternalApplications.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 using Task = System.Threading.Tasks.Task;
+using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response;
+using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
+using System.IO;
 
 namespace DfE.ExternalApplications.Web.Pages.FormEngine
 {
@@ -17,6 +23,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         ITemplateManagementService templateManagementService,
         IApplicationStateService applicationStateService,
         IAutocompleteService autocompleteService,
+        IFileUploadService fileUploadService,
         ILogger<RenderFormModel> logger)
         : BaseFormPageModel(renderer, applicationResponseService, fieldFormattingService, templateManagementService,
             applicationStateService, logger)
@@ -169,6 +176,118 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
         }
 
+        // --- Upload field handlers ---
+        public async Task<IActionResult> OnPostUploadFileAsync(string applicationId)
+        {
+            await CommonInitializationAsync();
+            if (!Guid.TryParse(applicationId, out var appId))
+            {
+                ViewData["UploadError"] = "Invalid application ID.";
+                return Page();
+            }
+            var file = Request.Form.Files["UploadFile"];
+            var name = Request.Form["UploadName"].ToString();
+            var description = Request.Form["UploadDescription"].ToString();
+            var fieldId = GetUploadFieldIdFromRequest();
+            if (file == null || file.Length == 0)
+            {
+                ViewData[$"{fieldId}_UploadError"] = "Please select a file to upload.";
+                await PopulateUploadFilesForField(appId, fieldId);
+                return Page();
+            }
+            try
+            {
+                using var stream = file.OpenReadStream();
+                var fileParam = new FileParameter(stream, file.FileName, file.ContentType);
+                await fileUploadService.UploadFileAsync(appId, name, description, fileParam);
+                ViewData[$"{fieldId}_UploadSuccess"] = $"Your file '{file.FileName}' uploaded.";
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error uploading file for application {ApplicationId}", appId);
+                ViewData[$"{fieldId}_UploadError"] = "There was a problem uploading your file.";
+            }
+            await PopulateUploadFilesForField(appId, fieldId);
+            return Page();
+        }
+
+        public async Task<IActionResult> OnPostDeleteFileAsync(string applicationId)
+        {
+            await CommonInitializationAsync();
+            if (!Guid.TryParse(applicationId, out var appId))
+            {
+                ViewData["UploadError"] = "Invalid application ID.";
+                return Page();
+            }
+            var fileIdStr = Request.Form["FileId"].ToString();
+            var fieldId = GetUploadFieldIdFromRequest();
+            if (!Guid.TryParse(fileIdStr, out var fileId))
+            {
+                ViewData[$"{fieldId}_UploadError"] = "Invalid file ID.";
+                await PopulateUploadFilesForField(appId, fieldId);
+                return Page();
+            }
+            try
+            {
+                await fileUploadService.DeleteFileAsync(fileId, appId);
+                ViewData[$"{fieldId}_UploadSuccess"] = "File deleted.";
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error deleting file {FileId} for application {ApplicationId}", fileId, appId);
+                ViewData[$"{fieldId}_UploadError"] = "There was a problem deleting the file.";
+            }
+            await PopulateUploadFilesForField(appId, fieldId);
+            return Page();
+        }
+
+        ////public async Task<IActionResult> OnPostDownloadFileAsync(string applicationId)
+        ////{
+        ////    await CommonInitializationAsync();
+        ////    if (!Guid.TryParse(applicationId, out var appId))
+        ////    {
+        ////        ViewData["UploadError"] = "Invalid application ID.";
+        ////        return Page();
+        ////    }
+        ////    var fileIdStr = Request.Form["FileId"].ToString();
+        ////    if (!Guid.TryParse(fileIdStr, out var fileId))
+        ////    {
+        ////        ViewData["UploadError"] = "Invalid file ID.";
+        ////        return Page();
+        ////    }
+        ////    try
+        ////    {
+        ////        var fileParam = await fileUploadService.DownloadFileAsync(fileId, appId);
+        ////        return File(fileParam.Stream);
+        ////    }
+        ////    catch (Exception ex)
+        ////    {
+        ////        logger.LogError(ex, "Error downloading file {FileId} for application {ApplicationId}", fileId, appId);
+        ////        ViewData["UploadError"] = "There was a problem downloading the file.";
+        ////        return Page();
+        ////    }
+        ////}
+
+        private async Task PopulateUploadFilesForField(Guid applicationId, string fieldId)
+        {
+            try
+            {
+                var files = await fileUploadService.GetFilesForApplicationAsync(applicationId);
+                ViewData[$"{fieldId}_Files"] = files;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error getting files for application {ApplicationId}", applicationId);
+                ViewData[$"{fieldId}_Files"] = new List<UploadDto>();
+            }
+        }
+
+        private string GetUploadFieldIdFromRequest()
+        {
+            // For now, assume only one upload field per page; otherwise, pass fieldId as hidden input
+            // Could parse from form or use a convention
+            return CurrentPage?.Fields.FirstOrDefault(f => f.Type == "upload")?.FieldId ?? "Upload";
+        }
 
 
         private void ValidatePage(Domain.Models.Page page)
