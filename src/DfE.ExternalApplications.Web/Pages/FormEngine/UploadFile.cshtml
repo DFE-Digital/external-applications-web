@@ -1,19 +1,14 @@
-@using System.Collections
-@using DfE.ExternalApplications.Web.Services
-@using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response
-@model FieldViewModel
+@page "/form-engine/upload-file"
+@model DfE.ExternalApplications.Web.Pages.FormEngine.UploadFileModel
 @{
-    var applicationId = ViewData["applicationId"] as string ?? Context.Session.GetString("ApplicationId");
-    var fieldId = Model.Field.FieldId;
-    var files = ViewData[$"{fieldId}_Files"] as IEnumerable<UploadDto> ?? new List<UploadDto>();
-    var successMessage = ViewData[$"{fieldId}_UploadSuccess"] as string;
-    var errorMessage = ViewData[$"{fieldId}_UploadError"] as string;
-
-    <pre>Key: @($"{fieldId}_Files")</pre>
-    <pre>Type: @(ViewData[$"{fieldId}_Files"]?.GetType()?.FullName ?? "null")</pre>
-    <pre>Value: @System.Text.Json.JsonSerializer.Serialize(ViewData[$"{fieldId}_Files"])</pre>
-
+    ViewData["Title"] = "Upload File";
+    var applicationId = Model.ApplicationId;
+    var fieldId = Model.FieldId;
+    var files = Model.Files;
+    var successMessage = Model.SuccessMessage;
+    var errorMessage = Model.ErrorMessage;
 }
+<h1 class="govuk-heading-xl">Upload File</h1>
 @if (!string.IsNullOrEmpty(successMessage))
 {
     <div class="govuk-notification-banner govuk-notification-banner--success" role="alert" data-module="govuk-notification-banner">
@@ -36,7 +31,32 @@
         </div>
     </div>
 }
-<a class="govuk-button" href="/form-engine/upload-file?applicationId=@applicationId&amp;fieldId=@fieldId">Upload Files</a>
+<form method="post" enctype="multipart/form-data">
+    <input type="hidden" name="ApplicationId" value="@applicationId" />
+    <input type="hidden" name="FieldId" value="@fieldId" />
+    <div class="govuk-form-group">
+        <label class="govuk-label" for="upload-file">File</label>
+        <input class="govuk-file-upload" id="upload-file" name="UploadFile" type="file" required />
+    </div>
+    <div class="govuk-form-group">
+        <label class="govuk-label" for="upload-name">Name</label>
+        <input class="govuk-input" id="upload-name" name="UploadName" type="text" placeholder="File name (optional)" />
+    </div>
+    <div class="govuk-form-group">
+        <label class="govuk-label" for="upload-desc">Description</label>
+        <input class="govuk-input" id="upload-desc" name="UploadDescription" type="text" placeholder="Description (optional)" />
+    </div>
+    <button class="govuk-button" type="submit">Upload</button>
+</form>
+@if (!string.IsNullOrEmpty(successMessage))
+{
+    <form method="get">
+        <input type="hidden" name="applicationId" value="@applicationId" />
+        <input type="hidden" name="fieldId" value="@fieldId" />
+        <button class="govuk-button govuk-button--secondary" type="submit">Upload another file</button>
+    </form>
+    <a class="govuk-link" href="/form-engine/render-form/@applicationId">Return to form</a>
+}
 @if (files.Any())
 {
     <h3 class="govuk-heading-m">Uploaded files</h3>
@@ -59,12 +79,14 @@
                 <td class="govuk-table__cell">@file.UploadedByUser?.Name</td>
                 <td class="govuk-table__cell">@file.UploadedOn.ToString("g")</td>
                 <td class="govuk-table__cell">
-                    <form method="post" asp-route-applicationId="@applicationId" asp-page-handler="DownloadFile" style="display:inline">
+                    <form method="post" asp-page-handler="DownloadFile" style="display:inline">
                         <input type="hidden" name="FileId" value="@file.Id" />
+                        <input type="hidden" name="ApplicationId" value="@applicationId" />
                         <button class="govuk-link" type="submit">Download</button>
                     </form>
-                    <form method="post" asp-route-applicationId="@applicationId" asp-page-handler="DeleteFile" style="display:inline" onsubmit="return confirm('Are you sure you want to delete this file?');">
+                    <form method="post" asp-page-handler="DeleteFile" style="display:inline" onsubmit="return confirm('Are you sure you want to delete this file?');">
                         <input type="hidden" name="FileId" value="@file.Id" />
+                        <input type="hidden" name="ApplicationId" value="@applicationId" />
                         <button class="govuk-link govuk-link--destructive" type="submit">Remove</button>
                     </form>
                 </td>

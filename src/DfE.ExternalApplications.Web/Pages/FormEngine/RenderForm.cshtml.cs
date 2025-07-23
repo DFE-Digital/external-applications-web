@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using System.IO;
+using System.Text.Json;
 
 namespace DfE.ExternalApplications.Web.Pages.FormEngine
 {
@@ -60,6 +61,25 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
             // Load accumulated form data from session to pre-populate fields
             LoadAccumulatedDataFromSession();
+
+            var applicationId = HttpContext.Session.GetString("ApplicationId");
+            if (CurrentPage != null && !string.IsNullOrEmpty(applicationId) && Guid.TryParse(applicationId, out var appId))
+            {
+                foreach (var field in CurrentPage.Fields.Where(f => f.Type == "complexField"))
+                {
+                    var key = $"UploadedFiles_{appId}_{field.FieldId}";
+                    var json = HttpContext.Session.GetString(key);
+                    if (!string.IsNullOrEmpty(json))
+                    {
+                        try
+                        {
+                            var files = JsonSerializer.Deserialize<List<UploadDto>>(json) ?? new List<UploadDto>();
+                            ViewData[$"{field.FieldId}_Files"] = files;
+                        }
+                        catch { }
+                    }
+                }
+            }
         }
 
         public async Task<IActionResult> OnPostPageAsync()
