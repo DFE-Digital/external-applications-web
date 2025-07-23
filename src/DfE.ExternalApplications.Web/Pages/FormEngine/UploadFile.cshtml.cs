@@ -107,8 +107,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         //    var fileIdStr = Request.Form["FileId"].ToString();
         //    if (!Guid.TryParse(fileIdStr, out var fileId))
         //        return NotFound();
-        //    var fileResponse = await _fileUploadService.DownloadFileAsync(fileId, appId);
-        //    return File(fileResponse.Data, fileResponse.ContentType, fileResponse.FileName);
+        //    var fileResponse = await fileUploadService.DownloadFileAsync(fileId, appId);
+        //    return File(fileResponse..Data, fileResponse.ContentType, fileResponse.FileName);
         //}
 
         private void UpdateSessionFileList(Guid appId, string fieldId, IReadOnlyList<UploadDto> files)

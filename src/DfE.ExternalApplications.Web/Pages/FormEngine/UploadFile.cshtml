@@ -56,7 +56,6 @@
             <tr class="govuk-table__row">
                 <th class="govuk-table__header">File name</th>
                 <th class="govuk-table__header">Description</th>
-                <th class="govuk-table__header">Uploaded by</th>
                 <th class="govuk-table__header">Uploaded on</th>
                 <th class="govuk-table__header">Actions</th>
             </tr>
@@ -67,20 +66,25 @@
             <tr class="govuk-table__row">
                 <td class="govuk-table__cell">@file.OriginalFileName</td>
                 <td class="govuk-table__cell">@file.Description</td>
-                <td class="govuk-table__cell">@file.UploadedByUser?.Name</td>
                 <td class="govuk-table__cell">@file.UploadedOn.ToString("g")</td>
                 <td class="govuk-table__cell">
                     <form method="post" asp-page-handler="DownloadFile" style="display:inline">
                         <input type="hidden" name="FileId" value="@file.Id" />
                         <input type="hidden" name="FieldId" value="@fieldId" />
                         <input type="hidden" name="ApplicationId" value="@applicationId" />
-                        <button class="govuk-link" type="submit">Download</button>
+                        <govuk-button type="submit" id="download-file">Download</govuk-button>
                     </form>
-                    <form method="post" asp-page-handler="DeleteFile" style="display:inline" onsubmit="return confirm('Are you sure you want to delete this file?');">
+                    <form method="post" style="display:inline">
                         <input type="hidden" name="FileId" value="@file.Id" />
                         <input type="hidden" name="FieldId" value="@fieldId" />
                         <input type="hidden" name="ApplicationId" value="@applicationId" />
-                        <button class="govuk-link govuk-link--destructive" type="submit">Remove</button>
+                        <button type="submit"
+                                    asp-page-handler="DeleteFile"
+                                    class="govuk-button govuk-button--warning govuk-button--small" 
+                                data-module="govuk-button"
+                                onclick="return confirm('Are you sure you want to delete this file?');">
+                            Remove
+                        </button>
                     </form>
                 </td>
             </tr>
