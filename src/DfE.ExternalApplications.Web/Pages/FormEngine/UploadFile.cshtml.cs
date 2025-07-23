@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.Json;
 using System.Threading.Tasks;
 using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using DfE.ExternalApplications.Application.Interfaces;
@@ -118,8 +119,15 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         private async Task SaveUploadedFilesToResponseAsync(Guid appId, string fieldId, IReadOnlyList<UploadDto> files)
         {
-            var fileNames = files.Select(f => f.OriginalFileName ?? string.Empty).ToArray();
-            var data = new Dictionary<string, object> { { fieldId, fileNames } };
+
+            if (string.IsNullOrEmpty(fieldId))
+            {
+                return;
+            }
+
+            var json = JsonSerializer.Serialize(files);
+            var data = new Dictionary<string, object> { { fieldId, json } };
+
             try
             {
                 await applicationResponseService.SaveApplicationResponseAsync(appId, data, HttpContext.Session);

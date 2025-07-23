@@ -72,11 +72,13 @@
                 <td class="govuk-table__cell">
                     <form method="post" asp-page-handler="DownloadFile" style="display:inline">
                         <input type="hidden" name="FileId" value="@file.Id" />
+                        <input type="hidden" name="FieldId" value="@fieldId" />
                         <input type="hidden" name="ApplicationId" value="@applicationId" />
                         <button class="govuk-link" type="submit">Download</button>
                     </form>
                     <form method="post" asp-page-handler="DeleteFile" style="display:inline" onsubmit="return confirm('Are you sure you want to delete this file?');">
                         <input type="hidden" name="FileId" value="@file.Id" />
+                        <input type="hidden" name="FieldId" value="@fieldId" />
                         <input type="hidden" name="ApplicationId" value="@applicationId" />
                         <button class="govuk-link govuk-link--destructive" type="submit">Remove</button>
                     </form>
