@@ -1,15 +1,9 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Text.Json;
-using System.Threading.Tasks;
 using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using DfE.ExternalApplications.Application.Interfaces;
-using DfE.ExternalApplications.Infrastructure.Services;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using System.Text.Json;
 
 namespace DfE.ExternalApplications.Web.Pages.FormEngine
 {
@@ -100,16 +94,23 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             return Page();
         }
 
-        //public async Task<IActionResult> OnPostDownloadFileAsync()
-        //{
-        //    if (!Guid.TryParse(ApplicationId, out var appId))
-        //        return NotFound();
-        //    var fileIdStr = Request.Form["FileId"].ToString();
-        //    if (!Guid.TryParse(fileIdStr, out var fileId))
-        //        return NotFound();
-        //    var fileResponse = await fileUploadService.DownloadFileAsync(fileId, appId);
-        //    return File(fileResponse..Data, fileResponse.ContentType, fileResponse.FileName);
-        //}
+        public async Task<IActionResult> OnPostDownloadFileAsync()
+        {
+            if (!Guid.TryParse(ApplicationId, out var appId))
+                return NotFound();
+            var fileIdStr = Request.Form["FileId"].ToString();
+            if (!Guid.TryParse(fileIdStr, out var fileId))
+                return NotFound();
+            var fileResponse = await fileUploadService.DownloadFileAsync(fileId, appId);
+
+            using (var memoryStream = new MemoryStream())
+            {
+                await fileResponse.FileStream.CopyToAsync(memoryStream);
+                memoryStream.Position = 0;
+                return File(memoryStream, fileResponse.ContentType, fileResponse.FileName);
+            }
+
+        }
 
         private void UpdateSessionFileList(Guid appId, string fieldId, IReadOnlyList<UploadDto> files)
         {

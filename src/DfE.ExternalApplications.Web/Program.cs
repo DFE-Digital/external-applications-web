@@ -21,8 +21,6 @@ using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
-using DfE.CoreLibs.Security;
-using DfE.CoreLibs.Security.Configurations;
 using System.Diagnostics.CodeAnalysis;
 
 
