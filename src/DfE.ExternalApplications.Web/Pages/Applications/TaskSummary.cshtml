@@ -1,5 +1,6 @@
 @page "/applications/{referenceNumber}/{taskId}/summary"
 @model TaskSummaryModel
+@inject Application.Interfaces.IComplexFieldConfigurationService ComplexFieldConfigurationService
 @{
     ViewData["Title"] = Model.CurrentTask?.TaskName ?? "Task Summary";
 }
@@ -16,7 +17,7 @@
             var fieldValue = Model.GetFieldValue(field.FieldId);
             var hasValue = Model.HasFieldValue(field.FieldId);
             var changeUrl = $"/form-engine/render-form/{Model.ReferenceNumber}/{page.PageId}";
-            
+
             if ((field.Type == "autocomplete" || field.Type == "complexField") && hasValue)
             {
                 // Handle multiple autocomplete/complex field values as separate rows

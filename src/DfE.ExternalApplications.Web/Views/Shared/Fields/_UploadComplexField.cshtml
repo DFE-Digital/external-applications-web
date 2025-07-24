@@ -1,0 +1,88 @@
+@using System.Collections
+@using System.Text.Json
+@using DfE.ExternalApplications.Web.Services
+@using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response
+@model FieldViewModel
+@{
+    var applicationId = ViewData["applicationId"] as string ?? Context.Session.GetString("ApplicationId");
+    var fieldId = Model.Field.FieldId;
+
+    var files = ViewData[$"{fieldId}_Files"] as IEnumerable<UploadDto>;
+    if (files == null || !files.Any())
+    {
+        if (!string.IsNullOrEmpty(Model.CurrentValue))
+        {
+            try
+            {
+                files = JsonSerializer.Deserialize<List<UploadDto>>(Model.CurrentValue);
+            }
+            catch
+            {
+                files = new List<UploadDto>();
+            }
+        }
+
+        files ??= new List<UploadDto>();
+    }
+    else
+    {
+        files = files.ToList();
+    }
+
+    var successMessage = ViewData[$"{fieldId}_UploadSuccess"] as string;
+    var errorMessage = ViewData[$"{fieldId}_UploadError"] as string;
+}
+@if (!string.IsNullOrEmpty(successMessage))
+{
+    <div class="govuk-notification-banner govuk-notification-banner--success" role="alert" data-module="govuk-notification-banner">
+        <div class="govuk-notification-banner__header">
+            <h2 class="govuk-notification-banner__title" id="govuk-notification-banner-title">Success</h2>
+        </div>
+        <div class="govuk-notification-banner__content">
+            <p class="govuk-notification-banner__heading">@successMessage</p>
+        </div>
+    </div>
+}
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="govuk-error-summary" data-module="govuk-error-summary">
+        <div role="alert">
+            <h2 class="govuk-error-summary__title">There is a problem</h2>
+            <div class="govuk-error-summary__body">
+                <p class="govuk-body">@errorMessage</p>
+            </div>
+        </div>
+    </div>
+}
+
+<a class="govuk-button" href="/form-engine/upload-file?applicationId=@applicationId&amp;fieldId=@fieldId">Upload and Manage Files</a>
+@if (files.Any())
+{
+    <h3 class="govuk-heading-m">Uploaded files</h3>
+    <table class="govuk-table">
+        <thead class="govuk-table__head">
+            <tr class="govuk-table__row">
+                <th class="govuk-table__header">File name</th>
+                <th class="govuk-table__header">Description</th>
+                <th class="govuk-table__header">Uploaded on</th>
+                <th class="govuk-table__header">Actions</th>
+            </tr>
+        </thead>
+        <tbody class="govuk-table__body">
+        @foreach (var file in files)
+        {
+            <tr class="govuk-table__row">
+                <td class="govuk-table__cell">@file.OriginalFileName</td>
+                <td class="govuk-table__cell">@file.Description</td>
+                <td class="govuk-table__cell">@file.UploadedOn.ToString("g")</td>
+                <td class="govuk-table__cell">
+                    <form method="post" asp-route-applicationId="@applicationId" asp-page-handler="DownloadFile" style="display:inline">
+                        <input type="hidden" name="FileId" value="@file.Id" />
+                            <govuk-button type="submit" id="download-file">Download</govuk-button>
+                        </form>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+} 

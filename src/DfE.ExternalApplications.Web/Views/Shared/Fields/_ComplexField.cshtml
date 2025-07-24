@@ -29,6 +29,9 @@ else
         case "autocomplete":
             @await Html.PartialAsync("~/Views/Shared/Fields/_AutocompleteComplexField.cshtml", Model)
             break;
+        case "upload":
+            @await Html.PartialAsync("~/Views/Shared/Fields/_UploadComplexField.cshtml", Model, new ViewDataDictionary(ViewData))
+            break;
         @*   case "composite":
             @await Html.PartialAsync("~/Views/Shared/Fields/_CompositeComplexField.cshtml", Model)
                 break; *@

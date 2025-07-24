@@ -56,6 +56,11 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             // Try to format as autocomplete data if it looks like JSON
             if (fieldValue.StartsWith("{") || fieldValue.StartsWith("["))
             {
+                if (LooksLikeUploadData(fieldValue))
+                {
+                    return FormatUploadValue(fieldValue);
+                }
+
                 return FormatAutocompleteValue(fieldValue);
             }
 
@@ -71,9 +76,13 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                 return new List<string>();
             }
 
-            // Try to format as autocomplete data if it looks like JSON
             if (fieldValue.StartsWith("{") || fieldValue.StartsWith("["))
             {
+                if (LooksLikeUploadData(fieldValue))
+                {
+                    return FormatUploadValuesList(fieldValue);
+                }
+
                 return FormatAutocompleteValuesList(fieldValue);
             }
 
@@ -232,6 +241,66 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             }
 
             return System.Web.HttpUtility.HtmlEncode(element.ToString());
+        }
+
+        private bool LooksLikeUploadData(string value)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(value);
+                if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
+                {
+                    var first = doc.RootElement[0];
+                    return first.ValueKind == JsonValueKind.Object && first.TryGetProperty("OriginalFileName", out _);
+                }
+            }
+            catch
+            {
+                // ignore parse errors
+            }
+
+            return false;
+        }
+
+        private string FormatUploadValue(string value)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(value);
+                if (doc.RootElement.ValueKind == JsonValueKind.Array)
+                {
+                    var names = doc.RootElement.EnumerateArray()
+                        .Select(e => e.TryGetProperty("OriginalFileName", out var n) ? n.GetString() ?? string.Empty : string.Empty)
+                        .Where(n => !string.IsNullOrEmpty(n));
+                    return string.Join("<br />", names);
+                }
+            }
+            catch
+            {
+                // ignore and return raw value
+            }
+            return value;
+        }
+
+        private List<string> FormatUploadValuesList(string value)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(value);
+                if (doc.RootElement.ValueKind == JsonValueKind.Array)
+                {
+                    var names = doc.RootElement.EnumerateArray()
+                        .Select(e => e.TryGetProperty("OriginalFileName", out var n) ? n.GetString() ?? string.Empty : string.Empty)
+                        .Where(n => !string.IsNullOrEmpty(n))
+                        .ToList();
+                    return names;
+                }
+            }
+            catch
+            {
+                // ignore
+            }
+            return new List<string> { value };
         }
     }
 } 

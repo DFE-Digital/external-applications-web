@@ -129,22 +129,36 @@ public class ApplicationResponseService(
     {
         if (value == null)
             return string.Empty;
-            
+
         if (value is JsonElement jsonElement)
         {
-            return jsonElement.ValueKind switch
+            switch (jsonElement.ValueKind)
             {
-                JsonValueKind.String => jsonElement.GetString() ?? string.Empty,
-                JsonValueKind.Array => jsonElement.GetArrayLength() == 1 
-                    ? jsonElement[0].GetString() ?? string.Empty 
-                    : jsonElement.EnumerateArray().Select(x => x.GetString() ?? string.Empty).ToArray(),
-                JsonValueKind.Number => jsonElement.GetDecimal().ToString(),
-                JsonValueKind.True => "true",
-                JsonValueKind.False => "false",
-                _ => value.ToString() ?? string.Empty
-            };
+                case JsonValueKind.String:
+                    return jsonElement.GetString() ?? string.Empty;
+                case JsonValueKind.Array:
+                    var allStrings = jsonElement.EnumerateArray().All(e => e.ValueKind == JsonValueKind.String);
+                    if (allStrings)
+                    {
+                        return jsonElement.GetArrayLength() == 1
+                            ? jsonElement[0].GetString() ?? string.Empty
+                            : jsonElement.EnumerateArray().Select(x => x.GetString() ?? string.Empty).ToArray();
+                    }
+                    // return raw JSON for arrays of objects
+                    return jsonElement.ToString();
+                case JsonValueKind.Number:
+                    return jsonElement.GetDecimal().ToString();
+                case JsonValueKind.True:
+                    return "true";
+                case JsonValueKind.False:
+                    return "false";
+                case JsonValueKind.Object:
+                    return jsonElement.ToString();
+                default:
+                    return value.ToString() ?? string.Empty;
+            }
         }
-        
+
         if (value is string[] stringArray && stringArray.Length == 1)
         {
             return stringArray[0];
