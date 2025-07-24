@@ -42,7 +42,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             }
         }
 
-        public async Task<DownloadFileResult> DownloadFileAsync(Guid fileId, Guid applicationId, CancellationToken cancellationToken = default)
+        public async Task<FileResponse> DownloadFileAsync(Guid fileId, Guid applicationId, CancellationToken cancellationToken = default)
         {
             try
             {

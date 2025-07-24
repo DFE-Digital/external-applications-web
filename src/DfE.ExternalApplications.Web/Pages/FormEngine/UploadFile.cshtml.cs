@@ -12,10 +12,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         IApplicationResponseService applicationResponseService)
         : PageModel
     {
-        [BindProperty(SupportsGet = true)]
-        public string ApplicationId { get; set; }
-        [BindProperty(SupportsGet = true)]
-        public string FieldId { get; set; }
+        [BindProperty(SupportsGet = true)] public string ApplicationId { get; set; }
+        [BindProperty(SupportsGet = true)] public string FieldId { get; set; }
         public IReadOnlyList<UploadDto> Files { get; set; } = new List<UploadDto>();
         public string SuccessMessage { get; set; }
         public string ErrorMessage { get; set; }
@@ -28,7 +26,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             return Page();
         }
 
-        public async Task<IActionResult> OnPostAsync()
+        public async Task<IActionResult> OnPostUploadFileAsync()
         {
             if (!Guid.TryParse(ApplicationId, out var appId))
                 return NotFound();
@@ -41,6 +39,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 Files = await fileUploadService.GetFilesForApplicationAsync(appId);
                 return Page();
             }
+
             try
             {
                 using var stream = file.OpenReadStream();
@@ -52,6 +51,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             {
                 ErrorMessage = "There was a problem uploading your file.";
             }
+
             Files = await fileUploadService.GetFilesForApplicationAsync(appId);
             UpdateSessionFileList(appId, FieldId, Files);
 
@@ -74,6 +74,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 Files = await fileUploadService.GetFilesForApplicationAsync(appId);
                 return Page();
             }
+
             try
             {
                 await fileUploadService.DeleteFileAsync(fileId, appId);
@@ -83,6 +84,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             {
                 ErrorMessage = "There was a problem deleting the file.";
             }
+
             Files = await fileUploadService.GetFilesForApplicationAsync(appId);
             UpdateSessionFileList(appId, FieldId, Files);
 
@@ -101,16 +103,32 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             var fileIdStr = Request.Form["FileId"].ToString();
             if (!Guid.TryParse(fileIdStr, out var fileId))
                 return NotFound();
+
             var fileResponse = await fileUploadService.DownloadFileAsync(fileId, appId);
 
-            using (var memoryStream = new MemoryStream())
+            // Extract content type
+            var contentType = fileResponse.Headers.TryGetValue("Content-Type", out var ct)
+                ? ct.FirstOrDefault()
+                : "application/octet-stream";
+
+            string fileName = "downloadedfile";
+            if (fileResponse.Headers.TryGetValue("Content-Disposition", out var cd))
             {
-                await fileResponse.FileStream.CopyToAsync(memoryStream);
-                memoryStream.Position = 0;
-                return File(memoryStream, fileResponse.ContentType, fileResponse.FileName);
+                var disposition = cd.FirstOrDefault();
+                if (!string.IsNullOrEmpty(disposition))
+                {
+                    var fileNameMatch = System.Text.RegularExpressions.Regex.Match(
+                        disposition,
+                        @"filename\*=UTF-8''(?<fileName>.+)|filename=""?(?<fileName>[^\"";]+)""?"
+                    );
+                    if (fileNameMatch.Success)
+                        fileName = System.Net.WebUtility.UrlDecode(fileNameMatch.Groups["fileName"].Value);
+                }
             }
 
+            return File(fileResponse.Stream, contentType, fileName);
         }
+
 
         private void UpdateSessionFileList(Guid appId, string fieldId, IReadOnlyList<UploadDto> files)
         {
@@ -139,4 +157,4 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
         }
     }
-} 
+}

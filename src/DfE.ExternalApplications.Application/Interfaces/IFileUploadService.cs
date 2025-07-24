@@ -10,7 +10,7 @@ namespace DfE.ExternalApplications.Application.Interfaces
     {
         Task UploadFileAsync(Guid applicationId, string? name = null, string? description = null, FileParameter file = null!, CancellationToken cancellationToken = default);
         Task<IReadOnlyList<UploadDto>> GetFilesForApplicationAsync(Guid applicationId, CancellationToken cancellationToken = default);
-        Task<DownloadFileResult> DownloadFileAsync(Guid fileId, Guid applicationId, CancellationToken cancellationToken = default);
+        Task<FileResponse> DownloadFileAsync(Guid fileId, Guid applicationId, CancellationToken cancellationToken = default);
         Task DeleteFileAsync(Guid fileId, Guid applicationId, CancellationToken cancellationToken = default);
     }
 } 
