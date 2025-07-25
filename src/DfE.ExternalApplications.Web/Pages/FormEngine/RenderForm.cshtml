@@ -1,6 +1,9 @@
-﻿@page "/form-engine/render-form/{referenceNumber}/{pageId?}"
+﻿@page "/applications/{referenceNumber}/{pageId?}"
+@using DfE.ExternalApplications.Infrastructure.Services
+@using GovUk.Frontend.AspNetCore.TagHelpers
 @model RenderFormModel
 @inject DfE.ExternalApplications.Web.Services.IFieldRendererService FieldRenderer
+@inject DfE.ExternalApplications.Application.Interfaces.IComplexFieldConfigurationService ComplexFieldConfigurationService
 @{
     ViewData["Title"] = "New application";
     var allTasksCompleted = Model.AreAllTasksCompleted();
@@ -14,16 +17,24 @@
 
 @if (!String.IsNullOrEmpty(Model.CurrentPageId))
 {
+
+    bool hasUploadField = Model.CurrentPage.Fields.Any(f =>
+        f.Type == "complexField" &&
+        f.ComplexField != null &&
+        ComplexFieldConfigurationService
+            .GetConfiguration(f.ComplexField.Id)
+            .FieldType.Equals("upload", StringComparison.OrdinalIgnoreCase));
+
     <form method="post" asp-page-handler="Page">
-        <input type="hidden" asp-for="CurrentPageId"/>
-        <govuk-back-link href="/form-engine/render-form/@Model.ReferenceNumber">Back</govuk-back-link>
+        <input type="hidden" asp-for="CurrentPageId" />
+        <govuk-back-link href="/applications/@Model.ReferenceNumber">Back</govuk-back-link>
         <h1 class="govuk-heading-xl govuk-!-margin-bottom-6">@Model.CurrentTask.TaskName</h1>
 
         <govuk-error-summary>
             @{
                 var ModelStateWithFieldProps = from m in ModelState
-                    join f in Model.CurrentPage.Fields on m.Key.ToString() equals f.FieldId
-                    select new { m, f };
+                                               join f in Model.CurrentPage.Fields on m.Key.ToString() equals f.FieldId
+                                               select new { m, f };
             }
             @foreach (var s in ModelStateWithFieldProps.OrderBy(s => s.f.Order))
             {
@@ -44,10 +55,14 @@
             var fieldModelState = ModelState.Where(f => f.Key == field.FieldId).FirstOrDefault();
             var errorMessage = fieldModelState.Value?.Errors?.FirstOrDefault()?.ErrorMessage ?? String.Empty;
 
-            @await FieldRenderer.RenderFieldAsync(field, "Data", currentValue, errorMessage);
+            @await FieldRenderer.RenderFieldAsync(field, "Data", currentValue, errorMessage)
+            ;
         }
 
-        <govuk-button type="submit" name="handler" value="Page" id="save-and-continue-button">Save and continue</govuk-button>
+        @if (!hasUploadField)
+        {
+            <govuk-button type="submit" name="handler" value="Page" id="save-and-continue-button">Save and continue</govuk-button>
+        }
     </form>
 }
 else
@@ -112,14 +127,14 @@ else
                 }
             </div>
         </div>
-        
+
         @if (currentUser == leadApplicantEmail)
         {
             <div class="govuk-grid-column-one-third">
                 <div class="govuk-!-margin-top-6">
                     <h2 class="govuk-heading-m">Inviting contributors</h2>
                     <p class="govuk-body">You can invite other people to complete parts of this application.</p>
-                
+
                     @if (Model.IsApplicationEditable())
                     {
                         <a href="/applications/@Model.ReferenceNumber/contributors" class="govuk-button govuk-button--secondary" role="button">

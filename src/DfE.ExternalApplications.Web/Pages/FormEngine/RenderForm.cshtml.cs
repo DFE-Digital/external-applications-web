@@ -6,6 +6,13 @@ using DfE.ExternalApplications.Web.Pages.Shared;
 using DfE.ExternalApplications.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 using Task = System.Threading.Tasks.Task;
+using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response;
+using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
+using System.IO;
+using System.Text.Json;
 
 namespace DfE.ExternalApplications.Web.Pages.FormEngine
 {
@@ -17,6 +24,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         ITemplateManagementService templateManagementService,
         IApplicationStateService applicationStateService,
         IAutocompleteService autocompleteService,
+        IFileUploadService fileUploadService,
         ILogger<RenderFormModel> logger)
         : BaseFormPageModel(renderer, applicationResponseService, fieldFormattingService, templateManagementService,
             applicationStateService, logger)
@@ -36,7 +44,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             // If application is not editable and trying to access a specific page, redirect to preview
             if (!IsApplicationEditable() && !string.IsNullOrEmpty(pageId))
             {
-                Response.Redirect($"~/render-form/{ReferenceNumber}/preview");
+                Response.Redirect($"~/applications/{ReferenceNumber}/preview");
                 return;
             }
 
@@ -168,8 +176,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 return new JsonResult(new List<object>());
             }
         }
-
-
 
         private void ValidatePage(Domain.Models.Page page)
         {

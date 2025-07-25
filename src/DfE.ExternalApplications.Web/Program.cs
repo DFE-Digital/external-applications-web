@@ -21,8 +21,6 @@ using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
-using DfE.CoreLibs.Security;
-using DfE.CoreLibs.Security.Configurations;
 using System.Diagnostics.CodeAnalysis;
 
 
@@ -133,6 +131,7 @@ builder.Services.AddScoped<IApplicationResponseService, ApplicationResponseServi
 builder.Services.AddScoped<IFieldFormattingService, FieldFormattingService>();
 builder.Services.AddScoped<ITemplateManagementService, TemplateManagementService>();
 builder.Services.AddScoped<IApplicationStateService, ApplicationStateService>();
+builder.Services.AddScoped<IFileUploadService, FileUploadService>();
 
 builder.Services.AddScoped<IAutocompleteService, AutocompleteService>();
 builder.Services.AddScoped<IApiErrorParser, ApiErrorParser>();
@@ -141,6 +140,7 @@ builder.Services.AddScoped<IComplexFieldConfigurationService, ComplexFieldConfig
 builder.Services.AddScoped<IComplexFieldRendererFactory, ComplexFieldRendererFactory>();
 builder.Services.AddScoped<IComplexFieldRenderer, AutocompleteComplexFieldRenderer>();
 builder.Services.AddScoped<IComplexFieldRenderer, CompositeComplexFieldRenderer>();
+builder.Services.AddScoped<IComplexFieldRenderer, UploadComplexFieldRenderer>();
 
 builder.Services.AddSingleton<ITemplateStore, ApiTemplateStore>();
 

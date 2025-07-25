@@ -9,7 +9,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
         public IComplexFieldRenderer GetRenderer(string fieldType)
         {
             var renderer = renderers.FirstOrDefault(r => r.FieldType.Equals(fieldType, StringComparison.OrdinalIgnoreCase));
-            return renderer ?? renderers.FirstOrDefault(r => r.FieldType == "autocomplete"); // Default to autocomplete
+            return renderer ?? renderers.FirstOrDefault(r => r.FieldType == "autocomplete" || r.FieldType == "upload"); // Default to autocomplete or upload
         }
     }
 } 
