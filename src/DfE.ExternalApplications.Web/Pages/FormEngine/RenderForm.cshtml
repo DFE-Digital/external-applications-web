@@ -88,7 +88,9 @@ else
                         var statusClass = Model.GetTaskStatusDisplayClass(currentTaskStatus);
                         var statusText = Model.GetTaskStatusDisplayText(currentTaskStatus);
 
-                        <li class="govuk-task-list__item govuk-task-list__item--with-link">
+                        var taskNameHyphenated = task.TaskName.Replace(" ", "-").ToLower();
+
+                        <li class="govuk-task-list__item govuk-task-list__item--with-link" id="task-@taskNameHyphenated">
                             <div class="govuk-task-list__name-and-hint">
                                 @if (Model.IsApplicationEditable())
                                 {
@@ -137,7 +139,7 @@ else
 
                     @if (Model.IsApplicationEditable())
                     {
-                        <a href="/applications/@Model.ReferenceNumber/contributors" class="govuk-button govuk-button--secondary" role="button">
+                        <a href="/applications/@Model.ReferenceNumber/contributors" id="invite-contributors" class="govuk-button govuk-button--secondary" role="button">
                             Invite contributors
                         </a>
                     }
