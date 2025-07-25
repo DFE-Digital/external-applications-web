@@ -1,4 +1,4 @@
-﻿@page "/form-engine/render-form/{referenceNumber}/{pageId?}"
+﻿@page "/applications/{referenceNumber}/{pageId?}"
 @using DfE.ExternalApplications.Infrastructure.Services
 @using GovUk.Frontend.AspNetCore.TagHelpers
 @model RenderFormModel
@@ -27,7 +27,7 @@
 
     <form method="post" asp-page-handler="Page">
         <input type="hidden" asp-for="CurrentPageId" />
-        <govuk-back-link href="/form-engine/render-form/@Model.ReferenceNumber">Back</govuk-back-link>
+        <govuk-back-link href="/applications/@Model.ReferenceNumber">Back</govuk-back-link>
         <h1 class="govuk-heading-xl govuk-!-margin-bottom-6">@Model.CurrentTask.TaskName</h1>
 
         <govuk-error-summary>

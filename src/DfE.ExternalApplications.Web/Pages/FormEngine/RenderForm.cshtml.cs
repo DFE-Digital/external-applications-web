@@ -44,7 +44,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             // If application is not editable and trying to access a specific page, redirect to preview
             if (!IsApplicationEditable() && !string.IsNullOrEmpty(pageId))
             {
-                Response.Redirect($"~/render-form/{ReferenceNumber}/preview");
+                Response.Redirect($"~/applications/{ReferenceNumber}/preview");
                 return;
             }
 
