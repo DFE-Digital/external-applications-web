@@ -3,6 +3,7 @@
 @using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response
 @using GovUk.Frontend.AspNetCore.TagHelpers
 @using Microsoft.AspNetCore.Authorization
+@using System.ComponentModel;
 @addTagHelper *, DfE.CoreLibs.Security
 @model DfE.ExternalApplications.Web.Pages.Applications.DashboardModel
 @inject IAuthorizationService AuthService
@@ -61,6 +62,10 @@
                         var statusClass = app.CalculatedStatus == ApplicationStatus.Submitted ? "govuk-tag--green" :
                             app.CalculatedStatus == ApplicationStatus.InProgress ? "govuk-tag--blue" : "govuk-tag--grey";
 
+                        var appStatusInfo = @app.CalculatedStatus.GetType().GetField(@app.CalculatedStatus.ToString());
+                        var descriptionAttributes = (DescriptionAttribute[])appStatusInfo!.GetCustomAttributes(typeof(DescriptionAttribute), false);
+                        var appStatusDescription = descriptionAttributes.Length > 0 ? descriptionAttributes[0].Description : @app.CalculatedStatus.ToString();
+
                         <tr class="govuk-table__row">
                             <td class="govuk-table__cell">@app.ApplicationReference</td>
                             <td class="govuk-table__cell">@app.DateCreated.ToString("d MMMM yyyy")</td>
@@ -69,7 +74,7 @@
                             </td>
                             <td class="govuk-table__cell">
                                 <strong class="govuk-tag @statusClass">
-                                    @app.CalculatedStatus
+                                    @appStatusDescription
                                 </strong>
                             </td>
                             <td class="govuk-table__cell">

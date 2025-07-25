@@ -180,10 +180,10 @@ namespace DfE.ExternalApplications.Web.Pages.Shared
             return status switch
             {
                 Domain.Models.TaskStatus.Completed => "Completed",
-                Domain.Models.TaskStatus.InProgress => "In Progress",
-                Domain.Models.TaskStatus.NotStarted => "Not Started",
-                Domain.Models.TaskStatus.CannotStartYet => "Cannot Start Yet",
-                _ => "Not Started"
+                Domain.Models.TaskStatus.InProgress => "In progress",
+                Domain.Models.TaskStatus.NotStarted => "Not started",
+                Domain.Models.TaskStatus.CannotStartYet => "Cannot start yet",
+                _ => "Not started"
             };
         }
 
