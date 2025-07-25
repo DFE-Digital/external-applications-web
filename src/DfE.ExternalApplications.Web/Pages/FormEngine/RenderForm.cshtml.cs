@@ -1,18 +1,11 @@
-using System.Diagnostics.CodeAnalysis;
-using System.Text.RegularExpressions;
 using DfE.ExternalApplications.Application.Interfaces;
 using DfE.ExternalApplications.Domain.Models;
 using DfE.ExternalApplications.Web.Pages.Shared;
 using DfE.ExternalApplications.Web.Services;
 using Microsoft.AspNetCore.Mvc;
+using System.Diagnostics.CodeAnalysis;
+using System.Text.RegularExpressions;
 using Task = System.Threading.Tasks.Task;
-using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response;
-using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
-using System.IO;
-using System.Text.Json;
 
 namespace DfE.ExternalApplications.Web.Pages.FormEngine
 {
@@ -240,8 +233,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
         }
 
-
-
         private void LoadAccumulatedDataFromSession()
         {
             // Get accumulated form data from session and populate the Data dictionary
@@ -258,8 +249,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 _logger.LogInformation("Loaded {Count} accumulated form data entries from session", accumulatedData.Count);
             }
         }
-
-
 
         /// <summary>
         /// Calculate overall application status based on task statuses
@@ -282,10 +271,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
             return hasAnyTaskWithProgress ? "InProgress" : "InProgress"; // Always InProgress until submitted
         }
-
-
-
-
     }
 }
 
