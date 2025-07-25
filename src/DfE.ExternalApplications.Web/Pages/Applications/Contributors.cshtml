@@ -65,22 +65,22 @@
                 </tr>
             </thead>
             <tbody class="govuk-table__body">
-                <tr class="govuk-table__row">
+                <tr class="govuk-table__row" id="contributor-1">
                     <td class="govuk-table__cell">@leadApplicantEmail</td>
                     <td class="govuk-table__cell">@leadApplicantName</td>
                     <td class="govuk-table__cell"></td>
                 </tr>
-                @foreach (var contributor in Model.Contributors)
+                @foreach (var (contributor, index) in Model.Contributors.Select((contributor, index) => (contributor, index)))
                 {
-                    var contributorNameHyphenated = contributor.Name.Replace(" ", "-").ToLower();
-                    <tr class="govuk-table__row">
+                    var contributorIndex = index + 2; //zero index so adding 2 so the lead applicant can start from 1
+                    <tr class="govuk-table__row" id="contributor-@contributorIndex">
                         <td class="govuk-table__cell">@contributor.Email</td>
                         <td class="govuk-table__cell">@contributor.Name</td>
                         <td class="govuk-table__cell">
                             <form method="post" style="display: inline;">
                                 <input type="hidden" name="contributorId" value="@contributor.UserId" />
                                 <button type="submit"
-                                    id="remove-contributor-@contributorNameHyphenated"
+                                        id="remove-contributor-@index"
                                 asp-page-handler="RemoveContributor" 
                                 class="govuk-button govuk-button--warning govuk-button--small" 
                                 data-module="govuk-button"
