@@ -154,7 +154,9 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
         {
             try
             {
-                var applications = await applicationsClient.GetMyApplicationsAsync();
+                var templateId = HttpContext.Session.GetString("TemplateId") ?? string.Empty;
+
+                var applications = await applicationsClient.GetMyApplicationsAsync(templateId: new Guid(templateId));
                 
                 // Calculate status for each application
                 var applicationTasks = applications.Select(async app => new ApplicationWithCalculatedStatus

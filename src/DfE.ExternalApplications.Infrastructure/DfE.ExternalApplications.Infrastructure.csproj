@@ -9,7 +9,7 @@
   <ItemGroup>
     <PackageReference Include="DfE.CoreLibs.Caching" Version="1.0.10" />
     <PackageReference Include="DfE.CoreLibs.Contracts" Version="1.0.36" />
-    <PackageReference Include="GovUK.Dfe.ExternalApplications.Api.Client" Version="0.1.13" />
+    <PackageReference Include="GovUK.Dfe.ExternalApplications.Api.Client" Version="0.1.15" />
     <PackageReference Include="Microsoft.AspNetCore.Http.Extensions" Version="2.3.0" />
   </ItemGroup>
 
