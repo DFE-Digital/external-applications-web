@@ -40,13 +40,13 @@
 
         <div class="govuk-button-group">
             <form method="post">
-                <button class="govuk-button" type="submit" asp-page-handler="AddContributor" data-module="govuk-button">
+                <button id="add-a-contributor" class="govuk-button" type="submit" asp-page-handler="AddContributor" data-module="govuk-button">
                     Add a contributor
                 </button>
             </form>
 
             <form method="post">
-                <button class="govuk-button govuk-button--secondary" type="submit" asp-page-handler="ProceedToForm" data-module="govuk-button">
+                <button id="proceed-to-application-form" class="govuk-button govuk-button--secondary" type="submit" asp-page-handler="ProceedToForm" data-module="govuk-button">
                     Proceed to the application form
                 </button>
             </form>
@@ -65,20 +65,22 @@
                 </tr>
             </thead>
             <tbody class="govuk-table__body">
-                <tr class="govuk-table__row">
+                <tr class="govuk-table__row" id="contributor-1">
                     <td class="govuk-table__cell">@leadApplicantEmail</td>
                     <td class="govuk-table__cell">@leadApplicantName</td>
                     <td class="govuk-table__cell"></td>
                 </tr>
-                @foreach (var contributor in Model.Contributors)
+                @foreach (var (contributor, index) in Model.Contributors.Select((contributor, index) => (contributor, index)))
                 {
-                    <tr class="govuk-table__row">
+                    var contributorIndex = index + 2; //zero index so adding 2 so the lead applicant can start from 1
+                    <tr class="govuk-table__row" id="contributor-@contributorIndex">
                         <td class="govuk-table__cell">@contributor.Email</td>
                         <td class="govuk-table__cell">@contributor.Name</td>
                         <td class="govuk-table__cell">
                             <form method="post" style="display: inline;">
                                 <input type="hidden" name="contributorId" value="@contributor.UserId" />
-                                <button type="submit" 
+                                <button type="submit"
+                                        id="remove-contributor-@contributorIndex"
                                 asp-page-handler="RemoveContributor" 
                                 class="govuk-button govuk-button--warning govuk-button--small" 
                                 data-module="govuk-button"

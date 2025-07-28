@@ -18,20 +18,25 @@
             var hasValue = Model.HasFieldValue(field.FieldId);
             var changeUrl = $"/applications/{Model.ReferenceNumber}/{page.PageId}";
 
+            var fieldIdHyphenated = field.FieldId.Replace(" ", "-").ToLower();
+
             if ((field.Type == "autocomplete" || field.Type == "complexField") && hasValue)
             {
                 // Handle multiple autocomplete/complex field values as separate rows
                 var formattedValues = Model.GetFormattedFieldValues(field.FieldId);
                 var itemLabel = Model.GetFieldItemLabel(field.FieldId);
                 var allowMultiple = Model.IsFieldAllowMultiple(field.FieldId);
+
+                var itemLabelHyphenated = itemLabel.Replace(" ", "-").ToLower();
                 
                 for (int i = 0; i < formattedValues.Count; i++)
                 {
-                    <div class="govuk-summary-list__row">
+                    var fieldIndex = i + 1;
+                    <div class="govuk-summary-list__row" id="field-@itemLabelHyphenated-@fieldIndex">
                         <dt class="govuk-summary-list__key">
                             @if (allowMultiple)
                             {
-                                @($"{itemLabel} {i + 1}")
+                                @($"{itemLabel} {fieldIndex}")
                             }
                             else
                             {
@@ -44,7 +49,7 @@
                         <dd class="govuk-summary-list__actions">
                             @if (Model.IsApplicationEditable() && i == 0)
                             {
-                                <a class="govuk-link" href="@changeUrl">
+                                <a class="govuk-link" href="@changeUrl" id="field-@fieldIdHyphenated-change-link">
                                     Change<span class="govuk-visually-hidden"> @field.Label.Value</span>
                                 </a>
                             }
@@ -54,7 +59,7 @@
             }
             else
             {
-                <div class="govuk-summary-list__row">
+                <div class="govuk-summary-list__row" id="field-@fieldIdHyphenated">
                     <dt class="govuk-summary-list__key">
                         @field.Label.Value
                     </dt>
