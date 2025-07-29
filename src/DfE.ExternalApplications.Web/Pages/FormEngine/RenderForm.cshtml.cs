@@ -23,25 +23,27 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             applicationStateService, logger)
     {
         [BindProperty] public Dictionary<string, object> Data { get; set; } = new();
-        [BindProperty] public string CurrentPageId { get; set; }
+
+        [BindProperty(SupportsGet = true, Name = "taskId")] public string TaskId { get; set; }
+        [BindProperty(SupportsGet = true, Name = "pageId")] public string CurrentPageId { get; set; }
+
 
         public TaskGroup CurrentGroup { get; set; }
         public Domain.Models.Task CurrentTask { get; set; }
         public Domain.Models.Page CurrentPage { get; set; }
 
-        public async Task OnGetAsync(string pageId)
+        public async Task OnGetAsync()
         {
             await CommonInitializationAsync();
-            CurrentPageId = pageId;
 
             // If application is not editable and trying to access a specific page, redirect to preview
-            if (!IsApplicationEditable() && !string.IsNullOrEmpty(pageId))
+            if (!IsApplicationEditable() && !string.IsNullOrEmpty(CurrentPageId))
             {
                 Response.Redirect($"~/applications/{ReferenceNumber}/preview");
                 return;
             }
 
-            if (!string.IsNullOrEmpty(pageId))
+            if (!string.IsNullOrEmpty(CurrentPageId))
             {
                 var (group, task, page) = InitializeCurrentPage(CurrentPageId);
                 CurrentGroup = group;
