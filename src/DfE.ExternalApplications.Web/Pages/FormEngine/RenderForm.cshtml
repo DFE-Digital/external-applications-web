@@ -79,7 +79,9 @@ else
             </div>
             @foreach (var group in Model.Template.TaskGroups.OrderBy(g => g.GroupOrder))
             {
-                <h1 class="govuk-heading-m">
+                var groupNameHyphenated = group.GroupName.Replace(" ", "-").ToLower();
+
+                <h1 class="govuk-heading-m" id="group-@groupNameHyphenated" data-testid="group-@groupNameHyphenated">
                     @group.GroupName
                 </h1>
                 <ul class="govuk-task-list">
@@ -91,7 +93,7 @@ else
 
                         var taskNameHyphenated = task.TaskName.Replace(" ", "-").ToLower();
 
-                        <li class="govuk-task-list__item govuk-task-list__item--with-link" id="task-@taskNameHyphenated">
+                        <li class="govuk-task-list__item govuk-task-list__item--with-link" id="group-@groupNameHyphenated-task-@taskNameHyphenated" data-testid="group-@groupNameHyphenated-task-@taskNameHyphenated">
                             <div class="govuk-task-list__name-and-hint">
                                 @if (Model.IsApplicationEditable())
                                 {
