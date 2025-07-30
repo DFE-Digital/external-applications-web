@@ -93,7 +93,7 @@ else
 
                         var taskNameHyphenated = task.TaskName.Replace(" ", "-").ToLower();
 
-                        <li class="govuk-task-list__item govuk-task-list__item--with-link" id="@groupNameHyphenated-task-@taskNameHyphenated" data-testid="@groupNameHyphenated-task-@taskNameHyphenated">
+                        <li class="govuk-task-list__item govuk-task-list__item--with-link" id="group-@groupNameHyphenated-task-@taskNameHyphenated" data-testid="group-@groupNameHyphenated-task-@taskNameHyphenated">
                             <div class="govuk-task-list__name-and-hint">
                                 @if (Model.IsApplicationEditable())
                                 {
@@ -106,7 +106,7 @@ else
                                     <span class="govuk-task-list__link">@task.TaskName</span>
                                 }
                             </div>
-                            <div class="govuk-task-list__status" id="task-@task.TaskId-status">
+                            <div class="govuk-task-list__status" id="task-@task.TaskId-status">s
                                 <govuk-tag class="@statusClass">@statusText</govuk-tag>
                             </div>
                         </li>
