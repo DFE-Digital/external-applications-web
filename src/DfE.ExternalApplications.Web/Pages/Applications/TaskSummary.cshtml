@@ -32,7 +32,7 @@
                 for (int i = 0; i < formattedValues.Count; i++)
                 {
                     var fieldIndex = i + 1;
-                    <div class="govuk-summary-list__row" id="field-@itemLabelHyphenated-@fieldIndex">
+                    <div class="govuk-summary-list__row" id="field-@itemLabelHyphenated-@fieldIndex" data-testid="field-@itemLabelHyphenated-@fieldIndex">
                         <dt class="govuk-summary-list__key">
                             @if (allowMultiple)
                             {
@@ -49,7 +49,7 @@
                         <dd class="govuk-summary-list__actions">
                             @if (Model.IsApplicationEditable() && i == 0)
                             {
-                                <a class="govuk-link" href="@changeUrl" id="field-@fieldIdHyphenated-change-link">
+                                <a class="govuk-link" href="@changeUrl" id="field-@fieldIdHyphenated-change-link" data-testid="field-@fieldIdHyphenated-change-link">
                                     Change<span class="govuk-visually-hidden"> @field.Label.Value</span>
                                 </a>
                             }
@@ -59,7 +59,7 @@
             }
             else
             {
-                <div class="govuk-summary-list__row" id="field-@fieldIdHyphenated">
+                <div class="govuk-summary-list__row" id="field-@fieldIdHyphenated" data-testid="field-@fieldIdHyphenated">
                     <dt class="govuk-summary-list__key">
                         @field.Label.Value
                     </dt>
@@ -89,7 +89,7 @@
                     <dd class="govuk-summary-list__actions">
                         @if (Model.IsApplicationEditable())
                         {
-                            <a class="govuk-link" href="@changeUrl">
+                            <a class="govuk-link" href="@changeUrl" id="field-@fieldIdHyphenated-change-link" data-testid="field-@fieldIdHyphenated-change-link">
                                 Change<span class="govuk-visually-hidden"> @field.Label.Value</span>
                             </a>
                         }
@@ -117,7 +117,7 @@
 
         <div class="govuk-button-group govuk-!-margin-top-6">
             <govuk-button type="submit" id="save-task-summary-button">Save and continue</govuk-button>
-            <a class="govuk-link" href="/applications/@Model.ReferenceNumber">Return to application overview</a>
+            <a class="govuk-link" id="return-to-application-overview" data-testid="return-to-application-overview" href="/applications/@Model.ReferenceNumber">Return to application overview</a>
         </div>
     </form>
 }
@@ -129,6 +129,6 @@ else
     </div>
     
     <div class="govuk-!-margin-top-6">
-        <a class="govuk-link" href="/applications/@Model.ReferenceNumber">Return to application overview</a>
+        <a class="govuk-link" id="return-to-application-overview" data-testid="return-to-application-overview" href="/applications/@Model.ReferenceNumber">Return to application overview</a>
     </div>
 } 
