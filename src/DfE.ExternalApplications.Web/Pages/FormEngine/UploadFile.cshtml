@@ -1,4 +1,4 @@
-@page "/form-engine/upload-file"
+@page "/applications/{referenceNumber}/{taskId?}/{pageId?}/upload-file"
 @model DfE.ExternalApplications.Web.Pages.FormEngine.UploadFileModel
 @{
     ViewData["Title"] = "Upload File";
@@ -8,6 +8,7 @@
     var successMessage = Model.SuccessMessage;
     var errorMessage = Model.ErrorMessage;
 }
+<govuk-back-link href="/applications/@Model.ReferenceNumber/@Model.TaskId/@Model.CurrentPageId" />
 <h1 class="govuk-heading-xl">Upload File</h1>
 @if (!string.IsNullOrEmpty(successMessage))
 {

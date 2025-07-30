@@ -16,7 +16,7 @@
         {
             var fieldValue = Model.GetFieldValue(field.FieldId);
             var hasValue = Model.HasFieldValue(field.FieldId);
-            var changeUrl = $"/applications/{Model.ReferenceNumber}/{page.PageId}";
+            var changeUrl = $"/applications/{Model.ReferenceNumber}/{Model.TaskId}/{page.PageId}";
 
             var fieldIdHyphenated = field.FieldId.Replace(" ", "-").ToLower();
 

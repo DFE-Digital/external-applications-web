@@ -2,6 +2,8 @@
 @using System.Text.Json
 @using DfE.ExternalApplications.Web.Services
 @using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response
+@inject IHttpContextAccessor httpContext;
+@using Microsoft.AspNetCore.Http.Extensions
 @model FieldViewModel
 @{
     var applicationId = ViewData["applicationId"] as string ?? Context.Session.GetString("ApplicationId");
@@ -31,6 +33,8 @@
 
     var successMessage = ViewData[$"{fieldId}_UploadSuccess"] as string;
     var errorMessage = ViewData[$"{fieldId}_UploadError"] as string;
+
+    var pageUrl = httpContext.HttpContext.Request.Path.Value;
 }
 @if (!string.IsNullOrEmpty(successMessage))
 {
@@ -55,7 +59,7 @@
     </div>
 }
 
-<a class="govuk-button" href="/form-engine/upload-file?applicationId=@applicationId&amp;fieldId=@fieldId">Upload and Manage Files</a>
+<a class="govuk-button" href="@pageUrl/upload-file?applicationId=@applicationId&amp;fieldId=@fieldId">Upload and Manage Files</a>
 @if (files.Any())
 {
     <h3 class="govuk-heading-m">Uploaded files</h3>
