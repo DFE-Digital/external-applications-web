@@ -12,7 +12,7 @@
     var leadApplicantName = HttpContext.Session.GetString($"ApplicationLeadApplicantName_{applicationId}");
     var leadApplicantEmail = HttpContext.Session.GetString($"ApplicationLeadApplicantEmail_{applicationId}");
     var applicationFormVersion = HttpContext.Session.GetString($"ApplicationFormVersion_{applicationId}");
-    var currentUser = HttpContext.User.Identity!.Name;
+    var currentUser = HttpContext.User.Claims.First(c => c.Type == "email");
 }
 
 @if (!String.IsNullOrEmpty(Model.CurrentPageId))
@@ -131,7 +131,7 @@ else
             </div>
         </div>
 
-        @if (currentUser == leadApplicantEmail)
+        @if (currentUser.Value == leadApplicantEmail)
         {
             <div class="govuk-grid-column-one-third">
                 <div class="govuk-!-margin-top-6">

@@ -5,7 +5,7 @@
 
     var applicationId = HttpContext.Session.GetString("ApplicationId");
     var leadApplicantEmail = HttpContext.Session.GetString($"ApplicationLeadApplicantEmail_{applicationId}");
-    var currentUser = HttpContext.User.Identity!.Name;
+    var currentUser = HttpContext.User.Claims.First(c => c.Type == "email");
 }
 
 <govuk-back-link href="/applications/@Model.ReferenceNumber">Back to application task list</govuk-back-link>
@@ -121,7 +121,7 @@
         }
     </div>
     <div class="govuk-grid-column-two-thirds">
-        @if (Model.IsApplicationEditable() && currentUser == leadApplicantEmail)
+        @if (Model.IsApplicationEditable() && currentUser.Value == leadApplicantEmail)
         {
 
                 <h2 class="govuk-heading-m govuk-!-margin-top-9">Now submit your application</h2>
