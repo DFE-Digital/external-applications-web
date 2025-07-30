@@ -14,6 +14,9 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
     {
         [BindProperty(SupportsGet = true)] public string ApplicationId { get; set; }
         [BindProperty(SupportsGet = true)] public string FieldId { get; set; }
+        [BindProperty(SupportsGet = true, Name = "referenceNumber")] public string ReferenceNumber { get; set; }
+        [BindProperty(SupportsGet = true, Name = "taskId")] public string TaskId { get; set; }
+        [BindProperty(SupportsGet = true, Name = "pageId")] public string CurrentPageId { get; set; }
         public IReadOnlyList<UploadDto> Files { get; set; } = new List<UploadDto>();
         public string SuccessMessage { get; set; }
         public string ErrorMessage { get; set; }
