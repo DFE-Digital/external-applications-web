@@ -178,6 +178,7 @@ app.UseAuthentication();
 app.UsePermissionsCache();
 app.UseTokenExpiryCheck();
 app.UseAuthorization();
+app.UseCustomExceptionHandler();
 
 app.MapRazorPages();
 app.MapControllers();
