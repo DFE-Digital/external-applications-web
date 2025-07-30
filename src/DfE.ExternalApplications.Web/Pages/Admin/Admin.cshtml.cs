@@ -8,13 +8,23 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Diagnostics.CodeAnalysis;
+using System.Net.Http;
+using Microsoft.AspNetCore.Authentication;
 using Task = System.Threading.Tasks.Task;
+using GovUK.Dfe.ExternalApplications.Api.Client.Security;
 
 namespace DfE.ExternalApplications.Web.Pages.Admin
 {
     [ExcludeFromCodeCoverage]
     [Authorize(Roles = "Admin")]
-    public class AdminModel : PageModel
+    public class AdminModel(
+        IFormTemplateProvider templateProvider,
+        ITemplatesClient templatesClient,
+        ICacheService<IMemoryCacheType> cacheService,
+        IHttpContextAccessor httpContextAccessor,
+        IInternalUserTokenStore tokenStore,
+        ILogger<AdminModel> logger)
+        : PageModel
     {
         public string? TemplateId { get; set; }
         public string? TemplateName { get; set; }
@@ -27,26 +37,15 @@ namespace DfE.ExternalApplications.Web.Pages.Admin
         public bool ShowSuccess { get; set; }
         public string? SuccessMessage { get; set; }
         public string? TestToken { get; set; }
-
-        private readonly IFormTemplateProvider _templateProvider;
-        private readonly ITemplatesClient _templatesClient;
-        private readonly ICacheService<IMemoryCacheType> _cacheService;
-        private readonly ILogger<AdminModel> _logger;
-
-        public AdminModel(
-            IFormTemplateProvider templateProvider,
-            ITemplatesClient templatesClient,
-            ICacheService<IMemoryCacheType> cacheService,
-            ILogger<AdminModel> logger)
-        {
-            _templateProvider = templateProvider;
-            _templatesClient = templatesClient;
-            _cacheService = cacheService;
-            _logger = logger;
-        }
+        public string? DsiToken { get; set; }
+        public string? UserToken { get; set; }
 
         public async Task<IActionResult> OnGetAsync()
         {
+            DsiToken = await httpContextAccessor.HttpContext?.GetTokenAsync("id_token")!;
+            
+            UserToken = tokenStore.GetToken();
+
             await LoadTemplateInformationAsync();
             return Page();
         }
@@ -61,18 +60,18 @@ namespace DfE.ExternalApplications.Web.Pages.Admin
                 // Clear template cache
                 if (!string.IsNullOrEmpty(TemplateCacheKey))
                 {
-                    _cacheService.Remove(TemplateCacheKey);
-                    _logger.LogInformation("Cleared template cache for key: {CacheKey}", TemplateCacheKey);
+                    cacheService.Remove(TemplateCacheKey);
+                    logger.LogInformation("Cleared template cache for key: {CacheKey}", TemplateCacheKey);
                 }
 
                 ShowSuccess = true;
                 SuccessMessage = "Successfully cleared all sessions and caches.";
                 
-                _logger.LogInformation("Admin cleared all sessions and caches");
+                logger.LogInformation("Admin cleared all sessions and caches");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to clear sessions and caches");
+                logger.LogError(ex, "Failed to clear sessions and caches");
                 HasError = true;
                 ErrorMessage = "Failed to clear sessions and caches. Please try again.";
             }
@@ -109,7 +108,7 @@ namespace DfE.ExternalApplications.Web.Pages.Admin
                 TemplateCacheKey = $"FormTemplate_{CacheKeyHelper.GenerateHashedCacheKey(TemplateId)}";
 
                 // Load template information
-                var template = await _templateProvider.GetTemplateAsync(TemplateId);
+                var template = await templateProvider.GetTemplateAsync(TemplateId);
                 if (template != null)
                 {
                     TemplateName = template.TemplateName;
@@ -118,14 +117,14 @@ namespace DfE.ExternalApplications.Web.Pages.Admin
                 }
 
                 // Get current template version from API
-                var templateResponse = await _templatesClient.GetLatestTemplateSchemaAsync(new Guid(TemplateId));
+                var templateResponse = await templatesClient.GetLatestTemplateSchemaAsync(new Guid(TemplateId));
                 CurrentTemplateVersion = templateResponse?.VersionNumber;
 
-                _logger.LogDebug("Loaded admin information for template {TemplateId}", TemplateId);
+                logger.LogDebug("Loaded admin information for template {TemplateId}", TemplateId);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to load template information for admin page");
+                logger.LogError(ex, "Failed to load template information for admin page");
                 HasError = true;
                 ErrorMessage = "Failed to load template information. Please try again.";
             }
@@ -169,7 +168,7 @@ namespace DfE.ExternalApplications.Web.Pages.Admin
                 // We'll use a flag to track if the factory method was called
                 var factoryCalled = false;
                 
-                var cachedTemplate = await _cacheService.GetOrAddAsync<FormTemplate>(
+                var cachedTemplate = await cacheService.GetOrAddAsync<FormTemplate>(
                     TemplateCacheKey,
                     async () =>
                     {
