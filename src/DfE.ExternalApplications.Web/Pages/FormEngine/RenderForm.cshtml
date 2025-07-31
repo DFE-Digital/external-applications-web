@@ -81,9 +81,9 @@ else
             {
                 var groupNameHyphenated = group.GroupName.Replace(" ", "-").ToLower();
 
-                <h1 class="govuk-heading-m" id="group-@groupNameHyphenated" data-testid="group-@groupNameHyphenated">
+                <h2 class="govuk-heading-m" id="group-@groupNameHyphenated" data-testid="group-@groupNameHyphenated">
                     @group.GroupName
-                </h1>
+                </h2>
                 <ul class="govuk-task-list">
                     @foreach (var task in group.Tasks.OrderBy(t => t.TaskOrder))
                     {
@@ -97,13 +97,13 @@ else
                             <div class="govuk-task-list__name-and-hint">
                                 @if (Model.IsApplicationEditable())
                                 {
-                                    <a class="govuk-link govuk-task-list__link" href="/applications/@Model.ReferenceNumber/@task.TaskId/summary" aria-describedby="task-@task.TaskName-status">
+                                    <a class="govuk-link govuk-task-list__link" href="/applications/@Model.ReferenceNumber/@task.TaskId/summary" aria-label="task-@taskNameHyphenated">
                                         @task.TaskName
                                     </a>
                                 }
                                 else
                                 {
-                                    <span class="govuk-task-list__link">@task.TaskName</span>
+                                    <span class="govuk-task-list__link" aria-label="task-@taskNameHyphenated">@task.TaskName</span>
                                 }
                             </div>
                             <div class="govuk-task-list__status" id="task-@task.TaskId-status">
