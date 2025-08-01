@@ -2,92 +2,21 @@
 @model DfE.ExternalApplications.Web.Pages.FormEngine.UploadFileModel
 @{
     ViewData["Title"] = "Upload File";
-    var applicationId = Model.ApplicationId;
-    var fieldId = Model.FieldId;
-    var files = Model.Files;
-    var successMessage = Model.SuccessMessage;
-    var errorMessage = Model.ErrorMessage;
+    ViewData["applicationId"] = Model.ApplicationId;
+    ViewData[$"{Model.FieldId}_Files"] = Model.Files;
+    ViewData[$"{Model.FieldId}_UploadSuccess"] = Model.SuccessMessage;
+    ViewData[$"{Model.FieldId}_UploadError"] = Model.ErrorMessage;
 }
 <govuk-back-link href="/applications/@Model.ReferenceNumber/@Model.TaskId/@Model.CurrentPageId" />
 <h1 class="govuk-heading-xl">Upload File</h1>
-@if (!string.IsNullOrEmpty(successMessage))
-{
-    <div class="govuk-notification-banner govuk-notification-banner--success" role="alert" data-module="govuk-notification-banner">
-        <div class="govuk-notification-banner__header">
-            <h2 class="govuk-notification-banner__title" id="govuk-notification-banner-title">Success</h2>
-        </div>
-        <div class="govuk-notification-banner__content">
-            <p class="govuk-notification-banner__heading">@successMessage</p>
-        </div>
-    </div>
+
+@{
+    var field = new DfE.ExternalApplications.Domain.Models.Field
+    {
+        FieldId = Model.FieldId,
+        Type = "complexField",
+        Order = 1,
+        Label = new DfE.ExternalApplications.Domain.Models.Label { Value = "Upload Files" }
+    };
 }
-@if (!string.IsNullOrEmpty(errorMessage))
-{
-    <div class="govuk-error-summary" data-module="govuk-error-summary">
-        <div role="alert">
-            <h2 class="govuk-error-summary__title">There is a problem</h2>
-            <div class="govuk-error-summary__body">
-                <p class="govuk-body">@errorMessage</p>
-            </div>
-        </div>
-    </div>
-}
-<form method="post" asp-page-handler="UploadFile" enctype="multipart/form-data">
-    <input type="hidden" name="ApplicationId" value="@applicationId" />
-    <input type="hidden" name="FieldId" value="@fieldId" />
-    <div class="govuk-form-group">
-        <label class="govuk-label" for="upload-file">File</label>
-        <input class="govuk-file-upload" id="upload-file" name="UploadFile" type="file" required />
-    </div>
-    <div class="govuk-form-group">
-        <label class="govuk-label" for="upload-name">Name</label>
-        <input class="govuk-input" id="upload-name" name="UploadName" type="text" placeholder="File name (optional)" />
-    </div>
-    <div class="govuk-form-group">
-        <label class="govuk-label" for="upload-desc">Description</label>
-        <input class="govuk-input" id="upload-desc" name="UploadDescription" type="text" placeholder="Description (optional)" />
-    </div>
-    <button class="govuk-button" type="submit">Upload</button>
-</form>
-@if (files.Any())
-{
-    <h3 class="govuk-heading-m">Uploaded files</h3>
-    <table class="govuk-table">
-        <thead class="govuk-table__head">
-            <tr class="govuk-table__row">
-                <th class="govuk-table__header">File name</th>
-                <th class="govuk-table__header">Description</th>
-                <th class="govuk-table__header">Uploaded on</th>
-                <th class="govuk-table__header">Actions</th>
-            </tr>
-        </thead>
-        <tbody class="govuk-table__body">
-        @foreach (var file in files)
-        {
-            <tr class="govuk-table__row">
-                <td class="govuk-table__cell">@file.OriginalFileName</td>
-                <td class="govuk-table__cell">@file.Description</td>
-                <td class="govuk-table__cell">@file.UploadedOn.ToString("g")</td>
-                <td class="govuk-table__cell">
-                    <form method="post" asp-page-handler="DownloadFile" style="display:inline">
-                        <input type="hidden" name="FileId" value="@file.Id" />
-                        <input type="hidden" name="FieldId" value="@fieldId" />
-                        <input type="hidden" name="ApplicationId" value="@applicationId" />
-                        <govuk-button type="submit" id="download-file">Download</govuk-button>
-                    </form>
-                        <form method="post" asp-page-handler="DeleteFile" style="display:inline">
-                        <input type="hidden" name="FileId" value="@file.Id" />
-                        <input type="hidden" name="FieldId" value="@fieldId" />
-                        <input type="hidden" name="ApplicationId" value="@applicationId" />
-                        <button type="submit" class="govuk-button govuk-button--warning govuk-button--small" 
-                                data-module="govuk-button"
-                                onclick="return confirm('Are you sure you want to delete this file?');">
-                            Remove
-                        </button>
-                    </form>
-                </td>
-            </tr>
-        }
-        </tbody>
-    </table>
-} 
+@await Html.PartialAsync("~/Views/Shared/Fields/_UploadComplexField.cshtml", new DfE.ExternalApplications.Web.Services.FieldViewModel(field, "Data", "", "")) 

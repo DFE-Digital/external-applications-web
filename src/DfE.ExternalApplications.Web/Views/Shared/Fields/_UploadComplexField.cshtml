@@ -9,6 +9,7 @@
     var applicationId = ViewData["applicationId"] as string ?? Context.Session.GetString("ApplicationId");
     var fieldId = Model.Field.FieldId;
 
+    // Try to get files from ViewData first (for upload page), then from current value (for form integration)
     var files = ViewData[$"{fieldId}_Files"] as IEnumerable<UploadDto>;
     if (files == null || !files.Any())
     {
@@ -33,8 +34,9 @@
 
     var successMessage = ViewData[$"{fieldId}_UploadSuccess"] as string;
     var errorMessage = ViewData[$"{fieldId}_UploadError"] as string;
-
-    var pageUrl = httpContext.HttpContext.Request.Path.Value;
+    
+    // Check if we're in a form context (has form data) or standalone upload page
+    var isFormContext = !string.IsNullOrEmpty(Model.CurrentValue);
 }
 @if (!string.IsNullOrEmpty(successMessage))
 {
@@ -49,17 +51,55 @@
 }
 @if (!string.IsNullOrEmpty(errorMessage))
 {
-    <div class="govuk-error-summary" data-module="govuk-error-summary">
-        <div role="alert">
-            <h2 class="govuk-error-summary__title">There is a problem</h2>
-            <div class="govuk-error-summary__body">
-                <p class="govuk-body">@errorMessage</p>
-            </div>
+    <div class="govuk-error-summary" aria-labelledby="error-summary-title" role="alert" data-module="govuk-error-summary">
+        <h2 class="govuk-error-summary__title" id="error-summary-title">There is a problem</h2>
+        <div class="govuk-error-summary__body">
+            <ul class="govuk-list govuk-error-summary__list">
+                <li>@errorMessage</li>
+            </ul>
         </div>
     </div>
 }
+<!-- Hidden input to store file data for form submission -->
+<input type="hidden" name="Data[@fieldId]" value="@Model.CurrentValue" />
 
-<a class="govuk-button" href="@pageUrl/upload-file?applicationId=@applicationId&amp;fieldId=@fieldId">Upload and Manage Files</a>
+@if (!isFormContext)
+{
+    <!-- Standalone upload form for upload page -->
+    <form method="post" asp-page-handler="UploadFile" enctype="multipart/form-data">
+        <input type="hidden" name="ApplicationId" value="@applicationId" />
+        <input type="hidden" name="FieldId" value="@fieldId" />
+        <div class="govuk-form-group">
+            <label class="govuk-label" for="upload-file">File</label>
+            <input class="govuk-file-upload" id="upload-file" name="UploadFile" type="file" required aria-describedby="upload-file-hint" />
+            <div id="upload-file-hint" class="govuk-hint">Select a file to upload</div>
+        </div>
+        <div class="govuk-form-group">
+            <label class="govuk-label" for="upload-name">Name</label>
+            <input class="govuk-input" id="upload-name" name="UploadName" type="text" placeholder="File name (optional)" aria-describedby="upload-name-hint" />
+            <div id="upload-name-hint" class="govuk-hint">Enter a name for the file (optional)</div>
+        </div>
+        <div class="govuk-form-group">
+            <label class="govuk-label" for="upload-desc">Description</label>
+            <input class="govuk-input" id="upload-desc" name="UploadDescription" type="text" placeholder="Description (optional)" aria-describedby="upload-desc-hint" />
+            <div id="upload-desc-hint" class="govuk-hint">Enter a description for the file (optional)</div>
+        </div>
+        <button class="govuk-button" type="submit" aria-label="Upload file">Upload</button>
+    </form>
+}
+else
+{
+    <!-- Form context - show upload button that opens upload page -->
+    <div class="govuk-form-group">
+        <label class="govuk-label" for="upload-file">File</label>
+        <div class="govuk-hint">Upload files for this field</div>
+        <a href="/applications/@ViewData["ReferenceNumber"]/@ViewData["TaskId"]/@ViewData["PageId"]/upload-file?applicationId=@applicationId&fieldId=@fieldId" 
+           class="govuk-button govuk-button--secondary" 
+           aria-label="Upload files for @Model.Field.Label.Value">
+            Upload Files
+        </a>
+    </div>
+}
 @if (files.Any())
 {
     <h3 class="govuk-heading-m">Uploaded files</h3>
@@ -80,10 +120,32 @@
                 <td class="govuk-table__cell">@file.Description</td>
                 <td class="govuk-table__cell">@file.UploadedOn.ToString("g")</td>
                 <td class="govuk-table__cell">
-                    <form method="post" asp-route-applicationId="@applicationId" asp-page-handler="DownloadFile" style="display:inline">
-                        <input type="hidden" name="FileId" value="@file.Id" />
-                            <govuk-button type="submit" id="download-file">Download</govuk-button>
+                    @if (!isFormContext)
+                    {
+                        <!-- Standalone upload page - full actions -->
+                        <form method="post" asp-page-handler="DownloadFile" style="display:inline">
+                            <input type="hidden" name="FileId" value="@file.Id" />
+                            <input type="hidden" name="FieldId" value="@fieldId" />
+                            <input type="hidden" name="ApplicationId" value="@applicationId" />
+                            <govuk-button type="submit" id="download-file" aria-label="Download file @file.OriginalFileName">Download</govuk-button>
                         </form>
+                        <form method="post" asp-page-handler="DeleteFile" style="display:inline">
+                            <input type="hidden" name="FileId" value="@file.Id" />
+                            <input type="hidden" name="FieldId" value="@fieldId" />
+                            <input type="hidden" name="ApplicationId" value="@applicationId" />
+                            <button type="submit" class="govuk-button govuk-button--warning govuk-button--small" 
+                                    data-module="govuk-button"
+                                    aria-label="Remove file @file.OriginalFileName"
+                                    onclick="return confirm('Are you sure you want to delete this file?');">
+                                Remove
+                            </button>
+                        </form>
+                    }
+                    else
+                    {
+                        <!-- Form context - read-only display -->
+                        <span class="govuk-hint">Files can be managed from the upload page</span>
+                    }
                 </td>
             </tr>
         }
