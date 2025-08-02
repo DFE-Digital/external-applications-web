@@ -152,8 +152,8 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
 
         private async SystemTask LoadApplicationsAsync()
         {
-            try
-            {
+            //try
+            //{
                 var templateId = HttpContext.Session.GetString("TemplateId") ?? string.Empty;
 
                 var applications = await applicationsClient.GetMyApplicationsAsync(templateId: new Guid(templateId));
@@ -170,14 +170,14 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
                 Applications = applicationsWithStatus
                     .OrderByDescending(a => a.DateCreated)
                     .ToList();
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to load applications for user {Email}", Email);
-                HasError = true;
-                ErrorMessage = "There was a problem loading your applications. Please try again later.";
-                Applications = Array.Empty<ApplicationWithCalculatedStatus>();
-            }
+            //}
+            //catch (Exception ex)
+            //{
+            //    logger.LogError(ex, "Failed to load applications for user {Email}", Email);
+            //    HasError = true;
+            //    ErrorMessage = "There was a problem loading your applications. Please try again later.";
+            //    Applications = Array.Empty<ApplicationWithCalculatedStatus>();
+            //}
         }
 
         private SystemTask LoadUserDetailsAsync()

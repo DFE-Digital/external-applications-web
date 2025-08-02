@@ -9,6 +9,7 @@ using DfE.ExternalApplications.Infrastructure.Providers;
 using DfE.ExternalApplications.Infrastructure.Services;
 using DfE.ExternalApplications.Infrastructure.Stores;
 using DfE.ExternalApplications.Web.Authentication;
+using DfE.ExternalApplications.Web.Filters;
 using DfE.ExternalApplications.Web.Middleware;
 using DfE.ExternalApplications.Web.Security;
 using DfE.ExternalApplications.Web.Services;
@@ -51,6 +52,8 @@ if (isTestAuthEnabled && testAuthOptions != null)
 // Add services to the container.
 builder.Services.AddRazorPages(options =>
 {
+    options.Conventions.ConfigureFilter(new ExternalApiPageExceptionFilter());
+
     options.Conventions.AuthorizeFolder("/", "OpenIdConnectPolicy");
     options.Conventions.AllowAnonymousToPage("/Index");
     options.Conventions.AllowAnonymousToPage("/Logout");
@@ -134,8 +137,8 @@ builder.Services.AddScoped<IApplicationStateService, ApplicationStateService>();
 builder.Services.AddScoped<IFileUploadService, FileUploadService>();
 
 builder.Services.AddScoped<IAutocompleteService, AutocompleteService>();
-builder.Services.AddScoped<IApiErrorParser, ApiErrorParser>();
-builder.Services.AddScoped<IModelStateErrorHandler, ModelStateErrorHandler>();
+//builder.Services.AddScoped<IApiErrorParser, ApiErrorParser>();
+//builder.Services.AddScoped<IModelStateErrorHandler, ModelStateErrorHandler>();
 builder.Services.AddScoped<IComplexFieldConfigurationService, ComplexFieldConfigurationService>();
 builder.Services.AddScoped<IComplexFieldRendererFactory, ComplexFieldRendererFactory>();
 builder.Services.AddScoped<IComplexFieldRenderer, AutocompleteComplexFieldRenderer>();
@@ -161,7 +164,7 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
-    app.UseExceptionHandler("/Error");
+    //app.UseExceptionHandler("/Error");
     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
@@ -173,6 +176,14 @@ app.UseRouting();
 
 app.UseSession();
 app.UseHostTemplateResolution();
+
+app.UseStatusCodePages(ctx =>
+{
+    var c = ctx.HttpContext.Response.StatusCode;
+    if (c == 401) ctx.HttpContext.Response.Redirect("/Error/Forbidden");
+    else if (c == 403) ctx.HttpContext.Response.Redirect("/Error/Forbidden");
+    return Task.CompletedTask;
+});
 
 app.UseAuthentication();
 app.UsePermissionsCache();
