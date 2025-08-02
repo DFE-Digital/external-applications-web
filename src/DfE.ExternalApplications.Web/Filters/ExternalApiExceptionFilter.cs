@@ -16,10 +16,8 @@ namespace DfE.ExternalApplications.Web.Filters
             PageHandlerExecutingContext context,
             PageHandlerExecutionDelegate next)
         {
-            // let the handler run, capturing its result + exception
             var executedContext = await next();
 
-            // if there was an NSwag exception and we haven't handled it yet...
             if (executedContext.Exception is ExternalApplicationsException<ExceptionResponse> ex
                 && !executedContext.ExceptionHandled)
             {
@@ -27,7 +25,6 @@ namespace DfE.ExternalApplications.Web.Filters
                 var page = context.HandlerInstance as PageModel
                            ?? throw new InvalidOperationException("Page filter only for Razor Pages");
 
-                // 1) validation errors → populate ModelState + re-show page
                 if (r.StatusCode == 400 && r.ExceptionType == "ValidationException"
                     && r.Context?.TryGetValue("validationErrors", out var errsObj) == true)
                 {
@@ -47,7 +44,6 @@ namespace DfE.ExternalApplications.Web.Filters
                     return;
                 }
 
-                // 2) unauthorized / forbidden
                 if (r.StatusCode == 401)
                 {
                     page.TempData["ApiErrorId"] = r.ErrorId;
@@ -63,7 +59,6 @@ namespace DfE.ExternalApplications.Web.Filters
                     return;
                 }
 
-                // 3) everything else → general error
                 page.TempData["ApiErrorId"] = r.ErrorId;
                 executedContext.Result = new RedirectToPageResult("/Error/General");
                 executedContext.ExceptionHandled = true;
