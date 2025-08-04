@@ -36,7 +36,7 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
         {
             public ApplicationDto Application { get; set; } = null!;
             public ApplicationStatus CalculatedStatus { get; set; }
-            
+
             // Convenience properties to access original application properties
             public Guid ApplicationId => Application.ApplicationId;
             public string ApplicationReference => Application.ApplicationReference;
@@ -86,7 +86,7 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
                         if (responseData != null && responseData.Any())
                         {
                             // Check if there's any actual field data (not just task status)
-                            var hasFieldData = responseData.Any(kvp => 
+                            var hasFieldData = responseData.Any(kvp =>
                                 !kvp.Key.StartsWith("TaskStatus_") &&
                                 kvp.Value.ValueKind != JsonValueKind.Null &&
                                 !string.IsNullOrWhiteSpace(kvp.Value.ToString()));
@@ -108,7 +108,7 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Failed to calculate application status for {ApplicationId}, defaulting to InProgress", 
+                logger.LogWarning(ex, "Failed to calculate application status for {ApplicationId}, defaulting to InProgress",
                     application.ApplicationId);
                 return ApplicationStatus.InProgress;
             }
@@ -116,68 +116,46 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
 
         public async Task<IActionResult> OnPostCreateApplicationAsync()
         {
-            try
+            var templateId = HttpContext.Session.GetString("TemplateId") ?? string.Empty;
+
+            var response = await applicationsClient.CreateApplicationAsync(new CreateApplicationRequest
             {
-                var templateId = HttpContext.Session.GetString("TemplateId") ?? string.Empty;
+                InitialResponseBody = "{}",
+                TemplateId = new Guid(templateId)
+            });
 
-                var response = await applicationsClient.CreateApplicationAsync(new CreateApplicationRequest
-                {
-                    InitialResponseBody = "{}",
-                    TemplateId = new Guid(templateId)
-                });
+            HttpContext.Session.SetString("ApplicationId", response.ApplicationId.ToString());
+            HttpContext.Session.SetString("ApplicationReference", response.ApplicationReference);
 
-                HttpContext.Session.SetString("ApplicationId", response.ApplicationId.ToString());
-                HttpContext.Session.SetString("ApplicationReference", response.ApplicationReference);
+            // Clear any existing accumulated form data when starting a new application
+            applicationResponseService.ClearAccumulatedFormData(HttpContext.Session);
+            HttpContext.Session.SetString("CurrentAccumulatedApplicationId", response.ApplicationId.ToString());
 
-                // Clear any existing accumulated form data when starting a new application
-                applicationResponseService.ClearAccumulatedFormData(HttpContext.Session);
-                HttpContext.Session.SetString("CurrentAccumulatedApplicationId", response.ApplicationId.ToString());
-                
-                logger.LogInformation("Created new application {ApplicationId} and cleared accumulated form data", response.ApplicationId);
+            logger.LogInformation("Created new application {ApplicationId} and cleared accumulated form data", response.ApplicationId);
 
-                httpContextAccessor.ForceTokenRefresh();
+            httpContextAccessor.ForceTokenRefresh();
 
-                return RedirectToPage("/Applications/Contributors", new { referenceNumber = response.ApplicationReference });
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to create new application");
-                HasError = true;
-                ErrorMessage = "There was a problem creating your application. Please try again later.";
-                await LoadUserDetailsAsync();
-                await LoadApplicationsAsync();
-                return Page();
-            }
+            return RedirectToPage("/Applications/Contributors", new { referenceNumber = response.ApplicationReference });
         }
 
         private async SystemTask LoadApplicationsAsync()
         {
-            //try
-            //{
-                var templateId = HttpContext.Session.GetString("TemplateId") ?? string.Empty;
+            var templateId = HttpContext.Session.GetString("TemplateId") ?? string.Empty;
 
-                var applications = await applicationsClient.GetMyApplicationsAsync(templateId: new Guid(templateId));
-                
-                // Calculate status for each application
-                var applicationTasks = applications.Select(async app => new ApplicationWithCalculatedStatus
-                {
-                    Application = app,
-                    CalculatedStatus = await GetCalculatedApplicationStatusAsync(app)
-                });
+            var applications = await applicationsClient.GetMyApplicationsAsync(templateId: new Guid(templateId));
 
-                var applicationsWithStatus = await SystemTask.WhenAll(applicationTasks);
-                
-                Applications = applicationsWithStatus
-                    .OrderByDescending(a => a.DateCreated)
-                    .ToList();
-            //}
-            //catch (Exception ex)
-            //{
-            //    logger.LogError(ex, "Failed to load applications for user {Email}", Email);
-            //    HasError = true;
-            //    ErrorMessage = "There was a problem loading your applications. Please try again later.";
-            //    Applications = Array.Empty<ApplicationWithCalculatedStatus>();
-            //}
+            // Calculate status for each application
+            var applicationTasks = applications.Select(async app => new ApplicationWithCalculatedStatus
+            {
+                Application = app,
+                CalculatedStatus = await GetCalculatedApplicationStatusAsync(app)
+            });
+
+            var applicationsWithStatus = await SystemTask.WhenAll(applicationTasks);
+
+            Applications = applicationsWithStatus
+                .OrderByDescending(a => a.DateCreated)
+                .ToList();
         }
 
         private SystemTask LoadUserDetailsAsync()

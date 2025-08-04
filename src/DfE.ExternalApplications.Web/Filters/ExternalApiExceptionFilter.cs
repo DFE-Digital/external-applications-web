@@ -44,6 +44,15 @@ namespace DfE.ExternalApplications.Web.Filters
                     return;
                 }
 
+                if (r.StatusCode == 429)
+                {
+                    page.TempData["ApiErrorId"] = r.ErrorId;
+                    page.TempData["ErrorMessage"] = r.Message;
+                    executedContext.Result = new RedirectToPageResult("/Error/General");
+                    executedContext.ExceptionHandled = true;
+                    return;
+                }
+
                 if (r.StatusCode == 401)
                 {
                     page.TempData["ApiErrorId"] = r.ErrorId;

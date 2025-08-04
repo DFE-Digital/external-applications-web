@@ -137,8 +137,6 @@ builder.Services.AddScoped<IApplicationStateService, ApplicationStateService>();
 builder.Services.AddScoped<IFileUploadService, FileUploadService>();
 
 builder.Services.AddScoped<IAutocompleteService, AutocompleteService>();
-//builder.Services.AddScoped<IApiErrorParser, ApiErrorParser>();
-//builder.Services.AddScoped<IModelStateErrorHandler, ModelStateErrorHandler>();
 builder.Services.AddScoped<IComplexFieldConfigurationService, ComplexFieldConfigurationService>();
 builder.Services.AddScoped<IComplexFieldRendererFactory, ComplexFieldRendererFactory>();
 builder.Services.AddScoped<IComplexFieldRenderer, AutocompleteComplexFieldRenderer>();
