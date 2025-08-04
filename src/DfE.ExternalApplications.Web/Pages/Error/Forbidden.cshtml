@@ -1,0 +1,15 @@
+﻿@page
+@model DfE.ExternalApplications.Web.Pages.Error.ForbiddenModel
+@{
+    var id = TempData["ApiErrorId"] as string;
+
+}
+<div class="govuk-error-summary" data-module="govuk-error-summary">
+    <div role="alert">
+        <h2 class="govuk-error-summary__title">There is a problem</h2>
+        <div class="govuk-error-summary__body">
+            <p class="govuk-body">Sorry, you don’t have permission to view this page.
+                <br/>Error ID: <strong>@id</strong></p>
+        </div>
+    </div>
+</div>

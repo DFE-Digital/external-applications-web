@@ -19,24 +19,20 @@ public class TemplateManagerModel : PageModel
 {
     private readonly IFormTemplateProvider _formTemplateProvider;
     private readonly ITemplatesClient _templatesClient;
+
     private readonly ICacheService<IMemoryCacheType> _cacheService;
-    private readonly IApiErrorParser _apiErrorParser;
-    private readonly IModelStateErrorHandler _errorHandler;
+
     private readonly ILogger<TemplateManagerModel> _logger;
 
     public TemplateManagerModel(
         IFormTemplateProvider formTemplateProvider,
         ITemplatesClient templatesClient,
         ICacheService<IMemoryCacheType> cacheService,
-        IApiErrorParser apiErrorParser,
-        IModelStateErrorHandler errorHandler,
         ILogger<TemplateManagerModel> logger)
     {
         _formTemplateProvider = formTemplateProvider;
         _templatesClient = templatesClient;
         _cacheService = cacheService;
-        _apiErrorParser = apiErrorParser;
-        _errorHandler = errorHandler;
         _logger = logger;
     }
 
@@ -60,7 +56,7 @@ public class TemplateManagerModel : PageModel
     {
         ShowAddVersionForm = showForm;
         ShowSuccess = success;
-        
+
         var templateId = HttpContext.Session.GetString("TemplateId");
         if (string.IsNullOrEmpty(templateId))
         {
@@ -88,27 +84,19 @@ public class TemplateManagerModel : PageModel
             return Page();
         }
 
-        try
-        {
-            await CreateNewTemplateVersionAsync(templateId);
-            
-            await Task.Delay(2000);
-            
-            await InvalidateTemplateCacheAsync(templateId);
-            
-            _logger.LogInformation("Successfully created template version {NewVersion} for {TemplateId}", 
-                NewVersion, templateId);
-            
-            return RedirectToPage(new { success = true });
-        }
-        catch (Exception ex)
-        {
-            HandleApiError(ex);
-            ShowAddVersionForm = true;
-            await LoadTemplateDataAsync(templateId);
-            return Page();
-        }
-    }
+
+        await CreateNewTemplateVersionAsync(templateId);
+
+        await Task.Delay(2000);
+
+        await InvalidateTemplateCacheAsync(templateId);
+
+        _logger.LogInformation("Successfully created template version {NewVersion} for {TemplateId}",
+            NewVersion, templateId);
+
+        return RedirectToPage(new { success = true });
+
+}
 
     public IActionResult OnPostShowAddForm()
     {
@@ -230,23 +218,4 @@ public class TemplateManagerModel : PageModel
         }
     }
 
-    private void HandleApiError(Exception exception)
-    {
-        _logger.LogError(exception, "API error occurred while creating template version");
-        
-        var parseResult = _apiErrorParser.ParseApiError(exception);
-        
-        if (parseResult.IsSuccess && parseResult.ErrorResponse != null)
-        {
-            _errorHandler.AddApiErrorsToModelState(ModelState, parseResult.ErrorResponse);
-        }
-        else
-        {
-            var fallbackMessage = exception.Message.Contains("already exists", StringComparison.OrdinalIgnoreCase)
-                ? $"Version {NewVersion} already exists. Please use a different version number."
-                : $"There was an error saving the new template version: {parseResult.RawError ?? exception.Message}";
-                
-            _errorHandler.AddGeneralError(ModelState, fallbackMessage);
-        }
-    }
 } 

@@ -16,8 +16,8 @@ namespace DfE.ExternalApplications.Web.Pages.Applications;
 public class ContributorsInviteModel(
     IContributorService contributorService,
     IApplicationStateService applicationStateService,
-    IApiErrorParser apiErrorParser,
-    IModelStateErrorHandler errorHandler,
+    //IApiErrorParser apiErrorParser,
+    //IModelStateErrorHandler errorHandler,
     ILogger<ContributorsInviteModel> logger) : PageModel
 {
     [BindProperty(SupportsGet = true, Name = "referenceNumber")]
@@ -110,15 +110,15 @@ public class ContributorsInviteModel(
                 EmailAddress, ReferenceNumber);
             
             // Try to parse API error response
-            var apiErrorResult = apiErrorParser.ParseApiError(ex);
-            if (apiErrorResult.IsSuccess && apiErrorResult.ErrorResponse != null)
-            {
-                errorHandler.AddApiErrorsToModelState(ModelState, apiErrorResult.ErrorResponse);
-            }
-            else
-            {
-                ModelState.AddModelError("", "There was a problem sending the invitation. Please try again.");
-            }
+            //var apiErrorResult = apiErrorParser.ParseApiError(ex);
+            //if (apiErrorResult.IsSuccess && apiErrorResult.ErrorResponse != null)
+            //{
+            //    errorHandler.AddApiErrorsToModelState(ModelState, apiErrorResult.ErrorResponse);
+            //}
+            //else
+            //{
+            //    ModelState.AddModelError("", "There was a problem sending the invitation. Please try again.");
+            //}
             
             return Page();
         }

@@ -2,6 +2,9 @@
 @model DfE.ExternalApplications.Web.Pages.Admin.TemplateManagerModel
 @{
     ViewData["Title"] = "Template Manager";
+
+    var showForm = Model.ShowAddVersionForm 
+                   || !ViewData.ModelState.IsValid;
 }
 
 <div class="govuk-grid-row">
@@ -76,7 +79,7 @@
             </div>
         }
 
-        @if (Model.ShowAddVersionForm)
+        @if (showForm)
         {
             <govuk-error-summary>
                 @if (!ViewData.ModelState.IsValid)
