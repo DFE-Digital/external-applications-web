@@ -11,7 +11,7 @@
 	  <PackageReference Include="DfE.CoreLibs.Caching" Version="1.0.10" />
 	  <PackageReference Include="GovUk.Frontend.AspNetCore" Version="3.2.2" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageReference Include="DfE.CoreLibs.Security" Version="1.1.13" />
+    <PackageReference Include="DfE.CoreLibs.Security" Version="1.1.14" />
   </ItemGroup>
 
   <ItemGroup>
