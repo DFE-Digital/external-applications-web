@@ -9,7 +9,8 @@
     var isRequired = Model.Field.Required ?? true;
     var validationAttributes = new HtmlString(Model.ValidationAttributes);
     var labelClasses = "govuk-label" + (Model.Field.Label.IsPageHeading ? " govuk-label--l" : "");
-    
+    var label = Model.Field.Label.Value;
+
     // Get the complex field ID from the ComplexField object
     var complexFieldId = Model.Field.ComplexField?.Id ?? "";
     
@@ -18,7 +19,6 @@
     
     // Generate unique IDs
     var inputId = $"{Model.Id}-complex-field";
-    var selectId = $"{Model.Id}-select";
     var selectedItemsId = $"{Model.Id}-selected-items";
     var searchInputId = $"{Model.Id}-search-input";
     
@@ -118,8 +118,8 @@
 else
 {
     <div class="govuk-form-group @(string.IsNullOrEmpty(Model.ErrorMessage) ? "" : "govuk-form-group--error")">
-        <label class="@labelClasses" for="@selectId">
-            @Model.Field.Label.Value
+        <label id="@label-label" class="@labelClasses" for="@inputId">
+            @label
             @if (isRequired)
             {
                 <span class="govuk-visually-hidden">required</span>
@@ -154,7 +154,8 @@ else
                  data-target-input="@Model.Id"
                  data-selected-items-container="@selectedItemsId"
                  data-placeholder="@configuration.Placeholder"
-                 aria-describedby="@inputId-hint">
+                 aria-describedby="@inputId-hint"
+                 aria-labelledby="@label-label">
             </div>
             
             <div id="@inputId-hint" class="govuk-visually-hidden">
@@ -510,11 +511,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 setTimeout(function() {
                     const autocompleteInput = container.querySelector('.autocomplete__input');
                     if (autocompleteInput) {
+                        // Set the correct ID to match the label's 'for' attribute
+                        autocompleteInput.id = fieldId + '-complex-field';
                         autocompleteInput.classList.add('govuk-input');
                         if (container.closest('.govuk-form-group--error')) {
                             autocompleteInput.classList.add('govuk-input--error');
                         }
                         console.log('Applied GovUK styling to autocomplete complex field input');
+                        console.log('Set input ID to:', autocompleteInput.id);
                     }
                 }, 100);
                 
