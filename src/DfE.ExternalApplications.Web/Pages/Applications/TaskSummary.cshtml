@@ -43,10 +43,6 @@
                         {
                             @Html.Raw(formattedValues.FirstOrDefault())
                         }
-                        else
-                        {
-                            <span class="govuk-hint">@formattedValues.Count item@(formattedValues.Count == 1 ? "" : "s") selected</span>
-                        }
                     </dd>
                     <dd class="govuk-summary-list__actions">
                         @if (Model.IsApplicationEditable())
@@ -72,7 +68,12 @@
                                 @Html.Raw(formattedValues[i])
                             </dd>
                             <dd class="govuk-summary-list__actions">
-                                <!-- Individual items don't have change links - use main field change link -->
+                                @if (Model.IsApplicationEditable())
+                                {
+                                    <a class="govuk-link" href="@changeUrl?removeItem=@i" id="field-@itemLabelHyphenated-@fieldIndex-remove-link" data-testid="field-@itemLabelHyphenated-@fieldIndex-remove-link">
+                                        Remove<span class="govuk-visually-hidden"> @($"{itemLabel} {fieldIndex}")</span>
+                                    </a>
+                                }
                             </dd>
                         </div>
                     }

@@ -4,6 +4,7 @@ using DfE.ExternalApplications.Web.Pages.Shared;
 using DfE.ExternalApplications.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics.CodeAnalysis;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Task = System.Threading.Tasks.Task;
 
@@ -56,6 +57,9 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
             // Load accumulated form data from session to pre-populate fields
             LoadAccumulatedDataFromSession();
+            
+            // Handle remove item request for autocomplete fields
+            await HandleRemoveItemRequestAsync();
         }
 
         public async Task<IActionResult> OnPostPageAsync()
@@ -249,6 +253,63 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 }
 
                 _logger.LogInformation("Loaded {Count} accumulated form data entries from session", accumulatedData.Count);
+            }
+        }
+
+        /// <summary>
+        /// Handles the removal of individual items from autocomplete fields
+        /// </summary>
+        private async Task HandleRemoveItemRequestAsync()
+        {
+            if (Request.Query.TryGetValue("removeItem", out var removeItemValue) && 
+                int.TryParse(removeItemValue, out var itemIndex))
+            {
+                // Find the autocomplete field in the current page
+                var autocompleteField = CurrentPage?.Fields?.FirstOrDefault(f => 
+                    f.Type == "autocomplete" || f.Type == "complexField");
+                
+                if (autocompleteField != null && Data.ContainsKey(autocompleteField.FieldId))
+                {
+                    var currentValue = Data[autocompleteField.FieldId]?.ToString();
+                    
+                    if (!string.IsNullOrEmpty(currentValue))
+                    {
+                        try
+                        {
+                            // Parse the JSON array
+                            var items = JsonSerializer.Deserialize<JsonElement[]>(currentValue);
+                            
+                            // Remove the item at the specified index
+                            if (itemIndex >= 0 && itemIndex < items.Length)
+                            {
+                                var updatedItems = items.Where((item, index) => index != itemIndex).ToArray();
+                                
+                                // Serialize back to JSON
+                                var updatedValue = JsonSerializer.Serialize(updatedItems);
+                                Data[autocompleteField.FieldId] = updatedValue;
+                                
+                                // Save the updated data to session and API
+                                _applicationResponseService.AccumulateFormData(Data, HttpContext.Session);
+                                
+                                if (ApplicationId.HasValue)
+                                {
+                                    await _applicationResponseService.SaveApplicationResponseAsync(ApplicationId.Value, Data, HttpContext.Session);
+                                }
+                                
+                                _logger.LogInformation("Removed item at index {ItemIndex} from field {FieldId}", 
+                                    itemIndex, autocompleteField.FieldId);
+                            }
+                        }
+                        catch (JsonException ex)
+                        {
+                            _logger.LogWarning(ex, "Failed to parse autocomplete field value for removal: {FieldId}", 
+                                autocompleteField.FieldId);
+                        }
+                    }
+                }
+                
+                // Redirect back to the summary page to show updated data
+                Response.Redirect($"/applications/{ReferenceNumber}/{TaskId}/summary");
             }
         }
 
