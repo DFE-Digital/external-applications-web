@@ -99,7 +99,7 @@
                             }
                             else
                             {
-                                @fieldValue
+                                @Html.Raw(fieldValue.Replace("\r\n", "<br/>").Replace("\r", "<br/>").Replace("\n", "<br/>"))
                             }
                         }
                         else

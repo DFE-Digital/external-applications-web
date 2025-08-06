@@ -108,20 +108,20 @@
                                             <dd class="govuk-summary-list__value">
                                                 @if (hasValue)
                                                 {
-                                                    @if (field.Type == "radios" && field.Options != null)
-                                                    {
-                                                        var selectedOption = field.Options.FirstOrDefault(o => o.Value == fieldValue);
-                                                        @(selectedOption?.Label ?? fieldValue)
-                                                    }
-                                                    else if (field.Type == "select" && field.Options != null)
-                                                    {
-                                                        var selectedOption = field.Options.FirstOrDefault(o => o.Value == fieldValue);
-                                                        @(selectedOption?.Label ?? fieldValue)
-                                                    }
-                                                    else
-                                                    {
-                                                        @fieldValue
-                                                    }
+                                                                                        @if (field.Type == "radios" && field.Options != null)
+                                    {
+                                        var selectedOption = field.Options.FirstOrDefault(o => o.Value == fieldValue);
+                                        @(selectedOption?.Label ?? fieldValue)
+                                    }
+                                    else if (field.Type == "select" && field.Options != null)
+                                    {
+                                        var selectedOption = field.Options.FirstOrDefault(o => o.Value == fieldValue);
+                                        @(selectedOption?.Label ?? fieldValue)
+                                    }
+                                    else
+                                    {
+                                        @Html.Raw(fieldValue.Replace("\r\n", "<br/>").Replace("\r", "<br/>").Replace("\n", "<br/>"))
+                                    }
                                                 }
                                                 else
                                                 {
