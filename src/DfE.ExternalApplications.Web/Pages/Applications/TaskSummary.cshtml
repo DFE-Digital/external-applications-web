@@ -20,41 +20,62 @@
 
             var fieldIdHyphenated = field.FieldId.Replace(" ", "-").ToLower();
 
-            if ((field.Type == "autocomplete" || field.Type == "complexField") && hasValue)
+                        if ((field.Type == "autocomplete" || field.Type == "complexField") && hasValue)
             {
-                // Handle multiple autocomplete/complex field values as separate rows
+                // Handle multiple autocomplete/complex field values as main header + individual rows
                 var formattedValues = Model.GetFormattedFieldValues(field.FieldId);
                 var itemLabel = Model.GetFieldItemLabel(field.FieldId);
                 var allowMultiple = Model.IsFieldAllowMultiple(field.FieldId);
 
                 var itemLabelHyphenated = itemLabel.Replace(" ", "-").ToLower();
-                
-                for (int i = 0; i < formattedValues.Count; i++)
+
+                // Show main field header with change link
+                <div class="govuk-summary-list__row" id="field-@fieldIdHyphenated" data-testid="field-@fieldIdHyphenated">
+                    <dt class="govuk-summary-list__key">
+                        @field.Label.Value
+                    </dt>
+                    <dd class="govuk-summary-list__value">
+                        @if (formattedValues.Count == 0)
+                        {
+                            <span class="govuk-hint">Not answered</span>
+                        }
+                        else if (!allowMultiple)
+                        {
+                            @Html.Raw(formattedValues.FirstOrDefault())
+                        }
+                        else
+                        {
+                            <span class="govuk-hint">@formattedValues.Count item@(formattedValues.Count == 1 ? "" : "s") selected</span>
+                        }
+                    </dd>
+                    <dd class="govuk-summary-list__actions">
+                        @if (Model.IsApplicationEditable())
+                        {
+                            <a class="govuk-link" href="@changeUrl" id="field-@fieldIdHyphenated-change-link" data-testid="field-@fieldIdHyphenated-change-link">
+                                Change<span class="govuk-visually-hidden"> @field.Label.Value</span>
+                            </a>
+                        }
+                    </dd>
+                </div>
+
+                // Show individual items if multiple selection is enabled
+                @if (allowMultiple && formattedValues.Count > 0)
                 {
-                    var fieldIndex = i + 1;
-                    <div class="govuk-summary-list__row" id="field-@itemLabelHyphenated-@fieldIndex" data-testid="field-@itemLabelHyphenated-@fieldIndex">
-                        <dt class="govuk-summary-list__key">
-                            @if (allowMultiple)
-                            {
+                    for (int i = 0; i < formattedValues.Count; i++)
+                    {
+                        var fieldIndex = i + 1;
+                        <div class="govuk-summary-list__row" id="field-@itemLabelHyphenated-@fieldIndex" data-testid="field-@itemLabelHyphenated-@fieldIndex">
+                            <dt class="govuk-summary-list__key">
                                 @($"{itemLabel} {fieldIndex}")
-                            }
-                            else
-                            {
-                                @field.Label.Value
-                            }
-                        </dt>
-                        <dd class="govuk-summary-list__value">
-                            @Html.Raw(formattedValues[i])
-                        </dd>
-                        <dd class="govuk-summary-list__actions">
-                            @if (Model.IsApplicationEditable() && i == 0)
-                            {
-                                <a class="govuk-link" href="@changeUrl" id="field-@fieldIdHyphenated-change-link" data-testid="field-@fieldIdHyphenated-change-link">
-                                    Change<span class="govuk-visually-hidden"> @field.Label.Value</span>
-                                </a>
-                            }
-                        </dd>
-                    </div>
+                            </dt>
+                            <dd class="govuk-summary-list__value">
+                                @Html.Raw(formattedValues[i])
+                            </dd>
+                            <dd class="govuk-summary-list__actions">
+                                <!-- Individual items don't have change links - use main field change link -->
+                            </dd>
+                        </div>
+                    }
                 }
             }
             else
