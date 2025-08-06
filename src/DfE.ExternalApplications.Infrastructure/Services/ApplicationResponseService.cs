@@ -85,15 +85,49 @@ public class ApplicationResponseService(
     {
         var existingData = GetAccumulatedFormData(session);
         
-        // Merge new data into existing data
         foreach (var kvp in newData)
         {
-            existingData[kvp.Key] = kvp.Value;
+            var normalizedFieldName = NormalizeFieldName(kvp.Key);
+            var fieldNameToUse = normalizedFieldName;
+            
+            logger.LogDebug("Normalizing field name: '{OriginalKey}' -> '{NormalizedKey}'", kvp.Key, fieldNameToUse);
+            
+            existingData[fieldNameToUse] = kvp.Value;
+            
+            var alternativeKeys = existingData.Keys
+                .Where(key => key != fieldNameToUse && AreEquivalentFieldNames(key, fieldNameToUse))
+                .ToList();
+            
+            foreach (var altKey in alternativeKeys)
+            {
+                logger.LogDebug("Removing duplicate field entry: {OldKey} in favor of {NewKey}", altKey, fieldNameToUse);
+                existingData.Remove(altKey);
+            }
         }
         
-        // Save back to session
         var jsonString = JsonSerializer.Serialize(existingData);
         session.SetString(SessionKeyFormData, jsonString);
+    }
+
+    private bool AreEquivalentFieldNames(string fieldName1, string fieldName2)
+    {
+        var normalized1 = NormalizeFieldName(fieldName1);
+        var normalized2 = NormalizeFieldName(fieldName2);
+        
+        return string.Equals(normalized1, normalized2, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string NormalizeFieldName(string fieldName)
+    {
+        if (string.IsNullOrEmpty(fieldName))
+            return fieldName;
+            
+        if (fieldName.StartsWith("Data_", StringComparison.OrdinalIgnoreCase))
+        {
+            return fieldName.Substring(5);
+        }
+        
+        return fieldName;
     }
 
     public Dictionary<string, object> GetAccumulatedFormData(ISession session)
