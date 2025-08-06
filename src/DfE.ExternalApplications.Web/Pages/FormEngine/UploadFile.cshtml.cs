@@ -43,17 +43,12 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 return Page();
             }
 
-            try
-            {
-                using var stream = file.OpenReadStream();
-                var fileParam = new FileParameter(stream, file.FileName, file.ContentType);
-                await fileUploadService.UploadFileAsync(appId, name, description, fileParam);
-                SuccessMessage = $"Your file '{file.FileName}' uploaded.";
-            }
-            catch
-            {
-                ErrorMessage = "There was a problem uploading your file.";
-            }
+
+            using var stream = file.OpenReadStream();
+            var fileParam = new FileParameter(stream, file.FileName, file.ContentType);
+            await fileUploadService.UploadFileAsync(appId, name, description, fileParam);
+            SuccessMessage = $"Your file '{file.FileName}' uploaded.";
+
 
             Files = await fileUploadService.GetFilesForApplicationAsync(appId);
             UpdateSessionFileList(appId, FieldId, Files);
@@ -78,15 +73,10 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 return Page();
             }
 
-            try
-            {
-                await fileUploadService.DeleteFileAsync(fileId, appId);
-                SuccessMessage = "File deleted.";
-            }
-            catch
-            {
-                ErrorMessage = "There was a problem deleting the file.";
-            }
+
+            await fileUploadService.DeleteFileAsync(fileId, appId);
+            SuccessMessage = "File deleted.";
+
 
             Files = await fileUploadService.GetFilesForApplicationAsync(appId);
             UpdateSessionFileList(appId, FieldId, Files);
@@ -150,14 +140,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             var json = JsonSerializer.Serialize(files);
             var data = new Dictionary<string, object> { { fieldId, json } };
 
-            try
-            {
-                await applicationResponseService.SaveApplicationResponseAsync(appId, data, HttpContext.Session);
-            }
-            catch
-            {
-                // Intentionally swallow errors to avoid blocking the upload flow
-            }
+            await applicationResponseService.SaveApplicationResponseAsync(appId, data, HttpContext.Session);
+
         }
     }
 }

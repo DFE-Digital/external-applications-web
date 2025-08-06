@@ -43,25 +43,18 @@ public class ContributorsInviteModel(
     /// </summary>
     public async Task<IActionResult> OnGetAsync()
     {
-        try
-        {
-            // Ensure we have a valid application ID
-            var (applicationId, _) = await applicationStateService.EnsureApplicationIdAsync(ReferenceNumber, HttpContext.Session);
-            
-            if (!applicationId.HasValue)
-            {
-                logger.LogWarning("No application ID found for reference number {ReferenceNumber}", ReferenceNumber);
-                return RedirectToPage("/Applications/Dashboard");
-            }
 
-            ApplicationId = applicationId;
-            return Page();
-        }
-        catch (Exception ex)
+        // Ensure we have a valid application ID
+        var (applicationId, _) = await applicationStateService.EnsureApplicationIdAsync(ReferenceNumber, HttpContext.Session);
+
+        if (!applicationId.HasValue)
         {
-            logger.LogError(ex, "Error loading invite contributor page for application reference {ReferenceNumber}", ReferenceNumber);
+            logger.LogWarning("No application ID found for reference number {ReferenceNumber}", ReferenceNumber);
             return RedirectToPage("/Applications/Dashboard");
         }
+
+        ApplicationId = applicationId;
+        return Page();
     }
 
     /// <summary>
@@ -69,66 +62,40 @@ public class ContributorsInviteModel(
     /// </summary>
     public async Task<IActionResult> OnPostSendInviteAsync()
     {
-        try
+
+        // Ensure we have a valid application ID
+        var (applicationId, _) = await applicationStateService.EnsureApplicationIdAsync(ReferenceNumber, HttpContext.Session);
+
+        if (!applicationId.HasValue)
         {
-            // Ensure we have a valid application ID
-            var (applicationId, _) = await applicationStateService.EnsureApplicationIdAsync(ReferenceNumber, HttpContext.Session);
-            
-            if (!applicationId.HasValue)
-            {
-                logger.LogWarning("No application ID found for reference number {ReferenceNumber} when sending invite", ReferenceNumber);
-                ModelState.AddModelError("", "Application not found. Please try again.");
-                return Page();
-            }
-
-            ApplicationId = applicationId;
-
-            if (!ModelState.IsValid)
-            {
-                return Page();
-            }
-
-            // Create invitation request
-            var inviteRequest = new AddContributorRequest
-            {
-                Email = EmailAddress,
-                Name = Name
-            };
-
-            // Send the invitation
-            await contributorService.InviteContributorAsync(applicationId.Value, inviteRequest);
-            
-            logger.LogInformation("Successfully invited contributor {Name} ({Email}) to application {ApplicationId}", 
-                Name, EmailAddress, applicationId.Value);
-
-            // Redirect back to contributors page
-            return RedirectToPage("/Applications/Contributors", new { referenceNumber = ReferenceNumber });
-        }
-        catch (HttpRequestException ex)
-        {
-            logger.LogError(ex, "HTTP error inviting contributor {Email} to application reference {ReferenceNumber}", 
-                EmailAddress, ReferenceNumber);
-            
-            // Try to parse API error response
-            //var apiErrorResult = apiErrorParser.ParseApiError(ex);
-            //if (apiErrorResult.IsSuccess && apiErrorResult.ErrorResponse != null)
-            //{
-            //    errorHandler.AddApiErrorsToModelState(ModelState, apiErrorResult.ErrorResponse);
-            //}
-            //else
-            //{
-            //    ModelState.AddModelError("", "There was a problem sending the invitation. Please try again.");
-            //}
-            
+            logger.LogWarning("No application ID found for reference number {ReferenceNumber} when sending invite", ReferenceNumber);
+            ModelState.AddModelError("", "Application not found. Please try again.");
             return Page();
         }
-        catch (Exception ex)
+
+        ApplicationId = applicationId;
+
+        if (!ModelState.IsValid)
         {
-            logger.LogError(ex, "Error inviting contributor {Email} to application reference {ReferenceNumber}", 
-                EmailAddress, ReferenceNumber);
-            ModelState.AddModelError("", "There was a problem sending the invitation. Please try again.");
             return Page();
         }
+
+        // Create invitation request
+        var inviteRequest = new AddContributorRequest
+        {
+            Email = EmailAddress,
+            Name = Name
+        };
+
+        // Send the invitation
+        await contributorService.InviteContributorAsync(applicationId.Value, inviteRequest);
+
+        logger.LogInformation("Successfully invited contributor {Name} ({Email}) to application {ApplicationId}",
+            Name, EmailAddress, applicationId.Value);
+
+        // Redirect back to contributors page
+        return RedirectToPage("/Applications/Contributors", new { referenceNumber = ReferenceNumber });
+
     }
 
     /// <summary>
@@ -139,4 +106,4 @@ public class ContributorsInviteModel(
         logger.LogInformation("User cancelled contributor invitation for application reference {ReferenceNumber}", ReferenceNumber);
         return RedirectToPage("/Applications/Contributors", new { referenceNumber = ReferenceNumber });
     }
-} 
+}

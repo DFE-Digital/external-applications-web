@@ -32,6 +32,21 @@
         </div>
     </div>
 }
+<govuk-error-summary>
+    @if (!ViewData.ModelState.IsValid)
+    {
+        @foreach (var modelError in ViewData.ModelState.Where(x => x.Value.Errors.Count > 0))
+        {
+            @foreach (var error in modelError.Value.Errors)
+            {
+                <govuk-error-summary-item>
+                    @error.ErrorMessage
+                </govuk-error-summary-item>
+            }
+        }
+    }
+</govuk-error-summary>
+
 <form method="post" asp-page-handler="UploadFile" enctype="multipart/form-data">
     <input type="hidden" name="ApplicationId" value="@applicationId" />
     <input type="hidden" name="FieldId" value="@fieldId" />
