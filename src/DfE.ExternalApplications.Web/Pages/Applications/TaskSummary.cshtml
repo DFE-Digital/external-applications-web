@@ -7,6 +7,9 @@
 
 <govuk-back-link href="/applications/@Model.ReferenceNumber">Back to application task list</govuk-back-link>
 
+@* Notification Display *@
+@await Html.PartialAsync("_NotificationDisplay")
+
 <h1 class="govuk-heading-xl govuk-!-margin-bottom-6">@Model.CurrentTask.TaskName</h1>
 
 <dl class="govuk-summary-list">
