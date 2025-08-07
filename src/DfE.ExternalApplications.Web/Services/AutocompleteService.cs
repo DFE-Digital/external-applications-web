@@ -76,10 +76,13 @@ namespace DfE.ExternalApplications.Web.Services
                 _logger.LogDebug("Raw JSON response for complex field {ComplexFieldId}: {JsonResponse}", complexFieldId, jsonResponse);
                 
                 var results = ParseResponse(jsonResponse);
+                
+                // Sort results alphabetically
+                var sortedResults = SortResultsAlphabetically(results);
 
                 _logger.LogDebug("Found {Count} results for query: {Query} from complex field: {ComplexFieldId}", 
-                    results.Count, query, complexFieldId);
-                return results;
+                    sortedResults.Count, query, complexFieldId);
+                return sortedResults;
             }
             catch (Exception ex)
             {
@@ -87,73 +90,16 @@ namespace DfE.ExternalApplications.Web.Services
                 return new List<object>();
             }
         }
-
-        //// Legacy method for backward compatibility
-        //public async Task<List<object>> SearchAsync(string endpoint, string query)
-        //{
-        //    _logger.LogWarning("Using legacy SearchAsync method with endpoint. Consider using complex field ID instead.");
-            
-        //    if (string.IsNullOrWhiteSpace(query) || query.Length < 3)
-        //    {
-        //        return new List<object>();
-        //    }
-
-        //    if (string.IsNullOrWhiteSpace(endpoint))
-        //    {
-        //        _logger.LogWarning("No endpoint provided for autocomplete search");
-        //        return new List<object>();
-        //    }
-
-        //    try
-        //    {
-        //        // Build the request URL with query parameter
-        //        var requestUrl = BuildRequestUrl(endpoint, query);
-                
-        //        _logger.LogDebug("Making autocomplete request to: {RequestUrl}", requestUrl);
-
-        //        // Create the request
-        //        using var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
-                
-        //        // Add authentication headers if configured for this endpoint
-        //        AddAuthenticationHeaders(request, endpoint);
-
-        //        // Make the API call
-        //        var response = await _httpClient.SendAsync(request);
-                
-        //        _logger.LogDebug("HTTP response status: {StatusCode} for endpoint: {Endpoint}", response.StatusCode, endpoint);
-                
-        //        if (!response.IsSuccessStatusCode)
-        //        {
-        //            var errorContent = await response.Content.ReadAsStringAsync();
-        //            _logger.LogWarning("Autocomplete API call failed with status {StatusCode} for endpoint: {Endpoint}. Response: {ErrorContent}", response.StatusCode, endpoint, errorContent);
-        //            return new List<object>();
-        //        }
-
-        //        var jsonResponse = await response.Content.ReadAsStringAsync();
-        //        var results = ParseResponse(jsonResponse);
-
-        //        _logger.LogDebug("Found {Count} results for query: {Query} from endpoint: {Endpoint}", results.Count, query, endpoint);
-        //        return results;
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        _logger.LogError(ex, "Error calling autocomplete API for endpoint: {Endpoint}, query: {Query}", endpoint, query);
-        //        return new List<object>();
-        //    }
-        //}
-
+       
         private string BuildRequestUrl(string endpoint, string query)
         {
             var encodedQuery = Uri.EscapeDataString(query);
             
-            // If endpoint contains {0} placeholders, replace them with the query
             if (endpoint.Contains("{0}"))
             {
-                // Replace all {0} placeholders with the encoded query
                 return endpoint.Replace("{0}", encodedQuery);
             }
             
-            // Otherwise, append as a query parameter
             var separator = endpoint.Contains("?") ? "&" : "?";
             return $"{endpoint}{separator}q={encodedQuery}";
         }
@@ -165,16 +111,6 @@ namespace DfE.ExternalApplications.Web.Services
                 request.Headers.Add("ApiKey", configuration.ApiKey);
                 _logger.LogDebug("Added API key authentication header for complex field");
             }
-        }
-
-        private void AddAuthenticationHeaders(HttpRequestMessage request, string endpoint)
-        {
-            // For legacy endpoint-based authentication, we'll use a default configuration
-            // This maintains backward compatibility but new implementations should use complex field IDs
-            _logger.LogDebug("Using legacy authentication for endpoint: {Endpoint}", endpoint);
-            
-            // Could add other authentication methods here based on configuration
-            // e.g., Bearer tokens, Basic auth, etc.
         }
 
         private List<object> ParseResponse(string jsonResponse)
@@ -293,6 +229,46 @@ namespace DfE.ExternalApplications.Web.Services
             }
             
             return string.Empty;
+        }
+
+        /// <summary>
+        /// Sorts autocomplete results alphabetically by their display name
+        /// </summary>
+        /// <param name="results">The list of results to sort</param>
+        /// <returns>A new list with results sorted alphabetically</returns>
+        private List<object> SortResultsAlphabetically(List<object> results)
+        {
+            return results.OrderBy(result => GetDisplayTextForSorting(result), StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
+        /// <summary>
+        /// Extracts the display text from a result object for sorting purposes
+        /// </summary>
+        /// <param name="result">The result object (either string or Dictionary)</param>
+        /// <returns>The display text to use for sorting</returns>
+        private string GetDisplayTextForSorting(object result)
+        {
+            if (result is string stringResult)
+            {
+                return stringResult;
+            }
+            
+            if (result is Dictionary<string, object> dictResult)
+            {
+                // Try to get the display name from common properties
+                var displayProperties = new[] { "name", "title", "label", "value", "displayName", "groupName", "text" };
+                
+                foreach (var propertyName in displayProperties)
+                {
+                    if (dictResult.TryGetValue(propertyName, out var value) && value != null)
+                    {
+                        return value.ToString() ?? string.Empty;
+                    }
+                }
+            }
+            
+            // Fallback to string representation
+            return result?.ToString() ?? string.Empty;
         }
     }
 } 

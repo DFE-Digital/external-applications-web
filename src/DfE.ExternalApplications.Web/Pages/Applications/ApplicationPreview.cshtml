@@ -57,28 +57,46 @@
                             
                                     if ((field.Type == "autocomplete" || field.Type == "complexField") && hasValue)
                                     {
-                                        // Handle multiple autocomplete/complex field values as separate rows
+                                        // Handle multiple autocomplete/complex field values as main header + individual rows
                                         var formattedValues = Model.GetFormattedFieldValues(field.FieldId);
                                         var itemLabel = Model.GetFieldItemLabel(field.FieldId);
                                         var allowMultiple = Model.IsFieldAllowMultiple(field.FieldId);
                                 
-                                        for (int i = 0; i < formattedValues.Count; i++)
+                                        // Show main field header
+                                        <div class="govuk-summary-list__row">
+                                            <dt class="govuk-summary-list__key">
+                                                @field.Label.Value
+                                            </dt>
+                                            <dd class="govuk-summary-list__value">
+                                                @if (formattedValues.Count == 0)
+                                                {
+                                                    <span class="govuk-hint">Not answered</span>
+                                                }
+                                                else if (!allowMultiple)
+                                                {
+                                                    @Html.Raw(formattedValues.FirstOrDefault())
+                                                }
+                                                else
+                                                {
+                                                    <span class="govuk-hint">@formattedValues.Count item@(formattedValues.Count == 1 ? "" : "s") selected</span>
+                                                }
+                                            </dd>
+                                        </div>
+
+                                        // Show individual items if multiple selection is enabled
+                                        @if (allowMultiple && formattedValues.Count > 0)
                                         {
-                                            <div class="govuk-summary-list__row">
-                                                <dt class="govuk-summary-list__key">
-                                                    @if (allowMultiple)
-                                                    {
+                                            for (int i = 0; i < formattedValues.Count; i++)
+                                            {
+                                                <div class="govuk-summary-list__row">
+                                                    <dt class="govuk-summary-list__key">
                                                         @($"{itemLabel} {i + 1}")
-                                                    }
-                                                    else
-                                                    {
-                                                        @field.Label.Value
-                                                    }
-                                                </dt>
-                                                <dd class="govuk-summary-list__value">
-                                                    @Html.Raw(formattedValues[i])
-                                                </dd>
-                                            </div>
+                                                    </dt>
+                                                    <dd class="govuk-summary-list__value">
+                                                        @Html.Raw(formattedValues[i])
+                                                    </dd>
+                                                </div>
+                                            }
                                         }
                                     }
                                     else
@@ -90,20 +108,20 @@
                                             <dd class="govuk-summary-list__value">
                                                 @if (hasValue)
                                                 {
-                                                    @if (field.Type == "radios" && field.Options != null)
-                                                    {
-                                                        var selectedOption = field.Options.FirstOrDefault(o => o.Value == fieldValue);
-                                                        @(selectedOption?.Label ?? fieldValue)
-                                                    }
-                                                    else if (field.Type == "select" && field.Options != null)
-                                                    {
-                                                        var selectedOption = field.Options.FirstOrDefault(o => o.Value == fieldValue);
-                                                        @(selectedOption?.Label ?? fieldValue)
-                                                    }
-                                                    else
-                                                    {
-                                                        @fieldValue
-                                                    }
+                                                                                        @if (field.Type == "radios" && field.Options != null)
+                                    {
+                                        var selectedOption = field.Options.FirstOrDefault(o => o.Value == fieldValue);
+                                        @(selectedOption?.Label ?? fieldValue)
+                                    }
+                                    else if (field.Type == "select" && field.Options != null)
+                                    {
+                                        var selectedOption = field.Options.FirstOrDefault(o => o.Value == fieldValue);
+                                        @(selectedOption?.Label ?? fieldValue)
+                                    }
+                                    else
+                                    {
+                                        @Html.Raw(fieldValue.Replace("\r\n", "<br/>").Replace("\r", "<br/>").Replace("\n", "<br/>"))
+                                    }
                                                 }
                                                 else
                                                 {
