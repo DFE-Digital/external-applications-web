@@ -29,6 +29,11 @@
                 var formattedValues = Model.GetFormattedFieldValues(field.FieldId);
                 var itemLabel = Model.GetFieldItemLabel(field.FieldId);
                 var allowMultiple = Model.IsFieldAllowMultiple(field.FieldId);
+                
+                // Check if this is specifically an autocomplete complex field (not upload or other types)
+                var isAutocompleteField = field.Type == "autocomplete" || 
+                    (field.Type == "complexField" && field.ComplexField != null && 
+                     ComplexFieldConfigurationService.GetConfiguration(field.ComplexField.Id).FieldType.Equals("autocomplete", StringComparison.OrdinalIgnoreCase));
 
                 var itemLabelHyphenated = itemLabel.Replace(" ", "-").ToLower();
 
@@ -71,7 +76,7 @@
                                 @Html.Raw(formattedValues[i])
                             </dd>
                             <dd class="govuk-summary-list__actions">
-                                @if (Model.IsApplicationEditable())
+                                @if (Model.IsApplicationEditable() && isAutocompleteField)
                                 {
                                     <a class="govuk-link" href="@changeUrl?removeItem=@i" id="field-@itemLabelHyphenated-@fieldIndex-remove-link" data-testid="field-@itemLabelHyphenated-@fieldIndex-remove-link">
                                         Remove<span class="govuk-visually-hidden"> @($"{itemLabel} {fieldIndex}")</span>
