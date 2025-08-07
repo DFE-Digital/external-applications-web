@@ -9,7 +9,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 {
     public class UploadFileModel(
         IFileUploadService fileUploadService,
-        IApplicationResponseService applicationResponseService)
+        IApplicationResponseService applicationResponseService,
+        INotificationService notificationService)
         : PageModel
     {
         [BindProperty(SupportsGet = true)] public string ApplicationId { get; set; }
@@ -17,6 +18,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         [BindProperty(SupportsGet = true, Name = "referenceNumber")] public string ReferenceNumber { get; set; }
         [BindProperty(SupportsGet = true, Name = "taskId")] public string TaskId { get; set; }
         [BindProperty(SupportsGet = true, Name = "pageId")] public string CurrentPageId { get; set; }
+        [BindProperty] public string ReturnUrl { get; set; }
         public IReadOnlyList<UploadDto> Files { get; set; } = new List<UploadDto>();
         public string SuccessMessage { get; set; }
         public string ErrorMessage { get; set; }
@@ -56,6 +58,22 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             if (string.IsNullOrEmpty(ErrorMessage))
             {
                 await SaveUploadedFilesToResponseAsync(appId, FieldId, Files);
+                
+                // If we have a return URL (from partial form), redirect back
+                if (!string.IsNullOrEmpty(ReturnUrl))
+                {
+                    notificationService.AddSuccess(SuccessMessage, context: FieldId, category: "file-upload");
+                    return Redirect(ReturnUrl);
+                }
+            }
+            else
+            {
+                // If there's an error and we have a return URL, redirect back with error
+                if (!string.IsNullOrEmpty(ReturnUrl))
+                {
+                    notificationService.AddError(ErrorMessage, context: FieldId, category: "file-upload");
+                    return Redirect(ReturnUrl);
+                }
             }
 
             return Page();
@@ -84,6 +102,13 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             if (string.IsNullOrEmpty(ErrorMessage))
             {
                 await SaveUploadedFilesToResponseAsync(appId, FieldId, Files);
+                
+                // If we have a return URL (from partial form), redirect back
+                if (!string.IsNullOrEmpty(ReturnUrl))
+                {
+                    notificationService.AddSuccess(SuccessMessage, context: FieldId, category: "file-upload");
+                    return Redirect(ReturnUrl);
+                }
             }
 
             return Page();
