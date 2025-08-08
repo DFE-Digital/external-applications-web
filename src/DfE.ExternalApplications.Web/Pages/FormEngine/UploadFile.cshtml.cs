@@ -4,6 +4,8 @@ using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Text.Json;
+using DfE.CoreLibs.Notifications.Interfaces;
+using DfE.CoreLibs.Notifications.Models;
 
 namespace DfE.ExternalApplications.Web.Pages.FormEngine
 {
@@ -33,6 +35,12 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         public async Task<IActionResult> OnPostUploadFileAsync()
         {
+            var notificationOptions = new NotificationOptions
+            {
+                Context = FieldId,
+                Category = "file-upload"
+            };
+
             if (!Guid.TryParse(ApplicationId, out var appId))
                 return NotFound();
             var file = Request.Form.Files["UploadFile"];
@@ -62,7 +70,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 // If we have a return URL (from partial form), redirect back
                 if (!string.IsNullOrEmpty(ReturnUrl))
                 {
-                    notificationService.AddSuccess(SuccessMessage, context: FieldId, category: "file-upload");
+                    await notificationService.AddSuccessAsync(SuccessMessage, notificationOptions);
                     return Redirect(ReturnUrl);
                 }
             }
@@ -71,7 +79,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 // If there's an error and we have a return URL, redirect back with error
                 if (!string.IsNullOrEmpty(ReturnUrl))
                 {
-                    notificationService.AddError(ErrorMessage, context: FieldId, category: "file-upload");
+                    await notificationService.AddErrorAsync(ErrorMessage, notificationOptions);
                     return Redirect(ReturnUrl);
                 }
             }
@@ -81,6 +89,12 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         public async Task<IActionResult> OnPostDeleteFileAsync()
         {
+            var notificationOptions = new NotificationOptions
+            {
+                Context = FieldId,
+                Category = "file-upload"
+            };
+
             if (!Guid.TryParse(ApplicationId, out var appId))
                 return NotFound();
             var fileIdStr = Request.Form["FileId"].ToString();
@@ -106,7 +120,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 // If we have a return URL (from partial form), redirect back
                 if (!string.IsNullOrEmpty(ReturnUrl))
                 {
-                    notificationService.AddSuccess(SuccessMessage, context: FieldId, category: "file-upload");
+                    await notificationService.AddSuccessAsync(SuccessMessage, notificationOptions);
                     return Redirect(ReturnUrl);
                 }
             }

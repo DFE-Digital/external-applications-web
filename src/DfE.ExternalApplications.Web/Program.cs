@@ -23,6 +23,7 @@ using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using System.Diagnostics.CodeAnalysis;
+using DfE.CoreLibs.Notifications.Extensions;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -138,13 +139,14 @@ builder.Services.AddScoped<IFileUploadService, FileUploadService>();
 
 builder.Services.AddScoped<IAutocompleteService, AutocompleteService>();
 builder.Services.AddScoped<IComplexFieldConfigurationService, ComplexFieldConfigurationService>();
-builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IComplexFieldRendererFactory, ComplexFieldRendererFactory>();
 builder.Services.AddScoped<IComplexFieldRenderer, AutocompleteComplexFieldRenderer>();
 builder.Services.AddScoped<IComplexFieldRenderer, CompositeComplexFieldRenderer>();
 builder.Services.AddScoped<IComplexFieldRenderer, UploadComplexFieldRenderer>();
 
 builder.Services.AddSingleton<ITemplateStore, ApiTemplateStore>();
+
+builder.Services.AddNotificationServices();
 
 // Add test token handler and services when test authentication is enabled
 if (isTestAuthEnabled)

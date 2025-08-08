@@ -1,25 +1,30 @@
-@using DfE.ExternalApplications.Application.Interfaces
+@using DfE.CoreLibs.Notifications.Interfaces
+@using DfE.CoreLibs.Notifications.Models
 @using DfE.ExternalApplications.Domain.Models
+@using Notification = DfE.CoreLibs.Notifications.Models.Notification
 @inject INotificationService NotificationService
 @{
     // Handle dismiss notification request (works without JavaScript)
     var dismissNotificationId = Context.Request.Query["dismissNotification"].FirstOrDefault();
     if (!string.IsNullOrEmpty(dismissNotificationId))
     {
-        NotificationService.RemoveNotification(dismissNotificationId);
+        await NotificationService.RemoveNotificationAsync(dismissNotificationId);
         // Redirect to remove the query parameter from URL
         var currentUrl = Context.Request.Path.Value;
         Context.Response.Redirect(currentUrl);
         return;
     }
     
-    var notifications = NotificationService.GetUnreadNotifications();
+    var notifications = await NotificationService.GetUnreadNotificationsAsync();
 }
 
-@if (notifications.Any())
+@{
+    var enumerable = notifications as Notification[] ?? notifications.ToArray();
+}
+@if (enumerable.Any())
 {
     <div id="notification-container">
-        @foreach (var notification in notifications)
+        @foreach (var notification in enumerable)
         {
             var cssClass = notification.Type switch
             {
@@ -136,11 +141,11 @@
 
 @{
     // Mark all displayed notifications as read immediately since they've been shown
-    if (notifications.Any())
+    if (enumerable.Any())
     {
-        foreach (var notification in notifications)
+        foreach (var notification in enumerable)
         {
-            NotificationService.MarkAsRead(notification.Id);
+            await NotificationService.MarkAsReadAsync(notification.Id);
         }
     }
 }

@@ -31,11 +31,9 @@
         files = files.ToList();
     }
 
-    // Notifications are now handled by the global notification system
 
     var pageUrl = httpContext.HttpContext.Request.Path.Value;
 }
-@* Notifications are now handled by the global notification system in _NotificationDisplay.cshtml *@
 
 @{
     var currentUrl = httpContext.HttpContext.Request.GetDisplayUrl();
