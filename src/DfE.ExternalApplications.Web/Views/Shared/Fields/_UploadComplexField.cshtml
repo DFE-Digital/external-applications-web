@@ -83,8 +83,16 @@
         @foreach (var file in files)
         {
             <tr class="govuk-table__row">
-                <td class="govuk-table__cell">@file.OriginalFileName</td>
-                    <td class="govuk-table__cell">@FormatFileSize(file.FileSize)</td>
+                <td class="govuk-table__cell">
+                    <form method="post" asp-page="/FormEngine/UploadFile" asp-route-referenceNumber="@referenceNumber" asp-route-taskId="@taskId" asp-route-pageId="@pageId" asp-page-handler="DownloadFile" style="display:inline">
+                        <input type="hidden" name="FileId" value="@file.Id" />
+                        <input type="hidden" name="ApplicationId" value="@applicationId" />
+                        <button type="submit" class="govuk-link" style="border: none; background: none; padding: 0; color: #1d70b8; text-decoration: underline; cursor: pointer;">
+                            @file.OriginalFileName
+                        </button>
+                    </form>
+                </td>
+                <td class="govuk-table__cell">@FormatFileSize(file.FileSize)</td>
                 <td class="govuk-table__cell">@(System.IO.Path.GetExtension(file.OriginalFileName)?.TrimStart('.').ToUpperInvariant() ?? "Unknown")</td>
                 <td class="govuk-table__cell">
                     <form method="post" asp-page="/FormEngine/UploadFile" asp-route-referenceNumber="@referenceNumber" asp-route-taskId="@taskId" asp-route-pageId="@pageId" asp-page-handler="DeleteFile" style="display:inline">
