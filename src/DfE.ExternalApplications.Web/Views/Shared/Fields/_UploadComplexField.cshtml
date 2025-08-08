@@ -68,23 +68,23 @@
 </form>
 <h4 class="govuk-heading-s">Uploaded files</h4>
 
-@if (files.Any())
-{
-    <table class="govuk-table">
-        <thead class="govuk-table__head">
-            <tr class="govuk-table__row">
-                <th scope="col" class="govuk-table__header">File name</th>
-                <th scope="col" class="govuk-table__header">File size</th>
-                <th scope="col" class="govuk-table__header">File type</th>
-                <th scope="col" class="govuk-table__header">Action</th>
-            </tr>
-        </thead>
-        <tbody class="govuk-table__body">
+<table class="govuk-table">
+    <thead class="govuk-table__head">
+        <tr class="govuk-table__row">
+            <th scope="col" class="govuk-table__header">File name</th>
+            <th scope="col" class="govuk-table__header">File size</th>
+            <th scope="col" class="govuk-table__header">File type</th>
+            <th scope="col" class="govuk-table__header">Action</th>
+        </tr>
+    </thead>
+    <tbody class="govuk-table__body">
+    @if (files.Any())
+    {
         @foreach (var file in files)
         {
             <tr class="govuk-table__row">
                 <td class="govuk-table__cell">@file.OriginalFileName</td>
-                <td class="govuk-table__cell">-</td>
+                    <td class="govuk-table__cell">@FormatFileSize(file.FileSize)</td>
                 <td class="govuk-table__cell">@(System.IO.Path.GetExtension(file.OriginalFileName)?.TrimStart('.').ToUpperInvariant() ?? "Unknown")</td>
                 <td class="govuk-table__cell">
                     <form method="post" asp-page="/FormEngine/UploadFile" asp-route-referenceNumber="@referenceNumber" asp-route-taskId="@taskId" asp-route-pageId="@pageId" asp-page-handler="DeleteFile" style="display:inline">
@@ -101,12 +101,31 @@
                 </td>
             </tr>
         }
-        </tbody>
-    </table>
-}
-else
-{
-    <p class="govuk-body">No files uploaded yet</p>
-}
+    }
+    else
+    {
+        <tr class="govuk-table__row">
+            <td class="govuk-table__cell" colspan="4">No files uploaded yet</td>
+        </tr>
+    }
+    </tbody>
+</table>
 
 <a href="@summaryUrl" class="govuk-button" data-module="govuk-button">Continue</a> 
+
+@functions {
+    private string FormatFileSize(long bytes)
+    {
+        const int scale = 1024;
+        string[] orders = new string[] { "GB", "MB", "KB", "Bytes" };
+        long max = (long)Math.Pow(scale, orders.Length - 1);
+        
+        foreach (string order in orders)
+        {
+            if (bytes > max)
+                return string.Format("{0:##.##} {1}", decimal.Divide(bytes, max), order);
+            max /= scale;
+        }
+        return "0 Bytes";
+    }
+}
