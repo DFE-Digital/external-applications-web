@@ -6,7 +6,6 @@
     var labelClasses = Model.Field.Label.IsPageHeading ? "govuk-label--l" : "";
 }
 
-<govuk-error-message for="@Model.Id">@Model.ErrorMessage</govuk-error-message>
 <govuk-input id="@Model.Id"
              name="Data[@Model.Field.FieldId]"
              value="@Model.CurrentValue">
@@ -14,8 +13,11 @@
                                class="@(Model.Field.Label.IsPageHeading ? "govuk-label--l" : "")">
                 @Model.Field.Label.Value
             </govuk-input-label>
-                  <govuk-input-hint>
-                      @Model.Field.Tooltip
-                  </govuk-input-hint>
-
+            <govuk-input-hint>
+                @Model.Field.Tooltip
+            </govuk-input-hint>
+            @if (Model.ErrorMessage != String.Empty)
+            {
+                <govuk-input-error-message>@Model.ErrorMessage</govuk-input-error-message>
+            }
 </govuk-input>

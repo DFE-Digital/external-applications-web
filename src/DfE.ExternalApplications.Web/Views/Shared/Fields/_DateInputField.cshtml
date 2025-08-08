@@ -7,7 +7,6 @@
     DateTime value = DateTime.TryParse(Model.CurrentValue, out DateTime val) ? val : new DateTime();
 }
 
-<govuk-error-message for="@Model.Id">@Model.ErrorMessage</govuk-error-message>
 <govuk-date-input id="@Model.Id"
              name-prefix="Data[@Model.Field.FieldId]"
                 value="@Model.CurrentValue">

@@ -118,13 +118,16 @@
 else
 {
     <div class="govuk-form-group @(string.IsNullOrEmpty(Model.ErrorMessage) ? "" : "govuk-form-group--error")">
-        <label id="@label-label" class="@labelClasses" for="@inputId">
-            @label
-            @if (isRequired)
-            {
-                <span class="govuk-visually-hidden">required</span>
-            }
-        </label>
+        @if (!string.IsNullOrEmpty(Model.Field.Label.Value))
+        {
+            <label id="@label-label" class="@labelClasses" for="@inputId">
+                @label
+                @if (isRequired)
+                {
+                    <span class="govuk-visually-hidden">required</span>
+                }
+            </label>
+        }
         
         @if (!string.IsNullOrEmpty(Model.Field.Tooltip))
         {
@@ -143,6 +146,10 @@ else
                    name="Data[@Model.Id]" 
                    value="@Model.CurrentValue" 
                    data-allow-multiple="@configuration.AllowMultiple.ToString().ToLower()" />
+
+        @{
+            var ariaLabel = !string.IsNullOrEmpty(Model.Field.Label.Value) ? label + "-label" : "page-title";
+        }
             
             <!-- Container for autocomplete - library will create input here -->
             <div id="@inputId-container" 
@@ -155,7 +162,7 @@ else
                  data-selected-items-container="@selectedItemsId"
                  data-placeholder="@configuration.Placeholder"
                  aria-describedby="@inputId-hint"
-                 aria-labelledby="@label-label">
+                 aria-labelledby="@ariaLabel">
             </div>
             
             <div id="@inputId-hint" class="govuk-visually-hidden">
@@ -424,14 +431,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     id: complexFieldContainer.id,
                     placeholder: placeholder,
                     showAllValues: false,
+                    autoselect: true,
+                    confirmOnBlur: false,
                     templates: {
                         inputValue: function(result) {
+                            console.log('inputValue template called with:', result);
                             if (typeof result === 'object' && result !== null && result.name) {
                                 return result.name;
                             }
                             return result ? result.toString() : '';
                         },
                         suggestion: function(result) {
+                            console.log('suggestion template called with:', result);
                             if (typeof result === 'object' && result !== null && result.name) {
                                 var html = '<div class="complex-field-suggestion">';
                                 html += '<div class="complex-field-suggestion-name">' + escapeHtml(result.name) + '</div>';
@@ -490,19 +501,106 @@ document.addEventListener('DOMContentLoaded', function() {
                     },
                     minLength: minLength,
                     onConfirm: function(option) {
+                        console.log('OnConfirm function triggered!');
                         console.log('Option confirmed:', option);
-                        if (option && (typeof option === 'string' && option.trim() !== '' || typeof option === 'object' && option.name)) {
-                            addSelectedItem(option);
-                            // Clear the input after selection
-                            const autocompleteInput = container.querySelector('.autocomplete__input');
-                            if (autocompleteInput) {
-                                autocompleteInput.value = '';
+                        console.log('Option type:', typeof option);
+                        console.log('Option details:', JSON.stringify(option));
+                        
+                        if (option) {
+                            var isValidString = typeof option === 'string' && option.trim() !== '';
+                            var isValidObject = typeof option === 'object' && option !== null && option.name;
+                            
+                            console.log('Is valid string:', isValidString);
+                            console.log('Is valid object:', isValidObject);
+                            
+                            if (isValidString || isValidObject) {
+                                console.log('Adding selected item...');
+                                addSelectedItem(option);
+                                
+                                // Clear the input after selection using multiple approaches
+                                const autocompleteInput = container.querySelector('.autocomplete__input');
+                                if (autocompleteInput) {
+                                    console.log('Clearing autocomplete input with multiple methods');
+                                    
+                                    // Method 1: Direct value assignment
+                                    autocompleteInput.value = '';
+                                    
+                                    // Method 2: Set React-compatible value using property descriptor
+                                    try {
+                                        const valueSetter = Object.getOwnPropertyDescriptor(autocompleteInput, 'value')?.set ||
+                                                          Object.getOwnPropertyDescriptor(Object.getPrototypeOf(autocompleteInput), 'value')?.set;
+                                        if (valueSetter) {
+                                            valueSetter.call(autocompleteInput, '');
+                                        }
+                                    } catch (e) {
+                                        console.log('React-style value setting failed:', e);
+                                    }
+                                    
+                                    // Method 3: Trigger input events to notify any listeners
+                                    autocompleteInput.dispatchEvent(new Event('input', { bubbles: true }));
+                                    autocompleteInput.dispatchEvent(new Event('change', { bubbles: true }));
+                                    
+                                    // Method 4: Use setTimeout to ensure clearing happens after any library updates
+                                    setTimeout(function() {
+                                        autocompleteInput.value = '';
+                                        autocompleteInput.dispatchEvent(new Event('input', { bubbles: true }));
+                                        console.log('Input cleared with timeout method');
+                                    }, 10);
+                                    
+                                } else {
+                                    console.warn('Autocomplete input not found for clearing');
+                                }
+                            } else {
+                                console.log('Option validation failed');
                             }
+                        } else {
+                            console.log('No option provided to onConfirm');
                         }
                     }
                 });
                 
                 console.log('Autocomplete complex field initialized successfully');
+                
+                // Add backup event listeners for debugging onConfirm issues
+                setTimeout(function() {
+                    const autocompleteInput = container.querySelector('.autocomplete__input');
+                    if (autocompleteInput) {
+                        // Listen for Enter key as backup
+                        autocompleteInput.addEventListener('keydown', function(e) {
+                            if (e.key === 'Enter') {
+                                console.log('Enter key pressed on autocomplete input');
+                                console.log('Current input value:', this.value);
+                                
+                                // Check if there's a highlighted option
+                                const highlightedOption = container.querySelector('.autocomplete__option--focused');
+                                if (highlightedOption) {
+                                    console.log('Highlighted option found:', highlightedOption.textContent);
+                                    // Try to trigger selection manually if onConfirm doesn't work
+                                    // This is a backup mechanism
+                                    const optionText = highlightedOption.textContent.trim();
+                                    if (optionText) {
+                                        console.log('Manually triggering selection for:', optionText);
+                                        // Clear input as backup
+                                        setTimeout(() => {
+                                            this.value = '';
+                                            this.dispatchEvent(new Event('input', { bubbles: true }));
+                                            console.log('Backup input clearing triggered');
+                                        }, 50);
+                                    }
+                                }
+                            }
+                        });
+                        
+                        // Listen for click events on options
+                        container.addEventListener('click', function(e) {
+                            if (e.target.closest('.autocomplete__option')) {
+                                console.log('Option clicked:', e.target.closest('.autocomplete__option').textContent);
+                            }
+                        });
+                        
+                        console.log('Backup event listeners added for debugging');
+                    }
+                }, 200);
                 
                 // Mark this container as initialized
                 container.dataset.initialized = 'true';
@@ -524,6 +622,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
             } catch (error) {
                 console.error('Error initializing accessible-autocomplete for autocomplete complex field:', error);
+                console.error('Error details:', error.message, error.stack);
             }
         } else {
             console.error('accessibleAutocomplete is not available');
