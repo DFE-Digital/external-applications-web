@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Text.Json;
 using DfE.CoreLibs.Notifications.Interfaces;
 using DfE.CoreLibs.Notifications.Models;
+using Microsoft.AspNetCore.Mvc.Filters;
 
 namespace DfE.ExternalApplications.Web.Pages.FormEngine
 {
@@ -49,42 +50,59 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             if (file == null || file.Length == 0)
             {
                 ErrorMessage = "Please select a file to upload.";
+                
+                // Store error in session for the partial to access
+                var errorKey = $"UploadError_{FieldId}";
+                HttpContext.Session.SetString(errorKey, ErrorMessage);
+                
+                // Store ModelState errors in session if any exist
+                StoreModelStateErrorsInSession(FieldId);
+                
+                // If we have a return URL, redirect back with error
+                if (!string.IsNullOrEmpty(ReturnUrl))
+                {
+                    return Redirect(ReturnUrl);
+                }
+                
                 Files = await fileUploadService.GetFilesForApplicationAsync(appId);
                 return Page();
             }
-
 
             using var stream = file.OpenReadStream();
             var fileParam = new FileParameter(stream, file.FileName, file.ContentType);
             await fileUploadService.UploadFileAsync(appId, name, description, fileParam);
             SuccessMessage = $"Your file '{file.FileName}' uploaded.";
 
-
             Files = await fileUploadService.GetFilesForApplicationAsync(appId);
             UpdateSessionFileList(appId, FieldId, Files);
 
-            if (string.IsNullOrEmpty(ErrorMessage))
+            await SaveUploadedFilesToResponseAsync(appId, FieldId, Files);
+            
+            // If we have a return URL (from partial form), redirect back
+            if (!string.IsNullOrEmpty(ReturnUrl))
             {
-                await SaveUploadedFilesToResponseAsync(appId, FieldId, Files);
-                
-                // If we have a return URL (from partial form), redirect back
-                if (!string.IsNullOrEmpty(ReturnUrl))
-                {
-                    await notificationService.AddSuccessAsync(SuccessMessage, notificationOptions);
-                    return Redirect(ReturnUrl);
-                }
-            }
-            else
-            {
-                // If there's an error and we have a return URL, redirect back with error
-                if (!string.IsNullOrEmpty(ReturnUrl))
-                {
-                    await notificationService.AddErrorAsync(ErrorMessage, notificationOptions);
-                    return Redirect(ReturnUrl);
-                }
+                await notificationService.AddSuccessAsync(SuccessMessage, notificationOptions);
+                return Redirect(ReturnUrl);
             }
 
             return Page();
+        }
+
+        public override void OnPageHandlerExecuted(PageHandlerExecutedContext context)
+        {
+            base.OnPageHandlerExecuted(context);
+            
+            // If there are ModelState errors (from the filter), store them in session
+            if (!ModelState.IsValid && !string.IsNullOrEmpty(FieldId))
+            {
+                StoreModelStateErrorsInSession(FieldId);
+                
+                // If we have a return URL, redirect back with errors
+                if (!string.IsNullOrEmpty(ReturnUrl))
+                {
+                    context.Result = new RedirectResult(ReturnUrl);
+                }
+            }
         }
 
         public async Task<IActionResult> OnPostDeleteFileAsync()
@@ -101,28 +119,37 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             if (!Guid.TryParse(fileIdStr, out var fileId))
             {
                 ErrorMessage = "Invalid file ID.";
+                
+                // Store error in session for the partial to access
+                var errorKey = $"UploadError_{FieldId}";
+                HttpContext.Session.SetString(errorKey, ErrorMessage);
+                
+                // Store ModelState errors in session if any exist
+                StoreModelStateErrorsInSession(FieldId);
+                
+                // If we have a return URL, redirect back with error
+                if (!string.IsNullOrEmpty(ReturnUrl))
+                {
+                    return Redirect(ReturnUrl);
+                }
+                
                 Files = await fileUploadService.GetFilesForApplicationAsync(appId);
                 return Page();
             }
 
-
             await fileUploadService.DeleteFileAsync(fileId, appId);
             SuccessMessage = "File deleted.";
-
 
             Files = await fileUploadService.GetFilesForApplicationAsync(appId);
             UpdateSessionFileList(appId, FieldId, Files);
 
-            if (string.IsNullOrEmpty(ErrorMessage))
+            await SaveUploadedFilesToResponseAsync(appId, FieldId, Files);
+            
+            // If we have a return URL (from partial form), redirect back
+            if (!string.IsNullOrEmpty(ReturnUrl))
             {
-                await SaveUploadedFilesToResponseAsync(appId, FieldId, Files);
-                
-                // If we have a return URL (from partial form), redirect back
-                if (!string.IsNullOrEmpty(ReturnUrl))
-                {
-                    await notificationService.AddSuccessAsync(SuccessMessage, notificationOptions);
-                    return Redirect(ReturnUrl);
-                }
+                await notificationService.AddSuccessAsync(SuccessMessage, notificationOptions);
+                return Redirect(ReturnUrl);
             }
 
             return Page();
@@ -181,6 +208,31 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
             await applicationResponseService.SaveApplicationResponseAsync(appId, data, HttpContext.Session);
 
+        }
+
+        private void StoreModelStateErrorsInSession(string fieldId)
+        {
+            if (!ModelState.IsValid)
+            {
+                var modelStateErrors = new Dictionary<string, List<string>>();
+                
+                foreach (var modelState in ModelState)
+                {
+                    if (modelState.Value.Errors.Count > 0)
+                    {
+                        modelStateErrors[modelState.Key] = modelState.Value.Errors
+                            .Select(e => e.ErrorMessage)
+                            .ToList();
+                    }
+                }
+                
+                if (modelStateErrors.Any())
+                {
+                    var errorKey = $"ModelStateErrors_{fieldId}";
+                    var json = JsonSerializer.Serialize(modelStateErrors);
+                    HttpContext.Session.SetString(errorKey, json);
+                }
+            }
         }
     }
 }
