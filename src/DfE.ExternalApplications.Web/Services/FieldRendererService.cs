@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.ViewEngines;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using System.Diagnostics.CodeAnalysis;
+using Microsoft.AspNetCore.Http;
 
 namespace DfE.ExternalApplications.Web.Services
 {
@@ -33,6 +34,16 @@ namespace DfE.ExternalApplications.Web.Services
             {
                 Model = new FieldViewModel(field, prefix, currentValue, errorMessage)
             };
+            
+            // Pass route parameters to ViewData for use in partial views
+            var routeData = actionContextAccessor.ActionContext.RouteData.Values;
+            viewData["referenceNumber"] = routeData.TryGetValue("referenceNumber", out var refNum) ? refNum : null;
+            viewData["taskId"] = routeData.TryGetValue("taskId", out var taskId) ? taskId : null;
+            viewData["pageId"] = routeData.TryGetValue("pageId", out var pageId) ? pageId : null;
+            
+            // Also pass applicationId from session if available
+            var httpContext = actionContextAccessor.ActionContext.HttpContext;
+            viewData["applicationId"] = httpContext.Session.GetString("ApplicationId");
 
             var tempData = new TempDataDictionary(actionContextAccessor.ActionContext.HttpContext, tempDataProvider);
 
