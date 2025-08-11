@@ -30,13 +30,10 @@
     {
         files = files.ToList();
     }
-
-
-    var pageUrl = httpContext.HttpContext.Request.Path.Value;
 }
 
 @{
-    var currentUrl = httpContext.HttpContext.Request.GetDisplayUrl();
+    var currentUrl = httpContext.HttpContext.Request.Path.Value;
     var referenceNumber = ViewData["referenceNumber"]?.ToString();
     var taskId = ViewData["taskId"]?.ToString();
     var pageId = ViewData["pageId"]?.ToString();
