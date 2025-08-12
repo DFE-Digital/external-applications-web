@@ -26,6 +26,8 @@ locals {
   monitor_email_receivers                      = var.monitor_email_receivers
   container_apps_allow_ips_inbound             = var.container_apps_allow_ips_inbound
   container_health_probe_path                  = var.container_health_probe_path
+  enable_redis_cache                           = var.enable_redis_cache
+  redis_cache_sku                              = var.redis_cache_sku
   monitor_endpoint_healthcheck                 = var.monitor_endpoint_healthcheck
   existing_logic_app_workflow                  = var.existing_logic_app_workflow
   existing_network_watcher_name                = var.existing_network_watcher_name
