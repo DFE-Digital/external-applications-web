@@ -1,6 +1,8 @@
 ﻿const API_BASE = document.querySelector('meta[name="api-base"]')?.content ?? "";
 
 const container = () => document.getElementById('notification-container');
+const unreadBadge = () => document.getElementById('notifications-unread-badge');
+const PAGE_LOAD_AT_MS = Date.now();
 
 function mapTypeToCss(type) {
     const normalize = (val) => {
@@ -95,6 +97,36 @@ window.clearUi = function () {
     cont.innerHTML = '';
 };
 
+async function refreshUnreadCount() {
+    try {
+        const unread = await fetch(`/notifications/unread`, { credentials: 'include' }).then(r => r.ok ? r.json() : []);
+        const count = Array.isArray(unread) ? unread.length : 0;
+        const badge = unreadBadge();
+        if (!badge) return;
+        if (count > 0) {
+            badge.textContent = count > 99 ? '99+' : String(count);
+            // Ensure visual badge even if CSS fails to load
+            badge.style.display = 'inline-flex';
+            badge.style.position = 'absolute';
+            badge.style.top = '-6px';
+            badge.style.right = '-10px';
+            badge.style.minWidth = '18px';
+            badge.style.height = '18px';
+            badge.style.padding = '0 4px';
+            badge.style.borderRadius = '9px';
+            badge.style.backgroundColor = '#d4351c';
+            badge.style.color = '#ffffff';
+            badge.style.fontSize = '12px';
+            badge.style.fontWeight = '700';
+            badge.style.lineHeight = '18px';
+            badge.style.textAlign = 'center';
+        } else {
+            badge.textContent = '';
+            badge.style.display = 'none';
+        }
+    } catch { }
+}
+
 async function ensureHubCookie() {
     const res = await fetch("/internal/hub-ticket", { credentials: "include" });
     if (!res.ok) return;
@@ -128,12 +160,21 @@ async function startHub() {
         setInterval(ensureHubCookie, 8 * 60 * 1000);
 
         await connection.start();
-
-        // Bootstrap unread items via front controller
-        const unread = await fetch(`/notifications/unread`, { credentials: "include" })
-            .then(r => r.ok ? r.json() : [])
-            .catch(() => []);
-        unread.forEach(n => window.renderOrUpdate(n));
+        // Render only notifications that were created very recently (to catch events created during navigation)
+        try {
+            const thresholdMs = 10000; // 10s window
+            const cutoff = PAGE_LOAD_AT_MS - thresholdMs;
+            const unread = await fetch(`/notifications/unread`, { credentials: "include" })
+                .then(r => r.ok ? r.json() : [])
+                .catch(() => []);
+            unread
+                .filter(n => {
+                    const ts = n && n.createdAt ? new Date(n.createdAt).getTime() : 0;
+                    return ts >= cutoff;
+                })
+                .forEach(n => window.renderOrUpdate(n));
+        } catch { }
+        await refreshUnreadCount();
     } catch {
      
     }
@@ -151,9 +192,26 @@ async function dismiss(id) {
         const ok = await fetch(`/notifications/remove/${encodeURIComponent(id)}`, { method: 'POST', credentials: 'include' });
         if (ok?.ok) window.removeFromUi(id);
     } catch { }
+    await refreshUnreadCount();
 }
 
 window.NotificationsApi = {
-    markAllRead: async () => { try { await fetch('/notifications/read-all', { method: 'POST', credentials: 'include' }); } catch { } },
-    clearAll: async () => { try { await fetch('/notifications/clear', { method: 'POST', credentials: 'include' }); } catch { } }
+    markAllRead: async () => { try { await fetch('/notifications/read-all', { method: 'POST', credentials: 'include' }); } finally { await refreshUnreadCount(); } },
+    clearAll: async () => { try { await fetch('/notifications/clear', { method: 'POST', credentials: 'include' }); } finally { await refreshUnreadCount(); } }
 };
+
+// Update badge when hub events occur
+window.addEventListener('DOMContentLoaded', () => {
+    // Slight delay to ensure hub handlers are set
+    setTimeout(() => {
+        try {
+            // Hook into existing handlers by wrapping render/remove/clear
+            const origRender = window.renderOrUpdate;
+            window.renderOrUpdate = function(n) { origRender(n); refreshUnreadCount(); };
+            const origRemove = window.removeFromUi;
+            window.removeFromUi = function(id) { origRemove(id); refreshUnreadCount(); };
+            const origClear = window.clearUi;
+            window.clearUi = function() { origClear(); refreshUnreadCount(); };
+        } catch { }
+    }, 0);
+});

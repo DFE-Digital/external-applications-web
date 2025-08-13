@@ -40,12 +40,31 @@
     <section aria-label="Service information" class="govuk-service-navigation"
              data-module="govuk-service-navigation">
         <div class="govuk-width-container">
-            <div class="govuk-service-navigation__container">
+            <div class="govuk-service-navigation__container app-service-nav-container">
                 <span class="govuk-service-navigation__service-name">
                     <a href="#" class="govuk-service-navigation__link">
                         @Configuration["Layout:ServiceName"]
                     </a>
                 </span>
+                @if (User?.Identity?.IsAuthenticated ?? false)
+                {
+                <nav aria-label="Menu" class="govuk-service-navigation__wrapper app-service-nav-right">
+                    <button type="button" class="govuk-service-navigation__toggle govuk-js-service-navigation-toggle" aria-controls="navigation" hidden>
+                        Menu
+                    </button>
+                    <ul class="govuk-service-navigation__list" id="navigation">
+                        <li class="govuk-service-navigation__item">
+                            <a class="govuk-service-navigation__link app-badge-container" href="/Notifications">
+                                Notifications
+                                <span id="notifications-unread-badge" class="app-notifications-badge" aria-hidden="true"></span>
+                            </a>
+                        </li>
+                        <li class="govuk-service-navigation__item">
+                            <a class="govuk-service-navigation__link" href="/Logout">Log out</a>
+                        </li>
+                    </ul>
+                </nav>
+                }
             </div>
         </div>
     </section>

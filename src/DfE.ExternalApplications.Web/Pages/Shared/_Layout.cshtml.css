@@ -46,3 +46,33 @@ button.accept-policy {
   white-space: nowrap;
   line-height: 60px;
 }
+
+.app-badge-container {
+  position: relative;
+}
+
+.app-notifications-badge {
+  display: none;
+  position: absolute;
+  top: -6px;
+  right: -10px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background-color: #d4351c; /* GOV.UK red */
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+.app-service-nav-right {
+  margin-left: auto;
+}
+
+.app-service-nav-container {
+  display: flex;
+  align-items: center;
+}
