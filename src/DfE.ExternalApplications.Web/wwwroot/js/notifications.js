@@ -3,7 +3,16 @@
 const container = () => document.getElementById('notification-container');
 
 function mapTypeToCss(type) {
-    const t = (type || '').toLowerCase();
+    const normalize = (val) => {
+        if (typeof val === 'number') {
+            const byNumber = { 0: 'success',1: 'error', 2: 'info',  3: 'warning' };
+            return byNumber[val] || 'info';
+        }
+        if (typeof val === 'string') return val.toLowerCase();
+        return 'info';
+    };
+
+    const t = normalize(type);
     if (t === 'error') return { banner: 'error-summary', css: 'govuk-error-summary', title: 'There is a problem' };
     if (t === 'warning') return { banner: 'notification-banner', css: 'govuk-notification-banner--warning', title: 'Warning' };
     if (t === 'success') return { banner: 'notification-banner', css: 'govuk-notification-banner--success', title: 'Success' };

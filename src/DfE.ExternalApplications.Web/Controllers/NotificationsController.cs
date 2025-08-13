@@ -26,6 +26,7 @@ namespace DfE.ExternalApplications.Web.Controllers
         }
 
         [HttpPost("read/{id}")]
+
         public async Task<IActionResult> MarkAsReadAsync([FromRoute] string id, CancellationToken cancellationToken)
         {
             var ok = await notificationsClient.MarkNotificationAsReadAsync(id, cancellationToken);
