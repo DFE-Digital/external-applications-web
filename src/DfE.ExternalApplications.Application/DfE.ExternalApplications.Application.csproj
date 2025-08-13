@@ -8,12 +8,12 @@
 
   <ItemGroup>
     <PackageReference Include="DfE.CoreLibs.Notifications" Version="0.1.0-prerelease-135" />
-    <PackageReference Include="GovUK.Dfe.ExternalApplications.Api.Client" Version="0.1.20" />
     <PackageReference Include="Microsoft.AspNetCore.Http.Features" Version="2.3.0" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Abstractions" Version="2.3.0" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\..\external-applications-api\src\GovUK.Dfe.ExternalApplications.Api.Client\GovUK.Dfe.ExternalApplications.Api.Client.csproj" />
     <ProjectReference Include="..\DfE.ExternalApplications.Domain\DfE.ExternalApplications.Domain.csproj" />
   </ItemGroup>
 

@@ -2,7 +2,10 @@
     Layout = "_GovUkPageTemplate";
     @inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 }
-
+@{
+    var apiBase = (Configuration["ExternalApplicationsApiClient:BaseUrl"] ?? "").TrimEnd('/');
+}
+<meta name="api-base" content="@apiBase" />
 @section Header {
     <header class="govuk-header" data-module="govuk-header">
         <div class="govuk-header__container govuk-width-container">
@@ -135,6 +138,12 @@
 }
 
 @RenderBody()
+
+@* SignalR library *@
+<script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@@8/dist/browser/signalr.min.js" defer></script>
+<script src="~/js/notifications.js" defer></script>
+
+@RenderSection("Scripts", required: false)
 
 @* Add accessible-autocomplete library *@
 <script src="https://cdn.jsdelivr.net/npm/accessible-autocomplete@2.0.4/dist/accessible-autocomplete.min.js"></script>

@@ -124,6 +124,7 @@ builder.Services.AddExternalApplicationsApiClient<ITokensClient, TokensClient>(c
 builder.Services.AddExternalApplicationsApiClient<IUsersClient, UsersClient>(configuration);
 builder.Services.AddExternalApplicationsApiClient<IApplicationsClient, ApplicationsClient>(configuration);
 builder.Services.AddExternalApplicationsApiClient<ITemplatesClient, TemplatesClient>(configuration);
+builder.Services.AddExternalApplicationsApiClient<IHubAuthClient, HubAuthClient>(configuration);
 
 builder.Services.AddGovUkFrontend(options => options.Rebrand = true);
 builder.Services.AddSingleton<IActionContextAccessor, ActionContextAccessor>();
