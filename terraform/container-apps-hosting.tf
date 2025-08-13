@@ -31,6 +31,9 @@ module "azure_container_apps_hosting" {
   health_insights_api_cors_origins       = local.health_insights_api_cors_origins
   health_insights_api_ipv4_allow_list    = local.health_insights_api_ipv4_allow_list
 
+  enable_redis_cache = local.enable_redis_cache
+  redis_cache_sku    = local.redis_cache_sku
+
   enable_monitoring            = local.enable_monitoring
   monitor_email_receivers      = local.monitor_email_receivers
   container_health_probe_path  = local.container_health_probe_path
