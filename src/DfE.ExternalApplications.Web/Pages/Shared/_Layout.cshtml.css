@@ -49,23 +49,24 @@ button.accept-policy {
 
 .app-badge-container {
   position: relative;
+  display: inline-block;
 }
 
 .app-notifications-badge {
   display: none;
   position: absolute;
-  top: -6px;
-  right: -10px;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 4px;
-  border-radius: 9px;
+  top: -8px;
+  right: -12px;
+  width: 24px;
+  height: 24px;
+  border-radius: 12px;
   background-color: #d4351c; /* GOV.UK red */
   color: #ffffff;
   font-size: 12px;
   font-weight: 700;
-  line-height: 18px;
+  line-height: 24px;
   text-align: center;
+  z-index: 2;
 }
 
 .app-service-nav-right {

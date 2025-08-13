@@ -105,21 +105,21 @@ async function refreshUnreadCount() {
         if (!badge) return;
         if (count > 0) {
             badge.textContent = count > 99 ? '99+' : String(count);
-            // Ensure visual badge even if CSS fails to load
-            badge.style.display = 'inline-flex';
+            // Ensure visual badge even if CSS fails to load (24x24 circle)
+            badge.style.display = 'inline-block';
             badge.style.position = 'absolute';
-            badge.style.top = '-6px';
-            badge.style.right = '-10px';
-            badge.style.minWidth = '18px';
-            badge.style.height = '18px';
-            badge.style.padding = '0 4px';
-            badge.style.borderRadius = '9px';
+            badge.style.top = '-8px';
+            badge.style.right = '-12px';
+            badge.style.width = '24px';
+            badge.style.height = '24px';
+            badge.style.borderRadius = '12px';
             badge.style.backgroundColor = '#d4351c';
             badge.style.color = '#ffffff';
             badge.style.fontSize = '12px';
             badge.style.fontWeight = '700';
-            badge.style.lineHeight = '18px';
+            badge.style.lineHeight = '24px';
             badge.style.textAlign = 'center';
+            badge.style.zIndex = '2';
         } else {
             badge.textContent = '';
             badge.style.display = 'none';
