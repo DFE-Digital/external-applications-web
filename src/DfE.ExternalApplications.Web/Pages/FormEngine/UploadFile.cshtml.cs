@@ -1,13 +1,12 @@
+using DfE.CoreLibs.Contracts.ExternalApplications.Enums;
+using DfE.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using DfE.ExternalApplications.Application.Interfaces;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Text.Json;
-using DfE.CoreLibs.Contracts.ExternalApplications.Enums;
-using DfE.CoreLibs.Contracts.ExternalApplications.Models.Request;
-using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
-using Microsoft.AspNetCore.Mvc.Filters;
 
 namespace DfE.ExternalApplications.Web.Pages.FormEngine
 {
@@ -43,7 +42,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 Category = "file-upload",
                 Context = FieldId,
                 Type = NotificationType.Success,
-                AutoDismiss = true,
+                AutoDismiss = false,
                 AutoDismissSeconds = 5
             };
 
@@ -119,7 +118,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 Category = "file-upload",
                 Context = FieldId,
                 Type = NotificationType.Success,
-                AutoDismiss = true,
+                AutoDismiss = false,
                 AutoDismissSeconds = 5
             };
 
