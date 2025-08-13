@@ -23,7 +23,7 @@ using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using System.Diagnostics.CodeAnalysis;
-using DfE.CoreLibs.Notifications.Extensions;
+ 
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -125,6 +125,7 @@ builder.Services.AddExternalApplicationsApiClient<IUsersClient, UsersClient>(con
 builder.Services.AddExternalApplicationsApiClient<IApplicationsClient, ApplicationsClient>(configuration);
 builder.Services.AddExternalApplicationsApiClient<ITemplatesClient, TemplatesClient>(configuration);
 builder.Services.AddExternalApplicationsApiClient<IHubAuthClient, HubAuthClient>(configuration);
+builder.Services.AddExternalApplicationsApiClient<INotificationsClient, NotificationsClient>(configuration);
 
 builder.Services.AddGovUkFrontend(options => options.Rebrand = true);
 builder.Services.AddSingleton<IActionContextAccessor, ActionContextAccessor>();
@@ -147,7 +148,7 @@ builder.Services.AddScoped<IComplexFieldRenderer, UploadComplexFieldRenderer>();
 
 builder.Services.AddSingleton<ITemplateStore, ApiTemplateStore>();
 
-builder.Services.AddNotificationServices();
+ 
 
 // Add test token handler and services when test authentication is enabled
 if (isTestAuthEnabled)

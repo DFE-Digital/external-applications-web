@@ -1,151 +1,25 @@
-@using DfE.CoreLibs.Notifications.Interfaces
-@using DfE.CoreLibs.Notifications.Models
-@using DfE.ExternalApplications.Domain.Models
-@using Notification = DfE.CoreLibs.Notifications.Models.Notification
-@inject INotificationService NotificationService
-@{
-    // Handle dismiss notification request (works without JavaScript)
-    var dismissNotificationId = Context.Request.Query["dismissNotification"].FirstOrDefault();
-    if (!string.IsNullOrEmpty(dismissNotificationId))
-    {
-        await NotificationService.RemoveNotificationAsync(dismissNotificationId);
-        // Redirect to remove the query parameter from URL
-        var currentUrl = Context.Request.Path.Value;
-        Context.Response.Redirect(currentUrl);
-        return;
+<div id="notification-container" class="govuk-!-margin-bottom-4"></div>
+
+<style>
+    .notification-item {
+        position: relative;
+        margin-bottom: 20px;
     }
-    
-    var notifications = await NotificationService.GetUnreadNotificationsAsync();
-}
-
-@{
-    var enumerable = notifications as Notification[] ?? notifications.ToArray();
-}
-@if (enumerable.Any())
-{
-    <div id="notification-container">
-        @foreach (var notification in enumerable)
-        {
-            var cssClass = notification.Type switch
-            {
-                NotificationType.Success => "govuk-notification-banner--success",
-                NotificationType.Error => "govuk-error-summary",
-                NotificationType.Warning => "govuk-notification-banner--warning", 
-                NotificationType.Info => "govuk-notification-banner",
-                _ => "govuk-notification-banner"
-            };
-
-            var bannerType = notification.Type == NotificationType.Error ? "error-summary" : "notification-banner";
-            
-            <div id="notification-@notification.Id" 
-                 class="govuk-@bannerType @cssClass notification-item" 
-                 role="alert" 
-                 data-module="govuk-@bannerType"
-                 data-notification-id="@notification.Id"
-                 data-auto-dismiss="@notification.AutoDismiss.ToString().ToLower()"
-                 data-auto-dismiss-seconds="@notification.AutoDismissSeconds">
-                
-                @if (notification.Type == NotificationType.Error)
-                {
-                    <div role="alert">
-                        <h2 class="govuk-error-summary__title">There is a problem</h2>
-                        <div class="govuk-error-summary__body">
-                            <p class="govuk-body">@notification.Message</p>
-                        </div>
-                    </div>
-                }
-                else
-                {
-                    <div class="govuk-notification-banner__header">
-                        <h2 class="govuk-notification-banner__title" id="govuk-notification-banner-title">
-                            @(notification.Type == NotificationType.Success ? "Success" : 
-                              notification.Type == NotificationType.Warning ? "Warning" : "Information")
-                        </h2>
-                    </div>
-                    <div class="govuk-notification-banner__content">
-                        <p class="govuk-notification-banner__heading">@notification.Message</p>
-                    </div>
-                }
-                
-                <!-- Close button - works without JavaScript via URL navigation -->
-                <a href="?dismissNotification=@notification.Id" 
-                   class="notification-close-btn" 
-                   style="position: absolute; top: 10px; right: 10px; background: none; border: none; font-size: 18px; cursor: pointer; color: #505a5f; padding: 5px; text-decoration: none; display: inline-block; width: 30px; height: 30px; line-height: 20px; text-align: center;"
-                   aria-label="Close notification"
-                   title="Close notification"
-                   onclick="event.preventDefault(); dismissNotification('@notification.Id'); return false;">
-                    ×
-                </a>
-            </div>
-        }
-    </div>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Auto-dismiss notifications (only with JavaScript)
-            const notifications = document.querySelectorAll('.notification-item[data-auto-dismiss="true"]');
-            notifications.forEach(function(notification) {
-                const seconds = parseInt(notification.getAttribute('data-auto-dismiss-seconds')) || 5;
-                const notificationId = notification.getAttribute('data-notification-id');
-                
-                setTimeout(function() {
-                    dismissNotification(notificationId);
-                }, seconds * 1000);
-            });
-        });
-
-        // Function to dismiss notifications with animation (JavaScript only)
-        // Note: The onclick handler in the HTML prevents the link navigation when JS is enabled
-        function dismissNotification(notificationId) {
-            const notification = document.getElementById('notification-' + notificationId);
-            if (notification) {
-                // Fade out animation
-                notification.style.transition = 'opacity 0.3s ease-out';
-                notification.style.opacity = '0';
-                
-                setTimeout(function() {
-                    notification.remove();
-                }, 300);
-            }
-        }
-    </script>
-
-    <style>
-        .notification-item {
-            position: relative;
-            margin-bottom: 20px;
-        }
-
-        .notification-close-btn:hover {
-            background-color: rgba(0, 0, 0, 0.1) !important;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-        }
-
-        .govuk-notification-banner--warning {
-            border-color: #ffdd00;
-        }
-
-        .govuk-notification-banner--warning .govuk-notification-banner__header {
-            background-color: #ffdd00;
-            color: #0b0c0c;
-        }
-
-        #notification-container {
-            width: 100%;
-            margin-bottom: 30px;
-        }
-    </style>
-}
-
-@{
-    // Mark all displayed notifications as read immediately since they've been shown
-    if (enumerable.Any())
-    {
-        foreach (var notification in enumerable)
-        {
-            await NotificationService.MarkAsReadAsync(notification.Id);
-        }
+    .notification-close-btn:hover {
+        background-color: rgba(0, 0, 0, 0.1) !important;
+        border-radius: 50%;
+        width: 30px;
+        height: 30px;
     }
-}
+    .govuk-notification-banner--warning {
+        border-color: #ffdd00;
+    }
+    .govuk-notification-banner--warning .govuk-notification-banner__header {
+        background-color: #ffdd00;
+        color: #0b0c0c;
+    }
+    #notification-container {
+        width: 100%;
+        margin-bottom: 30px;
+    }
+</style>

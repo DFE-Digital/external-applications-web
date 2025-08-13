@@ -4,8 +4,9 @@ using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Text.Json;
-using DfE.CoreLibs.Notifications.Interfaces;
-using DfE.CoreLibs.Notifications.Models;
+using DfE.CoreLibs.Contracts.ExternalApplications.Enums;
+using DfE.CoreLibs.Contracts.ExternalApplications.Models.Request;
+using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using Microsoft.AspNetCore.Mvc.Filters;
 
 namespace DfE.ExternalApplications.Web.Pages.FormEngine
@@ -13,7 +14,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
     public class UploadFileModel(
         IFileUploadService fileUploadService,
         IApplicationResponseService applicationResponseService,
-        INotificationService notificationService)
+        INotificationsClient notificationsClient)
         : PageModel
     {
         [BindProperty(SupportsGet = true)] public string ApplicationId { get; set; }
@@ -36,10 +37,14 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         public async Task<IActionResult> OnPostUploadFileAsync()
         {
-            var notificationOptions = new NotificationOptions
+            var addRequest = new AddNotificationRequest
             {
+                Message = string.Empty, // set later when known
+                Category = "file-upload",
                 Context = FieldId,
-                Category = "file-upload"
+                Type = NotificationType.Success,
+                AutoDismiss = true,
+                AutoDismissSeconds = 5
             };
 
             if (!Guid.TryParse(ApplicationId, out var appId))
@@ -81,7 +86,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             // If we have a return URL (from partial form), redirect back
             if (!string.IsNullOrEmpty(ReturnUrl))
             {
-                await notificationService.AddSuccessAsync(SuccessMessage, notificationOptions);
+                addRequest.Message = SuccessMessage;
+                await notificationsClient.CreateNotificationAsync(addRequest);
                 return Redirect(ReturnUrl);
             }
 
@@ -107,10 +113,14 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         public async Task<IActionResult> OnPostDeleteFileAsync()
         {
-            var notificationOptions = new NotificationOptions
+            var addRequest = new AddNotificationRequest
             {
+                Message = string.Empty,
+                Category = "file-upload",
                 Context = FieldId,
-                Category = "file-upload"
+                Type = NotificationType.Success,
+                AutoDismiss = true,
+                AutoDismissSeconds = 5
             };
 
             if (!Guid.TryParse(ApplicationId, out var appId))
@@ -148,7 +158,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             // If we have a return URL (from partial form), redirect back
             if (!string.IsNullOrEmpty(ReturnUrl))
             {
-                await notificationService.AddSuccessAsync(SuccessMessage, notificationOptions);
+                addRequest.Message = SuccessMessage;
+                await notificationsClient.CreateNotificationAsync(addRequest);
                 return Redirect(ReturnUrl);
             }
 

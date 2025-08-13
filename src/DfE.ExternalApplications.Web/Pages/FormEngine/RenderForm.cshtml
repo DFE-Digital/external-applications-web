@@ -29,8 +29,6 @@
         <input type="hidden" asp-for="CurrentPageId" />
         <govuk-back-link href="/applications/@Model.ReferenceNumber/@Model.TaskId/summary">Back</govuk-back-link>
         
-        @* Notification Display *@
-        @await Html.PartialAsync("_NotificationDisplay")
         
         <h1 class="govuk-heading-xl govuk-!-margin-bottom-6">@Model.CurrentTask.TaskName</h1>
 
