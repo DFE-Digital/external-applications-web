@@ -3,10 +3,10 @@
 @{
     var maxLengthRule = Model.Field.Validations?.Where(v => v.Type == "maxLength").FirstOrDefault()?.Rule.ToString();
     int.TryParse(maxLengthRule, out var maxLengthValue);
-    var labelClasses = Model.Field.Label.Value == String.Empty ? "govuk-visually-hidden" : "";
+    var labelClasses = Model.Field.Label.IsVisible ? "" : "govuk-visually-hidden";
 }
 <govuk-character-count id="@Model.Id" name="Data[@Model.Field.FieldId]" max-length="@maxLengthValue">
-    <govuk-character-count-label>@Model.Field.Label.Value</govuk-character-count-label>
+    <govuk-character-count-label class="@labelClasses" asp-for="@Model.Field.FieldId">@Model.Field.Label</govuk-character-count-label>
     <govuk-character-count-hint>@Model.Field.Tooltip</govuk-character-count-hint>
     @if (Model.ErrorMessage != String.Empty)
     {

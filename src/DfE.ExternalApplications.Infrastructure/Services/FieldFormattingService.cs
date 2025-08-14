@@ -251,7 +251,11 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                 if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
                 {
                     var first = doc.RootElement[0];
-                    return first.ValueKind == JsonValueKind.Object && first.TryGetProperty("OriginalFileName", out _);
+                    // Check for upload file properties - either OriginalFileName or Name with file-like properties
+                    return first.ValueKind == JsonValueKind.Object && 
+                           (first.TryGetProperty("originalFileName", out _) || 
+                            (first.TryGetProperty("name", out _) && 
+                             (first.TryGetProperty("fileSize", out _) || first.TryGetProperty("id", out _))));
                 }
             }
             catch
@@ -270,7 +274,15 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                 if (doc.RootElement.ValueKind == JsonValueKind.Array)
                 {
                     var names = doc.RootElement.EnumerateArray()
-                        .Select(e => e.TryGetProperty("OriginalFileName", out var n) ? n.GetString() ?? string.Empty : string.Empty)
+                        .Select(e => 
+                        {
+                            // Try OriginalFileName first, then fall back to Name if OriginalFileName doesn't exist
+                            if (e.TryGetProperty("originalFileName", out var originalFileName))
+                                return originalFileName.GetString() ?? string.Empty;
+                            if (e.TryGetProperty("name", out var name))
+                                return name.GetString() ?? string.Empty;
+                            return string.Empty;
+                        })
                         .Where(n => !string.IsNullOrEmpty(n));
                     return string.Join("<br />", names);
                 }
@@ -290,7 +302,15 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                 if (doc.RootElement.ValueKind == JsonValueKind.Array)
                 {
                     var names = doc.RootElement.EnumerateArray()
-                        .Select(e => e.TryGetProperty("OriginalFileName", out var n) ? n.GetString() ?? string.Empty : string.Empty)
+                        .Select(e => 
+                        {
+                            // Try OriginalFileName first, then fall back to Name if OriginalFileName doesn't exist
+                            if (e.TryGetProperty("originalFileName", out var originalFileName))
+                                return originalFileName.GetString() ?? string.Empty;
+                            if (e.TryGetProperty("name", out var name))
+                                return name.GetString() ?? string.Empty;
+                            return string.Empty;
+                        })
                         .Where(n => !string.IsNullOrEmpty(n))
                         .ToList();
                     return names;

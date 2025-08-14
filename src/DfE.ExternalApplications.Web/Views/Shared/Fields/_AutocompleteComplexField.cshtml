@@ -8,9 +8,9 @@
 @{
     var isRequired = Model.Field.Required ?? true;
     var validationAttributes = new HtmlString(Model.ValidationAttributes);
-    var labelClasses = "govuk-label" + (Model.Field.Label.IsPageHeading ? " govuk-label--l" : "");
+    var labelClasses = Model.Field.Label.IsVisible ? "govuk-label" : "govuk-visually-hidden";
     var label = Model.Field.Label.Value;
-
+    
     // Get the complex field ID from the ComplexField object
     var complexFieldId = Model.Field.ComplexField?.Id ?? "";
     

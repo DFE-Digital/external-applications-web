@@ -4,12 +4,15 @@ using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Text.Json;
+using DfE.CoreLibs.Notifications.Interfaces;
+using DfE.CoreLibs.Notifications.Models;
 
 namespace DfE.ExternalApplications.Web.Pages.FormEngine
 {
     public class UploadFileModel(
         IFileUploadService fileUploadService,
-        IApplicationResponseService applicationResponseService)
+        IApplicationResponseService applicationResponseService,
+        INotificationService notificationService)
         : PageModel
     {
         [BindProperty(SupportsGet = true)] public string ApplicationId { get; set; }
@@ -17,6 +20,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         [BindProperty(SupportsGet = true, Name = "referenceNumber")] public string ReferenceNumber { get; set; }
         [BindProperty(SupportsGet = true, Name = "taskId")] public string TaskId { get; set; }
         [BindProperty(SupportsGet = true, Name = "pageId")] public string CurrentPageId { get; set; }
+        [BindProperty] public string ReturnUrl { get; set; }
         public IReadOnlyList<UploadDto> Files { get; set; } = new List<UploadDto>();
         public string SuccessMessage { get; set; }
         public string ErrorMessage { get; set; }
@@ -31,6 +35,12 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         public async Task<IActionResult> OnPostUploadFileAsync()
         {
+            var notificationOptions = new NotificationOptions
+            {
+                Context = FieldId,
+                Category = "file-upload"
+            };
+
             if (!Guid.TryParse(ApplicationId, out var appId))
                 return NotFound();
             var file = Request.Form.Files["UploadFile"];
@@ -56,6 +66,22 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             if (string.IsNullOrEmpty(ErrorMessage))
             {
                 await SaveUploadedFilesToResponseAsync(appId, FieldId, Files);
+                
+                // If we have a return URL (from partial form), redirect back
+                if (!string.IsNullOrEmpty(ReturnUrl))
+                {
+                    await notificationService.AddSuccessAsync(SuccessMessage, notificationOptions);
+                    return Redirect(ReturnUrl);
+                }
+            }
+            else
+            {
+                // If there's an error and we have a return URL, redirect back with error
+                if (!string.IsNullOrEmpty(ReturnUrl))
+                {
+                    await notificationService.AddErrorAsync(ErrorMessage, notificationOptions);
+                    return Redirect(ReturnUrl);
+                }
             }
 
             return Page();
@@ -63,6 +89,12 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         public async Task<IActionResult> OnPostDeleteFileAsync()
         {
+            var notificationOptions = new NotificationOptions
+            {
+                Context = FieldId,
+                Category = "file-upload"
+            };
+
             if (!Guid.TryParse(ApplicationId, out var appId))
                 return NotFound();
             var fileIdStr = Request.Form["FileId"].ToString();
@@ -84,6 +116,13 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             if (string.IsNullOrEmpty(ErrorMessage))
             {
                 await SaveUploadedFilesToResponseAsync(appId, FieldId, Files);
+                
+                // If we have a return URL (from partial form), redirect back
+                if (!string.IsNullOrEmpty(ReturnUrl))
+                {
+                    await notificationService.AddSuccessAsync(SuccessMessage, notificationOptions);
+                    return Redirect(ReturnUrl);
+                }
             }
 
             return Page();
