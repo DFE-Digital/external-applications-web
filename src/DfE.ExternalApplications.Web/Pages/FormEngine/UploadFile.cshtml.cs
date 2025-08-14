@@ -40,7 +40,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             {
                 Message = string.Empty, // set later when known
                 Category = "file-upload",
-                Context = FieldId,
+                Context = FieldId + "FileUpload",
                 Type = NotificationType.Success,
                 AutoDismiss = false,
                 AutoDismissSeconds = 5
@@ -116,7 +116,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             {
                 Message = string.Empty,
                 Category = "file-upload",
-                Context = FieldId,
+                Context = FieldId + "FileDeletion",
                 Type = NotificationType.Success,
                 AutoDismiss = false,
                 AutoDismissSeconds = 5
