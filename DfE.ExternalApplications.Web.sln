@@ -11,8 +11,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DfE.ExternalApplications.Ap
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DfE.ExternalApplications.Infrastructure", "src\DfE.ExternalApplications.Infrastructure\DfE.ExternalApplications.Infrastructure.csproj", "{72352B4A-6C2E-4800-B7E1-0B5E3111FE93}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GovUK.Dfe.ExternalApplications.Api.Client", "..\external-applications-api\src\GovUK.Dfe.ExternalApplications.Api.Client\GovUK.Dfe.ExternalApplications.Api.Client.csproj", "{A69FA518-49E8-409B-BD97-304E9E7282FA}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -35,10 +33,6 @@ Global
 		{72352B4A-6C2E-4800-B7E1-0B5E3111FE93}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{72352B4A-6C2E-4800-B7E1-0B5E3111FE93}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{72352B4A-6C2E-4800-B7E1-0B5E3111FE93}.Release|Any CPU.Build.0 = Release|Any CPU
-		{A69FA518-49E8-409B-BD97-304E9E7282FA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{A69FA518-49E8-409B-BD97-304E9E7282FA}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{A69FA518-49E8-409B-BD97-304E9E7282FA}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{A69FA518-49E8-409B-BD97-304E9E7282FA}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
