@@ -74,7 +74,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
             using var stream = file.OpenReadStream();
             var fileParam = new FileParameter(stream, file.FileName, file.ContentType);
-            await fileUploadService.UploadFileAsync(appId, name, description, fileParam);
+            await fileUploadService.UploadFileAsync(appId, null, description, fileParam);
             SuccessMessage = $"Your file '{file.FileName}' uploaded.";
 
             Files = await fileUploadService.GetFilesForApplicationAsync(appId);
