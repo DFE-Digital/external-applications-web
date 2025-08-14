@@ -3,6 +3,7 @@ using DfE.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using DfE.ExternalApplications.Application.Interfaces;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
+using DfE.ExternalApplications.Web.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -13,7 +14,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
     public class UploadFileModel(
         IFileUploadService fileUploadService,
         IApplicationResponseService applicationResponseService,
-        INotificationsClient notificationsClient)
+        INotificationsClient notificationsClient,
+        IFormErrorStore formErrorStore)
         : PageModel
     {
         [BindProperty(SupportsGet = true)] public string ApplicationId { get; set; }
@@ -54,14 +56,13 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             if (file == null || file.Length == 0)
             {
                 ErrorMessage = "Please select a file to upload.";
-                
-                // Store error in session for the partial to access
-                var errorKey = $"UploadError_{FieldId}";
-                HttpContext.Session.SetString(errorKey, ErrorMessage);
-                
-                // Store ModelState errors in session if any exist
-                StoreModelStateErrorsInSession(FieldId);
-                
+                ModelState.AddModelError("UploadFile", ErrorMessage);
+                if (!string.IsNullOrEmpty(FieldId))
+                {
+                    // Persist field-level errors only to avoid duplicate summary lines
+                    formErrorStore.Save(FieldId, ModelState);
+                }
+
                 // If we have a return URL, redirect back with error
                 if (!string.IsNullOrEmpty(ReturnUrl))
                 {
@@ -74,7 +75,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
             using var stream = file.OpenReadStream();
             var fileParam = new FileParameter(stream, file.FileName, file.ContentType);
-            await fileUploadService.UploadFileAsync(appId, null, description, fileParam);
+            await fileUploadService.UploadFileAsync(appId, file.FileName, description, fileParam);
             SuccessMessage = $"Your file '{file.FileName}' uploaded.";
 
             Files = await fileUploadService.GetFilesForApplicationAsync(appId);
@@ -97,10 +98,10 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         {
             base.OnPageHandlerExecuted(context);
             
-            // If there are ModelState errors (from the filter), store them in session
+            // If there are ModelState errors (from the filter), persist them via the error store
             if (!ModelState.IsValid && !string.IsNullOrEmpty(FieldId))
             {
-                StoreModelStateErrorsInSession(FieldId);
+                formErrorStore.Save(FieldId, ModelState);
                 
                 // If we have a return URL, redirect back with errors
                 if (!string.IsNullOrEmpty(ReturnUrl))
@@ -128,13 +129,10 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             if (!Guid.TryParse(fileIdStr, out var fileId))
             {
                 ErrorMessage = "Invalid file ID.";
-                
-                // Store error in session for the partial to access
-                var errorKey = $"UploadError_{FieldId}";
-                HttpContext.Session.SetString(errorKey, ErrorMessage);
-                
-                // Store ModelState errors in session if any exist
-                StoreModelStateErrorsInSession(FieldId);
+                if (!string.IsNullOrEmpty(FieldId))
+                {
+                    formErrorStore.Save(FieldId, ModelState, ErrorMessage);
+                }
                 
                 // If we have a return URL, redirect back with error
                 if (!string.IsNullOrEmpty(ReturnUrl))
@@ -220,29 +218,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         }
 
-        private void StoreModelStateErrorsInSession(string fieldId)
-        {
-            if (!ModelState.IsValid)
-            {
-                var modelStateErrors = new Dictionary<string, List<string>>();
-                
-                foreach (var modelState in ModelState)
-                {
-                    if (modelState.Value.Errors.Count > 0)
-                    {
-                        modelStateErrors[modelState.Key] = modelState.Value.Errors
-                            .Select(e => e.ErrorMessage)
-                            .ToList();
-                    }
-                }
-                
-                if (modelStateErrors.Any())
-                {
-                    var errorKey = $"ModelStateErrors_{fieldId}";
-                    var json = JsonSerializer.Serialize(modelStateErrors);
-                    HttpContext.Session.SetString(errorKey, json);
-                }
-            }
-        }
+        // legacy method removed in favour of IFormErrorStore
     }
 }

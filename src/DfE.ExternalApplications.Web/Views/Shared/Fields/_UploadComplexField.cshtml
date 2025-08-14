@@ -1,11 +1,11 @@
-@using System.Collections
-@using System.Text.Json
 @using DfE.ExternalApplications.Web.Services
 @using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response
 @inject IHttpContextAccessor httpContext;
+@inject DfE.ExternalApplications.Web.Interfaces.IFormErrorStore FormErrorStore
 @using Microsoft.AspNetCore.Http.Extensions
 @using Microsoft.AspNetCore.Http
 @using System.Linq
+@using System.Text.Json
 @model FieldViewModel
 @{
     var applicationId = ViewData["applicationId"] as string ?? Context.Session.GetString("ApplicationId");
@@ -43,68 +43,17 @@
     // Create summary page URL for the Continue button
     var summaryUrl = $"/applications/{referenceNumber}/{taskId}/summary";
 }
+@* Rehydrate ModelState from the error store and render govuk summary *@
 @{
-    // Check for upload errors stored in session
-    var uploadErrorKey = $"UploadError_{fieldId}";
-    var uploadError = Context.Session.GetString(uploadErrorKey);
-
-    var modelStateErrorsKey = $"ModelStateErrors_{fieldId}";
-    var modelStateErrorsJson = Context.Session.GetString(modelStateErrorsKey);
-    var modelStateErrors = new Dictionary<string, List<string>>();
-
-    if (!string.IsNullOrEmpty(modelStateErrorsJson))
-    {
-        try
-        {
-            modelStateErrors = JsonSerializer.Deserialize<Dictionary<string, List<string>>>(modelStateErrorsJson) ?? new Dictionary<string, List<string>>();
-        }
-        catch
-        {
-            modelStateErrors = new Dictionary<string, List<string>>();
-        }
-    }
-
-    if (modelStateErrors.Any())
-    {
-        foreach (var error in modelStateErrors)
-        {
-            foreach (var message in error.Value)
-            {
-                ViewData.ModelState.AddModelError(error.Key, message);
-            }
-        }
-    }
+    var (fieldErrors, general) = FormErrorStore.Load(fieldId);
+    foreach (var kv in fieldErrors)
+        foreach (var msg in kv.Value)
+            ViewData.ModelState.AddModelError(kv.Key, msg);
+    // Only add a general error if there were no field-level messages, to avoid duplication in the summary
+    if (!string.IsNullOrWhiteSpace(general) && !fieldErrors.SelectMany(k => k.Value).Any())
+        ViewData.ModelState.AddModelError("Error", general);
 }
-
-<govuk-error-summary>
-    @if (!ViewData.ModelState.IsValid)
-    {
-        @foreach (var modelError in ViewData.ModelState.Where(x => x.Value.Errors.Count > 0))
-        {
-            @foreach (var error in modelError.Value.Errors)
-            {
-                <govuk-error-summary-item>
-                    @error.ErrorMessage
-                </govuk-error-summary-item>
-            }
-        }
-    }
-</govuk-error-summary>
-@if (!string.IsNullOrEmpty(uploadError))
-{
-    <govuk-error-summary>
-        <govuk-error-summary-item>
-            @uploadError
-        </govuk-error-summary-item>
-    </govuk-error-summary>
-    
-    Context.Session.Remove(uploadErrorKey);
-}
-
-@if (!string.IsNullOrEmpty(modelStateErrorsJson))
-{
-    Context.Session.Remove(modelStateErrorsKey);
-}
+@await Html.PartialAsync("/Pages/Shared/_ErrorSummaryModelState.cshtml")
 
 <h3 class="govuk-heading-m">@Model.Field.Label.Value</h3>
 
@@ -122,18 +71,12 @@
     <input type="hidden" name="UploadName" value="FileName" />
     <input type="hidden" name="UploadDescription" value="FileDescription" />
     
-    <div class="govuk-form-group @(string.IsNullOrEmpty(uploadError) && !ViewData.ModelState.Any(x => x.Value.Errors.Count > 0) ? "" : "govuk-form-group--error")">
-        <input class="govuk-file-upload @(string.IsNullOrEmpty(uploadError) && !ViewData.ModelState.Any(x => x.Value.Errors.Count > 0) ? "" : "govuk-file-upload--error")" 
+    <div class="govuk-form-group @(ViewData.ModelState.Any(x => x.Value.Errors.Count > 0) ? "govuk-form-group--error" : "")">
+        <input class="govuk-file-upload @(ViewData.ModelState.Any(x => x.Value.Errors.Count > 0) ? "govuk-file-upload--error" : "")" 
                id="upload-file-@fieldId" 
                name="UploadFile" 
                type="file" 
                required />
-        @if (!string.IsNullOrEmpty(uploadError))
-        {
-            <govuk-error-message>
-                @uploadError
-            </govuk-error-message>
-        }
         @if (ViewData.ModelState.Any(x => x.Value.Errors.Count > 0))
         {
             <govuk-error-message>

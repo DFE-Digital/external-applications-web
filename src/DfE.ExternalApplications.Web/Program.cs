@@ -13,6 +13,7 @@ using DfE.ExternalApplications.Web.Filters;
 using DfE.ExternalApplications.Web.Middleware;
 using DfE.ExternalApplications.Web.Security;
 using DfE.ExternalApplications.Web.Services;
+using DfE.ExternalApplications.Web.Interfaces;
 using GovUk.Frontend.AspNetCore;
 using GovUK.Dfe.ExternalApplications.Api.Client;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
@@ -68,7 +69,10 @@ builder.Services.AddRazorPages(options =>
 });
 
 // Add controllers for API endpoints
-builder.Services.AddControllers();
+builder.Services.AddControllers(options =>
+{
+    options.Filters.Add<ExternalApiMvcExceptionFilter>();
+});
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddDistributedMemoryCache();
@@ -131,6 +135,7 @@ builder.Services.AddGovUkFrontend(options => options.Rebrand = true);
 builder.Services.AddSingleton<IActionContextAccessor, ActionContextAccessor>();
 builder.Services.AddScoped<IHtmlHelper, HtmlHelper>();
 builder.Services.AddScoped<IFieldRendererService, FieldRendererService>();
+builder.Services.AddScoped<IFormErrorStore, FormErrorStore>();
 builder.Services.AddScoped<IApplicationResponseService, ApplicationResponseService>();
 
 // New refactored services for Clean Architecture
