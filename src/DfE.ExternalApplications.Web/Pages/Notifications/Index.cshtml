@@ -24,6 +24,10 @@
 <script>
     (function () {
         const tbody = document.getElementById('notifications-tbody');
+        const antiForgeryToken = () => {
+            const input = document.querySelector('input[name="__RequestVerificationToken"]');
+            return input ? input.value : '';
+        };
 
         const mapTypeTag = (type) => {
             const normalize = (val) => {
@@ -50,7 +54,11 @@
             tr.querySelector('a').onclick = async (e) => {
                 e.preventDefault();
                 const id = e.currentTarget.getAttribute('data-id');
-                await fetch(`/notifications/remove/${encodeURIComponent(id)}`, { method: 'POST', credentials: 'include' });
+                await fetch(`/notifications/remove/${encodeURIComponent(id)}`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'RequestVerificationToken': antiForgeryToken() }
+                });
                 tr.remove();
             };
             return tr;
@@ -63,10 +71,18 @@
         }
 
         document.getElementById('btn-mark-all-read').onclick = async () => {
-            await fetch('/notifications/read-all', { method: 'POST', credentials: 'include' });
+            await fetch('/notifications/read-all', {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'RequestVerificationToken': antiForgeryToken() }
+            });
         };
         document.getElementById('btn-clear-all').onclick = async () => {
-            await fetch('/notifications/clear', { method: 'POST', credentials: 'include' });
+            await fetch('/notifications/clear', {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'RequestVerificationToken': antiForgeryToken() }
+            });
             await loadAll();
         };
 

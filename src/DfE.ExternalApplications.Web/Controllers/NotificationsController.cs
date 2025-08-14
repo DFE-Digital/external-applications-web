@@ -25,14 +25,15 @@ namespace DfE.ExternalApplications.Web.Controllers
             return Ok(items);
         }
 
+        [ValidateAntiForgeryToken]
         [HttpPost("read/{id}")]
-
         public async Task<IActionResult> MarkAsReadAsync([FromRoute] string id, CancellationToken cancellationToken)
         {
             var ok = await notificationsClient.MarkNotificationAsReadAsync(id, cancellationToken);
             return ok ? Ok() : Problem(statusCode: 500);
         }
 
+        [ValidateAntiForgeryToken]
         [HttpPost("read-all")]
         public async Task<IActionResult> MarkAllAsReadAsync(CancellationToken cancellationToken)
         {
@@ -40,6 +41,7 @@ namespace DfE.ExternalApplications.Web.Controllers
             return ok ? Ok() : Problem(statusCode: 500);
         }
 
+        [ValidateAntiForgeryToken]
         [HttpPost("remove/{id}")]
         public async Task<IActionResult> RemoveAsync([FromRoute] string id, CancellationToken cancellationToken)
         {
@@ -47,6 +49,7 @@ namespace DfE.ExternalApplications.Web.Controllers
             return ok ? Ok() : Problem(statusCode: 500);
         }
 
+        [ValidateAntiForgeryToken]
         [HttpPost("clear")]
         public async Task<IActionResult> ClearAllAsync(CancellationToken cancellationToken)
         {
@@ -54,6 +57,7 @@ namespace DfE.ExternalApplications.Web.Controllers
             return ok ? Ok() : Problem(statusCode: 500);
         }
 
+        [ValidateAntiForgeryToken]
         [HttpPost("create")]
         public async Task<ActionResult<NotificationDto>> CreateAsync([FromBody] AddNotificationRequest request, CancellationToken cancellationToken)
         {

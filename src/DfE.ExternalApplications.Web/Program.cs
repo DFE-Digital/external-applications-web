@@ -14,6 +14,8 @@ using DfE.ExternalApplications.Web.Middleware;
 using DfE.ExternalApplications.Web.Security;
 using DfE.ExternalApplications.Web.Services;
 using DfE.ExternalApplications.Web.Interfaces;
+using DfE.ExternalApplications.Web.Extensions;
+using Microsoft.AspNetCore.ResponseCompression;
 using GovUk.Frontend.AspNetCore;
 using GovUK.Dfe.ExternalApplications.Api.Client;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
@@ -78,6 +80,12 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession();
 builder.Services.AddMemoryCache();
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.Providers.Add<BrotliCompressionProvider>();
+    options.Providers.Add<GzipCompressionProvider>();
+});
 
 // Configure authentication based on test mode
 if (isTestAuthEnabled)
@@ -124,18 +132,12 @@ builder.Services.AddHttpClient();
 
 builder.Services.AddScoped<IContributorService, ContributorService>();
 
-builder.Services.AddExternalApplicationsApiClient<ITokensClient, TokensClient>(configuration);
-builder.Services.AddExternalApplicationsApiClient<IUsersClient, UsersClient>(configuration);
-builder.Services.AddExternalApplicationsApiClient<IApplicationsClient, ApplicationsClient>(configuration);
-builder.Services.AddExternalApplicationsApiClient<ITemplatesClient, TemplatesClient>(configuration);
-builder.Services.AddExternalApplicationsApiClient<IHubAuthClient, HubAuthClient>(configuration);
-builder.Services.AddExternalApplicationsApiClient<INotificationsClient, NotificationsClient>(configuration);
+builder.Services.AddExternalApplicationsApiClients(configuration);
 
 builder.Services.AddGovUkFrontend(options => options.Rebrand = true);
 builder.Services.AddSingleton<IActionContextAccessor, ActionContextAccessor>();
 builder.Services.AddScoped<IHtmlHelper, HtmlHelper>();
-builder.Services.AddScoped<IFieldRendererService, FieldRendererService>();
-builder.Services.AddScoped<IFormErrorStore, FormErrorStore>();
+builder.Services.AddWebLayerServices();
 builder.Services.AddScoped<IApplicationResponseService, ApplicationResponseService>();
 
 // New refactored services for Clean Architecture
@@ -179,8 +181,17 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        const int days = 30;
+        ctx.Context.Response.Headers["Cache-Control"] = $"public, max-age={days * 24 * 60 * 60}";
+    }
+});
 
 app.UseRouting();
+app.UseResponseCompression();
 
 app.UseSession();
 app.UseHostTemplateResolution();

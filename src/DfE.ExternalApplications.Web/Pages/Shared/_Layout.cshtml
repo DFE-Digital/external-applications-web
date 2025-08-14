@@ -6,6 +6,7 @@
     var apiBase = (Configuration["ExternalApplicationsApiClient:BaseUrl"] ?? "").TrimEnd('/');
 }
 <meta name="api-base" content="@apiBase" />
+@Html.AntiForgeryToken()
 @section Header {
     <header class="govuk-header" data-module="govuk-header">
         <div class="govuk-header__container govuk-width-container">

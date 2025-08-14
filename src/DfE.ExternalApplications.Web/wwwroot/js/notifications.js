@@ -2,6 +2,10 @@
 
 const container = () => document.getElementById('notification-container');
 const unreadBadge = () => document.getElementById('notifications-unread-badge');
+const antiForgeryToken = () => {
+    const input = document.querySelector('input[name="__RequestVerificationToken"]');
+    return input?.value;
+};
 const PAGE_LOAD_AT_MS = Date.now();
 
 function mapTypeToCss(type) {
@@ -184,20 +188,30 @@ async function startHub() {
 document.addEventListener("DOMContentLoaded", startHub);
 
 async function markAsRead(id) {
-    try { await fetch(`/notifications/read/${encodeURIComponent(id)}`, { method: 'POST', credentials: 'include' }); } catch { }
+    try {
+        await fetch(`/notifications/read/${encodeURIComponent(id)}`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'RequestVerificationToken': antiForgeryToken() ?? '' }
+        });
+    } catch { }
 }
 
 async function dismiss(id) {
     try {
-        const ok = await fetch(`/notifications/remove/${encodeURIComponent(id)}`, { method: 'POST', credentials: 'include' });
+        const ok = await fetch(`/notifications/remove/${encodeURIComponent(id)}`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'RequestVerificationToken': antiForgeryToken() ?? '' }
+        });
         if (ok?.ok) window.removeFromUi(id);
     } catch { }
     await refreshUnreadCount();
 }
 
 window.NotificationsApi = {
-    markAllRead: async () => { try { await fetch('/notifications/read-all', { method: 'POST', credentials: 'include' }); } finally { await refreshUnreadCount(); } },
-    clearAll: async () => { try { await fetch('/notifications/clear', { method: 'POST', credentials: 'include' }); } finally { await refreshUnreadCount(); } }
+    markAllRead: async () => { try { await fetch('/notifications/read-all', { method: 'POST', credentials: 'include', headers: { 'RequestVerificationToken': antiForgeryToken() ?? '' } }); } finally { await refreshUnreadCount(); } },
+    clearAll: async () => { try { await fetch('/notifications/clear', { method: 'POST', credentials: 'include', headers: { 'RequestVerificationToken': antiForgeryToken() ?? '' } }); } finally { await refreshUnreadCount(); } }
 };
 
 // Update badge when hub events occur

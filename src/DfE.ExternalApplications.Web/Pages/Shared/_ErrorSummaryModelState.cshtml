@@ -1,4 +1,4 @@
-@* Renders GOV.UK error summary from ModelState *@
+@* Renders GOV.UK error summary from ModelState with anchors to inputs when possible *@
 @if (!ViewData.ModelState.IsValid && ViewData.ModelState.Values.Any(v => v.Errors.Count > 0))
 {
     <div class="govuk-error-summary" data-module="govuk-error-summary">
@@ -8,9 +8,19 @@
                 <ul class="govuk-list govuk-error-summary__list">
                     @foreach (var state in ViewData.ModelState)
                     {
+                        // Attempt to map model key -> element id by convention (id="{key}")
+                        var key = state.Key;
+                        var anchorId = string.IsNullOrWhiteSpace(key) ? null : key;
                         foreach (var err in state.Value.Errors)
                         {
-                            <li>@err.ErrorMessage</li>
+                            if (!string.IsNullOrWhiteSpace(anchorId))
+                            {
+                                <li><a href="#@anchorId">@err.ErrorMessage</a></li>
+                            }
+                            else
+                            {
+                                <li>@err.ErrorMessage</li>
+                            }
                         }
                     }
                 </ul>
