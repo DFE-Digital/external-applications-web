@@ -369,3 +369,8 @@ variable "redis_cache_sku" {
   type        = string
   default     = "Basic"
 }
+
+variable "redis_cache_subnet_cidr" {
+  description = "Redis Cache subnet CIDR"
+  type        = string
+}
