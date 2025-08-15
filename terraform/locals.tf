@@ -28,6 +28,7 @@ locals {
   container_health_probe_path                  = var.container_health_probe_path
   enable_redis_cache                           = var.enable_redis_cache
   redis_cache_sku                              = var.redis_cache_sku
+  redis_cache_subnet_cidr                      = var.redis_cache_subnet_cidr
   monitor_endpoint_healthcheck                 = var.monitor_endpoint_healthcheck
   existing_logic_app_workflow                  = var.existing_logic_app_workflow
   existing_network_watcher_name                = var.existing_network_watcher_name
