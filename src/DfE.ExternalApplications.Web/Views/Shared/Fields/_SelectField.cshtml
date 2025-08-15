@@ -6,7 +6,7 @@
     var isRequired = Model.Field.Required ?? true;
     var validationAttributes = new HtmlString(Model.ValidationAttributes);
     var options = Model.Field.Options ?? new List<DfE.ExternalApplications.Domain.Models.Option>();
-    var labelClasses = Model.Field.Label.IsPageHeading ? "govuk-label--l" : "";
+    var labelClasses = Model.Field.Label.IsVisible ? "" : "govuk-visually-hidden";
 }
 
 <govuk-select 
@@ -15,11 +15,14 @@
     select-required="@isRequired"
     select-validation="@validationAttributes"
     label-class="@labelClasses">
-        <govuk-select-label is-page-heading="@Model.Field.Label.IsPageHeading">@Model.Field.Label.Value</govuk-select-label>
+        <govuk-select-label>@Model.Field.Label.Value</govuk-select-label>
         <govuk-select-hint>@Model.Field.Tooltip</govuk-select-hint>
+        @if (Model.ErrorMessage != String.Empty)
+        {
+            <govuk-select-error-message>@Model.ErrorMessage</govuk-select-error-message>
+        }
         @foreach (var opt in options)
         {
             <govuk-select-item value="@opt.Value" selected="@(Model.CurrentValue == opt.Value)">@opt.Label</govuk-select-item>
         }
 </govuk-select>
-<govuk-error-message for="@Model.Id"></govuk-error-message>

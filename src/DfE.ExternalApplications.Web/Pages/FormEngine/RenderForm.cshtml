@@ -25,39 +25,58 @@
             .GetConfiguration(f.ComplexField.Id)
             .FieldType.Equals("upload", StringComparison.OrdinalIgnoreCase));
 
-    <form method="post" asp-page-handler="Page">
+    string typeOfFirstField = Model.CurrentPage.Fields[0].Type;
+    bool labelledByHeader = (Model.CurrentPage.Fields.Count == 1) && typeOfFirstField != "complexField";
+
+    <form method="post" id="form_@Model.CurrentPageId" asp-page-handler="Page">
         <input type="hidden" asp-for="CurrentPageId" />
         <govuk-back-link href="/applications/@Model.ReferenceNumber/@Model.TaskId/summary">Back</govuk-back-link>
         
-        @* Notification Display *@
-        @await Html.PartialAsync("_NotificationDisplay")
-        
-        <h1 class="govuk-heading-xl govuk-!-margin-bottom-6">@Model.CurrentTask.TaskName</h1>
-
-        <govuk-error-summary>
+        <div class="govuk-grid-row">
+            <div class="govuk-grid-column-two-thirds">
             @{
-                var ModelStateWithFieldProps = from m in ModelState
-                                               join f in Model.CurrentPage.Fields on m.Key.ToString() equals f.FieldId
-                                               select new { m, f };
-            }
-            @foreach (var s in ModelStateWithFieldProps.OrderBy(s => s.f.Order))
-            {
-                foreach (var e in s.m.Value.Errors)
-                {
-                    var href = $"#Data_{s.m.Key.ToString()}";
-                    <govuk-error-summary-item href="@href">
-                        @e.ErrorMessage
-                    </govuk-error-summary-item>
+                    <legend class="govuk-fieldset__legend govuk-fieldset__legend--l">
+
+                        <h1 class="govuk-fieldset__heading" id="page-title">
+                            <span class="govuk-caption-l">@Model.CurrentTask.TaskName</span>
+                            @Model.CurrentPage.Title
+                        </h1>
+                    </legend>
+             }
+
+
+                @* Notification Display *@
+                @await Html.PartialAsync("_NotificationDisplay")
+            
+            <govuk-error-summary>
+                @{
+                    var ModelStateWithFieldProps = from m in ModelState
+                                                    join f in Model.CurrentPage.Fields on m.Key.ToString() equals f.FieldId
+                                                    select new { m, f };
                 }
-            }
-        </govuk-error-summary>
+                @foreach (var s in ModelStateWithFieldProps.OrderBy(s => s.f.Order))
+                {
+                    foreach (var e in s.m.Value.Errors)
+                    {
+                        var href = $"#Data_{s.m.Key.ToString()}";
+                        <govuk-error-summary-item href="@href">
+                            @e.ErrorMessage
+                        </govuk-error-summary-item>
+                    }
+                }
+            </govuk-error-summary>
 
-        @foreach (var field in Model.CurrentPage.Fields.OrderBy(f => f.Order))
-        {
-            var currentValue = Model.Data.TryGetValue(field.FieldId, out var val) ? val.ToString() : String.Empty;
+            @foreach (var field in Model.CurrentPage.Fields.OrderBy(f => f.Order))
+            {
+                var currentValue = Model.Data.TryGetValue(field.FieldId, out var val) ? val.ToString() : String.Empty;
 
-            var fieldModelState = ModelState.Where(f => f.Key == field.FieldId).FirstOrDefault();
-            var errorMessage = fieldModelState.Value?.Errors?.FirstOrDefault()?.ErrorMessage ?? String.Empty;
+                var fieldModelState = ModelState.Where(f => f.Key == field.FieldId).FirstOrDefault();
+                var errorMessage = fieldModelState.Value?.Errors?.FirstOrDefault()?.ErrorMessage ?? String.Empty;
+
+                if (labelledByHeader)
+                {
+                    field.Label.IsVisible = false;
+                }
 
             @* Only render non-upload fields inside the main form *@
             @if (field.Type != "complexField" || 
@@ -68,10 +87,12 @@
             }
         }
 
-        @if (!hasUploadField)
-        {
-            <govuk-button type="submit" name="handler" value="Page" id="save-and-continue-button">Save and continue</govuk-button>
-        }
+            @if (!hasUploadField)
+            {
+                <govuk-button type="submit" name="handler" value="Page" id="save-and-continue-button">Save and continue</govuk-button>
+            }
+            </div>
+        </div>
     </form>
 
     @* Render upload fields outside the main form to avoid nesting *@
@@ -124,16 +145,16 @@ else
                             <div class="govuk-task-list__name-and-hint">
                                 @if (Model.IsApplicationEditable())
                                 {
-                                    <a class="govuk-link govuk-task-list__link" href="/applications/@Model.ReferenceNumber/@task.TaskId/summary" aria-label="task-@taskNameHyphenated">
+                                    <a class="govuk-link govuk-task-list__link" href="/applications/@Model.ReferenceNumber/@task.TaskId/summary" aria-label="task-@taskNameHyphenated" aria-described-by="task-@taskNameHyphenated-status">
                                         @task.TaskName
                                     </a>
                                 }
                                 else
                                 {
-                                    <span class="govuk-task-list__link" aria-label="task-@taskNameHyphenated">@task.TaskName</span>
+                                    <span class="govuk-task-list__link" aria-label="task-@taskNameHyphenated" aria-described-by="task-@taskNameHyphenated-status">@task.TaskName</span>
                                 }
                             </div>
-                            <div class="govuk-task-list__status" id="task-@task.TaskId-status">
+                            <div class="govuk-task-list__status" id="task-@taskNameHyphenated-status">
                                 <govuk-tag class="@statusClass">@statusText</govuk-tag>
                             </div>
                         </li>
