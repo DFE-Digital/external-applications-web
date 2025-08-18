@@ -374,3 +374,19 @@ variable "redis_cache_subnet_cidr" {
   description = "Redis Cache subnet CIDR"
   type        = string
 }
+
+variable "linux_function_apps" {
+  description = "Linux function apps"
+  type = map(object({
+    runtime                                        = string
+    runtime_version                                = string
+    app_settings                                   = optional(map(string), {})
+    allowed_origins                                = optional(list(string), ["*"])
+    ftp_publish_basic_authentication_enabled       = optional(bool, false)
+    webdeploy_publish_basic_authentication_enabled = optional(bool, false)
+    ipv4_access                                    = optional(list(string), [])
+    minimum_tls_version                            = optional(string, "1.3")
+    enable_service_bus                             = optional(bool, false)
+    service_bus_additional_subscriptions           = optional(list(string), [])
+  }))
+}
