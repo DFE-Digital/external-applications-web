@@ -31,8 +31,8 @@
     <form method="post" id="form_@Model.CurrentPageId" asp-page-handler="Page">
         <input type="hidden" asp-for="CurrentPageId" />
         <govuk-back-link href="/applications/@Model.ReferenceNumber/@Model.TaskId/summary">Back</govuk-back-link>
-        
-        
+
+
         <h1 class="govuk-heading-xl govuk-!-margin-bottom-6">@Model.CurrentTask.TaskName</h1>
 
         <govuk-error-summary>
@@ -53,33 +53,31 @@
             }
         </govuk-error-summary>
 
-            @foreach (var field in Model.CurrentPage.Fields.OrderBy(f => f.Order))
+        @foreach (var field in Model.CurrentPage.Fields.OrderBy(f => f.Order))
+        {
+            var currentValue = Model.Data.TryGetValue(field.FieldId, out var val) ? val.ToString() : String.Empty;
+
+            var fieldModelState = ModelState.Where(f => f.Key == field.FieldId).FirstOrDefault();
+            var errorMessage = fieldModelState.Value?.Errors?.FirstOrDefault()?.ErrorMessage ?? String.Empty;
+
+            if (labelledByHeader)
             {
-                var currentValue = Model.Data.TryGetValue(field.FieldId, out var val) ? val.ToString() : String.Empty;
-
-                var fieldModelState = ModelState.Where(f => f.Key == field.FieldId).FirstOrDefault();
-                var errorMessage = fieldModelState.Value?.Errors?.FirstOrDefault()?.ErrorMessage ?? String.Empty;
-
-                if (labelledByHeader)
-                {
-                    field.Label.IsVisible = false;
-                }
+                field.Label.IsVisible = false;
+            }
 
             @* Only render non-upload fields inside the main form *@
-            @if (field.Type != "complexField" || 
-                 field.ComplexField == null || 
-                 !ComplexFieldConfigurationService.GetConfiguration(field.ComplexField.Id).FieldType.Equals("upload", StringComparison.OrdinalIgnoreCase))
+            @if (field.Type != "complexField" ||
+           field.ComplexField == null ||
+           !ComplexFieldConfigurationService.GetConfiguration(field.ComplexField.Id).FieldType.Equals("upload", StringComparison.OrdinalIgnoreCase))
             {
                 @await FieldRenderer.RenderFieldAsync(field, "Data", currentValue, errorMessage)
             }
         }
 
-            @if (!hasUploadField)
-            {
-                <govuk-button type="submit" name="handler" value="Page" id="save-and-continue-button">Save and continue</govuk-button>
-            }
-            </div>
-        </div>
+        @if (!hasUploadField)
+        {
+            <govuk-button type="submit" name="handler" value="Page" id="save-and-continue-button">Save and continue</govuk-button>
+        }
     </form>
 
     @* Render upload fields outside the main form to avoid nesting *@
@@ -87,14 +85,14 @@
     {
         @foreach (var field in Model.CurrentPage.Fields.OrderBy(f => f.Order))
         {
-            @if (field.Type == "complexField" && 
-                 field.ComplexField != null && 
-                 ComplexFieldConfigurationService.GetConfiguration(field.ComplexField.Id).FieldType.Equals("upload", StringComparison.OrdinalIgnoreCase))
+            @if (field.Type == "complexField" &&
+                field.ComplexField != null &&
+                ComplexFieldConfigurationService.GetConfiguration(field.ComplexField.Id).FieldType.Equals("upload", StringComparison.OrdinalIgnoreCase))
             {
                 var currentValue = Model.Data.TryGetValue(field.FieldId, out var val) ? val.ToString() : String.Empty;
                 var fieldModelState = ModelState.Where(f => f.Key == field.FieldId).FirstOrDefault();
                 var errorMessage = fieldModelState.Value?.Errors?.FirstOrDefault()?.ErrorMessage ?? String.Empty;
-                
+
                 @await FieldRenderer.RenderFieldAsync(field, "Data", currentValue, errorMessage)
             }
         }
