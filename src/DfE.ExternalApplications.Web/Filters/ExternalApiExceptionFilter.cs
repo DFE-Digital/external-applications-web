@@ -25,28 +25,20 @@ namespace DfE.ExternalApplications.Web.Filters
                 var page = context.HandlerInstance as PageModel
                            ?? throw new InvalidOperationException("Page filter only for Razor Pages");
 
-                if (r.StatusCode == 400 && r.ExceptionType == "ValidationException"
-                    && r.Context?.TryGetValue("validationErrors", out var errsObj) == true)
+                // 1) Validation: attempt to map structured validation errors into ModelState
+                if (r.StatusCode is 400 or 422)
                 {
-                    var errors = ((JsonElement)errsObj)
-                        .EnumerateObject()
-                        .ToDictionary(
-                            p => p.Name,
-                            p => p.Value.EnumerateArray().Select(e => e.GetString()!).ToArray()
-                        );
-
-                    foreach (var kv in errors)
-                        foreach (var msg in kv.Value)
-                            page.ModelState.AddModelError(kv.Key, msg);
-
-                    executedContext.Result = new PageResult();
-                    executedContext.ExceptionHandled = true;
-                    return;
+                    if (TryAddModelStateErrorsFromContext(page, r))
+                    {
+                        executedContext.Result = new PageResult();
+                        executedContext.ExceptionHandled = true;
+                        return;
+                    }
                 }
 
                 if (r.StatusCode == 400 || r.StatusCode == 409)
                 {
-                    page.ModelState.AddModelError("Error", ex.Result.Message);
+                    AddNonFieldError(page, ex.Result.Message);
 
                     executedContext.Result = new PageResult();
                     executedContext.ExceptionHandled = true;
@@ -81,6 +73,62 @@ namespace DfE.ExternalApplications.Web.Filters
                 executedContext.Result = new RedirectToPageResult("/Error/General");
                 executedContext.ExceptionHandled = true;
             }
+        }
+
+        private static void AddNonFieldError(PageModel page, string message)
+        {
+            if (!string.IsNullOrWhiteSpace(message))
+            {
+                page.ModelState.AddModelError("Error", message);
+            }
+        }
+
+        private static bool TryAddModelStateErrorsFromContext(PageModel page, ExceptionResponse r)
+        {
+            if (r.Context is null || r.Context.Count == 0)
+                return false;
+
+            // Common keys that might hold validation dictionaries
+            var possibleKeys = new[] { "validationErrors", "errors", "fieldErrors", "modelState" };
+            foreach (var key in possibleKeys)
+            {
+                if (!r.Context.TryGetValue(key, out var value))
+                    continue;
+
+                if (value is JsonElement element)
+                {
+                    if (element.ValueKind == JsonValueKind.Object)
+                    {
+                        foreach (var prop in element.EnumerateObject())
+                        {
+                            // Accept arrays or single string
+                            if (prop.Value.ValueKind == JsonValueKind.Array)
+                            {
+                                foreach (var msg in prop.Value.EnumerateArray().Select(v => v.GetString()).Where(s => !string.IsNullOrWhiteSpace(s)))
+                                {
+                                    page.ModelState.AddModelError(prop.Name, msg!);
+                                }
+                            }
+                            else if (prop.Value.ValueKind == JsonValueKind.String)
+                            {
+                                var msg = prop.Value.GetString();
+                                if (!string.IsNullOrWhiteSpace(msg))
+                                    page.ModelState.AddModelError(prop.Name, msg!);
+                            }
+                        }
+                        return true;
+                    }
+                }
+            }
+
+            // Fallback: add high-level message/details if present
+            if (!string.IsNullOrWhiteSpace(r.Message))
+            {
+                page.ModelState.AddModelError("Error", r.Message);
+                return true;
+            }
+
+            return false;
         }
     }
 }

@@ -32,39 +32,26 @@
         <input type="hidden" asp-for="CurrentPageId" />
         <govuk-back-link href="/applications/@Model.ReferenceNumber/@Model.TaskId/summary">Back</govuk-back-link>
         
-        <div class="govuk-grid-row">
-            <div class="govuk-grid-column-two-thirds">
+        
+        <h1 class="govuk-heading-xl govuk-!-margin-bottom-6">@Model.CurrentTask.TaskName</h1>
+
+        <govuk-error-summary>
             @{
-                    <legend class="govuk-fieldset__legend govuk-fieldset__legend--l">
-
-                        <h1 class="govuk-fieldset__heading" id="page-title">
-                            <span class="govuk-caption-l">@Model.CurrentTask.TaskName</span>
-                            @Model.CurrentPage.Title
-                        </h1>
-                    </legend>
-             }
-
-
-                @* Notification Display *@
-                @await Html.PartialAsync("_NotificationDisplay")
-            
-            <govuk-error-summary>
-                @{
-                    var ModelStateWithFieldProps = from m in ModelState
-                                                    join f in Model.CurrentPage.Fields on m.Key.ToString() equals f.FieldId
-                                                    select new { m, f };
-                }
-                @foreach (var s in ModelStateWithFieldProps.OrderBy(s => s.f.Order))
+                var ModelStateWithFieldProps = from m in ModelState
+                                               join f in Model.CurrentPage.Fields on m.Key.ToString() equals f.FieldId
+                                               select new { m, f };
+            }
+            @foreach (var s in ModelStateWithFieldProps.OrderBy(s => s.f.Order))
+            {
+                foreach (var e in s.m.Value.Errors)
                 {
-                    foreach (var e in s.m.Value.Errors)
-                    {
-                        var href = $"#Data_{s.m.Key.ToString()}";
-                        <govuk-error-summary-item href="@href">
-                            @e.ErrorMessage
-                        </govuk-error-summary-item>
-                    }
+                    var href = $"#Data_{s.m.Key.ToString()}";
+                    <govuk-error-summary-item href="@href">
+                        @e.ErrorMessage
+                    </govuk-error-summary-item>
                 }
-            </govuk-error-summary>
+            }
+        </govuk-error-summary>
 
             @foreach (var field in Model.CurrentPage.Fields.OrderBy(f => f.Order))
             {

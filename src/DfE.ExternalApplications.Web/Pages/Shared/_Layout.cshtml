@@ -2,7 +2,11 @@
     Layout = "_GovUkPageTemplate";
     @inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 }
-
+@{
+    var apiBase = (Configuration["ExternalApplicationsApiClient:BaseUrl"] ?? "").TrimEnd('/');
+}
+<meta name="api-base" content="@apiBase" />
+@Html.AntiForgeryToken()
 @section Header {
     <header class="govuk-header" data-module="govuk-header">
         <div class="govuk-header__container govuk-width-container">
@@ -37,12 +41,31 @@
     <section aria-label="Service information" class="govuk-service-navigation"
              data-module="govuk-service-navigation">
         <div class="govuk-width-container">
-            <div class="govuk-service-navigation__container">
+            <div class="govuk-service-navigation__container app-service-nav-container">
                 <span class="govuk-service-navigation__service-name">
                     <a class="govuk-service-navigation__link" href="/applications/dashboard">
                         @Configuration["Layout:ServiceName"]
                     </a>
                 </span>
+                @if (User?.Identity?.IsAuthenticated ?? false)
+                {
+                <nav aria-label="Menu" class="govuk-service-navigation__wrapper app-service-nav-right">
+                    <button type="button" class="govuk-service-navigation__toggle govuk-js-service-navigation-toggle" aria-controls="navigation" hidden>
+                        Menu
+                    </button>
+                    <ul class="govuk-service-navigation__list" id="navigation">
+                        <li class="govuk-service-navigation__item">
+                            <a class="govuk-service-navigation__link app-badge-container" href="/Notifications" style="position: relative;">
+                                Notifications
+                                <span id="notifications-unread-badge" class="app-notifications-badge" aria-hidden="true"></span>
+                            </a>
+                        </li>
+                        <li class="govuk-service-navigation__item">
+                            <a class="govuk-service-navigation__link" href="/Logout">Log out</a>
+                        </li>
+                    </ul>
+                </nav>
+                }
             </div>
         </div>s
     </section>
@@ -134,7 +157,15 @@
     </footer>
 }
 
+@await Html.PartialAsync("_NotificationDisplay")
+
 @RenderBody()
+
+@* SignalR library *@
+<script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@@8/dist/browser/signalr.min.js" defer></script>
+<script src="~/js/notifications.js" defer></script>
+
+@RenderSection("Scripts", required: false)
 
 @* Add accessible-autocomplete library *@
 <script src="https://cdn.jsdelivr.net/npm/accessible-autocomplete@2.0.4/dist/accessible-autocomplete.min.js"></script>
