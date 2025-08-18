@@ -79,7 +79,10 @@
                                 </strong>
                             </td>
                             <td class="govuk-table__cell">
-                                <a href="/applications/@app.ApplicationReference" class="govuk-link">@action</a>
+                                <a href="/applications/@app.ApplicationReference" class="govuk-link">
+                                    @action
+                                    <span class=govuk-visually-hidden>@app.ApplicationReference</span>
+                                </a>
                             </td>
                         </tr>
                     }

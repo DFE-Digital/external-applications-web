@@ -358,3 +358,19 @@ variable "enable_monitoring_traces" {
   type        = bool
   default     = true
 }
+
+variable "enable_redis_cache" {
+  description = "Set to true to create an Azure Redis Cache, with a private endpoint within the virtual network"
+  type        = bool
+}
+
+variable "redis_cache_sku" {
+  description = "Redis Cache SKU"
+  type        = string
+  default     = "Basic"
+}
+
+variable "redis_cache_subnet_cidr" {
+  description = "Redis Cache subnet CIDR"
+  type        = string
+}

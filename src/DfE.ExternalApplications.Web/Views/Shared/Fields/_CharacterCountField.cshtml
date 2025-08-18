@@ -3,10 +3,15 @@
 @{
     var maxLengthRule = Model.Field.Validations?.Where(v => v.Type == "maxLength").FirstOrDefault()?.Rule.ToString();
     int.TryParse(maxLengthRule, out var maxLengthValue);
+    var labelClasses = Model.Field.Label.IsVisible ? "" : "govuk-visually-hidden";
 }
-<govuk-error-message for="@Model.Id">@Model.ErrorMessage</govuk-error-message>
-<govuk-character-count id="@Model.Id" name="Data[@Model.Field.FieldId]" max-length="@maxLengthValue" label-class="@(Model.Field.Label.IsPageHeading ? "govuk-label--l" : "")">
-    <govuk-character-count-label is-page-heading="@Model.Field.Label.IsPageHeading">@Model.Field.Label.Value</govuk-character-count-label>
+<govuk-character-count id="@Model.Id" name="Data[@Model.Field.FieldId]" max-length="@maxLengthValue">
+    <govuk-character-count-label class="@labelClasses" asp-for="@Model.Field.FieldId">@Model.Field.Label</govuk-character-count-label>
     <govuk-character-count-hint>@Model.Field.Tooltip</govuk-character-count-hint>
+    @if (Model.ErrorMessage != String.Empty)
+    {
+        <govuk-character-count-error-message>@Model.ErrorMessage
+        </govuk-character-count-error-message>
+    }
     <govuk-character-count-value>@Model.CurrentValue</govuk-character-count-value>
 </govuk-character-count>
