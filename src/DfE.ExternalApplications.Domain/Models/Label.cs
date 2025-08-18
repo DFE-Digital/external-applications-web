@@ -8,6 +8,6 @@ public class Label
 {
     [JsonPropertyName("value")]
     public required string Value { get; set; }
-    [JsonPropertyName("isPageHeading")]
-    public bool IsPageHeading { get; set; } = false;
+    [JsonPropertyName("isVisible")]
+    public bool IsVisible { get; set; } = false;
 }
