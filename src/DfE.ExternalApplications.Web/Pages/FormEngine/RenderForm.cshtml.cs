@@ -2,6 +2,7 @@ using DfE.ExternalApplications.Application.Interfaces;
 using DfE.ExternalApplications.Domain.Models;
 using DfE.ExternalApplications.Web.Pages.Shared;
 using DfE.ExternalApplications.Web.Services;
+using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
@@ -24,10 +25,13 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         IFormConfigurationService formConfigurationService,
         IAutocompleteService autocompleteService,
         IFileUploadService fileUploadService,
+        IApplicationsClient applicationsClient,
         ILogger<RenderFormModel> logger)
         : BaseFormEngineModel(renderer, applicationResponseService, fieldFormattingService, templateManagementService,
             applicationStateService, formStateManager, formNavigationService, formDataManager, formValidationOrchestrator, formConfigurationService, logger)
     {
+        private readonly IApplicationsClient _applicationsClient = applicationsClient;
+
         [BindProperty] public Dictionary<string, object> Data { get; set; } = new();
 
         [BindProperty] public bool IsTaskCompleted { get; set; }
@@ -114,17 +118,52 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 return RedirectToPage("/FormEngine/RenderForm", new { referenceNumber = ReferenceNumber });
             }
 
-            // TODO: Add application submission logic here
-            // This would typically involve:
-            // 1. Validating the entire application
-            // 2. Calling the API to submit the application
-            // 3. Updating the application status
-            // 4. Redirecting to a success page
+            // Check if all tasks are completed before allowing submission
+            if (!AreAllTasksCompleted())
+            {
+                _logger.LogWarning("Cannot submit application {ReferenceNumber} - not all tasks completed", ReferenceNumber);
+                ModelState.AddModelError("", "All sections must be completed before you can submit your application.");
+                return Page();
+            }
 
-            _logger.LogInformation("Application submission requested for Application {ApplicationId}", ApplicationId);
+            if (!ApplicationId.HasValue)
+            {
+                _logger.LogError("ApplicationId not found during submission for reference {ReferenceNumber}", ReferenceNumber);
+                ModelState.AddModelError("", "Application not found. Please try again.");
+                return Page();
+            }
 
-            // For now, redirect to the application submitted page
-            return RedirectToPage("/Applications/ApplicationSubmitted", new { referenceNumber = ReferenceNumber });
+            try
+            {
+                _logger.LogInformation("Attempting to submit application {ApplicationId} with reference {ReferenceNumber}", 
+                    ApplicationId.Value, ReferenceNumber);
+
+                // Submit the application via API
+                var submittedApplication = await _applicationsClient.SubmitApplicationAsync(ApplicationId.Value);
+                
+                // Update session with new application status
+                if (submittedApplication != null)
+                {
+                    var statusKey = $"ApplicationStatus_{ApplicationId.Value}";
+                    HttpContext.Session.SetString(statusKey, submittedApplication.Status?.ToString() ?? "Submitted");
+                    _logger.LogInformation("Successfully submitted application {ApplicationId} with reference {ReferenceNumber}", 
+                        ApplicationId.Value, ReferenceNumber);
+                }
+                else
+                {
+                    _logger.LogWarning("Submit API returned null for application {ApplicationId}", ApplicationId.Value);
+                }
+                
+                return RedirectToPage("/Applications/ApplicationSubmitted", new { referenceNumber = ReferenceNumber });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to submit application {ApplicationId} with reference {ReferenceNumber}", 
+                    ApplicationId.Value, ReferenceNumber);
+                
+                ModelState.AddModelError("", $"An error occurred while submitting your application: {ex.Message}. Please try again.");
+                return Page();
+            }
         }
 
         public async Task<IActionResult> OnPostPageAsync()
