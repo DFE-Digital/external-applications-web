@@ -41,7 +41,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
         /// <returns>The URL for the task summary</returns>
         public string GetTaskSummaryUrl(string taskId, string referenceNumber)
         {
-            return $"/applications/{referenceNumber}/{taskId}/summary";
+            return $"/applications/{referenceNumber}/{taskId}";
         }
         
         /// <summary>
@@ -101,6 +101,57 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             
             // Default to task list
             return GetTaskListUrl(referenceNumber);
+        }
+
+        /// <summary>
+        /// Gets the next navigation target after saving a page, considering the returnToSummaryPage property
+        /// </summary>
+        /// <param name="currentPage">The current page that was just saved</param>
+        /// <param name="currentTask">The current task</param>
+        /// <param name="referenceNumber">The application reference number</param>
+        /// <returns>The URL for the next navigation target</returns>
+        public string GetNextNavigationTargetAfterSave(Domain.Models.Page currentPage, Domain.Models.Task currentTask, string referenceNumber)
+        {
+            // If the page has returnToSummaryPage set to true, go to task summary
+            if (currentPage.ReturnToSummaryPage)
+            {
+                return GetTaskSummaryUrl(currentTask.TaskId, referenceNumber);
+            }
+
+            // Find the next page in the same task
+            var nextPage = GetNextPageInTask(currentPage, currentTask);
+            if (nextPage != null)
+            {
+                return $"/applications/{referenceNumber}/{currentTask.TaskId}/{nextPage.PageId}";
+            }
+
+            // If there's no next page in the task, go to task summary
+            return GetTaskSummaryUrl(currentTask.TaskId, referenceNumber);
+        }
+
+        /// <summary>
+        /// Gets the next page in the same task, or null if there is no next page
+        /// </summary>
+        /// <param name="currentPage">The current page</param>
+        /// <param name="currentTask">The current task</param>
+        /// <returns>The next page, or null if there is no next page</returns>
+        private Domain.Models.Page? GetNextPageInTask(Domain.Models.Page currentPage, Domain.Models.Task currentTask)
+        {
+            if (currentTask.Pages == null || !currentTask.Pages.Any())
+            {
+                return null;
+            }
+
+            // Find the current page index
+            var currentPageIndex = currentTask.Pages.FindIndex(p => p.PageId == currentPage.PageId);
+            if (currentPageIndex == -1 || currentPageIndex >= currentTask.Pages.Count - 1)
+            {
+                // Current page not found or it's the last page
+                return null;
+            }
+
+            // Return the next page
+            return currentTask.Pages[currentPageIndex + 1];
         }
     }
 }

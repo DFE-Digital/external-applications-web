@@ -242,9 +242,15 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 }
             }
 
-            // Redirect to the task summary page after saving
-            if (CurrentTask != null)
+            // Use the new navigation logic to determine where to go after saving
+            if (CurrentTask != null && CurrentPage != null)
             {
+                var nextUrl = _formNavigationService.GetNextNavigationTargetAfterSave(CurrentPage, CurrentTask, ReferenceNumber);
+                return Redirect(nextUrl);
+            }
+            else if (CurrentTask != null)
+            {
+                // Fallback: redirect to task summary if CurrentPage is null
                 return Redirect($"/applications/{ReferenceNumber}/{CurrentTask.TaskId}");
             }
             else

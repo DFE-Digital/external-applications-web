@@ -62,5 +62,14 @@ namespace DfE.ExternalApplications.Application.Interfaces
         /// <param name="referenceNumber">The application reference number</param>
         /// <returns>The back link URL</returns>
         string GetBackLinkUrl(string currentPageId, string taskId, string referenceNumber);
+
+        /// <summary>
+        /// Gets the next navigation target after saving a page, considering the returnToSummaryPage property
+        /// </summary>
+        /// <param name="currentPage">The current page that was just saved</param>
+        /// <param name="currentTask">The current task</param>
+        /// <param name="referenceNumber">The application reference number</param>
+        /// <returns>The URL for the next navigation target</returns>
+        string GetNextNavigationTargetAfterSave(Domain.Models.Page currentPage, Domain.Models.Task currentTask, string referenceNumber);
     }
 }
