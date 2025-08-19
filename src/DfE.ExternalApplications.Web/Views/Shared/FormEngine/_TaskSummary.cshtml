@@ -125,7 +125,7 @@
 
 @if (Model.IsApplicationEditable())
 {
-    <form method="post">
+    <form method="post" asp-page-handler="TaskSummary">
         <input type="hidden" asp-for="TaskId" />
         <input type="hidden" asp-for="ReferenceNumber" />
         

@@ -16,7 +16,8 @@
 
 <form method="post" id="form_@Model.CurrentPageId" asp-page-handler="Page">
     <input type="hidden" asp-for="CurrentPageId" />
-    <govuk-back-link href="/applications/@Model.ReferenceNumber/@Model.TaskId/summary">Back</govuk-back-link>
+    <input type="hidden" asp-for="TaskId" />
+    <govuk-back-link href="/applications/@Model.ReferenceNumber/@Model.TaskId">Back</govuk-back-link>
 
     <h1 class="govuk-heading-xl govuk-!-margin-bottom-6">@Model.CurrentTask.TaskName</h1>
 

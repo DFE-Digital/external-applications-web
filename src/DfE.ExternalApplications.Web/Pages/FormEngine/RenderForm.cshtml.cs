@@ -39,7 +39,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             // If application is not editable and trying to access a specific page, redirect to preview
             if (!IsApplicationEditable() && !string.IsNullOrEmpty(CurrentPageId))
             {
-                Response.Redirect($"~/applications/{ReferenceNumber}/preview");
+                Response.Redirect($"~/applications/{ReferenceNumber}");
                 return;
             }
 
@@ -50,12 +50,43 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 CurrentTask = task;
                 CurrentPage = page;
             }
+            else if (!string.IsNullOrEmpty(TaskId))
+            {
+                var (group, task) = InitializeCurrentTask(TaskId);
+                CurrentGroup = group;
+                CurrentTask = task;
+                CurrentPage = null; // No specific page for task summary
+            }
 
             // Check if we need to clear session data for a new application
             CheckAndClearSessionForNewApplication();
 
             // Load accumulated form data from session to pre-populate fields
             LoadAccumulatedDataFromSession();
+        }
+
+        public async Task<IActionResult> OnPostTaskSummaryAsync()
+        {
+            await CommonFormEngineInitializationAsync();
+
+            // Initialize the current task for task summary
+            if (!string.IsNullOrEmpty(TaskId))
+            {
+                var (group, task) = InitializeCurrentTask(TaskId);
+                CurrentGroup = group;
+                CurrentTask = task;
+                CurrentPage = null;
+            }
+
+            // Handle task completion if checkbox is checked
+            if (IsTaskCompleted && CurrentTask != null && ApplicationId.HasValue)
+            {
+                // Mark the task as completed in session and API
+                await _applicationStateService.SaveTaskStatusAsync(ApplicationId.Value, CurrentTask.TaskId, Domain.Models.TaskStatus.Completed, HttpContext.Session);
+            }
+
+            // Redirect to the task list page
+            return Redirect($"/applications/{ReferenceNumber}");
         }
 
         public async Task<IActionResult> OnPostPageAsync()
@@ -65,13 +96,23 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             // Prevent editing if application is not editable
             if (!IsApplicationEditable())
             {
-                return RedirectToPage("/ApplicationPreview", new { referenceNumber = ReferenceNumber });
+                return RedirectToPage("/FormEngine/RenderForm", new { referenceNumber = ReferenceNumber });
             }
 
-            var (group, task, page) = InitializeCurrentPage(CurrentPageId);
-            CurrentGroup = group;
-            CurrentTask = task;
-            CurrentPage = page;
+            if (!string.IsNullOrEmpty(CurrentPageId))
+            {
+                var (group, task, page) = InitializeCurrentPage(CurrentPageId);
+                CurrentGroup = group;
+                CurrentTask = task;
+                CurrentPage = page;
+            }
+            else if (!string.IsNullOrEmpty(TaskId))
+            {
+                var (group, task) = InitializeCurrentTask(TaskId);
+                CurrentGroup = group;
+                CurrentTask = task;
+                CurrentPage = null; // No specific page for task summary
+            }
 
             foreach (var key in Request.Form.Keys)
             {
@@ -98,7 +139,10 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 }
             }
 
-            ValidateCurrentPage(CurrentPage, Data);
+            if (CurrentPage != null)
+            {
+                ValidateCurrentPage(CurrentPage, Data);
+            }
             if (!ModelState.IsValid)
             {
                 return Page();
@@ -122,7 +166,15 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
 
             // Redirect to the task summary page after saving
-            return RedirectToPage("/Applications/TaskSummary", new { referenceNumber = ReferenceNumber, taskId = CurrentTask.TaskId });
+            if (CurrentTask != null)
+            {
+                return Redirect($"/applications/{ReferenceNumber}/{CurrentTask.TaskId}");
+            }
+            else
+            {
+                // Fallback: redirect to task list if CurrentTask is null
+                return Redirect($"/applications/{ReferenceNumber}");
+            }
         }
 
         public async Task<IActionResult> OnGetAutocompleteAsync(string endpoint, string query)
