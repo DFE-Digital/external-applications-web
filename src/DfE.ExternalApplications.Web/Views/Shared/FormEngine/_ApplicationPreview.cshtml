@@ -127,3 +127,15 @@
         }
     </div>
 </div>
+
+@if (Model.IsApplicationEditable())
+{
+    <div class="govuk-!-margin-top-6">
+        <form method="post" asp-page-handler="SubmitApplication">
+            <input type="hidden" asp-for="ReferenceNumber" />
+            <govuk-button type="submit" id="submit-application-button">
+                Submit application
+            </govuk-button>
+        </form>
+    </div>
+}

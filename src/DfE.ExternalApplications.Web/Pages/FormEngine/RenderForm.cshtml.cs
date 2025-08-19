@@ -36,26 +36,41 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         {
             await CommonFormEngineInitializationAsync();
 
-            // If application is not editable and trying to access a specific page, redirect to preview
-            if (!IsApplicationEditable() && !string.IsNullOrEmpty(CurrentPageId))
+            // Check if this is a preview request
+            if (Request.Query.ContainsKey("preview"))
             {
-                Response.Redirect($"~/applications/{ReferenceNumber}");
-                return;
+                // Override the form state for preview requests
+                CurrentFormState = FormState.ApplicationPreview;
+                CurrentGroup = null;
+                CurrentTask = null;
+                CurrentPage = null;
+                
+                // Clear all validation errors for preview since we don't need validation on preview page
+                ModelState.Clear();
             }
+            else
+            {
+                // If application is not editable and trying to access a specific page, redirect to preview
+                if (!IsApplicationEditable() && !string.IsNullOrEmpty(CurrentPageId))
+                {
+                    Response.Redirect($"~/applications/{ReferenceNumber}");
+                    return;
+                }
 
-            if (!string.IsNullOrEmpty(CurrentPageId))
-            {
-                var (group, task, page) = InitializeCurrentPage(CurrentPageId);
-                CurrentGroup = group;
-                CurrentTask = task;
-                CurrentPage = page;
-            }
-            else if (!string.IsNullOrEmpty(TaskId))
-            {
-                var (group, task) = InitializeCurrentTask(TaskId);
-                CurrentGroup = group;
-                CurrentTask = task;
-                CurrentPage = null; // No specific page for task summary
+                if (!string.IsNullOrEmpty(CurrentPageId))
+                {
+                    var (group, task, page) = InitializeCurrentPage(CurrentPageId);
+                    CurrentGroup = group;
+                    CurrentTask = task;
+                    CurrentPage = page;
+                }
+                else if (!string.IsNullOrEmpty(TaskId))
+                {
+                    var (group, task) = InitializeCurrentTask(TaskId);
+                    CurrentGroup = group;
+                    CurrentTask = task;
+                    CurrentPage = null; // No specific page for task summary
+                }
             }
 
             // Check if we need to clear session data for a new application
@@ -87,6 +102,29 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
             // Redirect to the task list page
             return Redirect($"/applications/{ReferenceNumber}");
+        }
+
+        public async Task<IActionResult> OnPostSubmitApplicationAsync()
+        {
+            await CommonFormEngineInitializationAsync();
+
+            // Prevent submission if application is not editable
+            if (!IsApplicationEditable())
+            {
+                return RedirectToPage("/FormEngine/RenderForm", new { referenceNumber = ReferenceNumber });
+            }
+
+            // TODO: Add application submission logic here
+            // This would typically involve:
+            // 1. Validating the entire application
+            // 2. Calling the API to submit the application
+            // 3. Updating the application status
+            // 4. Redirecting to a success page
+
+            _logger.LogInformation("Application submission requested for Application {ApplicationId}", ApplicationId);
+
+            // For now, redirect to the application submitted page
+            return RedirectToPage("/Applications/ApplicationSubmitted", new { referenceNumber = ReferenceNumber });
         }
 
         public async Task<IActionResult> OnPostPageAsync()
