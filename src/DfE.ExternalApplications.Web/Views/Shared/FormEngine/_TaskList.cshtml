@@ -1,0 +1,91 @@
+@model DfE.ExternalApplications.Web.Pages.FormEngine.RenderFormModel
+@{
+    var applicationId = Context.Session.GetString("ApplicationId");
+    var leadApplicantEmail = Context.Session.GetString($"ApplicationLeadApplicantEmail_{applicationId}");
+    var currentUser = Context.User.Claims.First(c => c.Type == "email");
+}
+
+<div class="govuk-grid-row">
+    <div class="govuk-grid-column-two-thirds">
+        <h1 class="govuk-heading-xl govuk-!-margin-bottom-6">Your application</h1>
+        
+        @await Html.PartialAsync("FormEngine/_FormHeader", Model)
+        
+        @foreach (var group in Model.Template.TaskGroups.OrderBy(g => g.GroupOrder))
+        {
+            var groupNameHyphenated = group.GroupName.Replace(" ", "-").ToLower();
+
+            <h2 class="govuk-heading-m" id="group-@groupNameHyphenated" data-testid="group-@groupNameHyphenated">
+                @group.GroupName
+            </h2>
+            <ul class="govuk-task-list">
+                @foreach (var task in group.Tasks.OrderBy(t => t.TaskOrder))
+                {
+                    var currentTaskStatus = Model.GetTaskStatusFromSession(task.TaskId);
+                    var statusClass = Model.GetTaskStatusDisplayClass(currentTaskStatus);
+                    var statusText = Model.GetTaskStatusDisplayText(currentTaskStatus);
+
+                    var taskNameHyphenated = task.TaskName.Replace(" ", "-").ToLower();
+
+                    <li class="govuk-task-list__item govuk-task-list__item--with-link" id="group-@groupNameHyphenated-task-@taskNameHyphenated" data-testid="group-@groupNameHyphenated-task-@taskNameHyphenated">
+                        <div class="govuk-task-list__name-and-hint">
+                            @if (Model.IsApplicationEditable())
+                            {
+                                <a class="govuk-link govuk-task-list__link" href="/applications/@Model.ReferenceNumber/@task.TaskId/summary" aria-label="task-@taskNameHyphenated" aria-described-by="task-@taskNameHyphenated-status">
+                                    @task.TaskName
+                                </a>
+                            }
+                            else
+                            {
+                                <span class="govuk-task-list__link" aria-label="task-@taskNameHyphenated" aria-described-by="task-@taskNameHyphenated-status">@task.TaskName</span>
+                            }
+                        </div>
+                        <div class="govuk-task-list__status" id="task-@taskNameHyphenated-status">
+                            <govuk-tag class="@statusClass">@statusText</govuk-tag>
+                        </div>
+                    </li>
+                }
+            </ul>
+        }
+        
+        <div class="govuk-!-margin-top-6">
+            @if (Model.IsApplicationEditable())
+            {
+                <a href="/applications/@Model.ReferenceNumber/preview" class="govuk-button" role="button">
+                    Preview application
+                </a>
+            }
+            else
+            {
+                <a href="/applications/@Model.ReferenceNumber/preview" class="govuk-button" role="button">
+                    View application
+                </a>
+                <div class="govuk-inset-text govuk-!-margin-top-4">
+                    <p>This application has been submitted and can no longer be changed.</p>
+                    <p>Status: <strong>@Model.ApplicationStatus</strong></p>
+                </div>
+            }
+        </div>
+    </div>
+
+    @if (currentUser.Value == leadApplicantEmail)
+    {
+        <div class="govuk-grid-column-one-third">
+            <div class="govuk-!-margin-top-6">
+                <h2 class="govuk-heading-m">Inviting contributors</h2>
+                <p class="govuk-body">You can invite other people to complete parts of this application.</p>
+
+                @if (Model.IsApplicationEditable())
+                {
+                    <a href="/applications/@Model.ReferenceNumber/contributors" id="invite-contributors" class="govuk-button govuk-button--secondary" role="button">
+                        Invite contributors
+                    </a>
+                }
+                else
+                {
+                    <p class="govuk-body govuk-hint">Contributors cannot be invited to submitted applications.</p>
+                }
+            </div>
+        </div>
+    }
+</div>

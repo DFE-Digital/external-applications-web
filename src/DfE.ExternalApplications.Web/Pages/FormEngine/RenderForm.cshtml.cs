@@ -4,9 +4,9 @@ using DfE.ExternalApplications.Web.Pages.Shared;
 using DfE.ExternalApplications.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics.CodeAnalysis;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using Task = System.Threading.Tasks.Task;
+using DfE.ExternalApplications.Infrastructure.Services;
 
 namespace DfE.ExternalApplications.Web.Pages.FormEngine
 {
@@ -17,25 +17,24 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         IFieldFormattingService fieldFormattingService,
         ITemplateManagementService templateManagementService,
         IApplicationStateService applicationStateService,
+        IFormStateManager formStateManager,
+        IFormNavigationService formNavigationService,
+        IFormDataManager formDataManager,
+        IFormValidationOrchestrator formValidationOrchestrator,
+        IFormConfigurationService formConfigurationService,
         IAutocompleteService autocompleteService,
         IFileUploadService fileUploadService,
         ILogger<RenderFormModel> logger)
-        : BaseFormPageModel(renderer, applicationResponseService, fieldFormattingService, templateManagementService,
-            applicationStateService, logger)
+        : BaseFormEngineModel(renderer, applicationResponseService, fieldFormattingService, templateManagementService,
+            applicationStateService, formStateManager, formNavigationService, formDataManager, formValidationOrchestrator, formConfigurationService, logger)
     {
         [BindProperty] public Dictionary<string, object> Data { get; set; } = new();
 
-        [BindProperty(SupportsGet = true, Name = "taskId")] public string TaskId { get; set; }
-        [BindProperty(SupportsGet = true, Name = "pageId")] public string CurrentPageId { get; set; }
-
-
-        public TaskGroup CurrentGroup { get; set; }
-        public Domain.Models.Task CurrentTask { get; set; }
-        public Domain.Models.Page CurrentPage { get; set; }
+        [BindProperty] public bool IsTaskCompleted { get; set; }
 
         public async Task OnGetAsync()
         {
-            await CommonInitializationAsync();
+            await CommonFormEngineInitializationAsync();
 
             // If application is not editable and trying to access a specific page, redirect to preview
             if (!IsApplicationEditable() && !string.IsNullOrEmpty(CurrentPageId))
@@ -57,14 +56,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
             // Load accumulated form data from session to pre-populate fields
             LoadAccumulatedDataFromSession();
-            
-            // Handle remove item request for autocomplete fields
-            await HandleRemoveItemRequestAsync();
         }
 
         public async Task<IActionResult> OnPostPageAsync()
         {
-            await CommonInitializationAsync();
+            await CommonFormEngineInitializationAsync();
 
             // Prevent editing if application is not editable
             if (!IsApplicationEditable())
@@ -102,7 +98,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 }
             }
 
-            ValidatePage(CurrentPage);
+            ValidateCurrentPage(CurrentPage, Data);
             if (!ModelState.IsValid)
             {
                 return Page();
@@ -176,46 +172,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
         }
 
-        private void ValidatePage(Domain.Models.Page page)
-        {
-            foreach (var field in page.Fields)
-            {
-                var key = field.FieldId;
-                Data.TryGetValue(key, out var rawValue);
-                var value = rawValue?.ToString() ?? string.Empty;
 
-                if (field.Validations == null) continue;
-
-                foreach (var rule in field.Validations)
-                {
-                    // Conditional application
-                    if (rule.Condition != null)
-                    {
-                        Data.TryGetValue(rule.Condition.TriggerField, out var condRaw);
-                        var condVal = condRaw?.ToString();
-                        var expected = rule.Condition.Value?.ToString();
-                        if (rule.Condition.Operator == "equals" && condVal != expected)
-                            continue;
-                    }
-
-                    switch (rule.Type)
-                    {
-                        case "required":
-                            if (string.IsNullOrWhiteSpace(value))
-                                ModelState.AddModelError(key, rule.Message);
-                            break;
-                        case "regex":
-                            if (!Regex.IsMatch(value, rule.Rule.ToString(), RegexOptions.None, TimeSpan.FromMilliseconds(200)) && !String.IsNullOrWhiteSpace(value))
-                                ModelState.AddModelError(key, rule.Message);
-                            break;
-                        case "maxLength":
-                            if (value.Length > int.Parse(rule.Rule.ToString()))
-                                ModelState.AddModelError(key, rule.Message);
-                            break;
-                    }
-                }
-            }
-        }
 
         private void CheckAndClearSessionForNewApplication()
         {
@@ -256,62 +213,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
         }
 
-        /// <summary>
-        /// Handles the removal of individual items from autocomplete fields
-        /// </summary>
-        private async Task HandleRemoveItemRequestAsync()
-        {
-            if (Request.Query.TryGetValue("removeItem", out var removeItemValue) && 
-                int.TryParse(removeItemValue, out var itemIndex))
-            {
-                // Find the autocomplete field in the current page
-                var autocompleteField = CurrentPage?.Fields?.FirstOrDefault(f => 
-                    f.Type == "autocomplete" || f.Type == "complexField");
-                
-                if (autocompleteField != null && Data.ContainsKey(autocompleteField.FieldId))
-                {
-                    var currentValue = Data[autocompleteField.FieldId]?.ToString();
-                    
-                    if (!string.IsNullOrEmpty(currentValue))
-                    {
-                        try
-                        {
-                            // Parse the JSON array
-                            var items = JsonSerializer.Deserialize<JsonElement[]>(currentValue);
-                            
-                            // Remove the item at the specified index
-                            if (itemIndex >= 0 && itemIndex < items.Length)
-                            {
-                                var updatedItems = items.Where((item, index) => index != itemIndex).ToArray();
-                                
-                                // Serialize back to JSON
-                                var updatedValue = JsonSerializer.Serialize(updatedItems);
-                                Data[autocompleteField.FieldId] = updatedValue;
-                                
-                                // Save the updated data to session and API
-                                _applicationResponseService.AccumulateFormData(Data, HttpContext.Session);
-                                
-                                if (ApplicationId.HasValue)
-                                {
-                                    await _applicationResponseService.SaveApplicationResponseAsync(ApplicationId.Value, Data, HttpContext.Session);
-                                }
-                                
-                                _logger.LogInformation("Removed item at index {ItemIndex} from field {FieldId}", 
-                                    itemIndex, autocompleteField.FieldId);
-                            }
-                        }
-                        catch (JsonException ex)
-                        {
-                            _logger.LogWarning(ex, "Failed to parse autocomplete field value for removal: {FieldId}", 
-                                autocompleteField.FieldId);
-                        }
-                    }
-                }
-                
-                // Redirect back to the summary page to show updated data
-                Response.Redirect($"/applications/{ReferenceNumber}/{TaskId}/summary");
-            }
-        }
+
 
         /// <summary>
         /// Calculate overall application status based on task statuses
@@ -334,6 +236,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
             return hasAnyTaskWithProgress ? "InProgress" : "InProgress"; // Always InProgress until submitted
         }
+
+
     }
 }
 

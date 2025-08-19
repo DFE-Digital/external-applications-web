@@ -1,0 +1,157 @@
+@model DfE.ExternalApplications.Web.Pages.FormEngine.RenderFormModel
+@inject Application.Interfaces.IComplexFieldConfigurationService ComplexFieldConfigurationService
+
+<govuk-back-link href="/applications/@Model.ReferenceNumber">Back to application task list</govuk-back-link>
+
+<h1 class="govuk-heading-xl govuk-!-margin-bottom-6">@Model.CurrentTask.TaskName</h1>
+
+<dl class="govuk-summary-list">
+    @foreach (var page in Model.CurrentTask.Pages.OrderBy(p => p.PageOrder))
+    {
+        @foreach (var field in page.Fields.OrderBy(f => f.Order))
+        {
+            var fieldValue = Model.GetFieldValue(field.FieldId);
+            var hasValue = Model.HasFieldValue(field.FieldId);
+            var changeUrl = $"/applications/{Model.ReferenceNumber}/{Model.TaskId}/{page.PageId}";
+
+            var fieldIdHyphenated = field.FieldId.Replace(" ", "-").ToLower();
+
+            if ((field.Type == "autocomplete" || field.Type == "complexField") && hasValue)
+            {
+                // Handle multiple autocomplete/complex field values as main header + individual rows
+                var formattedValues = Model.GetFormattedFieldValues(field.FieldId);
+                var itemLabel = Model.GetFieldItemLabel(field.FieldId);
+                var allowMultiple = Model.IsFieldAllowMultiple(field.FieldId);
+                
+                // Check if this is specifically an autocomplete complex field (not upload or other types)
+                var isAutocompleteField = field.Type == "autocomplete" || 
+                    (field.Type == "complexField" && field.ComplexField != null && 
+                     ComplexFieldConfigurationService.GetConfiguration(field.ComplexField.Id).FieldType.Equals("autocomplete", StringComparison.OrdinalIgnoreCase));
+
+                var itemLabelHyphenated = itemLabel.Replace(" ", "-").ToLower();
+
+                // Show main field header with change link
+                <div class="govuk-summary-list__row" id="field-@fieldIdHyphenated" data-testid="field-@fieldIdHyphenated">
+                    <dt class="govuk-summary-list__key">
+                        @field.Label.Value
+                    </dt>
+                    <dd class="govuk-summary-list__value">
+                        @if (formattedValues.Count == 0)
+                        {
+                            <span class="govuk-hint">Not answered</span>
+                        }
+                        else if (!allowMultiple)
+                        {
+                            @Html.Raw(formattedValues.FirstOrDefault())
+                        }
+                    </dd>
+                    <dd class="govuk-summary-list__actions">
+                        @if (Model.IsApplicationEditable())
+                        {
+                            <a class="govuk-link" href="@changeUrl" id="field-@fieldIdHyphenated-change-link" data-testid="field-@fieldIdHyphenated-change-link">
+                                Change<span class="govuk-visually-hidden"> @field.Label.Value</span>
+                            </a>
+                        }
+                    </dd>
+                </div>
+
+                // Show individual items if multiple selection is enabled
+                @if (allowMultiple && formattedValues.Count > 0)
+                {
+                    @foreach (var (value, index) in formattedValues.Select((v, i) => (v, i)))
+                    {
+                        var itemId = $"{fieldIdHyphenated}-item-{index}";
+                        <div class="govuk-summary-list__row" id="@itemId" data-testid="@itemId">
+                            <dt class="govuk-summary-list__key">
+                                @itemLabel @(index + 1)
+                            </dt>
+                            <dd class="govuk-summary-list__value">
+                                @Html.Raw(value)
+                            </dd>
+                            <dd class="govuk-summary-list__actions">
+                                @if (Model.IsApplicationEditable())
+                                {
+                                    <a class="govuk-link" href="@changeUrl?removeItem=@index" id="@itemId-remove-link" data-testid="@itemId-remove-link">
+                                        Remove<span class="govuk-visually-hidden"> @itemLabel @(index + 1)</span>
+                                    </a>
+                                }
+                            </dd>
+                        </div>
+                    }
+                }
+            }
+            else
+            {
+                <div class="govuk-summary-list__row" id="field-@fieldIdHyphenated" data-testid="field-@fieldIdHyphenated">
+                    <dt class="govuk-summary-list__key">
+                        @field.Label.Value
+                    </dt>
+                    <dd class="govuk-summary-list__value">
+                        @if (hasValue)
+                        {
+                            @if (field.Type == "radios" && field.Options != null)
+                            {
+                                var selectedOption = field.Options.FirstOrDefault(o => o.Value == fieldValue);
+                                @(selectedOption?.Label ?? fieldValue)
+                            }
+                            else if (field.Type == "select" && field.Options != null)
+                            {
+                                var selectedOption = field.Options.FirstOrDefault(o => o.Value == fieldValue);
+                                @(selectedOption?.Label ?? fieldValue)
+                            }
+                            else
+                            {
+                                @Html.Raw(fieldValue.Replace("\r\n", "<br/>").Replace("\r", "<br/>").Replace("\n", "<br/>"))
+                            }
+                        }
+                        else
+                        {
+                            <span class="govuk-hint">Not answered</span>
+                        }
+                    </dd>
+                    <dd class="govuk-summary-list__actions">
+                        @if (Model.IsApplicationEditable())
+                        {
+                            <a class="govuk-link" href="@changeUrl" id="field-@fieldIdHyphenated-change-link" data-testid="field-@fieldIdHyphenated-change-link">
+                                Change<span class="govuk-visually-hidden"> @field.Label.Value</span>
+                            </a>
+                        }
+                    </dd>
+                </div>
+            }
+        }
+    }
+</dl>
+
+@if (Model.IsApplicationEditable())
+{
+    <form method="post">
+        <input type="hidden" asp-for="TaskId" />
+        <input type="hidden" asp-for="ReferenceNumber" />
+        
+        <div class="govuk-checkboxes" data-module="govuk-checkboxes">
+            <div class="govuk-checkboxes__item">
+                <input class="govuk-checkboxes__input" id="IsTaskCompleted" name="IsTaskCompleted" type="checkbox" value="true" @(Model.IsTaskCompleted ? "checked" : "")>
+                <label class="govuk-label govuk-checkboxes__label" for="IsTaskCompleted">
+                    Mark this section as complete, you can still make changes later
+                </label>
+            </div>
+        </div>
+
+        <div class="govuk-button-group govuk-!-margin-top-6">
+            <govuk-button type="submit" id="save-task-summary-button">Save and continue</govuk-button>
+            <a class="govuk-link" id="return-to-application-overview" data-testid="return-to-application-overview" href="/applications/@Model.ReferenceNumber">Return to application overview</a>
+        </div>
+    </form>
+}
+else
+{
+    <div class="govuk-inset-text govuk-!-margin-top-6">
+        <p>This application has been submitted and can no longer be changed.</p>
+        <p>Status: <strong>@Model.ApplicationStatus</strong></p>
+    </div>
+    
+    <div class="govuk-!-margin-top-6">
+        <a class="govuk-link" id="return-to-application-overview" data-testid="return-to-application-overview" href="/applications/@Model.ReferenceNumber">Return to application overview</a>
+    </div>
+}
