@@ -1,0 +1,33 @@
+@model RenderFormModel
+@{
+    var task = Model.CurrentTask;
+    var summary = task?.Summary;
+    var flowId = summary?.FlowRef ?? string.Empty;
+    var fieldId = summary?.FieldId ?? string.Empty;
+    var addLabel = summary?.AddButtonLabel ?? "Add item";
+
+    // Read collection from accumulated form data. We store as JSON string under fieldId
+    Model.FormData.TryGetValue(fieldId, out var raw);
+    var json = raw?.ToString() ?? "[]";
+}
+
+<div class="govuk-grid-row">
+    <div class="govuk-grid-column-two-thirds">
+        <h1 class="govuk-heading-l">@task?.TaskName</h1>
+
+        <div class="govuk-!-margin-bottom-4">
+            <a class="govuk-button" href="/applications/@Model.ReferenceNumber/@Model.TaskId/flow/@flowId/@Guid.NewGuid()">@addLabel</a>
+        </div>
+
+        <div>
+            @* The list/table is rendered client-side for now using the stored JSON; server-side rendering can be added later *@
+            <pre class="govuk-body">@json</pre>
+        </div>
+
+        <div class="govuk-button-group">
+            <a class="govuk-link" href="/applications/@Model.ReferenceNumber">Back to application task list</a>
+        </div>
+    </div>
+</div>
+
+

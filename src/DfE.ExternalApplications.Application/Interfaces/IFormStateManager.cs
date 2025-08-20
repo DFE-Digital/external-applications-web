@@ -35,6 +35,10 @@ namespace DfE.ExternalApplications.Application.Interfaces
         /// <param name="pageId">The current page ID</param>
         /// <returns>True if application preview should be shown</returns>
         bool ShouldShowApplicationPreview(string pageId);
+
+        // Sub-flow support
+        bool ShouldShowCollectionFlowSummary(Domain.Models.Task task);
+        bool IsInSubFlow(string flowId, string pageId);
     }
 
     /// <summary>
@@ -60,6 +64,16 @@ namespace DfE.ExternalApplications.Application.Interfaces
         /// <summary>
         /// Shows the application preview
         /// </summary>
-        ApplicationPreview
+        ApplicationPreview,
+
+        /// <summary>
+        /// Shows a collection-flow based custom summary
+        /// </summary>
+        CollectionFlowSummary,
+
+        /// <summary>
+        /// Shows a page within a sub-flow (linear mini-form)
+        /// </summary>
+        SubFlowPage
     }
 }

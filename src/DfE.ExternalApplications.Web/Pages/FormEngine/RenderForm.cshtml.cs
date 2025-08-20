@@ -8,6 +8,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
 using Task = System.Threading.Tasks.Task;
 using DfE.ExternalApplications.Infrastructure.Services;
+using System.Text.Json;
 
 namespace DfE.ExternalApplications.Web.Pages.FormEngine
 {
@@ -54,6 +55,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
             else
             {
+                // Detect sub-flow route segments inside pageId via route value parsing if needed in future
                 // If application is not editable and trying to access a specific page, redirect to preview
                 if (!IsApplicationEditable() && !string.IsNullOrEmpty(CurrentPageId))
                 {
@@ -63,10 +65,31 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
                 if (!string.IsNullOrEmpty(CurrentPageId))
                 {
-                    var (group, task, page) = InitializeCurrentPage(CurrentPageId);
-                    CurrentGroup = group;
-                    CurrentTask = task;
-                    CurrentPage = page;
+                    if (TryParseFlowRoute(CurrentPageId, out var flowId, out var instanceId, out var flowPageId))
+                    {
+                        // Sub-flow: initialize task and resolve page from flow definition
+                        var (group, task) = InitializeCurrentTask(TaskId);
+                        CurrentGroup = group;
+                        CurrentTask = task;
+
+                        var flow = _templateManagementService.FindFlow(Template, flowId);
+                        if (flow != null)
+                        {
+                            var page = string.IsNullOrEmpty(flowPageId) ? flow.Pages.FirstOrDefault() : _templateManagementService.FindFlowPage(flow, flowPageId);
+                            if (page != null)
+                            {
+                                CurrentPage = page;
+                                CurrentFormState = FormState.FormPage; // Render as a normal page
+                            }
+                        }
+                    }
+                    else
+                    {
+                        var (group, task, page) = InitializeCurrentPage(CurrentPageId);
+                        CurrentGroup = group;
+                        CurrentTask = task;
+                        CurrentPage = page;
+                    }
                 }
                 else if (!string.IsNullOrEmpty(TaskId))
                 {
@@ -74,6 +97,12 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     CurrentGroup = group;
                     CurrentTask = task;
                     CurrentPage = null; // No specific page for task summary
+
+                    // If task requests collectionFlow summary, switch state accordingly
+                    if (_formStateManager.ShouldShowCollectionFlowSummary(CurrentTask))
+                    {
+                        CurrentFormState = FormState.TaskSummary; // view chooses partial
+                    }
                 }
             }
 
@@ -178,10 +207,29 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
             if (!string.IsNullOrEmpty(CurrentPageId))
             {
-                var (group, task, page) = InitializeCurrentPage(CurrentPageId);
-                CurrentGroup = group;
-                CurrentTask = task;
-                CurrentPage = page;
+                if (TryParseFlowRoute(CurrentPageId, out var flowId, out var instanceId, out var flowPageId))
+                {
+                    var (group, task) = InitializeCurrentTask(TaskId);
+                    CurrentGroup = group;
+                    CurrentTask = task;
+
+                    var flow = _templateManagementService.FindFlow(Template, flowId);
+                    if (flow != null)
+                    {
+                        var page = string.IsNullOrEmpty(flowPageId) ? flow.Pages.FirstOrDefault() : _templateManagementService.FindFlowPage(flow, flowPageId);
+                        if (page != null)
+                        {
+                            CurrentPage = page;
+                        }
+                    }
+                }
+                else
+                {
+                    var (group, task, page) = InitializeCurrentPage(CurrentPageId);
+                    CurrentGroup = group;
+                    CurrentTask = task;
+                    CurrentPage = page;
+                }
             }
             else if (!string.IsNullOrEmpty(TaskId))
             {
@@ -245,19 +293,58 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             // Use the new navigation logic to determine where to go after saving
             if (CurrentTask != null && CurrentPage != null)
             {
-                var nextUrl = _formNavigationService.GetNextNavigationTargetAfterSave(CurrentPage, CurrentTask, ReferenceNumber);
-                return Redirect(nextUrl);
+                // If this is a sub-flow route, compute next page within the flow
+                if (TryParseFlowRoute(CurrentPageId, out var flowId, out var instanceId, out var flowPageId))
+                {
+                    var flow = _templateManagementService.FindFlow(Template, flowId);
+                    if (flow != null)
+                    {
+                        var index = flow.Pages.FindIndex(p => p.PageId == CurrentPage.PageId);
+                        var isLast = index == -1 || index >= flow.Pages.Count - 1;
+                        if (!isLast)
+                        {
+                            var nextPageId = flow.Pages[index + 1].PageId;
+                            var nextUrl = _formNavigationService.GetSubFlowPageUrl(CurrentTask.TaskId, ReferenceNumber, flowId, instanceId, nextPageId);
+                            return Redirect(nextUrl);
+                        }
+                        else
+                        {
+                            // Flow complete: append item to collection and go back to collection summary
+                            var fieldId = CurrentTask.Summary?.FieldId ?? string.Empty;
+                            if (!string.IsNullOrEmpty(fieldId))
+                            {
+                                AppendCollectionItemToSession(flow, fieldId, instanceId);
+                                if (ApplicationId.HasValue)
+                                {
+                                    // Trigger save for the collection field
+                                    var acc = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
+                                    if (acc.TryGetValue(fieldId, out var collectionValue))
+                                    {
+                                        await _applicationResponseService.SaveApplicationResponseAsync(ApplicationId.Value, new Dictionary<string, object> { [fieldId] = collectionValue }, HttpContext.Session);
+                                    }
+                                }
+                            }
+                            return Redirect(_formNavigationService.GetCollectionFlowSummaryUrl(CurrentTask.TaskId, ReferenceNumber));
+                        }
+                    }
+                }
+                else
+                {
+                    var nextUrl = _formNavigationService.GetNextNavigationTargetAfterSave(CurrentPage, CurrentTask, ReferenceNumber);
+                    return Redirect(nextUrl);
+                }
             }
             else if (CurrentTask != null)
             {
-                // Fallback: redirect to task summary if CurrentPage is null
+                // Fallback: redirect to task summary or collection summary depending on config
+                if (_formStateManager.ShouldShowCollectionFlowSummary(CurrentTask))
+                {
+                    return Redirect(_formNavigationService.GetCollectionFlowSummaryUrl(CurrentTask.TaskId, ReferenceNumber));
+                }
                 return Redirect($"/applications/{ReferenceNumber}/{CurrentTask.TaskId}");
             }
-            else
-            {
-                // Fallback: redirect to task list if CurrentTask is null
-                return Redirect($"/applications/{ReferenceNumber}");
-            }
+            // Fallback: redirect to task list if CurrentTask is null
+            return Redirect($"/applications/{ReferenceNumber}");
         }
 
         public async Task<IActionResult> OnGetAutocompleteAsync(string endpoint, string query)
@@ -309,6 +396,62 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
 
 
+        private static bool TryParseFlowRoute(string pageId, out string flowId, out string instanceId, out string flowPageId)
+        {
+            flowId = instanceId = flowPageId = string.Empty;
+            if (string.IsNullOrEmpty(pageId)) return false;
+            // Expected: flow/{flowId}/{instanceId}/{pageId?}
+            var parts = pageId.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length >= 3 && parts[0].Equals("flow", StringComparison.OrdinalIgnoreCase))
+            {
+                flowId = parts[1];
+                instanceId = parts[2];
+                flowPageId = parts.Length > 3 ? parts[3] : string.Empty;
+                return true;
+            }
+            return false;
+        }
+
+        private void AppendCollectionItemToSession(FlowDefinition flow, string fieldId, string instanceId)
+        {
+            // Merge Data dictionary (captured for the flow pages) into a single item object
+            var item = new Dictionary<string, object>();
+            foreach (var page in flow.Pages)
+            {
+                foreach (var field in page.Fields)
+                {
+                    var key = field.FieldId;
+                    if (Data.TryGetValue(key, out var value))
+                    {
+                        item[key] = value;
+                    }
+                }
+            }
+            item["id"] = instanceId;
+
+            var acc = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
+            var list = new List<Dictionary<string, object>>();
+            if (acc.TryGetValue(fieldId, out var existing))
+            {
+                var s = existing?.ToString();
+                if (!string.IsNullOrWhiteSpace(s))
+                {
+                    try
+                    {
+                        var parsed = JsonSerializer.Deserialize<List<Dictionary<string, object>>>(s);
+                        if (parsed != null) list = parsed;
+                    }
+                    catch { }
+                }
+            }
+
+            // Upsert by id
+            var idx = list.FindIndex(x => x.TryGetValue("id", out var id) && id?.ToString() == instanceId);
+            if (idx >= 0) list[idx] = item; else list.Add(item);
+
+            var serialized = JsonSerializer.Serialize(list);
+            _applicationResponseService.AccumulateFormData(new Dictionary<string, object> { [fieldId] = serialized }, HttpContext.Session);
+        }
         private void CheckAndClearSessionForNewApplication()
         {
             // Check if we're working with a different application than what's stored in session

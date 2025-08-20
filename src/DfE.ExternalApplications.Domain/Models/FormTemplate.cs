@@ -18,6 +18,12 @@ namespace DfE.ExternalApplications.Domain.Models
         [JsonPropertyName("taskGroups")]
         public required List<TaskGroup> TaskGroups { get; set; }
 
+        /// <summary>
+        /// Optional reusable sub-flow definitions that can be referenced from tasks/fields
+        /// </summary>
+        [JsonPropertyName("flows")]
+        public List<FlowDefinition>? Flows { get; set; }
+
         //[JsonPropertyName("conditionalLogic")]
         //public List<ConditionalLogic>? ConditionalLogic { get; set; }
     }

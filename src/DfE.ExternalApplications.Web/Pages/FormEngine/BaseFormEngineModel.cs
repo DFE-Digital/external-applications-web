@@ -43,6 +43,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         // URL Parameters (to be set by derived classes)
         [BindProperty(SupportsGet = true, Name = "taskId")] public string TaskId { get; set; } = string.Empty;
         [BindProperty(SupportsGet = true, Name = "pageId")] public string CurrentPageId { get; set; } = string.Empty;
+        [BindProperty(SupportsGet = true, Name = "flowId")] public string FlowId { get; set; } = string.Empty;
+        [BindProperty(SupportsGet = true, Name = "instanceId")] public string InstanceId { get; set; } = string.Empty;
 
         /// <summary>
         /// Gets the current form state based on the URL parameters

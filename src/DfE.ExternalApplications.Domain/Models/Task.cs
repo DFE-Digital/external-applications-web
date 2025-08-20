@@ -27,4 +27,23 @@ public class Task
 
     [JsonPropertyName("pages")]
     public required List<Page> Pages { get; set; }
+
+    // Custom summary configuration (optional)
+    [JsonPropertyName("summary")] public TaskSummaryConfiguration? Summary { get; set; }
+
+    // Control visibility in main task list
+    [JsonPropertyName("visibleInTaskList")] public bool? VisibleInTaskList { get; set; }
+}
+
+public class TaskSummaryConfiguration
+{
+    // "standard" or "collectionFlow"
+    [JsonPropertyName("mode")] public string Mode { get; set; } = "standard";
+
+    // For collectionFlow mode
+    [JsonPropertyName("fieldId")] public string? FieldId { get; set; }
+    [JsonPropertyName("flowRef")] public string? FlowRef { get; set; }
+    [JsonPropertyName("addButtonLabel")] public string? AddButtonLabel { get; set; }
+    [JsonPropertyName("minItems")] public int? MinItems { get; set; }
+    [JsonPropertyName("maxItems")] public int? MaxItems { get; set; }
 }

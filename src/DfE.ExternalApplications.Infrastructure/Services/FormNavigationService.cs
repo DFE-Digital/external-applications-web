@@ -153,5 +153,22 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             // Return the next page
             return currentTask.Pages[currentPageIndex + 1];
         }
+
+        // Sub-flow helpers
+        public string GetCollectionFlowSummaryUrl(string taskId, string referenceNumber)
+        {
+            // Uses the same route as task summary; the view model decides which summary to render
+            return $"/applications/{referenceNumber}/{taskId}";
+        }
+
+        public string GetStartSubFlowUrl(string taskId, string referenceNumber, string flowId, string instanceId)
+        {
+            return $"/applications/{referenceNumber}/{taskId}/flow/{flowId}/{instanceId}";
+        }
+
+        public string GetSubFlowPageUrl(string taskId, string referenceNumber, string flowId, string instanceId, string pageId)
+        {
+            return $"/applications/{referenceNumber}/{taskId}/flow/{flowId}/{instanceId}/{pageId}";
+        }
     }
 }

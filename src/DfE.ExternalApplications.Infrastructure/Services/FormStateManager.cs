@@ -16,6 +16,11 @@ namespace DfE.ExternalApplications.Infrastructure.Services
         /// <returns>The current form state</returns>
         public FormState GetCurrentState(string referenceNumber, string taskId, string pageId)
         {
+            // Sub-flow routing pattern: pageId may include "flow/flowId/..." segment when mapped in the Razor Page
+            if (!string.IsNullOrEmpty(pageId) && pageId.StartsWith("flow/", StringComparison.OrdinalIgnoreCase))
+            {
+                return FormState.SubFlowPage;
+            }
             // If we have a pageId, we're showing a specific form page
             if (!string.IsNullOrEmpty(pageId))
             {
@@ -63,6 +68,16 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             // This would be determined by specific routing logic
             // For now, we'll return false as this is handled by separate pages
             return false;
+        }
+
+        public bool ShouldShowCollectionFlowSummary(Domain.Models.Task task)
+        {
+            return task?.Summary?.Mode?.Equals("collectionFlow", StringComparison.OrdinalIgnoreCase) == true;
+        }
+
+        public bool IsInSubFlow(string flowId, string pageId)
+        {
+            return !string.IsNullOrEmpty(pageId) && pageId.StartsWith($"flow/{flowId}", StringComparison.OrdinalIgnoreCase);
         }
     }
 }

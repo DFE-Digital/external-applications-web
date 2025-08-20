@@ -88,5 +88,15 @@ namespace DfE.ExternalApplications.Infrastructure.Services
 
             return (pair.Group, pair.Task, currentPage);
         }
+
+        public Domain.Models.FlowDefinition? FindFlow(FormTemplate template, string flowId)
+        {
+            return template.Flows?.FirstOrDefault(f => f.FlowId == flowId);
+        }
+
+        public Domain.Models.Page? FindFlowPage(Domain.Models.FlowDefinition flow, string pageId)
+        {
+            return flow.Pages.FirstOrDefault(p => p.PageId == pageId) ?? flow.Pages.FirstOrDefault();
+        }
     }
 } 

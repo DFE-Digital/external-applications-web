@@ -71,5 +71,10 @@ namespace DfE.ExternalApplications.Application.Interfaces
         /// <param name="referenceNumber">The application reference number</param>
         /// <returns>The URL for the next navigation target</returns>
         string GetNextNavigationTargetAfterSave(Domain.Models.Page currentPage, Domain.Models.Task currentTask, string referenceNumber);
+
+        // Sub-flow URLs
+        string GetCollectionFlowSummaryUrl(string taskId, string referenceNumber);
+        string GetStartSubFlowUrl(string taskId, string referenceNumber, string flowId, string instanceId);
+        string GetSubFlowPageUrl(string taskId, string referenceNumber, string flowId, string instanceId, string pageId);
     }
 }
