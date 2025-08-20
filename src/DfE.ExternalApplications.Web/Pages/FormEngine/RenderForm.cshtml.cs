@@ -56,14 +56,14 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             else
             {
                 // Detect sub-flow route segments inside pageId via route value parsing if needed in future
-                // If application is not editable and trying to access a specific page, redirect to preview
-                if (!IsApplicationEditable() && !string.IsNullOrEmpty(CurrentPageId))
-                {
+            // If application is not editable and trying to access a specific page, redirect to preview
+            if (!IsApplicationEditable() && !string.IsNullOrEmpty(CurrentPageId))
+            {
                     Response.Redirect($"~/applications/{ReferenceNumber}");
-                    return;
-                }
+                return;
+            }
 
-                if (!string.IsNullOrEmpty(CurrentPageId))
+            if (!string.IsNullOrEmpty(CurrentPageId))
                 {
                     if (TryParseFlowRoute(CurrentPageId, out var flowId, out var instanceId, out var flowPageId))
                     {
@@ -84,11 +84,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         }
                     }
                     else
-                    {
-                        var (group, task, page) = InitializeCurrentPage(CurrentPageId);
-                        CurrentGroup = group;
-                        CurrentTask = task;
-                        CurrentPage = page;
+            {
+                var (group, task, page) = InitializeCurrentPage(CurrentPageId);
+                CurrentGroup = group;
+                CurrentTask = task;
+                CurrentPage = page;
                     }
                 }
                 else if (!string.IsNullOrEmpty(TaskId))
@@ -205,10 +205,13 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 return RedirectToPage("/FormEngine/RenderForm", new { referenceNumber = ReferenceNumber });
             }
 
+            _logger.LogInformation("POST Page: ref={ReferenceNumber} task={TaskId} pageId={PageId}", ReferenceNumber, TaskId, CurrentPageId);
+
             if (!string.IsNullOrEmpty(CurrentPageId))
             {
                 if (TryParseFlowRoute(CurrentPageId, out var flowId, out var instanceId, out var flowPageId))
                 {
+                    _logger.LogInformation("Detected sub-flow: flowId={FlowId} instance={InstanceId} flowPageId={FlowPageId}", flowId, instanceId, flowPageId);
                     var (group, task) = InitializeCurrentTask(TaskId);
                     CurrentGroup = group;
                     CurrentTask = task;
@@ -225,10 +228,10 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 }
                 else
                 {
-                    var (group, task, page) = InitializeCurrentPage(CurrentPageId);
-                    CurrentGroup = group;
-                    CurrentTask = task;
-                    CurrentPage = page;
+            var (group, task, page) = InitializeCurrentPage(CurrentPageId);
+            CurrentGroup = group;
+            CurrentTask = task;
+            CurrentPage = page;
                 }
             }
             else if (!string.IsNullOrEmpty(TaskId))
@@ -270,6 +273,13 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
             if (!ModelState.IsValid)
             {
+                _logger.LogWarning("ModelState invalid on POST Page: {Errors}", string.Join("; ", ModelState.Where(e => e.Value?.Errors.Count > 0).Select(k => $"{k.Key}:{string.Join('|', k.Value!.Errors.Select(er => er.ErrorMessage))}")));
+                // If we're inside a sub-flow, redirect back to the same URL to avoid state mis-binding
+                if (TryParseFlowRoute(CurrentPageId, out _, out _, out _))
+                {
+                    var selfUrl = $"/applications/{ReferenceNumber}/{TaskId}/{CurrentPageId}";
+                    return Redirect(selfUrl);
+                }
                 return Page();
             }
 
@@ -305,6 +315,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         {
                             var nextPageId = flow.Pages[index + 1].PageId;
                             var nextUrl = _formNavigationService.GetSubFlowPageUrl(CurrentTask.TaskId, ReferenceNumber, flowId, instanceId, nextPageId);
+                            _logger.LogInformation("Redirecting to next sub-flow page: {Url}", nextUrl);
                             return Redirect(nextUrl);
                         }
                         else
@@ -324,13 +335,16 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                     }
                                 }
                             }
-                            return Redirect(_formNavigationService.GetCollectionFlowSummaryUrl(CurrentTask.TaskId, ReferenceNumber));
+                            var backToSummary = _formNavigationService.GetCollectionFlowSummaryUrl(CurrentTask.TaskId, ReferenceNumber);
+                            _logger.LogInformation("Sub-flow complete; redirecting to collection summary: {Url}", backToSummary);
+                            return Redirect(backToSummary);
                         }
                     }
                 }
                 else
                 {
                     var nextUrl = _formNavigationService.GetNextNavigationTargetAfterSave(CurrentPage, CurrentTask, ReferenceNumber);
+                    _logger.LogInformation("Redirecting to next standard target: {Url}", nextUrl);
                     return Redirect(nextUrl);
                 }
             }

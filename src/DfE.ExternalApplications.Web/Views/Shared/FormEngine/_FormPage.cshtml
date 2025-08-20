@@ -15,13 +15,8 @@
 }
 
 <form method="post" id="form_@Model.CurrentPageId"
-      asp-page="/FormEngine/RenderForm"
-      asp-page-handler="Page"
-      asp-route-referenceNumber="@Model.ReferenceNumber"
-      asp-route-taskId="@Model.TaskId"
-      asp-route-pageId="@Model.CurrentPageId"
-      asp-route-flowId="@(Model.FlowId ?? string.Empty)"
-      asp-route-instanceId="@(Model.InstanceId ?? string.Empty)">
+      action="/applications/@Model.ReferenceNumber/@Model.TaskId/@Model.CurrentPageId?handler=Page">
+    @Html.AntiForgeryToken()
     <input type="hidden" asp-for="CurrentPageId" />
     <input type="hidden" asp-for="TaskId" />
     <govuk-back-link href="/applications/@Model.ReferenceNumber/@Model.TaskId">Back</govuk-back-link>
