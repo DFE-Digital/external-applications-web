@@ -309,6 +309,9 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     var flow = _templateManagementService.FindFlow(Template, flowId);
                     if (flow != null)
                     {
+                        // Persist in-progress sub-flow data for this instance
+                        SaveFlowProgress(flowId, instanceId, Data);
+
                         var index = flow.Pages.FindIndex(p => p.PageId == CurrentPage.PageId);
                         var isLast = index == -1 || index >= flow.Pages.Count - 1;
                         if (!isLast)
@@ -324,7 +327,14 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                             var fieldId = CurrentTask.Summary?.FieldId ?? string.Empty;
                             if (!string.IsNullOrEmpty(fieldId))
                             {
-                                AppendCollectionItemToSession(flow, fieldId, instanceId);
+                                // Merge accumulated progress with final page data
+                                var accumulated = LoadFlowProgress(flowId, instanceId);
+                                foreach (var kv in Data)
+                                {
+                                    accumulated[kv.Key] = kv.Value;
+                                }
+
+                                AppendCollectionItemToSession(flow, fieldId, instanceId, accumulated);
                                 if (ApplicationId.HasValue)
                                 {
                                     // Trigger save for the collection field
@@ -334,6 +344,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                         await _applicationResponseService.SaveApplicationResponseAsync(ApplicationId.Value, new Dictionary<string, object> { [fieldId] = collectionValue }, HttpContext.Session);
                                     }
                                 }
+                                // Clear the in-progress cache for this instance
+                                ClearFlowProgress(flowId, instanceId);
                             }
                             var backToSummary = _formNavigationService.GetCollectionFlowSummaryUrl(CurrentTask.TaskId, ReferenceNumber);
                             _logger.LogInformation("Sub-flow complete; redirecting to collection summary: {Url}", backToSummary);
@@ -429,7 +441,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             return false;
         }
 
-        private void AppendCollectionItemToSession(FlowDefinition flow, string fieldId, string instanceId)
+        private void AppendCollectionItemToSession(FlowDefinition flow, string fieldId, string instanceId, Dictionary<string, object> itemData)
         {
             // Merge Data dictionary (captured for the flow pages) into a single item object
             var item = new Dictionary<string, object>();
@@ -438,7 +450,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 foreach (var field in page.Fields)
                 {
                     var key = field.FieldId;
-                    if (Data.TryGetValue(key, out var value))
+                    if (itemData.TryGetValue(key, out var value))
                     {
                         item[key] = value;
                     }
@@ -468,6 +480,41 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
             var serialized = JsonSerializer.Serialize(list);
             _applicationResponseService.AccumulateFormData(new Dictionary<string, object> { [fieldId] = serialized }, HttpContext.Session);
+        }
+
+        private static string GetFlowProgressSessionKey(string flowId, string instanceId) => $"FlowProgress_{flowId}_{instanceId}";
+
+        private Dictionary<string, object> LoadFlowProgress(string flowId, string instanceId)
+        {
+            var key = GetFlowProgressSessionKey(flowId, instanceId);
+            var json = HttpContext.Session.GetString(key);
+            if (string.IsNullOrWhiteSpace(json)) return new Dictionary<string, object>();
+            try
+            {
+                var dict = JsonSerializer.Deserialize<Dictionary<string, object>>(json);
+                return dict ?? new Dictionary<string, object>();
+            }
+            catch
+            {
+                return new Dictionary<string, object>();
+            }
+        }
+
+        private void SaveFlowProgress(string flowId, string instanceId, Dictionary<string, object> latest)
+        {
+            var existing = LoadFlowProgress(flowId, instanceId);
+            foreach (var kv in latest)
+            {
+                existing[kv.Key] = kv.Value;
+            }
+            var key = GetFlowProgressSessionKey(flowId, instanceId);
+            HttpContext.Session.SetString(key, JsonSerializer.Serialize(existing));
+        }
+
+        private void ClearFlowProgress(string flowId, string instanceId)
+        {
+            var key = GetFlowProgressSessionKey(flowId, instanceId);
+            HttpContext.Session.Remove(key);
         }
         private void CheckAndClearSessionForNewApplication()
         {
