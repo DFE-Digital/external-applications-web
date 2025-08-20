@@ -14,7 +14,14 @@
     bool labelledByHeader = (Model.CurrentPage.Fields.Count == 1) && typeOfFirstField != "complexField";
 }
 
-<form method="post" id="form_@Model.CurrentPageId" asp-page-handler="Page">
+<form method="post" id="form_@Model.CurrentPageId"
+      asp-page="/FormEngine/RenderForm"
+      asp-page-handler="Page"
+      asp-route-referenceNumber="@Model.ReferenceNumber"
+      asp-route-taskId="@Model.TaskId"
+      asp-route-pageId="@Model.CurrentPageId"
+      asp-route-flowId="@(Model.FlowId ?? string.Empty)"
+      asp-route-instanceId="@(Model.InstanceId ?? string.Empty)">
     <input type="hidden" asp-for="CurrentPageId" />
     <input type="hidden" asp-for="TaskId" />
     <govuk-back-link href="/applications/@Model.ReferenceNumber/@Model.TaskId">Back</govuk-back-link>
