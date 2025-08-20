@@ -1,12 +1,4 @@
-@page "/applications/{referenceNumber}/preview"
-@model ApplicationPreviewModel
-@{
-    ViewData["Title"] = "Preview application";
-
-    var applicationId = HttpContext.Session.GetString("ApplicationId");
-    var leadApplicantEmail = HttpContext.Session.GetString($"ApplicationLeadApplicantEmail_{applicationId}");
-    var currentUser = HttpContext.User.Claims.First(c => c.Type == "email");
-}
+@model DfE.ExternalApplications.Web.Pages.FormEngine.RenderFormModel
 
 <govuk-back-link href="/applications/@Model.ReferenceNumber">Back to application task list</govuk-back-link>
 <div class="govuk-grid-row">
@@ -39,7 +31,7 @@
                         {
                             <ul class="govuk-summary-card__actions">
                                 <li class="govuk-summary-card__action">
-                                    <a class="govuk-link" href="/applications/@Model.ReferenceNumber/@task.TaskId/summary" id="task-@taskNameHyphenated-change-link">
+                                    <a class="govuk-link" href="/applications/@Model.ReferenceNumber/@task.TaskId" id="task-@taskNameHyphenated-change-link">
                                         Change<span class="govuk-visually-hidden"> @task.TaskName</span>
                                     </a>
                                 </li>
@@ -76,24 +68,20 @@
                                                 {
                                                     @Html.Raw(formattedValues.FirstOrDefault())
                                                 }
-                                                else
-                                                {
-                                                    <span class="govuk-hint">@formattedValues.Count item@(formattedValues.Count == 1 ? "" : "s") selected</span>
-                                                }
                                             </dd>
                                         </div>
 
                                         // Show individual items if multiple selection is enabled
                                         @if (allowMultiple && formattedValues.Count > 0)
                                         {
-                                            for (int i = 0; i < formattedValues.Count; i++)
+                                            @foreach (var (value, index) in formattedValues.Select((v, i) => (v, i)))
                                             {
                                                 <div class="govuk-summary-list__row">
                                                     <dt class="govuk-summary-list__key">
-                                                        @($"{itemLabel} {i + 1}")
+                                                        @itemLabel @(index + 1)
                                                     </dt>
                                                     <dd class="govuk-summary-list__value">
-                                                        @Html.Raw(formattedValues[i])
+                                                        @Html.Raw(value)
                                                     </dd>
                                                 </div>
                                             }
@@ -108,20 +96,20 @@
                                             <dd class="govuk-summary-list__value">
                                                 @if (hasValue)
                                                 {
-                                                                                        @if (field.Type == "radios" && field.Options != null)
-                                    {
-                                        var selectedOption = field.Options.FirstOrDefault(o => o.Value == fieldValue);
-                                        @(selectedOption?.Label ?? fieldValue)
-                                    }
-                                    else if (field.Type == "select" && field.Options != null)
-                                    {
-                                        var selectedOption = field.Options.FirstOrDefault(o => o.Value == fieldValue);
-                                        @(selectedOption?.Label ?? fieldValue)
-                                    }
-                                    else
-                                    {
-                                        @Html.Raw(fieldValue.Replace("\r\n", "<br/>").Replace("\r", "<br/>").Replace("\n", "<br/>"))
-                                    }
+                                                    @if (field.Type == "radios" && field.Options != null)
+                                                    {
+                                                        var selectedOption = field.Options.FirstOrDefault(o => o.Value == fieldValue);
+                                                        @(selectedOption?.Label ?? fieldValue)
+                                                    }
+                                                    else if (field.Type == "select" && field.Options != null)
+                                                    {
+                                                        var selectedOption = field.Options.FirstOrDefault(o => o.Value == fieldValue);
+                                                        @(selectedOption?.Label ?? fieldValue)
+                                                    }
+                                                    else
+                                                    {
+                                                        @Html.Raw(fieldValue.Replace("\r\n", "<br/>").Replace("\r", "<br/>").Replace("\n", "<br/>"))
+                                                    }
                                                 }
                                                 else
                                                 {
@@ -138,24 +126,16 @@
             }
         }
     </div>
-    <div class="govuk-grid-column-two-thirds">
-        @if (Model.IsApplicationEditable() && currentUser.Value == leadApplicantEmail)
-        {
-
-                <h2 class="govuk-heading-m govuk-!-margin-top-9">Now submit your application</h2>
-                <p class="govuk-body">By submitting this application you are confirming that, to the best of your knowledge, the details you are providing are correct.</p>
-
-                //only for lead applicant
-            <form method="post" asp-page-handler="Submit">
-                <govuk-button type="submit" class="govuk-!-margin-bottom-6" id="submit-application-button">Submit application</govuk-button>
-            </form>
-        }
-        else
-        {
-            <div class="govuk-inset-text govuk-!-margin-top-6">
-                <p>This application has been submitted and can no longer be changed.</p>
-                <p>Status: <strong>@Model.ApplicationStatus</strong></p>
-            </div>
-        }
-    </div>
 </div>
+
+@if (Model.IsApplicationEditable())
+{
+    <div class="govuk-!-margin-top-6">
+        <form method="post" asp-page-handler="SubmitApplication">
+            <input type="hidden" asp-for="ReferenceNumber" />
+            <govuk-button type="submit" id="submit-application-button">
+                Submit application
+            </govuk-button>
+        </form>
+    </div>
+}

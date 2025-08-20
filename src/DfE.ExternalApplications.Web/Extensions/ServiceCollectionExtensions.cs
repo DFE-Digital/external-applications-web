@@ -47,6 +47,13 @@ namespace DfE.ExternalApplications.Web.Extensions
             services.AddSingleton<ITemplateStore, ApiTemplateStore>();
             services.AddSingleton<IFormTemplateParser, JsonFormTemplateParser>();
             services.AddScoped<IFormTemplateProvider, FormTemplateProvider>();
+            
+            // Form Engine Services
+            services.AddScoped<IFormStateManager, FormStateManager>();
+            services.AddScoped<IFormNavigationService, FormNavigationService>();
+            services.AddScoped<IFormDataManager, FormDataManager>();
+            services.AddScoped<IFormValidationOrchestrator, FormValidationOrchestrator>();
+            services.AddScoped<IFormConfigurationService, FormConfigurationService>();
             return services;
         }
     }

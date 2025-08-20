@@ -1,12 +1,7 @@
-@page "/applications/{referenceNumber}/{taskId}/summary"
-@model TaskSummaryModel
+@model DfE.ExternalApplications.Web.Pages.FormEngine.RenderFormModel
 @inject Application.Interfaces.IComplexFieldConfigurationService ComplexFieldConfigurationService
-@{
-    ViewData["Title"] = Model.CurrentTask?.TaskName ?? "Task Summary";
-}
 
 <govuk-back-link href="/applications/@Model.ReferenceNumber">Back to application task list</govuk-back-link>
-
 
 <h1 class="govuk-heading-xl govuk-!-margin-bottom-6">@Model.CurrentTask.TaskName</h1>
 
@@ -21,7 +16,7 @@
 
             var fieldIdHyphenated = field.FieldId.Replace(" ", "-").ToLower();
 
-                        if ((field.Type == "autocomplete" || field.Type == "complexField") && hasValue)
+            if ((field.Type == "autocomplete" || field.Type == "complexField") && hasValue)
             {
                 // Handle multiple autocomplete/complex field values as main header + individual rows
                 var formattedValues = Model.GetFormattedFieldValues(field.FieldId);
@@ -63,21 +58,21 @@
                 // Show individual items if multiple selection is enabled
                 @if (allowMultiple && formattedValues.Count > 0)
                 {
-                    for (int i = 0; i < formattedValues.Count; i++)
+                    @foreach (var (value, index) in formattedValues.Select((v, i) => (v, i)))
                     {
-                        var fieldIndex = i + 1;
-                        <div class="govuk-summary-list__row" id="field-@itemLabelHyphenated-@fieldIndex" data-testid="field-@itemLabelHyphenated-@fieldIndex">
+                        var itemId = $"{fieldIdHyphenated}-item-{index}";
+                        <div class="govuk-summary-list__row" id="@itemId" data-testid="@itemId">
                             <dt class="govuk-summary-list__key">
-                                @($"{itemLabel} {fieldIndex}")
+                                @itemLabel @(index + 1)
                             </dt>
                             <dd class="govuk-summary-list__value">
-                                @Html.Raw(formattedValues[i])
+                                @Html.Raw(value)
                             </dd>
                             <dd class="govuk-summary-list__actions">
-                                @if (Model.IsApplicationEditable() && isAutocompleteField)
+                                @if (Model.IsApplicationEditable())
                                 {
-                                    <a class="govuk-link" href="@changeUrl?removeItem=@i" id="field-@itemLabelHyphenated-@fieldIndex-remove-link" data-testid="field-@itemLabelHyphenated-@fieldIndex-remove-link">
-                                        Remove<span class="govuk-visually-hidden"> @($"{itemLabel} {fieldIndex}")</span>
+                                    <a class="govuk-link" href="@changeUrl?removeItem=@index" id="@itemId-remove-link" data-testid="@itemId-remove-link">
+                                        Remove<span class="govuk-visually-hidden"> @itemLabel @(index + 1)</span>
                                     </a>
                                 }
                             </dd>
@@ -130,7 +125,7 @@
 
 @if (Model.IsApplicationEditable())
 {
-    <form method="post">
+    <form method="post" asp-page-handler="TaskSummary">
         <input type="hidden" asp-for="TaskId" />
         <input type="hidden" asp-for="ReferenceNumber" />
         
@@ -159,4 +154,4 @@ else
     <div class="govuk-!-margin-top-6">
         <a class="govuk-link" id="return-to-application-overview" data-testid="return-to-application-overview" href="/applications/@Model.ReferenceNumber">Return to application overview</a>
     </div>
-} 
+}

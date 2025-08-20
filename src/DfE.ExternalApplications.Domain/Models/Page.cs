@@ -24,4 +24,7 @@ public class Page
 
     [JsonPropertyName("fields")]
     public required List<Field> Fields { get; set; }
+
+    [JsonPropertyName("returnToSummaryPage")]
+    public bool ReturnToSummaryPage { get; set; } = true; // Default to true for backward compatibility
 }
