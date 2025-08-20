@@ -80,6 +80,20 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                             {
                                 CurrentPage = page;
                                 CurrentFormState = FormState.FormPage; // Render as a normal page
+                                
+                                // If editing existing item, load its data into form fields
+                                // This must happen AFTER LoadAccumulatedDataFromSession is skipped for sub-flows
+                                LoadExistingFlowItemData(flowId, instanceId);
+                                
+                                // Also load any in-progress data for this specific flow instance
+                                var progressData = LoadFlowProgress(flowId, instanceId);
+                                foreach (var kvp in progressData)
+                                {
+                                    if (!Data.ContainsKey(kvp.Key)) // Don't overwrite data from existing item
+                                    {
+                                        Data[kvp.Key] = kvp.Value;
+                                    }
+                                }
                             }
                         }
                     }
@@ -109,8 +123,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             // Check if we need to clear session data for a new application
             CheckAndClearSessionForNewApplication();
 
-            // Load accumulated form data from session to pre-populate fields
-            LoadAccumulatedDataFromSession();
+            // Load accumulated form data from session to pre-populate fields (only if not in a sub-flow)
+            if (string.IsNullOrEmpty(CurrentPageId) || !CurrentPageId.Contains("flow/"))
+            {
+                LoadAccumulatedDataFromSession();
+            }
         }
 
         public async Task<IActionResult> OnPostTaskSummaryAsync()
@@ -399,6 +416,47 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
         }
 
+        public async Task<IActionResult> OnPostRemoveCollectionItemAsync(string fieldId, string itemId)
+        {
+            await CommonFormEngineInitializationAsync();
+            
+            if (string.IsNullOrEmpty(fieldId) || string.IsNullOrEmpty(itemId))
+            {
+                return BadRequest("Field ID and Item ID are required");
+            }
+
+            // Get current collection from session
+            var accumulated = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
+            if (accumulated.TryGetValue(fieldId, out var collectionValue))
+            {
+                var json = collectionValue?.ToString() ?? "[]";
+                try
+                {
+                    var items = JsonSerializer.Deserialize<List<Dictionary<string, object>>>(json) ?? new();
+                    
+                    // Remove the item with matching ID
+                    items.RemoveAll(item => item.TryGetValue("id", out var id) && id?.ToString() == itemId);
+                    
+                    // Update the collection
+                    var updatedJson = JsonSerializer.Serialize(items);
+                    _applicationResponseService.AccumulateFormData(new Dictionary<string, object> { [fieldId] = updatedJson }, HttpContext.Session);
+                    
+                    // Save to API
+                    if (ApplicationId.HasValue)
+                    {
+                        await _applicationResponseService.SaveApplicationResponseAsync(ApplicationId.Value, new Dictionary<string, object> { [fieldId] = updatedJson }, HttpContext.Session);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to remove collection item {ItemId} from field {FieldId}", itemId, fieldId);
+                }
+            }
+
+            // Redirect back to the collection summary
+            return Redirect(_formNavigationService.GetCollectionFlowSummaryUrl(TaskId, ReferenceNumber));
+        }
+
         public async Task<IActionResult> OnGetComplexFieldAsync(string complexFieldId, string query)
         {
             _logger.LogInformation("Complex field search called with complexFieldId: {ComplexFieldId}, query: {Query}", complexFieldId, query);
@@ -577,6 +635,58 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             });
 
             return hasAnyTaskWithProgress ? "InProgress" : "InProgress"; // Always InProgress until submitted
+        }
+
+        private void LoadExistingFlowItemData(string flowId, string instanceId)
+        {
+            // Check if we're editing an existing item by looking in the collection
+            var task = CurrentTask;
+            var fieldId = task?.Summary?.FieldId;
+            
+            if (string.IsNullOrEmpty(fieldId)) return;
+
+            var accumulated = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
+            if (accumulated.TryGetValue(fieldId, out var collectionValue))
+            {
+                var json = collectionValue?.ToString() ?? "[]";
+                try
+                {
+                    var items = JsonSerializer.Deserialize<List<Dictionary<string, object>>>(json) ?? new();
+                    var existingItem = items.FirstOrDefault(item => item.TryGetValue("id", out var id) && id?.ToString() == instanceId);
+                    
+                    if (existingItem != null)
+                    {
+                        // Load existing data into Data dictionary for form rendering
+                        foreach (var kvp in existingItem)
+                        {
+                            if (kvp.Key != "id") // Skip the ID field
+                            {
+                                Data[kvp.Key] = kvp.Value;
+                            }
+                        }
+                        _logger.LogInformation("Loaded existing flow item data for instance {InstanceId} with {FieldCount} fields", instanceId, existingItem.Count - 1);
+                    }
+                    else
+                    {
+                        // New item - ensure fresh form by clearing any existing progress AND Data dictionary
+                        ClearFlowProgress(flowId, instanceId);
+                        // Clear any form data that might be from previous sessions
+                        Data.Clear();
+                        _logger.LogInformation("Creating new flow item for instance {InstanceId} - cleared form data", instanceId);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to load existing flow item data for instance {InstanceId}", instanceId);
+                }
+            }
+            else
+            {
+                // No collection exists yet - definitely a new item
+                ClearFlowProgress(flowId, instanceId);
+                Data.Clear();
+                _logger.LogInformation("No existing collection found - creating fresh flow item for instance {InstanceId}", instanceId);
+            }
         }
 
 
