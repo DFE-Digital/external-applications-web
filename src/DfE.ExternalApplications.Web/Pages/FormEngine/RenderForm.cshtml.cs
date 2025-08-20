@@ -239,8 +239,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 CurrentPage = null; // No specific page for task summary
             }
 
-            _logger.LogInformation("OnPostPageAsync: entering for Reference {ReferenceNumber}, TaskId {TaskId}, CurrentPageId {CurrentPageId}", ReferenceNumber, TaskId, CurrentPageId);
-
             foreach (var key in Request.Form.Keys)
             {
                 var match = Regex.Match(key, @"^Data\[(.+?)\]$", RegexOptions.None, TimeSpan.FromMilliseconds(200));
@@ -272,10 +270,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
             if (!ModelState.IsValid)
             {
-                var errors = ModelState.Where(kvp => kvp.Value?.Errors?.Count > 0)
-                    .Select(kvp => $"{kvp.Key}: {string.Join(" | ", kvp.Value!.Errors.Select(e => e.ErrorMessage))}")
-                    .ToList();
-                _logger.LogWarning("OnPostPageAsync: ModelState invalid. Errors: {Errors}", string.Join("; ", errors));
                 return Page();
             }
 
@@ -284,7 +278,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             {
                 try
                 {
-                    _logger.LogInformation("OnPostPageAsync: Saving {Count} fields for Application {ApplicationId}", Data.Count, ApplicationId.Value);
                     await _applicationResponseService.SaveApplicationResponseAsync(ApplicationId.Value, Data, HttpContext.Session);
                     _logger.LogInformation("Successfully saved response for Application {ApplicationId}, Page {PageId}",
                         ApplicationId.Value, CurrentPageId);
@@ -300,7 +293,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             // Use the new navigation logic to determine where to go after saving
             if (CurrentTask != null && CurrentPage != null)
             {
-                _logger.LogInformation("OnPostPageAsync: Navigating after save for Task {TaskId}, Page {PageId}", CurrentTask.TaskId, CurrentPage.PageId);
                 // If this is a sub-flow route, compute next page within the flow
                 if (TryParseFlowRoute(CurrentPageId, out var flowId, out var instanceId, out var flowPageId))
                 {
@@ -339,7 +331,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 else
                 {
                     var nextUrl = _formNavigationService.GetNextNavigationTargetAfterSave(CurrentPage, CurrentTask, ReferenceNumber);
-                    _logger.LogInformation("OnPostPageAsync: Redirecting to {NextUrl}", nextUrl);
                     return Redirect(nextUrl);
                 }
             }
@@ -349,16 +340,13 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 if (_formStateManager.ShouldShowCollectionFlowSummary(CurrentTask))
                 {
                     var url = _formNavigationService.GetCollectionFlowSummaryUrl(CurrentTask.TaskId, ReferenceNumber);
-                    _logger.LogInformation("OnPostPageAsync: Fallback redirect to collection summary {Url}", url);
                     return Redirect(url);
                 }
                 var summaryUrl = $"/applications/{ReferenceNumber}/{CurrentTask.TaskId}";
-                _logger.LogInformation("OnPostPageAsync: Fallback redirect to task summary {Url}", summaryUrl);
                 return Redirect(summaryUrl);
             }
             // Fallback: redirect to task list if CurrentTask is null
             var listUrl = $"/applications/{ReferenceNumber}";
-            _logger.LogInformation("OnPostPageAsync: Fallback redirect to task list {Url}", listUrl);
             return Redirect(listUrl);
         }
 
