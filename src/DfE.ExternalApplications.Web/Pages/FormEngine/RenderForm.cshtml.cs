@@ -328,8 +328,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     if (flow != null)
                     {
                         // Persist in-progress sub-flow data for this instance
-                        _logger.LogInformation(">>>>>>>>> Saving flow progress for {FlowId}/{InstanceId} with data: {Data}", 
-                            flowId, instanceId, string.Join(", ", Data.Select(kvp => $"{kvp.Key}={kvp.Value}")));
                         SaveFlowProgress(flowId, instanceId, Data);
 
                         var index = flow.Pages.FindIndex(p => p.PageId == CurrentPage.PageId);
@@ -338,7 +336,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         {
                             var nextPageId = flow.Pages[index + 1].PageId;
                             var nextUrl = _formNavigationService.GetSubFlowPageUrl(CurrentTask.TaskId, ReferenceNumber, flowId, instanceId, nextPageId);
-                            _logger.LogInformation(">>>>>>>>> Redirecting to next sub-flow page: {Url}", nextUrl);
                             return Redirect(nextUrl);
                         }
                         else
@@ -353,9 +350,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                 {
                                     accumulated[kv.Key] = kv.Value;
                                 }
-                                
-                                _logger.LogInformation(">>>>>>>>> Final flow data for {FlowId}/{InstanceId}: {Data}", 
-                                    flowId, instanceId, string.Join(", ", accumulated.Select(kvp => $"{kvp.Key}={kvp.Value}")));
 
                                 AppendCollectionItemToSession(flow, fieldId, instanceId, accumulated);
                                 if (ApplicationId.HasValue)
@@ -371,7 +365,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                 ClearFlowProgress(flowId, instanceId);
                             }
                             var backToSummary = _formNavigationService.GetCollectionFlowSummaryUrl(CurrentTask.TaskId, ReferenceNumber);
-                            _logger.LogInformation(">>>>>>>>> Sub-flow complete; redirecting to collection summary: {Url}", backToSummary);
                             return Redirect(backToSummary);
                         }
                     }
@@ -379,7 +372,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 else
                 {
                     var nextUrl = _formNavigationService.GetNextNavigationTargetAfterSave(CurrentPage, CurrentTask, ReferenceNumber);
-                    _logger.LogInformation(">>>>>>>>> Redirecting to next standard target: {Url}", nextUrl);
                     return Redirect(nextUrl);
                 }
             }
@@ -517,18 +509,10 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     if (itemData.TryGetValue(key, out var value))
                     {
                         item[key] = value;
-                        _logger.LogInformation(">>>>>>>>> Adding field {FieldId} = {Value} to collection item", key, value);
-                    }
-                    else
-                    {
-                        _logger.LogWarning(">>>>>>>>> Field {FieldId} not found in itemData for instance {InstanceId}", key, instanceId);
                     }
                 }
             }
             item["id"] = instanceId;
-            
-            _logger.LogInformation(">>>>>>>>> Final collection item for {InstanceId}: {Item}", 
-                instanceId, string.Join(", ", item.Select(kvp => $"{kvp.Key}={kvp.Value}")));
 
             var acc = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
             var list = new List<Dictionary<string, object>>();
@@ -678,7 +662,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                 Data[kvp.Key] = kvp.Value;
                             }
                         }
-                        _logger.LogInformation(">>>>>>>>> Loaded existing flow item data for instance {InstanceId} with {FieldCount} fields", instanceId, existingItem.Count - 1);
+
                     }
                     else
                     {
@@ -691,14 +675,14 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                             {
                                 Data[kvp.Key] = kvp.Value;
                             }
-                            _logger.LogInformation(">>>>>>>>> Loaded flow progress for new item {InstanceId} with {FieldCount} fields", instanceId, existingProgress.Count);
+
                         }
                         else
                         {
                             // No progress exists, this is likely the first page - ensure clean start
                             ClearFlowProgress(flowId, instanceId);
                             Data.Clear();
-                            _logger.LogInformation(">>>>>>>>> Creating fresh flow for new item {InstanceId} - no previous progress", instanceId);
+
                         }
                     }
                 }
@@ -718,14 +702,14 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     {
                         Data[kvp.Key] = kvp.Value;
                     }
-                    _logger.LogInformation(">>>>>>>>> Loaded flow progress for {InstanceId} (no collection yet) with {FieldCount} fields", instanceId, existingProgress.Count);
+
                 }
                 else
                 {
                     // Truly new - clear everything
                     ClearFlowProgress(flowId, instanceId);
                     Data.Clear();
-                    _logger.LogInformation(">>>>>>>>> Creating completely new flow item for instance {InstanceId}", instanceId);
+
                 }
             }
         }
