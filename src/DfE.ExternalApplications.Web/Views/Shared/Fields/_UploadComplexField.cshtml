@@ -41,7 +41,7 @@
     var pageId = ViewData["pageId"]?.ToString();
     
     // Create summary page URL for the Continue button
-    var summaryUrl = $"/applications/{referenceNumber}/{taskId}/summary";
+    var summaryUrl = $"/applications/{referenceNumber}/{taskId}";
 }
 @* Rehydrate ModelState from the error store and render govuk summary *@
 @{
@@ -55,92 +55,96 @@
 }
 @await Html.PartialAsync("/Pages/Shared/_ErrorSummaryModelState.cshtml")
 
-<h3 class="govuk-heading-m">@Model.Field.Label.Value</h3>
-
-@if (!string.IsNullOrEmpty(Model.Field.Tooltip))
-{
-    <p class="govuk-body">@Model.Field.Tooltip</p>
-}
-
-<p class="govuk-body">Give the file a clear, descriptive name. Files up to 10MB are accepted.</p>
-
-<form method="post" asp-page="/FormEngine/UploadFile" asp-route-referenceNumber="@referenceNumber" asp-route-taskId="@taskId" asp-route-pageId="@pageId" asp-page-handler="UploadFile" enctype="multipart/form-data">
-    <input type="hidden" name="ApplicationId" value="@applicationId" />
-    <input type="hidden" name="FieldId" value="@fieldId" />
-    <input type="hidden" name="ReturnUrl" value="@currentUrl" />
-    <input type="hidden" name="UploadName" value="FileName" />
-    <input type="hidden" name="UploadDescription" value="FileDescription" />
-    
-    <div class="govuk-form-group @(ViewData.ModelState.Any(x => x.Value.Errors.Count > 0) ? "govuk-form-group--error" : "")">
-        <input class="govuk-file-upload @(ViewData.ModelState.Any(x => x.Value.Errors.Count > 0) ? "govuk-file-upload--error" : "")" 
-               id="upload-file-@fieldId" 
-               name="UploadFile" 
-               type="file" 
-               required />
-        @if (ViewData.ModelState.Any(x => x.Value.Errors.Count > 0))
+<div class="govuk-grid-row">
+    <div class="govuk-grid-column-two-thirds">
+        @if (!string.IsNullOrEmpty(Model.Field.Tooltip))
         {
-            <govuk-error-message>
-                @string.Join(", ", ViewData.ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage))
-            </govuk-error-message>
+            <p class="govuk-body">@Model.Field.Tooltip</p>
         }
+
+        <p class="govuk-body">Give the file a clear, descriptive name. Files up to 10MB are accepted.</p>
+
+        <form method="post" asp-page="/FormEngine/UploadFile" asp-route-referenceNumber="@referenceNumber" asp-route-taskId="@taskId" asp-route-pageId="@pageId" asp-page-handler="UploadFile" enctype="multipart/form-data">
+            <input type="hidden" name="ApplicationId" value="@applicationId" />
+            <input type="hidden" name="FieldId" value="@fieldId" />
+            <input type="hidden" name="ReturnUrl" value="@currentUrl" />
+            <input type="hidden" name="UploadName" value="FileName" />
+            <input type="hidden" name="UploadDescription" value="FileDescription" />
+            
+            <div class="govuk-form-group @(ViewData.ModelState.Any(x => x.Value.Errors.Count > 0) ? "govuk-form-group--error" : "")">
+                <label class="govuk-label" for="upload-file-@fieldId">
+                    Upload a file
+                </label>
+                <input class="govuk-file-upload @(ViewData.ModelState.Any(x => x.Value.Errors.Count > 0) ? "govuk-file-upload--error" : "")" 
+                    id="upload-file-@fieldId" 
+                    name="UploadFile" 
+                    type="file" 
+                    required />
+                @if (ViewData.ModelState.Any(x => x.Value.Errors.Count > 0))
+                {
+                    <govuk-error-message>
+                        @string.Join(", ", ViewData.ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage))
+                    </govuk-error-message>
+                }
+            </div>
+            
+            <button class="govuk-button" type="submit">Upload file</button>
+        </form>
     </div>
-    
-    <button class="govuk-button" type="submit">Upload file</button>
-</form>
-<h2 class="govuk-heading-s">Uploaded files</h2>
+</div>
+<div class="govuk-grid-row">
+    <div class="govuk-grid-column-full">
+        <h2 class="govuk-heading-s">Uploaded files</h2>
 
-<table class="govuk-table">
-    <thead class="govuk-table__head">
-        <tr class="govuk-table__row">
-            <th scope="col" class="govuk-table__header">File name</th>
-            <th scope="col" class="govuk-table__header">File size</th>
-            <th scope="col" class="govuk-table__header">File type</th>
-            <th scope="col" class="govuk-table__header">Action</th>
-        </tr>
-    </thead>
-    <tbody class="govuk-table__body">
-    @if (files.Any())
-    {
-        @foreach (var file in files)
-        {
-            <tr class="govuk-table__row">
-                <td class="govuk-table__cell">
-                    <form method="post" asp-page="/FormEngine/UploadFile" asp-route-referenceNumber="@referenceNumber" asp-route-taskId="@taskId" asp-route-pageId="@pageId" asp-page-handler="DownloadFile" style="display:inline">
-                        <input type="hidden" name="FileId" value="@file.Id" />
-                        <input type="hidden" name="ApplicationId" value="@applicationId" />
-                        <button type="submit" class="govuk-link" style="border: none; background: none; padding: 0; color: #1d70b8; text-decoration: underline; cursor: pointer;">
-                            @file.OriginalFileName
-                        </button>
-                    </form>
-                </td>
-                <td class="govuk-table__cell">@FormatFileSize(file.FileSize)</td>
-                <td class="govuk-table__cell">@(System.IO.Path.GetExtension(file.OriginalFileName)?.TrimStart('.').ToUpperInvariant() ?? "Unknown")</td>
-                <td class="govuk-table__cell">
-                    <form method="post" asp-page="/FormEngine/UploadFile" asp-route-referenceNumber="@referenceNumber" asp-route-taskId="@taskId" asp-route-pageId="@pageId" asp-page-handler="DeleteFile" style="display:inline">
-                        <input type="hidden" name="FileId" value="@file.Id" />
-                        <input type="hidden" name="FieldId" value="@fieldId" />
-                        <input type="hidden" name="ApplicationId" value="@applicationId" />
-                        <input type="hidden" name="ReturnUrl" value="@currentUrl" />
-                            <button type="submit" class="govuk-button govuk-button--warning govuk-button--small"
-                                    data-module="govuk-button"
-                                    onclick="return confirm('Are you sure you want to delete this file?');">
-                                Delete
-                            </button>
-                    </form>
-                </td>
-            </tr>
+        @if (files.Any()) {
+        <table class="govuk-table">
+            <thead class="govuk-table__head">
+                <tr class="govuk-table__row">
+                    <th scope="col" class="govuk-table__header">File name</th>
+                    <th scope="col" class="govuk-table__header">File size</th>
+                    <th scope="col" class="govuk-table__header">File type</th>
+                    <th scope="col" class="govuk-table__header">Action</th>
+                </tr>
+            </thead>
+            <tbody class="govuk-table__body">
+                @foreach (var file in files)
+                {
+                    <tr class="govuk-table__row">
+                        <td class="govuk-table__cell">
+                            <form method="post" asp-page="/FormEngine/UploadFile" asp-route-referenceNumber="@referenceNumber" asp-route-taskId="@taskId" asp-route-pageId="@pageId" asp-page-handler="DownloadFile" style="display:inline">
+                                <input type="hidden" name="FileId" value="@file.Id" />
+                                <input type="hidden" name="ApplicationId" value="@applicationId" />
+                                <button type="submit" class="govuk-link" style="border: none; background: none; padding: 0; color: #1d70b8; text-decoration: underline; cursor: pointer;">
+                                    @file.OriginalFileName
+                                </button>
+                            </form>
+                        </td>
+                        <td class="govuk-table__cell">@FormatFileSize(file.FileSize)</td>
+                        <td class="govuk-table__cell">@(System.IO.Path.GetExtension(file.OriginalFileName)?.TrimStart('.').ToUpperInvariant() ?? "Unknown")</td>
+                        <td class="govuk-table__cell">
+                            <form method="post" asp-page="/FormEngine/UploadFile" asp-route-referenceNumber="@referenceNumber" asp-route-taskId="@taskId" asp-route-pageId="@pageId" asp-page-handler="DeleteFile" style="display:inline">
+                                <input type="hidden" name="FileId" value="@file.Id" />
+                                <input type="hidden" name="FieldId" value="@fieldId" />
+                                <input type="hidden" name="ApplicationId" value="@applicationId" />
+                                <input type="hidden" name="ReturnUrl" value="@currentUrl" />
+                                    <button type="submit" class="govuk-button govuk-button--warning govuk-button--small"
+                                            data-module="govuk-button"
+                                            onclick="return confirm('Are you sure you want to delete this file?');">
+                                        Delete
+                                    </button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        } else {
+            <p class="govuk-body">No files uploaded yet</p>
         }
-    }
-    else
-    {
-        <tr class="govuk-table__row">
-            <td class="govuk-table__cell" colspan="4">No files uploaded yet</td>
-        </tr>
-    }
-    </tbody>
-</table>
 
-<a href="@summaryUrl" class="govuk-button" data-module="govuk-button">Continue</a> 
+        <a href="@summaryUrl" role="button" draggable="false" class="govuk-button" data-module="govuk-button">Continue</a>
+    </div>
+</div>
 
 @functions {
     private string FormatFileSize(long bytes)
