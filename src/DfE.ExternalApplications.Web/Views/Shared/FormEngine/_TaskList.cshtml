@@ -72,13 +72,13 @@
     {
         <div class="govuk-grid-column-one-third">
             <div class="govuk-!-margin-top-6">
-                <h2 class="govuk-heading-m">Inviting contributors</h2>
+                <h2 class="govuk-heading-m">Contributors</h2>
                 <p class="govuk-body">You can invite other people to complete parts of this application.</p>
 
                 @if (Model.IsApplicationEditable())
                 {
                     <a href="/applications/@Model.ReferenceNumber/contributors" id="invite-contributors" class="govuk-button govuk-button--secondary" role="button">
-                        Invite contributors
+                        Inviting contributors
                     </a>
                 }
                 else

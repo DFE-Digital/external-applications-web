@@ -1,13 +1,13 @@
 @page "/applications/{referenceNumber}/contributors/invite"
 @model ContributorsInviteModel
 @{
-    ViewData["Title"] = "Invite contributor";
+    ViewData["Title"] = "Add a contributor";
 }
 
 <div class="govuk-grid-row">
     <div class="govuk-grid-column-two-thirds">
         <h1 class="govuk-heading-xl">
-            Invite contributor
+            Add a contributor
         </h1>
 
         @if (!ViewData.ModelState.IsValid)
@@ -33,36 +33,10 @@
         }
 
         <form method="post" asp-page-handler="SendInvite">
-            <div class="govuk-form-group @(ViewData.ModelState.ContainsKey(nameof(Model.EmailAddress)) && ViewData.ModelState[nameof(Model.EmailAddress)]!.Errors.Count > 0 ? "govuk-form-group--error" : "")">
-                <h2 class="govuk-label-wrapper">
-                    <label class="govuk-label govuk-label--m" for="EmailAddress">
-                        Email address
-                    </label>
-                </h2>
-                <div id="EmailAddress-hint" class="govuk-hint">
-                    Enter the email address of the person you want to invite as a contributor
-                </div>
-                
-                @if (ViewData.ModelState.ContainsKey(nameof(Model.EmailAddress)) && ViewData.ModelState[nameof(Model.EmailAddress)]!.Errors.Count > 0)
-                {
-                    <p id="EmailAddress-error" class="govuk-error-message">
-                        <span class="govuk-visually-hidden">Error:</span>
-                        <span asp-validation-for="EmailAddress"></span>
-                    </p>
-                }
-
-                <input class="govuk-input @(ViewData.ModelState.ContainsKey(nameof(Model.EmailAddress)) && ViewData.ModelState[nameof(Model.EmailAddress)]!.Errors.Count > 0 ? "govuk-input--error" : "")" 
-                       id="EmailAddress" 
-                       name="EmailAddress" 
-                       type="email" 
-                       value="@Model.EmailAddress"
-                       aria-describedby="EmailAddress-hint @(ViewData.ModelState.ContainsKey(nameof(Model.EmailAddress)) && ViewData.ModelState[nameof(Model.EmailAddress)]!.Errors.Count > 0 ? "EmailAddress-error" : "")">
-            </div>
-
             <div class="govuk-form-group @(ViewData.ModelState.ContainsKey(nameof(Model.Name)) && ViewData.ModelState[nameof(Model.Name)]!.Errors.Count > 0 ? "govuk-form-group--error" : "")">
                 <h2 class="govuk-label-wrapper">
                     <label class="govuk-label govuk-label--m" for="Name">
-                        Name
+                        Full name
                     </label>
                 </h2>
                 <div id="Name-hint" class="govuk-hint">
@@ -84,6 +58,32 @@
                        value="@Model.Name"
                        aria-describedby="Name-hint @(ViewData.ModelState.ContainsKey(nameof(Model.Name)) && ViewData.ModelState[nameof(Model.Name)]!.Errors.Count > 0 ? "Name-error" : "")"
                        autocomplete="name">
+            </div>
+
+            <div class="govuk-form-group @(ViewData.ModelState.ContainsKey(nameof(Model.EmailAddress)) && ViewData.ModelState[nameof(Model.EmailAddress)]!.Errors.Count > 0 ? "govuk-form-group--error" : "")">
+                <h2 class="govuk-label-wrapper">
+                    <label class="govuk-label govuk-label--m" for="EmailAddress">
+                        Email address
+                    </label>
+                </h2>
+                <div id="EmailAddress-hint" class="govuk-hint">
+                    This will only be used to invite them to contribute to the application
+                </div>
+                
+                @if (ViewData.ModelState.ContainsKey(nameof(Model.EmailAddress)) && ViewData.ModelState[nameof(Model.EmailAddress)]!.Errors.Count > 0)
+                {
+                    <p id="EmailAddress-error" class="govuk-error-message">
+                        <span class="govuk-visually-hidden">Error:</span>
+                        <span asp-validation-for="EmailAddress"></span>
+                    </p>
+                }
+
+                <input class="govuk-input @(ViewData.ModelState.ContainsKey(nameof(Model.EmailAddress)) && ViewData.ModelState[nameof(Model.EmailAddress)]!.Errors.Count > 0 ? "govuk-input--error" : "")" 
+                       id="EmailAddress" 
+                       name="EmailAddress" 
+                       type="email" 
+                       value="@Model.EmailAddress"
+                       aria-describedby="EmailAddress-hint @(ViewData.ModelState.ContainsKey(nameof(Model.EmailAddress)) && ViewData.ModelState[nameof(Model.EmailAddress)]!.Errors.Count > 0 ? "EmailAddress-error" : "")">
             </div>
 
             <div class="govuk-button-group">
