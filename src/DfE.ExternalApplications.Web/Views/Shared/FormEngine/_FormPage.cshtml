@@ -19,6 +19,8 @@
     @Html.AntiForgeryToken()
     <input type="hidden" asp-for="CurrentPageId" />
     <input type="hidden" asp-for="TaskId" />
+    <input type="hidden" asp-for="FlowId" />
+    <input type="hidden" asp-for="InstanceId" />
     <govuk-back-link href="/applications/@Model.ReferenceNumber/@Model.TaskId">Back</govuk-back-link>
 
     <div class="govuk-grid-row">
@@ -73,7 +75,30 @@
 
             @if (!hasUploadField)
             {
-                <govuk-button type="submit" name="handler" value="Page" id="save-and-continue-button">Save and continue</govuk-button>
+                // Check if we're in a sub-flow and if this is the last page
+                bool isLastPageInFlow = false;
+                string buttonText = "Save and continue";
+                
+                // Parse the pageId to detect sub-flow (same logic as in RenderForm.cshtml.cs)
+                if (!string.IsNullOrEmpty(Model.CurrentPageId))
+                {
+                    var parts = Model.CurrentPageId.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length >= 3 && parts[0].Equals("flow", StringComparison.OrdinalIgnoreCase))
+                    {
+                        string flowId = parts[1];
+                        
+                        var flow = Model.Template.Flows?.FirstOrDefault(f => f.FlowId == flowId);
+                        if (flow != null)
+                        {
+                            var currentPageIndex = flow.Pages.FindIndex(p => p.PageId == Model.CurrentPage.PageId);
+                            isLastPageInFlow = currentPageIndex == flow.Pages.Count - 1;
+                        }
+                        
+                        buttonText = isLastPageInFlow ? "Save and continue" : "Continue";
+                    }
+                }
+                
+                <govuk-button type="submit" name="handler" value="Page" id="save-and-continue-button">@buttonText</govuk-button>
             }
         </div>
     </div>
