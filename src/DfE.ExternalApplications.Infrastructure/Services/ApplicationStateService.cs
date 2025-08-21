@@ -240,7 +240,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             }
             
             // Check if any fields in this task have been completed
-            var taskFieldIds = task.Pages
+            var taskFieldIds = (task.Pages ?? new List<Domain.Models.Page>())
                 .SelectMany(p => p.Fields)
                 .Select(f => f.FieldId)
                 .ToList();

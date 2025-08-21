@@ -17,8 +17,8 @@
         @await Html.PartialAsync("FormEngine/_FormPage", Model)
         break;
     case FormState.TaskSummary:
-        // If this task declares a collectionFlow summary, render the custom summary
-        if (Model.CurrentTask?.Summary?.Mode?.ToLowerInvariant() == "collectionflow")
+        // If this task declares a multiCollectionFlow summary, render the custom summary
+        if (Model.CurrentTask?.Summary?.Mode?.ToLowerInvariant() == "multicollectionflow")
         {
             @await Html.PartialAsync("FormEngine/_CollectionFlowSummary", Model)
         }

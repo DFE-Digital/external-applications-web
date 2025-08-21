@@ -77,14 +77,14 @@ namespace DfE.ExternalApplications.Infrastructure.Services
         {
             var allPages = template.TaskGroups
                 .SelectMany(g => g.Tasks)
-                .SelectMany(t => t.Pages)
+                .SelectMany(t => t.Pages ?? new List<Domain.Models.Page>())
                 .ToList();
 
             var currentPage = allPages.FirstOrDefault(p => p.PageId == pageId) ?? allPages.First();
 
             var pair = template.TaskGroups
                 .SelectMany(g => g.Tasks.Select(t => new { Group = g, Task = t }))
-                .First(x => x.Task.Pages.Contains(currentPage));
+                .First(x => x.Task.Pages?.Contains(currentPage) == true);
 
             return (pair.Group, pair.Task, currentPage);
         }

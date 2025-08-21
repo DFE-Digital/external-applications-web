@@ -26,7 +26,7 @@ public class Task
     }
 
     [JsonPropertyName("pages")]
-    public required List<Page> Pages { get; set; }
+    public List<Page>? Pages { get; set; }
 
     // Custom summary configuration (optional)
     [JsonPropertyName("summary")] public TaskSummaryConfiguration? Summary { get; set; }
@@ -37,18 +37,11 @@ public class Task
 
 public class TaskSummaryConfiguration
 {
-    // "standard" or "collectionFlow"
+    // "standard" or "multiCollectionFlow"
     [JsonPropertyName("mode")] public string Mode { get; set; } = "standard";
 
-    // For collectionFlow mode
-    [JsonPropertyName("fieldId")] public string? FieldId { get; set; }
-    [JsonPropertyName("addButtonLabel")] public string? AddButtonLabel { get; set; }
-    [JsonPropertyName("minItems")] public int? MinItems { get; set; }
-    [JsonPropertyName("maxItems")] public int? MaxItems { get; set; }
-
-    // UI helpers for collection flow summaries (moved from FlowDefinition)
-    [JsonPropertyName("itemTitleBinding")] public string? ItemTitleBinding { get; set; }
-    [JsonPropertyName("summaryColumns")] public List<FlowSummaryColumn>? SummaryColumns { get; set; }
+    // For multi-collection flow mode
+    [JsonPropertyName("flows")] public List<MultiCollectionFlowConfiguration>? Flows { get; set; }
 }
 
 /// <summary>
@@ -58,4 +51,21 @@ public class FlowSummaryColumn
 {
     [JsonPropertyName("label")] public string Label { get; set; } = string.Empty;
     [JsonPropertyName("field")] public string Field { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Configuration for a single flow within a multi-collection flow task
+/// </summary>
+public class MultiCollectionFlowConfiguration
+{
+    [JsonPropertyName("flowId")] public string FlowId { get; set; } = string.Empty;
+    [JsonPropertyName("title")] public string Title { get; set; } = string.Empty;
+    [JsonPropertyName("description")] public string? Description { get; set; }
+    [JsonPropertyName("fieldId")] public string FieldId { get; set; } = string.Empty;
+    [JsonPropertyName("addButtonLabel")] public string AddButtonLabel { get; set; } = "Add item";
+    [JsonPropertyName("minItems")] public int? MinItems { get; set; }
+    [JsonPropertyName("maxItems")] public int? MaxItems { get; set; }
+    [JsonPropertyName("itemTitleBinding")] public string? ItemTitleBinding { get; set; }
+    [JsonPropertyName("summaryColumns")] public List<FlowSummaryColumn>? SummaryColumns { get; set; }
+    [JsonPropertyName("pages")] public List<Page> Pages { get; set; } = new();
 }

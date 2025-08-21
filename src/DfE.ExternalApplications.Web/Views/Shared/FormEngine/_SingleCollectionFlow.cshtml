@@ -1,0 +1,92 @@
+@model Tuple<DfE.ExternalApplications.Web.Pages.FormEngine.RenderFormModel, DfE.ExternalApplications.Domain.Models.MultiCollectionFlowConfiguration>
+@{
+    var renderModel = Model.Item1;
+    var flow = Model.Item2;
+    
+    // Read collection from accumulated form data. We store as JSON string under fieldId
+    renderModel.FormData.TryGetValue(flow.FieldId, out var raw);
+    var json = raw?.ToString() ?? "[]";
+    
+    List<Dictionary<string, object>> items = new();
+    try { items = System.Text.Json.JsonSerializer.Deserialize<List<Dictionary<string, object>>>(json) ?? new(); } catch { }
+    var itemLabel = flow.ItemTitleBinding ?? "Item";
+}
+
+<div class="govuk-!-margin-bottom-8">
+    <h2 class="govuk-heading-m">@flow.Title</h2>
+    
+    @if (!string.IsNullOrEmpty(flow.Description))
+    {
+        <p class="govuk-body">@flow.Description</p>
+    }
+
+    @if (items.Any())
+    {
+        @foreach (var (item, index) in items.Select((item, i) => (item, i)))
+        {
+            var memberNumber = index + 1;
+            var memberTitle = $"{itemLabel} {memberNumber}";
+            
+            <div class="govuk-summary-card govuk-!-margin-bottom-6">
+                <div class="govuk-summary-card__title-wrapper">
+                    <h3 class="govuk-summary-card__title">@memberTitle</h3>
+                    <ul class="govuk-summary-card__actions">
+                        <li class="govuk-summary-card__action">
+                            <form method="post" style="display: inline;" asp-page="/FormEngine/RenderForm" asp-page-handler="RemoveCollectionItem">
+                                <input type="hidden" name="referenceNumber" value="@renderModel.ReferenceNumber" />
+                                <input type="hidden" name="taskId" value="@renderModel.TaskId" />
+                                <input type="hidden" name="fieldId" value="@flow.FieldId" />
+                                <input type="hidden" name="itemId" value="@(item.TryGetValue("id", out var itemIdValue) ? itemIdValue?.ToString() : "")" />
+                                <button type="submit" class="govuk-link" style="border: none; background: none; padding: 0; text-decoration: underline; cursor: pointer;">
+                                    Remove<span class="govuk-visually-hidden"> @memberTitle</span>
+                                </button>
+                            </form>
+                        </li>
+                    </ul>
+                </div>
+                <div class="govuk-summary-card__content">
+                    <dl class="govuk-summary-list">
+                        @foreach (var col in (flow.SummaryColumns ?? new List<DfE.ExternalApplications.Domain.Models.FlowSummaryColumn>()))
+                        {
+                            var value = item.TryGetValue(col.Field, out var v) ? v?.ToString() : string.Empty;
+                            // Find which page contains this field within this flow
+                            var targetPage = flow.Pages?.FirstOrDefault(p => p.Fields.Any(f => f.FieldId == col.Field));
+                            var pageId = targetPage?.PageId ?? flow.Pages?.FirstOrDefault()?.PageId ?? "";
+                            
+                            <div class="govuk-summary-list__row">
+                                <dt class="govuk-summary-list__key">
+                                    @col.Label
+                                </dt>
+                                <dd class="govuk-summary-list__value">
+                                    @if (!string.IsNullOrEmpty(value))
+                                    {
+                                        @value
+                                    }
+                                    else
+                                    {
+                                        <span class="govuk-hint">Not answered</span>
+                                    }
+                                </dd>
+                                <dd class="govuk-summary-list__actions">
+                                    <a class="govuk-link" href="/applications/@renderModel.ReferenceNumber/@renderModel.TaskId/flow/@flow.FlowId/@(item.TryGetValue("id", out var changeItemIdValue) ? changeItemIdValue?.ToString() : "")/@pageId">
+                                        Change<span class="govuk-visually-hidden"> @col.Label for @memberTitle</span>
+                                    </a>
+                                </dd>
+                            </div>
+                        }
+                    </dl>
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="govuk-inset-text">
+            No @(itemLabel.ToLowerInvariant())s have been added.
+        </div>
+    }
+
+    <div class="govuk-!-margin-bottom-4">
+        <a class="govuk-button" href="/applications/@renderModel.ReferenceNumber/@renderModel.TaskId/flow/@flow.FlowId/@Guid.NewGuid()">@flow.AddButtonLabel</a>
+    </div>
+</div>

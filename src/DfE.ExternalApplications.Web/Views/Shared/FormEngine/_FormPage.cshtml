@@ -85,11 +85,16 @@
                     var parts = Model.CurrentPageId.Split('/', StringSplitOptions.RemoveEmptyEntries);
                     if (parts.Length >= 3 && parts[0].Equals("flow", StringComparison.OrdinalIgnoreCase))
                     {
-                        // In the new structure, the task itself contains the pages for the collection flow
-                        if (Model.CurrentTask != null && Model.CurrentTask.Pages != null)
+                        string flowId = parts[1];
+                        
+                        // Find the specific flow by flowId in multi-collection flow mode
+                        var flow = Model.CurrentTask?.Summary?.Flows?.FirstOrDefault(f => f.FlowId == flowId);
+                        var flowPages = flow?.Pages;
+                        
+                        if (flowPages != null)
                         {
-                            var currentPageIndex = Model.CurrentTask.Pages.FindIndex(p => p.PageId == Model.CurrentPage.PageId);
-                            isLastPageInFlow = currentPageIndex == Model.CurrentTask.Pages.Count - 1;
+                            var currentPageIndex = flowPages.FindIndex(p => p.PageId == Model.CurrentPage.PageId);
+                            isLastPageInFlow = currentPageIndex == flowPages.Count - 1;
                         }
                         
                         buttonText = isLastPageInFlow ? "Save and continue" : "Continue";

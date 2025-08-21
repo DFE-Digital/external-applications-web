@@ -40,7 +40,7 @@
                     </div>
                     <div class="govuk-summary-card__content">
                         <dl class="govuk-summary-list">
-                            @foreach (var page in task.Pages.OrderBy(p => p.PageOrder))
+                            @foreach (var page in (task.Pages ?? new List<DfE.ExternalApplications.Domain.Models.Page>()).OrderBy(p => p.PageOrder))
                             {
                                 @foreach (var field in page.Fields.OrderBy(f => f.Order))
                                 {

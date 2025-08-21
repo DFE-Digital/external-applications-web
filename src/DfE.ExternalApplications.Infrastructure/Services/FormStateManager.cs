@@ -72,7 +72,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
 
         public bool ShouldShowCollectionFlowSummary(Domain.Models.Task task)
         {
-            return task?.Summary?.Mode?.Equals("collectionFlow", StringComparison.OrdinalIgnoreCase) == true;
+            return task?.Summary?.Mode?.Equals("multiCollectionFlow", StringComparison.OrdinalIgnoreCase) == true;
         }
 
         public bool IsInSubFlow(string flowId, string pageId)
