@@ -26,5 +26,50 @@ public class Task
     }
 
     [JsonPropertyName("pages")]
-    public required List<Page> Pages { get; set; }
+    public List<Page>? Pages { get; set; }
+
+    // Custom summary configuration (optional)
+    [JsonPropertyName("summary")] public TaskSummaryConfiguration? Summary { get; set; }
+
+    // Control visibility in main task list
+    [JsonPropertyName("visibleInTaskList")] public bool? VisibleInTaskList { get; set; }
+}
+
+public class TaskSummaryConfiguration
+{
+    // "standard" or "multiCollectionFlow"
+    [JsonPropertyName("mode")] public string Mode { get; set; } = "standard";
+
+    // For multi-collection flow mode
+    [JsonPropertyName("flows")] public List<MultiCollectionFlowConfiguration>? Flows { get; set; }
+}
+
+/// <summary>
+/// Represents a column in the collection flow summary display
+/// </summary>
+public class FlowSummaryColumn
+{
+    [JsonPropertyName("label")] public string Label { get; set; } = string.Empty;
+    [JsonPropertyName("field")] public string Field { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Configuration for a single flow within a multi-collection flow task
+/// </summary>
+public class MultiCollectionFlowConfiguration
+{
+    [JsonPropertyName("flowId")] public string FlowId { get; set; } = string.Empty;
+    [JsonPropertyName("title")] public string Title { get; set; } = string.Empty;
+    [JsonPropertyName("description")] public string? Description { get; set; }
+    [JsonPropertyName("fieldId")] public string FieldId { get; set; } = string.Empty;
+    [JsonPropertyName("addButtonLabel")] public string AddButtonLabel { get; set; } = "Add item";
+    [JsonPropertyName("minItems")] public int? MinItems { get; set; }
+    [JsonPropertyName("maxItems")] public int? MaxItems { get; set; }
+    [JsonPropertyName("itemTitleBinding")] public string? ItemTitleBinding { get; set; }
+    [JsonPropertyName("summaryColumns")] public List<FlowSummaryColumn>? SummaryColumns { get; set; }
+    [JsonPropertyName("addItemMessage")] public string? AddItemMessage { get; set; }
+    [JsonPropertyName("updateItemMessage")] public string? UpdateItemMessage { get; set; }
+    [JsonPropertyName("deleteItemMessage")] public string? DeleteItemMessage { get; set; }
+    [JsonPropertyName("tableType")] public string TableType { get; set; } = "card"; // "card" or "list"
+    [JsonPropertyName("pages")] public List<Page> Pages { get; set; } = new();
 }
