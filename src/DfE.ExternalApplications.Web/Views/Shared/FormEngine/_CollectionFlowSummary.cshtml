@@ -90,9 +90,38 @@
             </div>
         }
 
-        <div class="govuk-button-group">
-            <a class="govuk-link" href="/applications/@Model.ReferenceNumber">Back to application task list</a>
-        </div>
+        @if (Model.IsApplicationEditable())
+        {
+            <form method="post" asp-page-handler="TaskSummary">
+                <input type="hidden" asp-for="TaskId" />
+                <input type="hidden" asp-for="ReferenceNumber" />
+                
+                <div class="govuk-checkboxes govuk-!-margin-top-6" data-module="govuk-checkboxes">
+                    <div class="govuk-checkboxes__item">
+                        <input class="govuk-checkboxes__input" id="IsTaskCompleted" name="IsTaskCompleted" type="checkbox" value="true" @(Model.IsTaskCompleted ? "checked" : "")>
+                        <label class="govuk-label govuk-checkboxes__label" for="IsTaskCompleted">
+                            Mark this section as complete, you can still make changes later
+                        </label>
+                    </div>
+                </div>
+
+                <div class="govuk-button-group govuk-!-margin-top-6">
+                    <govuk-button type="submit" id="save-task-summary-button">Save and continue</govuk-button>
+                    <a class="govuk-link" id="return-to-application-overview" data-testid="return-to-application-overview" href="/applications/@Model.ReferenceNumber">Return to application overview</a>
+                </div>
+            </form>
+        }
+        else
+        {
+            <div class="govuk-inset-text govuk-!-margin-top-6">
+                <p>This application has been submitted and can no longer be changed.</p>
+                <p>Status: <strong>@Model.ApplicationStatus</strong></p>
+            </div>
+            
+            <div class="govuk-!-margin-top-6">
+                <a class="govuk-link" id="return-to-application-overview" data-testid="return-to-application-overview" href="/applications/@Model.ReferenceNumber">Return to application overview</a>
+            </div>
+        }
     </div>
 </div>
 

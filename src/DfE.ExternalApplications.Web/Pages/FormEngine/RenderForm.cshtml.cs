@@ -128,6 +128,13 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             {
             LoadAccumulatedDataFromSession();
             }
+
+            // Initialize task completion status if we're showing a task summary
+            if (CurrentFormState == FormState.TaskSummary && CurrentTask != null)
+            {
+                var taskStatus = GetTaskStatusFromSession(CurrentTask.TaskId);
+                IsTaskCompleted = taskStatus == Domain.Models.TaskStatus.Completed;
+            }
         }
 
         public async Task<IActionResult> OnPostTaskSummaryAsync()
