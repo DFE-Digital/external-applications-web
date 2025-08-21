@@ -24,38 +24,49 @@
             {
                 @if (task.Summary?.Mode?.Equals("multiCollectionFlow", StringComparison.OrdinalIgnoreCase) == true)
                 {
-                    // Multi-collection flow task: Display each collection in separate tables
-                    @foreach (var flow in task.Summary.Flows ?? new List<DfE.ExternalApplications.Domain.Models.MultiCollectionFlowConfiguration>())
-                    {
-                        var fieldId = flow.FieldId;
-                        Model.FormData.TryGetValue(fieldId, out var raw);
-                        var json = raw?.ToString() ?? "[]";
-                        
-                        List<Dictionary<string, object>> items = new();
-                        try { items = System.Text.Json.JsonSerializer.Deserialize<List<Dictionary<string, object>>>(json) ?? new(); } catch { }
-                        
-                        // Create separate summary card for each collection flow
-                        <div class="govuk-summary-card govuk-!-margin-bottom-6">
-                            <div class="govuk-summary-card__title-wrapper">
-                                <h2 class="govuk-summary-card__title">@task.TaskName - @flow.Title</h2>
-                                @if (Model.IsApplicationEditable())
+                    // Multi-collection flow task: Display all flows in one table
+                    var taskNameHyphenated = task.TaskName.Replace(" ", "-").ToLower();
+
+                    <div class="govuk-summary-card govuk-!-margin-bottom-6" id="task-@taskNameHyphenated-summary">
+                        <div class="govuk-summary-card__title-wrapper">
+                            <h2 class="govuk-summary-card__title">@task.TaskName</h2>
+                            @if (Model.IsApplicationEditable())
+                            {
+                                <ul class="govuk-summary-card__actions">
+                                    <li class="govuk-summary-card__action">
+                                        <a class="govuk-link" href="/applications/@Model.ReferenceNumber/@task.TaskId" id="task-@taskNameHyphenated-change-link">
+                                            Change<span class="govuk-visually-hidden"> @task.TaskName</span>
+                                        </a>
+                                    </li>
+                                </ul>
+                            }
+                        </div>
+                        <div class="govuk-summary-card__content">
+                            <dl class="govuk-summary-list">
+                                @foreach (var (flow, flowIndex) in (task.Summary.Flows ?? new List<DfE.ExternalApplications.Domain.Models.MultiCollectionFlowConfiguration>()).Select((f, i) => (f, i)))
                                 {
-                                    <ul class="govuk-summary-card__actions">
-                                        <li class="govuk-summary-card__action">
-                                            <a class="govuk-link" href="/applications/@Model.ReferenceNumber/@task.TaskId">
-                                                Change<span class="govuk-visually-hidden"> @flow.Title</span>
-                                            </a>
-                                        </li>
-                                    </ul>
-                                }
-                            </div>
-                            <div class="govuk-summary-card__content">
-                                <dl class="govuk-summary-list">
+                                    var fieldId = flow.FieldId;
+                                    Model.FormData.TryGetValue(fieldId, out var raw);
+                                    var json = raw?.ToString() ?? "[]";
+                                    
+                                    List<Dictionary<string, object>> items = new();
+                                    try { items = System.Text.Json.JsonSerializer.Deserialize<List<Dictionary<string, object>>>(json) ?? new(); } catch { }
+                                    
+                                    // Add flow header (no gray background, just bold text)
+                                    <div class="govuk-summary-list__row">
+                                        <dt class="govuk-summary-list__key" style="font-weight: bold;">
+                                            @flow.Title
+                                        </dt>
+                                        <dd class="govuk-summary-list__value">
+                                            <!-- Flow header -->
+                                        </dd>
+                                    </div>
+                                    
                                     @if (items.Count == 0)
                                     {
                                         <div class="govuk-summary-list__row">
                                             <dt class="govuk-summary-list__key">
-                                                @flow.Title
+                                                No items added
                                             </dt>
                                             <dd class="govuk-summary-list__value">
                                                 <span class="govuk-hint">Not answered</span>
@@ -66,18 +77,20 @@
                                     {
                                         @foreach (var (item, itemIndex) in items.Select((item, i) => (item, i)))
                                         {
-                                            // Add separator line between items (except for first item)
-                                            @if (itemIndex > 0)
-                                            {
-                                                <div class="govuk-summary-list__row" style="border-top: 3px solid #b1b4b6; padding-top: 15px; margin-top: 15px;">
-                                                    <dt class="govuk-summary-list__key">
-                                                        <!-- Separator row -->
-                                                    </dt>
-                                                    <dd class="govuk-summary-list__value">
-                                                        <!-- Separator row -->
-                                                    </dd>
-                                                </div>
-                                            }
+                                            var itemNumber = itemIndex + 1;
+                                            // Use itemTitleBinding to get the proper label (e.g., "Member", "Person") instead of "Item"
+                                            var itemLabel = flow.ItemTitleBinding ?? "Item";
+                                            var displayTitle = $"{itemLabel} {itemNumber}";
+                                            
+                                            // Add item header (no gray background, just bold text)
+                                            <div class="govuk-summary-list__row">
+                                                <dt class="govuk-summary-list__key" style="font-weight: bold;">
+                                                    @displayTitle
+                                                </dt>
+                                                <dd class="govuk-summary-list__value">
+                                                    <!-- Item header - no value needed -->
+                                                </dd>
+                                            </div>
                                             
                                             // Display each field for this collection item
                                             @foreach (var col in (flow.SummaryColumns ?? new List<DfE.ExternalApplications.Domain.Models.FlowSummaryColumn>()))
@@ -102,10 +115,10 @@
                                             }
                                         }
                                     }
-                                </dl>
-                            </div>
+                                }
+                            </dl>
                         </div>
-                    }
+                    </div>
                 }
                 else
                 {
