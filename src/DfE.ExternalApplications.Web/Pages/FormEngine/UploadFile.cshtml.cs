@@ -32,7 +32,9 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         {
             if (!Guid.TryParse(ApplicationId, out var appId))
                 return NotFound();
-            Files = await fileUploadService.GetFilesForApplicationAsync(appId);
+            
+            // Get only files for this specific field ID
+            Files = await GetFilesForFieldAsync(appId, FieldId);
             return Page();
         }
 
@@ -69,7 +71,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     return Redirect(ReturnUrl);
                 }
                 
-                Files = await fileUploadService.GetFilesForApplicationAsync(appId);
+                Files = await GetFilesForFieldAsync(appId, FieldId);
                 return Page();
             }
 
@@ -78,9 +80,24 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             await fileUploadService.UploadFileAsync(appId, file.FileName, description, fileParam);
             SuccessMessage = $"Your file '{file.FileName}' uploaded.";
 
-            Files = await fileUploadService.GetFilesForApplicationAsync(appId);
+            // Get the current files for this field
+            var currentFieldFiles = (await GetFilesForFieldAsync(appId, FieldId)).ToList();
+            
+            // Get the latest file list from database to find the newly uploaded file
+            var allDbFiles = await fileUploadService.GetFilesForApplicationAsync(appId);
+            var newlyUploadedFile = allDbFiles
+                .Where(f => !currentFieldFiles.Any(cf => cf.Id == f.Id))
+                .OrderByDescending(f => f.UploadedOn)
+                .FirstOrDefault();
+            
+            // Add the newly uploaded file to our field's file list
+            if (newlyUploadedFile != null)
+            {
+                currentFieldFiles.Add(newlyUploadedFile);
+            }
+            
+            Files = currentFieldFiles.AsReadOnly();
             UpdateSessionFileList(appId, FieldId, Files);
-
             await SaveUploadedFilesToResponseAsync(appId, FieldId, Files);
             
             // If we have a return URL (from partial form), redirect back
@@ -140,16 +157,19 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     return Redirect(ReturnUrl);
                 }
                 
-                Files = await fileUploadService.GetFilesForApplicationAsync(appId);
+                Files = await GetFilesForFieldAsync(appId, FieldId);
                 return Page();
             }
 
             await fileUploadService.DeleteFileAsync(fileId, appId);
             SuccessMessage = "File deleted.";
 
-            Files = await fileUploadService.GetFilesForApplicationAsync(appId);
+            // Get current files for this field and remove the deleted one
+            var currentFieldFiles = (await GetFilesForFieldAsync(appId, FieldId)).ToList();
+            currentFieldFiles.RemoveAll(f => f.Id == fileId);
+            
+            Files = currentFieldFiles.AsReadOnly();
             UpdateSessionFileList(appId, FieldId, Files);
-
             await SaveUploadedFilesToResponseAsync(appId, FieldId, Files);
             
             // If we have a return URL (from partial form), redirect back
@@ -216,6 +236,76 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
             await applicationResponseService.SaveApplicationResponseAsync(appId, data, HttpContext.Session);
 
+        }
+
+        /// <summary>
+        /// Gets files for a specific field ID by filtering from existing session data first,
+        /// then cross-referencing with database files to ensure we only get files for this field
+        /// </summary>
+        private async Task<IReadOnlyList<UploadDto>> GetFilesForFieldAsync(Guid appId, string fieldId)
+        {
+            if (string.IsNullOrEmpty(fieldId))
+            {
+                return new List<UploadDto>().AsReadOnly();
+            }
+
+            // First, try to get existing files from session for this field
+            var sessionKey = $"UploadedFiles_{appId}_{fieldId}";
+            var sessionFilesJson = HttpContext.Session.GetString(sessionKey);
+            
+            if (!string.IsNullOrEmpty(sessionFilesJson))
+            {
+                try
+                {
+                    var sessionFiles = JsonSerializer.Deserialize<List<UploadDto>>(sessionFilesJson);
+                    if (sessionFiles != null)
+                    {
+                        // Cross-reference with database to make sure files still exist
+                        var allDbFiles = await fileUploadService.GetFilesForApplicationAsync(appId);
+                        var validSessionFiles = sessionFiles
+                            .Where(sf => allDbFiles.Any(dbf => dbf.Id == sf.Id))
+                            .ToList();
+                        
+                        return validSessionFiles.AsReadOnly();
+                    }
+                }
+                catch (JsonException)
+                {
+                    // Session data is corrupted, fall through to check accumulated data
+                }
+            }
+
+            // If no session data, try to get from accumulated form data (for existing applications)
+            var accumulatedData = applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
+            if (accumulatedData.TryGetValue(fieldId, out var fieldValue))
+            {
+                var fieldValueStr = fieldValue?.ToString();
+                if (!string.IsNullOrEmpty(fieldValueStr))
+                {
+                    try
+                    {
+                        var existingFiles = JsonSerializer.Deserialize<List<UploadDto>>(fieldValueStr);
+                        if (existingFiles != null)
+                        {
+                            // Cross-reference with database to make sure files still exist
+                            var allDbFiles = await fileUploadService.GetFilesForApplicationAsync(appId);
+                            var validFiles = existingFiles
+                                .Where(ef => allDbFiles.Any(dbf => dbf.Id == ef.Id))
+                                .ToList();
+                            
+                            return validFiles.AsReadOnly();
+                        }
+                    }
+                    catch (JsonException)
+                    {
+                        // Data is corrupted, return empty list
+                    }
+                }
+            }
+
+            // If no existing data for this field, return empty list
+            // Don't return all database files, as that would include files from other fields
+            return new List<UploadDto>().AsReadOnly();
         }
 
         // legacy method removed in favour of IFormErrorStore
