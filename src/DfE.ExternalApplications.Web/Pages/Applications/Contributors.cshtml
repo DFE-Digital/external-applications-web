@@ -27,11 +27,15 @@
         }
 
         <p class="govuk-body">
-            You can invite people to help you complete your application by providing their email address and name.
+            Invite people to help you complete your application by providing their email address and name.
         </p>
 
         <p class="govuk-body">
-            They must have a DfE Sign-in account. Once a contributor joins, they will be able to view and edit the application and see each contributor's email address.
+            They must have a DfE Sign-in account. They can only create an account using a business email address with their name. For example, firstname.lastname@schooldomain.
+        </p>
+
+        <p class="govuk-body">
+            Once a contributor joins, they will be able to view and edit the application and see each contributor's email address.
         </p>
 
         <p class="govuk-body">
@@ -47,7 +51,7 @@
 
             <form method="post">
                 <button id="proceed-to-application-form" class="govuk-button govuk-button--secondary" type="submit" asp-page-handler="ProceedToForm" data-module="govuk-button">
-                    Proceed to the application form
+                    Go to application form
                 </button>
             </form>
         </div>
@@ -60,7 +64,7 @@
             <thead class="govuk-table__head">
                 <tr class="govuk-table__row">
                     <th scope="col" class="govuk-table__header">Email address</th>
-                    <th scope="col" class="govuk-table__header">Name</th>
+                    <th scope="col" class="govuk-table__header">Full name</th>
                     <th scope="col" class="govuk-table__header">Action</th>
                 </tr>
             </thead>
