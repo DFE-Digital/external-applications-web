@@ -151,11 +151,25 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 CurrentPage = null;
             }
 
-            // Handle task completion if checkbox is checked
-            if (IsTaskCompleted && CurrentTask != null && ApplicationId.HasValue)
+            // Handle task completion checkbox state
+            if (CurrentTask != null && ApplicationId.HasValue)
             {
-                // Mark the task as completed in session and API
-                await _applicationStateService.SaveTaskStatusAsync(ApplicationId.Value, CurrentTask.TaskId, Domain.Models.TaskStatus.Completed, HttpContext.Session);
+                if (IsTaskCompleted)
+                {
+                    // Mark the task as completed in session and API
+                    await _applicationStateService.SaveTaskStatusAsync(ApplicationId.Value, CurrentTask.TaskId, Domain.Models.TaskStatus.Completed, HttpContext.Session);
+                }
+                else
+                {
+                    // Task was unchecked - set it back to in progress if it has data, otherwise not started
+                    var currentStatus = _applicationStateService.CalculateTaskStatus(CurrentTask.TaskId, Template, FormData, ApplicationId, HttpContext.Session, ApplicationStatus);
+                    if (currentStatus == Domain.Models.TaskStatus.Completed)
+                    {
+                        // Only override if it was explicitly marked as completed - revert to calculated status
+                        var calculatedStatus = HasAnyTaskData(CurrentTask) ? Domain.Models.TaskStatus.InProgress : Domain.Models.TaskStatus.NotStarted;
+                        await _applicationStateService.SaveTaskStatusAsync(ApplicationId.Value, CurrentTask.TaskId, calculatedStatus, HttpContext.Session);
+                    }
+                }
             }
 
             // Redirect to the task list page
@@ -524,6 +538,33 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         {
             var flow = task?.Summary?.Flows?.FirstOrDefault(f => f.FlowId == flowId);
             return flow?.FieldId;
+        }
+
+        /// <summary>
+        /// Checks if a task has any data (for regular tasks or collection flows)
+        /// </summary>
+        private bool HasAnyTaskData(Domain.Models.Task task)
+        {
+            var taskFieldIds = new List<string>();
+            
+            // For regular tasks, get field IDs from pages
+            if (task.Pages != null)
+            {
+                taskFieldIds.AddRange(task.Pages
+                    .SelectMany(p => p.Fields)
+                    .Select(f => f.FieldId));
+            }
+            
+            // For multi-collection flow tasks, also check collection field IDs
+            if (task.Summary?.Mode?.Equals("multiCollectionFlow", StringComparison.OrdinalIgnoreCase) == true &&
+                task.Summary.Flows != null)
+            {
+                taskFieldIds.AddRange(task.Summary.Flows.Select(f => f.FieldId));
+            }
+                
+            return taskFieldIds.Any(fieldId => 
+                FormData.ContainsKey(fieldId) && 
+                !string.IsNullOrWhiteSpace(FormData[fieldId]?.ToString()));
         }
 
         private void AppendCollectionItemToSession(List<Domain.Models.Page> pages, string fieldId, string instanceId, Dictionary<string, object> itemData)

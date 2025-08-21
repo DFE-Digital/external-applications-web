@@ -159,16 +159,41 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                 {
                     try
                     {
-                        // Handle both simple and complex field structures
-                        if (kvp.Value.ValueKind == JsonValueKind.Object && kvp.Value.TryGetProperty("value", out var valueElement))
+                        // Check if this is a task status field
+                        if (kvp.Key.StartsWith("TaskStatus_"))
                         {
-                            // Complex structure: {"field1": {"value": "actual_value", "completed": true}}
-                            formDataDict[kvp.Key] = GetJsonElementValue(valueElement);
+                            // Extract task status and restore to session
+                            var taskId = kvp.Key.Substring("TaskStatus_".Length);
+                            string statusValue = string.Empty;
+                            
+                            if (kvp.Value.ValueKind == JsonValueKind.Object && kvp.Value.TryGetProperty("value", out var statusElement))
+                            {
+                                statusValue = statusElement.GetString() ?? string.Empty;
+                            }
+                            else
+                            {
+                                statusValue = kvp.Value.GetString() ?? string.Empty;
+                            }
+                            
+                            if (!string.IsNullOrEmpty(statusValue))
+                            {
+                                applicationResponseService.SaveTaskStatusToSession(application.ApplicationId, taskId, statusValue, session);
+                                logger.LogDebug("Restored task status: {TaskId} = {Status}", taskId, statusValue);
+                            }
                         }
                         else
                         {
-                            // Simple structure: {"field1": "actual_value"}
-                            formDataDict[kvp.Key] = GetJsonElementValue(kvp.Value);
+                            // Handle form field data
+                            if (kvp.Value.ValueKind == JsonValueKind.Object && kvp.Value.TryGetProperty("value", out var valueElement))
+                            {
+                                // Complex structure: {"field1": {"value": "actual_value", "completed": true}}
+                                formDataDict[kvp.Key] = GetJsonElementValue(valueElement);
+                            }
+                            else
+                            {
+                                // Simple structure: {"field1": "actual_value"}
+                                formDataDict[kvp.Key] = GetJsonElementValue(kvp.Value);
+                            }
                         }
                     }
                     catch (Exception ex)
@@ -240,10 +265,22 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             }
             
             // Check if any fields in this task have been completed
-            var taskFieldIds = (task.Pages ?? new List<Domain.Models.Page>())
-                .SelectMany(p => p.Fields)
-                .Select(f => f.FieldId)
-                .ToList();
+            var taskFieldIds = new List<string>();
+            
+            // For regular tasks, get field IDs from pages
+            if (task.Pages != null)
+            {
+                taskFieldIds.AddRange(task.Pages
+                    .SelectMany(p => p.Fields)
+                    .Select(f => f.FieldId));
+            }
+            
+            // For multi-collection flow tasks, also check collection field IDs
+            if (task.Summary?.Mode?.Equals("multiCollectionFlow", StringComparison.OrdinalIgnoreCase) == true &&
+                task.Summary.Flows != null)
+            {
+                taskFieldIds.AddRange(task.Summary.Flows.Select(f => f.FieldId));
+            }
                 
             var hasAnyFieldCompleted = taskFieldIds.Any(fieldId => 
                 formData.ContainsKey(fieldId) && 
