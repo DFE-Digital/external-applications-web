@@ -70,5 +70,6 @@ public class MultiCollectionFlowConfiguration
     [JsonPropertyName("addItemMessage")] public string? AddItemMessage { get; set; }
     [JsonPropertyName("updateItemMessage")] public string? UpdateItemMessage { get; set; }
     [JsonPropertyName("deleteItemMessage")] public string? DeleteItemMessage { get; set; }
+    [JsonPropertyName("tableType")] public string TableType { get; set; } = "card"; // "card" or "list"
     [JsonPropertyName("pages")] public List<Page> Pages { get; set; } = new();
 }

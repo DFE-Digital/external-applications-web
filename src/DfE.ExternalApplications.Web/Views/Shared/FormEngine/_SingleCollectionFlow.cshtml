@@ -22,62 +22,160 @@
 
     @if (items.Any())
     {
-        @foreach (var (item, index) in items.Select((item, i) => (item, i)))
+        @if (flow.TableType?.Equals("list", StringComparison.OrdinalIgnoreCase) == true)
         {
-            var memberNumber = index + 1;
-            var memberTitle = $"{itemLabel} {memberNumber}";
-            
-            <div class="govuk-summary-card govuk-!-margin-bottom-6">
-                <div class="govuk-summary-card__title-wrapper">
-                    <h3 class="govuk-summary-card__title">@memberTitle</h3>
-                    <ul class="govuk-summary-card__actions">
-                        <li class="govuk-summary-card__action">
-                            <form method="post" style="display: inline;" asp-page="/FormEngine/RenderForm" asp-page-handler="RemoveCollectionItem">
-                                <input type="hidden" name="referenceNumber" value="@renderModel.ReferenceNumber" />
-                                <input type="hidden" name="taskId" value="@renderModel.TaskId" />
-                                <input type="hidden" name="flowId" value="@flow.FlowId" />
-                                <input type="hidden" name="fieldId" value="@flow.FieldId" />
-                                <input type="hidden" name="itemId" value="@(item.TryGetValue("id", out var itemIdValue) ? itemIdValue?.ToString() : "")" />
-                                <button type="submit" class="govuk-link" style="border: none; background: none; padding: 0; text-decoration: underline; cursor: pointer;">
-                                    Remove<span class="govuk-visually-hidden"> @memberTitle</span>
-                                </button>
-                            </form>
-                        </li>
-                    </ul>
+            @* List style: Simple govuk-summary-list without cards *@
+            <dl class="govuk-summary-list">
+                @foreach (var (item, index) in items.Select((item, i) => (item, i)))
+                {
+                    var memberNumber = index + 1;
+                    var memberTitle = item.TryGetValue(flow.ItemTitleBinding ?? "id", out var titleValue) && !string.IsNullOrEmpty(titleValue?.ToString())
+                                    ? titleValue.ToString()
+                                    : $"{itemLabel} {memberNumber}";
+                    
+                    @* Add separator header for each item (except first) *@
+                    @if (index > 0)
+                    {
+                        <div class="govuk-summary-list__row" style="border-top: 2px solid #d1d1d1; margin-top: 15px; padding-top: 15px;">
+                            <dt class="govuk-summary-list__key" style="font-weight: bold;">
+                                @memberTitle
+                            </dt>
+                            <dd class="govuk-summary-list__value">
+                                <!-- Item header -->
+                            </dd>
+                            <dd class="govuk-summary-list__actions">
+                                <form method="post" style="display: inline;" asp-page="/FormEngine/RenderForm" asp-page-handler="RemoveCollectionItem">
+                                    <input type="hidden" name="referenceNumber" value="@renderModel.ReferenceNumber" />
+                                    <input type="hidden" name="taskId" value="@renderModel.TaskId" />
+                                    <input type="hidden" name="flowId" value="@flow.FlowId" />
+                                    <input type="hidden" name="fieldId" value="@flow.FieldId" />
+                                    <input type="hidden" name="itemId" value="@(item.TryGetValue("id", out var itemIdValue) ? itemIdValue?.ToString() : "")" />
+                                    <button type="submit" class="govuk-link" style="border: none; background: none; padding: 0; text-decoration: underline; cursor: pointer;">
+                                        Remove<span class="govuk-visually-hidden"> @memberTitle</span>
+                                    </button>
+                                </form>
+                            </dd>
+                        </div>
+                    }
+                    else
+                    {
+                        @* First item header without border *@
+                        <div class="govuk-summary-list__row">
+                            <dt class="govuk-summary-list__key" style="font-weight: bold;">
+                                @memberTitle
+                            </dt>
+                            <dd class="govuk-summary-list__value">
+                                <!-- Item header -->
+                            </dd>
+                            <dd class="govuk-summary-list__actions">
+                                <form method="post" style="display: inline;" asp-page="/FormEngine/RenderForm" asp-page-handler="RemoveCollectionItem">
+                                    <input type="hidden" name="referenceNumber" value="@renderModel.ReferenceNumber" />
+                                    <input type="hidden" name="taskId" value="@renderModel.TaskId" />
+                                    <input type="hidden" name="flowId" value="@flow.FlowId" />
+                                    <input type="hidden" name="fieldId" value="@flow.FieldId" />
+                                    <input type="hidden" name="itemId" value="@(item.TryGetValue("id", out var itemIdValue2) ? itemIdValue2?.ToString() : "")" />
+                                    <button type="submit" class="govuk-link" style="border: none; background: none; padding: 0; text-decoration: underline; cursor: pointer;">
+                                        Remove<span class="govuk-visually-hidden"> @memberTitle</span>
+                                    </button>
+                                </form>
+                            </dd>
+                        </div>
+                    }
+                    
+                    @* Item fields *@
+                    @foreach (var col in (flow.SummaryColumns ?? new List<DfE.ExternalApplications.Domain.Models.FlowSummaryColumn>()))
+                    {
+                        var value = item.TryGetValue(col.Field, out var v) ? v?.ToString() : string.Empty;
+                        // Find which page contains this field within this flow
+                        var targetPage = flow.Pages?.FirstOrDefault(p => p.Fields.Any(f => f.FieldId == col.Field));
+                        var pageId = targetPage?.PageId ?? flow.Pages?.FirstOrDefault()?.PageId ?? "";
+                        
+                        <div class="govuk-summary-list__row">
+                            <dt class="govuk-summary-list__key">
+                                @col.Label
+                            </dt>
+                            <dd class="govuk-summary-list__value">
+                                @if (!string.IsNullOrEmpty(value))
+                                {
+                                    @value
+                                }
+                                else
+                                {
+                                    <span class="govuk-hint">Not answered</span>
+                                }
+                            </dd>
+                            <dd class="govuk-summary-list__actions">
+                                <a class="govuk-link" href="/applications/@renderModel.ReferenceNumber/@renderModel.TaskId/flow/@flow.FlowId/@(item.TryGetValue("id", out var changeItemIdValue) ? changeItemIdValue?.ToString() : "")/@pageId">
+                                    Change<span class="govuk-visually-hidden"> @col.Label for @memberTitle</span>
+                                </a>
+                            </dd>
+                        </div>
+                    }
+                }
+            </dl>
+        }
+        else
+        {
+            @* Card style: Current govuk-summary-card approach (default) *@
+            @foreach (var (item, index) in items.Select((item, i) => (item, i)))
+            {
+                var memberNumber = index + 1;
+                var memberTitle = item.TryGetValue(flow.ItemTitleBinding ?? "id", out var titleValue) && !string.IsNullOrEmpty(titleValue?.ToString())
+                                ? titleValue.ToString()
+                                : $"{itemLabel} {memberNumber}";
+                
+                <div class="govuk-summary-card govuk-!-margin-bottom-6">
+                    <div class="govuk-summary-card__title-wrapper">
+                        <h3 class="govuk-summary-card__title">@memberTitle</h3>
+                        <ul class="govuk-summary-card__actions">
+                            <li class="govuk-summary-card__action">
+                                <form method="post" style="display: inline;" asp-page="/FormEngine/RenderForm" asp-page-handler="RemoveCollectionItem">
+                                    <input type="hidden" name="referenceNumber" value="@renderModel.ReferenceNumber" />
+                                    <input type="hidden" name="taskId" value="@renderModel.TaskId" />
+                                    <input type="hidden" name="flowId" value="@flow.FlowId" />
+                                    <input type="hidden" name="fieldId" value="@flow.FieldId" />
+                                    <input type="hidden" name="itemId" value="@(item.TryGetValue("id", out var itemIdValue) ? itemIdValue?.ToString() : "")" />
+                                    <button type="submit" class="govuk-link" style="border: none; background: none; padding: 0; text-decoration: underline; cursor: pointer;">
+                                        Remove<span class="govuk-visually-hidden"> @memberTitle</span>
+                                    </button>
+                                </form>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="govuk-summary-card__content">
+                        <dl class="govuk-summary-list">
+                            @foreach (var col in (flow.SummaryColumns ?? new List<DfE.ExternalApplications.Domain.Models.FlowSummaryColumn>()))
+                            {
+                                var value = item.TryGetValue(col.Field, out var v) ? v?.ToString() : string.Empty;
+                                // Find which page contains this field within this flow
+                                var targetPage = flow.Pages?.FirstOrDefault(p => p.Fields.Any(f => f.FieldId == col.Field));
+                                var pageId = targetPage?.PageId ?? flow.Pages?.FirstOrDefault()?.PageId ?? "";
+                                
+                                <div class="govuk-summary-list__row">
+                                    <dt class="govuk-summary-list__key">
+                                        @col.Label
+                                    </dt>
+                                    <dd class="govuk-summary-list__value">
+                                        @if (!string.IsNullOrEmpty(value))
+                                        {
+                                            @value
+                                        }
+                                        else
+                                        {
+                                            <span class="govuk-hint">Not answered</span>
+                                        }
+                                    </dd>
+                                    <dd class="govuk-summary-list__actions">
+                                        <a class="govuk-link" href="/applications/@renderModel.ReferenceNumber/@renderModel.TaskId/flow/@flow.FlowId/@(item.TryGetValue("id", out var changeItemIdValue) ? changeItemIdValue?.ToString() : "")/@pageId">
+                                            Change<span class="govuk-visually-hidden"> @col.Label for @memberTitle</span>
+                                        </a>
+                                    </dd>
+                                </div>
+                            }
+                        </dl>
+                    </div>
                 </div>
-                <div class="govuk-summary-card__content">
-                    <dl class="govuk-summary-list">
-                        @foreach (var col in (flow.SummaryColumns ?? new List<DfE.ExternalApplications.Domain.Models.FlowSummaryColumn>()))
-                        {
-                            var value = item.TryGetValue(col.Field, out var v) ? v?.ToString() : string.Empty;
-                            // Find which page contains this field within this flow
-                            var targetPage = flow.Pages?.FirstOrDefault(p => p.Fields.Any(f => f.FieldId == col.Field));
-                            var pageId = targetPage?.PageId ?? flow.Pages?.FirstOrDefault()?.PageId ?? "";
-                            
-                            <div class="govuk-summary-list__row">
-                                <dt class="govuk-summary-list__key">
-                                    @col.Label
-                                </dt>
-                                <dd class="govuk-summary-list__value">
-                                    @if (!string.IsNullOrEmpty(value))
-                                    {
-                                        @value
-                                    }
-                                    else
-                                    {
-                                        <span class="govuk-hint">Not answered</span>
-                                    }
-                                </dd>
-                                <dd class="govuk-summary-list__actions">
-                                    <a class="govuk-link" href="/applications/@renderModel.ReferenceNumber/@renderModel.TaskId/flow/@flow.FlowId/@(item.TryGetValue("id", out var changeItemIdValue) ? changeItemIdValue?.ToString() : "")/@pageId">
-                                        Change<span class="govuk-visually-hidden"> @col.Label for @memberTitle</span>
-                                    </a>
-                                </dd>
-                            </div>
-                        }
-                    </dl>
-                </div>
-            </div>
+            }
         }
     }
     else

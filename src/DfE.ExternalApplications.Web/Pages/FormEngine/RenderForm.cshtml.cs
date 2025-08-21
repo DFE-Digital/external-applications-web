@@ -465,7 +465,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         {
             await CommonFormEngineInitializationAsync();
             
-            // Initialize CurrentTask (this was missing!)
             if (!string.IsNullOrEmpty(TaskId))
             {
                 var (group, task) = InitializeCurrentTask(TaskId);
