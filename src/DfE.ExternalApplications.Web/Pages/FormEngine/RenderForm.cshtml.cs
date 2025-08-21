@@ -465,6 +465,14 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         {
             await CommonFormEngineInitializationAsync();
             
+            // Initialize CurrentTask (this was missing!)
+            if (!string.IsNullOrEmpty(TaskId))
+            {
+                var (group, task) = InitializeCurrentTask(TaskId);
+                CurrentGroup = group;
+                CurrentTask = task;
+            }
+            
             if (string.IsNullOrEmpty(fieldId) || string.IsNullOrEmpty(itemId))
             {
                 return BadRequest("Field ID and Item ID are required");
