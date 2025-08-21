@@ -35,6 +35,7 @@
                             <form method="post" style="display: inline;" asp-page="/FormEngine/RenderForm" asp-page-handler="RemoveCollectionItem">
                                 <input type="hidden" name="referenceNumber" value="@renderModel.ReferenceNumber" />
                                 <input type="hidden" name="taskId" value="@renderModel.TaskId" />
+                                <input type="hidden" name="flowId" value="@flow.FlowId" />
                                 <input type="hidden" name="fieldId" value="@flow.FieldId" />
                                 <input type="hidden" name="itemId" value="@(item.TryGetValue("id", out var itemIdValue) ? itemIdValue?.ToString() : "")" />
                                 <button type="submit" class="govuk-link" style="border: none; background: none; padding: 0; text-decoration: underline; cursor: pointer;">

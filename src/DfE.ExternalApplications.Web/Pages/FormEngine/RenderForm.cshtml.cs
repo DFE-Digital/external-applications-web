@@ -36,6 +36,9 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         [BindProperty] public Dictionary<string, object> Data { get; set; } = new();
 
         [BindProperty] public bool IsTaskCompleted { get; set; }
+        
+        // Success message for collection operations
+        [TempData] public string? SuccessMessage { get; set; }
 
         public async Task OnGetAsync()
         {
@@ -369,6 +372,9 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                             // Flow complete: append item to collection and go back to collection summary
                             if (!string.IsNullOrEmpty(flowFieldId))
                             {
+                                // Determine if this is a new item or an update
+                                bool isNewItem = !IsExistingCollectionItem(flowFieldId, instanceId);
+                                
                                 // Merge accumulated progress with final page data
                                 var accumulated = LoadFlowProgress(flowId, instanceId);
                                 foreach (var kv in Data)
@@ -377,6 +383,22 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                 }
 
                                 AppendCollectionItemToSession(flowPages, flowFieldId, instanceId, accumulated);
+                                
+                                // Generate success message
+                                var flow = CurrentTask.Summary?.Flows?.FirstOrDefault(f => f.FlowId == flowId);
+                                if (flow != null)
+                                {
+                                    // Use the accumulated data (all fields from the item)
+                                    if (isNewItem)
+                                    {
+                                        SuccessMessage = GenerateSuccessMessage(flow.AddItemMessage, "add", accumulated, flow.Title);
+                                    }
+                                    else
+                                    {
+                                        SuccessMessage = GenerateSuccessMessage(flow.UpdateItemMessage, "update", accumulated, flow.Title);
+                                    }
+                                }
+                                
                                 if (ApplicationId.HasValue)
                                 {
                                     // Trigger save for the collection field
@@ -439,7 +461,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
         }
 
-        public async Task<IActionResult> OnPostRemoveCollectionItemAsync(string fieldId, string itemId)
+        public async Task<IActionResult> OnPostRemoveCollectionItemAsync(string fieldId, string itemId, string? flowId = null)
         {
             await CommonFormEngineInitializationAsync();
             
@@ -448,11 +470,41 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 return BadRequest("Field ID and Item ID are required");
             }
 
-            // Get current collection from session
-            var accumulated = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
-            if (accumulated.TryGetValue(fieldId, out var collectionValue))
+            // Get current collection from session first
+            var accumulatedData = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
+            
+            Dictionary<string, object>? itemData = null;
+            string? flowTitle = null;
+            
+            // Get the flow and item information for success message
+            if (!string.IsNullOrEmpty(flowId) && CurrentTask != null)
             {
-                var json = collectionValue?.ToString() ?? "[]";
+                var flow = CurrentTask.Summary?.Flows?.FirstOrDefault(f => f.FlowId == flowId);
+                if (flow != null)
+                {
+                    flowTitle = flow.Title;
+                    
+                    // Get the item data before removing it
+                    if (accumulatedData.TryGetValue(fieldId, out var collectionValue))
+                    {
+                        var json = collectionValue?.ToString() ?? "[]";
+                        try
+                        {
+                            var items = JsonSerializer.Deserialize<List<Dictionary<string, object>>>(json) ?? new();
+                            itemData = items.FirstOrDefault(i => i.TryGetValue("id", out var id) && id?.ToString() == itemId);
+                        }
+                        catch { }
+                    }
+                    
+                    // Generate success message using custom message or fallback
+                    SuccessMessage = GenerateSuccessMessage(flow.DeleteItemMessage, "delete", itemData, flowTitle);
+                }
+            }
+
+            // Now perform the actual removal
+            if (accumulatedData.TryGetValue(fieldId, out var collectionData))
+            {
+                var json = collectionData?.ToString() ?? "[]";
                 try
                 {
                     var items = JsonSerializer.Deserialize<List<Dictionary<string, object>>>(json) ?? new();
@@ -538,6 +590,28 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         {
             var flow = task?.Summary?.Flows?.FirstOrDefault(f => f.FlowId == flowId);
             return flow?.FieldId;
+        }
+
+        /// <summary>
+        /// Checks if an item with the given instanceId already exists in the collection
+        /// </summary>
+        private bool IsExistingCollectionItem(string fieldId, string instanceId)
+        {
+            var accumulated = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
+            if (accumulated.TryGetValue(fieldId, out var collectionValue))
+            {
+                var json = collectionValue?.ToString() ?? "[]";
+                try
+                {
+                    var items = JsonSerializer.Deserialize<List<Dictionary<string, object>>>(json) ?? new();
+                    return items.Any(item => item.TryGetValue("id", out var id) && id?.ToString() == instanceId);
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+            return false;
         }
 
         /// <summary>
@@ -805,6 +879,72 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
                 }
             }
+        }
+
+        /// <summary>
+        /// Generates a success message using custom template or fallback default
+        /// </summary>
+        /// <param name="customMessage">Custom message template from configuration</param>
+        /// <param name="operation">Operation type: "add", "update", or "delete"</param>
+        /// <param name="itemData">Dictionary containing all field values for the item</param>
+        /// <param name="flowTitle">Title of the flow</param>
+        /// <returns>Formatted success message</returns>
+        private string GenerateSuccessMessage(string? customMessage, string operation, Dictionary<string, object>? itemData, string? flowTitle)
+        {
+            // If custom message is provided, use it with placeholder substitution
+            if (!string.IsNullOrEmpty(customMessage))
+            {
+                var message = customMessage;
+                
+                // Replace {flowTitle} placeholder
+                message = message.Replace("{flowTitle}", flowTitle ?? "collection");
+                
+                // Replace field-based placeholders like {firstName}, {gender}, etc.
+                if (itemData != null)
+                {
+                    foreach (var kvp in itemData)
+                    {
+                        var placeholder = $"{{{kvp.Key}}}";
+                        var value = kvp.Value?.ToString() ?? "";
+                        message = message.Replace(placeholder, value);
+                    }
+                }
+                
+                return message;
+            }
+
+            // Fallback to default messages - try to use itemTitleBinding or first available field
+            string displayName = "Item";
+            if (itemData != null && itemData.Any())
+            {
+                // Try common name fields first, then fall back to any non-empty value
+                var nameFields = new[] { "firstName", "name", "title", "label" };
+                var nameField = nameFields.FirstOrDefault(field => itemData.ContainsKey(field) && !string.IsNullOrEmpty(itemData[field]?.ToString()));
+                
+                if (nameField != null)
+                {
+                    displayName = itemData[nameField]?.ToString() ?? "Item";
+                }
+                else
+                {
+                    // Use the first non-empty field value
+                    var firstValue = itemData.Values.FirstOrDefault(v => !string.IsNullOrEmpty(v?.ToString()));
+                    if (firstValue != null)
+                    {
+                        displayName = firstValue.ToString() ?? "Item";
+                    }
+                }
+            }
+
+            var lowerFlowTitle = flowTitle?.ToLowerInvariant() ?? "collection";
+
+            return operation switch
+            {
+                "add" => $"{displayName} has been added to {lowerFlowTitle}",
+                "update" => $"{displayName} has been updated",
+                "delete" => $"{displayName} has been removed from {lowerFlowTitle}",
+                _ => $"{displayName} has been processed"
+            };
         }
 
 

@@ -67,5 +67,8 @@ public class MultiCollectionFlowConfiguration
     [JsonPropertyName("maxItems")] public int? MaxItems { get; set; }
     [JsonPropertyName("itemTitleBinding")] public string? ItemTitleBinding { get; set; }
     [JsonPropertyName("summaryColumns")] public List<FlowSummaryColumn>? SummaryColumns { get; set; }
+    [JsonPropertyName("addItemMessage")] public string? AddItemMessage { get; set; }
+    [JsonPropertyName("updateItemMessage")] public string? UpdateItemMessage { get; set; }
+    [JsonPropertyName("deleteItemMessage")] public string? DeleteItemMessage { get; set; }
     [JsonPropertyName("pages")] public List<Page> Pages { get; set; } = new();
 }
