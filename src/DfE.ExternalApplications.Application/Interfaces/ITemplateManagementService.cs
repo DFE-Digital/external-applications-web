@@ -28,14 +28,6 @@ namespace DfE.ExternalApplications.Application.Interfaces
         /// </summary>
         (TaskGroup Group, Domain.Models.Task Task, Domain.Models.Page Page) FindPage(FormTemplate template, string pageId);
 
-        /// <summary>
-        /// Finds a reusable flow definition by id
-        /// </summary>
-        Domain.Models.FlowDefinition? FindFlow(FormTemplate template, string flowId);
-
-        /// <summary>
-        /// Finds a page within a flow definition
-        /// </summary>
-        Domain.Models.Page? FindFlowPage(Domain.Models.FlowDefinition flow, string pageId);
+        
     }
 } 

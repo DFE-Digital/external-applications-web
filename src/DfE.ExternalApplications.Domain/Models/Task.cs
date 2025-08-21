@@ -42,8 +42,20 @@ public class TaskSummaryConfiguration
 
     // For collectionFlow mode
     [JsonPropertyName("fieldId")] public string? FieldId { get; set; }
-    [JsonPropertyName("flowRef")] public string? FlowRef { get; set; }
     [JsonPropertyName("addButtonLabel")] public string? AddButtonLabel { get; set; }
     [JsonPropertyName("minItems")] public int? MinItems { get; set; }
     [JsonPropertyName("maxItems")] public int? MaxItems { get; set; }
+
+    // UI helpers for collection flow summaries (moved from FlowDefinition)
+    [JsonPropertyName("itemTitleBinding")] public string? ItemTitleBinding { get; set; }
+    [JsonPropertyName("summaryColumns")] public List<FlowSummaryColumn>? SummaryColumns { get; set; }
+}
+
+/// <summary>
+/// Represents a column in the collection flow summary display
+/// </summary>
+public class FlowSummaryColumn
+{
+    [JsonPropertyName("label")] public string Label { get; set; } = string.Empty;
+    [JsonPropertyName("field")] public string Field { get; set; } = string.Empty;
 }

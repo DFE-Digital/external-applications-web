@@ -2,7 +2,6 @@
 @{
     var task = Model.CurrentTask;
     var summary = task?.Summary;
-    var flowId = summary?.FlowRef ?? string.Empty;
     var fieldId = summary?.FieldId ?? string.Empty;
     var addLabel = summary?.AddButtonLabel ?? "Add item";
 
@@ -16,14 +15,13 @@
         <h1 class="govuk-heading-l">@task?.TaskName</h1>
 
         <div class="govuk-!-margin-bottom-4">
-            <a class="govuk-button" href="/applications/@Model.ReferenceNumber/@Model.TaskId/flow/@flowId/@Guid.NewGuid()">@addLabel</a>
+            <a class="govuk-button" href="/applications/@Model.ReferenceNumber/@Model.TaskId/flow/@Model.TaskId/@Guid.NewGuid()">@addLabel</a>
         </div>
 
         @{
             List<Dictionary<string, object>> items = new();
             try { items = System.Text.Json.JsonSerializer.Deserialize<List<Dictionary<string, object>>>(json) ?? new(); } catch { }
-            var flow = Model.Template.Flows?.FirstOrDefault(f => f.FlowId == flowId);
-            var itemLabel = flow?.ItemTitleBinding ?? "Member";
+            var itemLabel = summary?.ItemTitleBinding ?? "Item";
         }
 
         @if (items.Any())
@@ -52,12 +50,12 @@
                     </div>
                     <div class="govuk-summary-card__content">
                         <dl class="govuk-summary-list">
-                            @foreach (var col in (flow?.SummaryColumns ?? new List<DfE.ExternalApplications.Domain.Models.FlowSummaryColumn>()))
+                            @foreach (var col in (summary?.SummaryColumns ?? new List<DfE.ExternalApplications.Domain.Models.FlowSummaryColumn>()))
                             {
                                 var value = item.TryGetValue(col.Field, out var v) ? v?.ToString() : string.Empty;
                                 // Find which page contains this field
-                                var targetPage = flow?.Pages?.FirstOrDefault(p => p.Fields.Any(f => f.FieldId == col.Field));
-                                var pageId = targetPage?.PageId ?? flow?.Pages?.FirstOrDefault()?.PageId ?? "";
+                                var targetPage = task?.Pages?.FirstOrDefault(p => p.Fields.Any(f => f.FieldId == col.Field));
+                                var pageId = targetPage?.PageId ?? task?.Pages?.FirstOrDefault()?.PageId ?? "";
                                 
                                 <div class="govuk-summary-list__row">
                                     <dt class="govuk-summary-list__key">
@@ -74,7 +72,7 @@
                                         }
                                     </dd>
                                     <dd class="govuk-summary-list__actions">
-                                        <a class="govuk-link" href="/applications/@Model.ReferenceNumber/@Model.TaskId/flow/@flowId/@(item.TryGetValue("id", out var changeItemIdValue) ? changeItemIdValue?.ToString() : "")/@pageId">
+                                        <a class="govuk-link" href="/applications/@Model.ReferenceNumber/@Model.TaskId/flow/@Model.TaskId/@(item.TryGetValue("id", out var changeItemIdValue) ? changeItemIdValue?.ToString() : "")/@pageId">
                                             Change<span class="govuk-visually-hidden"> @col.Label for @memberTitle</span>
                                         </a>
                                     </dd>
@@ -88,8 +86,9 @@
         else
         {
             <div class="govuk-inset-text">
-                No members have been added.
-            </div>        }
+                No @(itemLabel.ToLowerInvariant())s have been added.
+            </div>
+        }
 
         <div class="govuk-button-group">
             <a class="govuk-link" href="/applications/@Model.ReferenceNumber">Back to application task list</a>

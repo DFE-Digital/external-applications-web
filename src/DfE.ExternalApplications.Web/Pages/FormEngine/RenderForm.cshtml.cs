@@ -67,15 +67,15 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 {
                     if (TryParseFlowRoute(CurrentPageId, out var flowId, out var instanceId, out var flowPageId))
                     {
-                        // Sub-flow: initialize task and resolve page from flow definition
+                        // Sub-flow: initialize task and resolve page from task's pages
                         var (group, task) = InitializeCurrentTask(TaskId);
                         CurrentGroup = group;
                         CurrentTask = task;
 
-                        var flow = _templateManagementService.FindFlow(Template, flowId);
-                        if (flow != null)
+                        // In the new structure, the task itself contains the pages for the collection flow
+                        if (task != null && task.Pages != null)
                         {
-                            var page = string.IsNullOrEmpty(flowPageId) ? flow.Pages.FirstOrDefault() : _templateManagementService.FindFlowPage(flow, flowPageId);
+                            var page = string.IsNullOrEmpty(flowPageId) ? task.Pages.FirstOrDefault() : task.Pages.FirstOrDefault(p => p.PageId == flowPageId);
                             if (page != null)
                             {
                                 CurrentPage = page;
@@ -83,10 +83,10 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                 
                                 // If editing existing item, load its data into form fields
                                 // This must happen AFTER LoadAccumulatedDataFromSession is skipped for sub-flows
-                                LoadExistingFlowItemData(flowId, instanceId);
+                                LoadExistingFlowItemData(TaskId, instanceId);
                                 
                                 // Also load any in-progress data for this specific flow instance
-                                var progressData = LoadFlowProgress(flowId, instanceId);
+                                var progressData = LoadFlowProgress(TaskId, instanceId);
                                 foreach (var kvp in progressData)
                                 {
                                     if (!Data.ContainsKey(kvp.Key)) // Don't overwrite data from existing item
@@ -126,7 +126,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             // Load accumulated form data from session to pre-populate fields (only if not in a sub-flow)
             if (string.IsNullOrEmpty(CurrentPageId) || !CurrentPageId.Contains("flow/"))
             {
-                LoadAccumulatedDataFromSession();
+            LoadAccumulatedDataFromSession();
             }
         }
 
@@ -233,10 +233,10 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     CurrentGroup = group;
                     CurrentTask = task;
 
-                    var flow = _templateManagementService.FindFlow(Template, flowId);
-                    if (flow != null)
+                    // In the new structure, the task itself contains the pages for the collection flow
+                    if (task != null && task.Pages != null)
                     {
-                        var page = string.IsNullOrEmpty(flowPageId) ? flow.Pages.FirstOrDefault() : _templateManagementService.FindFlowPage(flow, flowPageId);
+                        var page = string.IsNullOrEmpty(flowPageId) ? task.Pages.FirstOrDefault() : task.Pages.FirstOrDefault(p => p.PageId == flowPageId);
                         if (page != null)
                         {
                             CurrentPage = page;
@@ -324,18 +324,18 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 // If this is a sub-flow route, compute next page within the flow
                 if (TryParseFlowRoute(CurrentPageId, out var flowId, out var instanceId, out var flowPageId))
                 {
-                    var flow = _templateManagementService.FindFlow(Template, flowId);
-                    if (flow != null)
+                    // In the new structure, the task itself contains the pages for the collection flow
+                    if (CurrentTask != null && CurrentTask.Pages != null)
                     {
                         // Persist in-progress sub-flow data for this instance
-                        SaveFlowProgress(flowId, instanceId, Data);
+                        SaveFlowProgress(TaskId, instanceId, Data);
 
-                        var index = flow.Pages.FindIndex(p => p.PageId == CurrentPage.PageId);
-                        var isLast = index == -1 || index >= flow.Pages.Count - 1;
+                        var index = CurrentTask.Pages.FindIndex(p => p.PageId == CurrentPage.PageId);
+                        var isLast = index == -1 || index >= CurrentTask.Pages.Count - 1;
                         if (!isLast)
                         {
-                            var nextPageId = flow.Pages[index + 1].PageId;
-                            var nextUrl = _formNavigationService.GetSubFlowPageUrl(CurrentTask.TaskId, ReferenceNumber, flowId, instanceId, nextPageId);
+                            var nextPageId = CurrentTask.Pages[index + 1].PageId;
+                            var nextUrl = _formNavigationService.GetSubFlowPageUrl(CurrentTask.TaskId, ReferenceNumber, TaskId, instanceId, nextPageId);
                             return Redirect(nextUrl);
                         }
                         else
@@ -345,13 +345,13 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                             if (!string.IsNullOrEmpty(fieldId))
                             {
                                 // Merge accumulated progress with final page data
-                                var accumulated = LoadFlowProgress(flowId, instanceId);
+                                var accumulated = LoadFlowProgress(TaskId, instanceId);
                                 foreach (var kv in Data)
                                 {
                                     accumulated[kv.Key] = kv.Value;
                                 }
 
-                                AppendCollectionItemToSession(flow, fieldId, instanceId, accumulated);
+                                AppendCollectionItemToSession(CurrentTask, fieldId, instanceId, accumulated);
                                 if (ApplicationId.HasValue)
                                 {
                                     // Trigger save for the collection field
@@ -362,7 +362,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                     }
                                 }
                                 // Clear the in-progress cache for this instance
-                                ClearFlowProgress(flowId, instanceId);
+                                ClearFlowProgress(TaskId, instanceId);
                             }
                             var backToSummary = _formNavigationService.GetCollectionFlowSummaryUrl(CurrentTask.TaskId, ReferenceNumber);
                             return Redirect(backToSummary);
@@ -497,23 +497,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             return false;
         }
 
-        private void AppendCollectionItemToSession(FlowDefinition flow, string fieldId, string instanceId, Dictionary<string, object> itemData)
+        private void AppendCollectionItemToSession(Domain.Models.Task task, string fieldId, string instanceId, Dictionary<string, object> itemData)
         {
-            // Merge Data dictionary (captured for the flow pages) into a single item object
-            var item = new Dictionary<string, object>();
-            foreach (var page in flow.Pages)
-            {
-                foreach (var field in page.Fields)
-                {
-                    var key = field.FieldId;
-                    if (itemData.TryGetValue(key, out var value))
-                    {
-                        item[key] = value;
-                    }
-                }
-            }
-            item["id"] = instanceId;
-
             var acc = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
             var list = new List<Dictionary<string, object>>();
             if (acc.TryGetValue(fieldId, out var existing))
@@ -530,9 +515,47 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 }
             }
 
-            // Upsert by id
+            // Find existing item or create new one
             var idx = list.FindIndex(x => x.TryGetValue("id", out var id) && id?.ToString() == instanceId);
-            if (idx >= 0) list[idx] = item; else list.Add(item);
+            Dictionary<string, object> item;
+            
+            if (idx >= 0)
+            {
+                // Editing existing item: start with existing data and merge in new values
+                item = new Dictionary<string, object>(list[idx]);
+                
+                // Update only the fields that have values in itemData (current page data)
+                foreach (var kvp in itemData)
+                {
+                    item[kvp.Key] = kvp.Value;
+                }
+            }
+            else
+            {
+                // New item: create fresh item with all possible fields from task pages
+                item = new Dictionary<string, object>();
+                foreach (var page in task.Pages)
+                {
+                    foreach (var field in page.Fields)
+                    {
+                        var key = field.FieldId;
+                        if (itemData.TryGetValue(key, out var value))
+                        {
+                            item[key] = value;
+                        }
+                    }
+                }
+                item["id"] = instanceId;
+            }
+
+            // Ensure id is always set
+            item["id"] = instanceId;
+
+            // Upsert the item
+            if (idx >= 0) 
+                list[idx] = item; 
+            else 
+                list.Add(item);
 
             var serialized = JsonSerializer.Serialize(list);
             _applicationResponseService.AccumulateFormData(new Dictionary<string, object> { [fieldId] = serialized }, HttpContext.Session);

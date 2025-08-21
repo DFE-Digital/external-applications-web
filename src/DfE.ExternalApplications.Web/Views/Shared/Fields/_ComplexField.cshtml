@@ -32,9 +32,6 @@ else
         case "upload":
             @await Html.PartialAsync("~/Views/Shared/Fields/_UploadComplexField.cshtml", Model, new ViewDataDictionary(ViewData))
             break;
-        case "collectionflow":
-            @await Html.PartialAsync("~/Views/Shared/FormEngine/_CollectionFlowSummary.cshtml", Model)
-            break;
         @*   case "composite":
             @await Html.PartialAsync("~/Views/Shared/Fields/_CompositeComplexField.cshtml", Model)
                 break; *@
