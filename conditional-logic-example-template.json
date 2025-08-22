@@ -1,0 +1,317 @@
+{
+  "templateId": "example-conditional-logic",
+  "templateName": "Conditional Logic Example Form",
+  "description": "Example form demonstrating powerful conditional logic capabilities",
+  "conditionalLogic": [
+    {
+      "id": "show-income-details",
+      "name": "Show income details when employed",
+      "priority": 100,
+      "enabled": true,
+      "conditionGroup": {
+        "logicalOperator": "AND",
+        "conditions": [
+          {
+            "triggerField": "employmentStatus",
+            "operator": "equals",
+            "value": "employed",
+            "dataType": "string"
+          }
+        ]
+      },
+      "affectedElements": [
+        {
+          "elementId": "income",
+          "elementType": "field",
+          "action": "show"
+        },
+        {
+          "elementId": "employer",
+          "elementType": "field",
+          "action": "show"
+        },
+        {
+          "elementId": "income",
+          "elementType": "field",
+          "action": "require"
+        }
+      ],
+      "executeOn": ["change", "load"],
+      "debounce": 300
+    },
+    {
+      "id": "hide-income-when-unemployed",
+      "name": "Hide income fields when unemployed",
+      "priority": 100,
+      "enabled": true,
+      "conditionGroup": {
+        "logicalOperator": "OR",
+        "conditions": [
+          {
+            "triggerField": "employmentStatus",
+            "operator": "equals",
+            "value": "unemployed",
+            "dataType": "string"
+          },
+          {
+            "triggerField": "employmentStatus",
+            "operator": "equals",
+            "value": "student",
+            "dataType": "string"
+          }
+        ]
+      },
+      "affectedElements": [
+        {
+          "elementId": "income",
+          "elementType": "field",
+          "action": "hide"
+        },
+        {
+          "elementId": "employer",
+          "elementType": "field",
+          "action": "hide"
+        },
+        {
+          "elementId": "income",
+          "elementType": "field",
+          "action": "makeOptional"
+        }
+      ]
+    },
+    {
+      "id": "show-high-income-warning",
+      "name": "Show warning for high income",
+      "priority": 200,
+      "enabled": true,
+      "conditionGroup": {
+        "logicalOperator": "AND",
+        "conditions": [
+          {
+            "triggerField": "income",
+            "operator": "greaterThan",
+            "value": 100000,
+            "dataType": "number"
+          }
+        ]
+      },
+      "affectedElements": [
+        {
+          "elementId": "income",
+          "elementType": "field",
+          "action": "showMessage",
+          "actionConfig": {
+            "message": "High income detected. Additional documentation may be required.",
+            "messageType": "warning"
+          }
+        }
+      ]
+    },
+    {
+      "id": "complex-nested-logic",
+      "name": "Complex nested conditional logic",
+      "priority": 150,
+      "enabled": true,
+      "conditionGroup": {
+        "logicalOperator": "AND",
+        "conditions": [
+          {
+            "logicalOperator": "OR",
+            "conditions": [
+              {
+                "triggerField": "age",
+                "operator": "greaterThanOrEqual",
+                "value": 18,
+                "dataType": "number"
+              },
+              {
+                "triggerField": "hasGuardianConsent",
+                "operator": "isTrue",
+                "value": true,
+                "dataType": "boolean"
+              }
+            ]
+          },
+          {
+            "triggerField": "country",
+            "operator": "in",
+            "value": ["UK", "US", "CA"],
+            "dataType": "string"
+          }
+        ]
+      },
+      "affectedElements": [
+        {
+          "elementId": "eligibilityConfirmed",
+          "elementType": "field",
+          "action": "setvalue",
+          "actionConfig": {
+            "value": true
+          }
+        },
+        {
+          "elementId": "nextStepsPage",
+          "elementType": "page",
+          "action": "show"
+        }
+      ]
+    }
+  ],
+  "taskGroups": [
+    {
+      "groupId": "personal-info",
+      "groupName": "Personal Information",
+      "groupOrder": 1,
+      "groupStatus": "Incomplete",
+      "tasks": [
+        {
+          "taskId": "basic-details",
+          "taskName": "Basic Details",
+          "taskOrder": 1,
+          "taskStatus": "Incomplete",
+          "pages": [
+            {
+              "pageId": "personal-info-page",
+              "slug": "personal-info",
+              "title": "Personal Information",
+              "description": "Please provide your personal details",
+              "pageOrder": 1,
+              "fields": [
+                {
+                  "fieldId": "age",
+                  "type": "text",
+                  "label": {
+                    "value": "Age",
+                    "isVisible": true
+                  },
+                  "placeholder": "Enter your age",
+                  "tooltip": "Your age in years",
+                  "required": true,
+                  "order": 1,
+                  "visibility": {
+                    "default": true
+                  },
+                  "validations": [
+                    {
+                      "type": "number",
+                      "message": "Please enter a valid age",
+                      "rule": "required|numeric|min:1|max:120"
+                    }
+                  ]
+                },
+                {
+                  "fieldId": "country",
+                  "type": "select",
+                  "label": {
+                    "value": "Country",
+                    "isVisible": true
+                  },
+                  "tooltip": "Select your country of residence",
+                  "required": true,
+                  "order": 2,
+                  "options": [
+                    { "value": "UK", "label": "United Kingdom" },
+                    { "value": "US", "label": "United States" },
+                    { "value": "CA", "label": "Canada" },
+                    { "value": "AU", "label": "Australia" },
+                    { "value": "OTHER", "label": "Other" }
+                  ]
+                },
+                {
+                  "fieldId": "hasGuardianConsent",
+                  "type": "radios",
+                  "label": {
+                    "value": "Do you have guardian consent? (if under 18)",
+                    "isVisible": true
+                  },
+                  "required": false,
+                  "order": 3,
+                  "options": [
+                    { "value": "true", "label": "Yes" },
+                    { "value": "false", "label": "No" }
+                  ]
+                }
+              ],
+              "returnToSummaryPage": false
+            },
+            {
+              "pageId": "employment-page",
+              "slug": "employment",
+              "title": "Employment Information",
+              "description": "Please provide your employment details",
+              "pageOrder": 2,
+              "fields": [
+                {
+                  "fieldId": "employmentStatus",
+                  "type": "radios",
+                  "label": {
+                    "value": "Employment Status",
+                    "isVisible": true
+                  },
+                  "required": true,
+                  "order": 1,
+                  "options": [
+                    { "value": "employed", "label": "Employed" },
+                    { "value": "unemployed", "label": "Unemployed" },
+                    { "value": "student", "label": "Student" },
+                    { "value": "retired", "label": "Retired" }
+                  ]
+                },
+                {
+                  "fieldId": "employer",
+                  "type": "text",
+                  "label": {
+                    "value": "Employer Name",
+                    "isVisible": true
+                  },
+                  "placeholder": "Enter your employer's name",
+                  "required": false,
+                  "order": 2,
+                  "visibility": {
+                    "default": false
+                  }
+                },
+                {
+                  "fieldId": "income",
+                  "type": "text",
+                  "label": {
+                    "value": "Annual Income",
+                    "isVisible": true
+                  },
+                  "placeholder": "Enter your annual income",
+                  "tooltip": "Your gross annual income before taxes",
+                  "required": false,
+                  "order": 3,
+                  "visibility": {
+                    "default": false
+                  },
+                  "validations": [
+                    {
+                      "type": "number",
+                      "message": "Please enter a valid income amount",
+                      "rule": "numeric|min:0"
+                    }
+                  ]
+                },
+                {
+                  "fieldId": "eligibilityConfirmed",
+                  "type": "text",
+                  "label": {
+                    "value": "Eligibility Status",
+                    "isVisible": false
+                  },
+                  "required": false,
+                  "order": 4,
+                  "visibility": {
+                    "default": true
+                  }
+                }
+              ],
+              "returnToSummaryPage": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

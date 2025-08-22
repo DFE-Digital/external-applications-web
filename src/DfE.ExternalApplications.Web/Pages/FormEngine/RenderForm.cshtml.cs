@@ -27,11 +27,13 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         IAutocompleteService autocompleteService,
         IFileUploadService fileUploadService,
         IApplicationsClient applicationsClient,
+        IConditionalLogicOrchestrator conditionalLogicOrchestrator,
         ILogger<RenderFormModel> logger)
         : BaseFormEngineModel(renderer, applicationResponseService, fieldFormattingService, templateManagementService,
             applicationStateService, formStateManager, formNavigationService, formDataManager, formValidationOrchestrator, formConfigurationService, logger)
     {
         private readonly IApplicationsClient _applicationsClient = applicationsClient;
+        private readonly IConditionalLogicOrchestrator _conditionalLogicOrchestrator = conditionalLogicOrchestrator;
 
         [BindProperty] public Dictionary<string, object> Data { get; set; } = new();
 
@@ -39,6 +41,9 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         
         // Success message for collection operations
         [TempData] public string? SuccessMessage { get; set; }
+
+        // Conditional logic state for the current form
+        public FormConditionalState? ConditionalState { get; set; }
 
         public async Task OnGetAsync()
         {
@@ -130,7 +135,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             // Load accumulated form data from session to pre-populate fields (only if not in a sub-flow)
             if (string.IsNullOrEmpty(CurrentPageId) || !CurrentPageId.Contains("flow/"))
             {
-            LoadAccumulatedDataFromSession();
+                await LoadAccumulatedDataFromSessionAsync();
             }
 
             // Initialize task completion status if we're showing a task summary
@@ -310,6 +315,9 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 }
             }
 
+            // Apply conditional logic after processing form data changes
+            await ApplyConditionalLogicAsync();
+
             if (CurrentPage != null)
             {
                 ValidateCurrentPage(CurrentPage, Data);
@@ -363,9 +371,40 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         var isLast = index == -1 || index >= flowPages.Count - 1;
                         if (!isLast)
                         {
-                            var nextPageId = flowPages[index + 1].PageId;
-                            var nextUrl = _formNavigationService.GetSubFlowPageUrl(CurrentTask.TaskId, ReferenceNumber, flowId, instanceId, nextPageId);
-                            return Redirect(nextUrl);
+                            // Find the next visible page using conditional logic
+                            string? nextPageId = null;
+                            
+                            // Check if we have conditional logic to determine next page
+                            if (ConditionalState != null)
+                            {
+                                // Look for the next visible page after current page
+                                for (int i = index + 1; i < flowPages.Count; i++)
+                                {
+                                    var candidatePage = flowPages[i];
+                                    
+                                    // Check if this page should be skipped due to conditional logic
+                                    var isHidden = ConditionalState.PageVisibility.TryGetValue(candidatePage.PageId, out var isVisible) && !isVisible;
+                                    var isSkipped = ConditionalState.SkippedPages.Contains(candidatePage.PageId);
+                                    
+                                    if (!isHidden && !isSkipped)
+                                    {
+                                        nextPageId = candidatePage.PageId;
+                                        break;
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                // Fallback to simple next page logic if no conditional logic
+                                nextPageId = flowPages[index + 1].PageId;
+                            }
+                            
+                            if (!string.IsNullOrEmpty(nextPageId))
+                            {
+                                var nextUrl = _formNavigationService.GetSubFlowPageUrl(CurrentTask.TaskId, ReferenceNumber, flowId, instanceId, nextPageId);
+                                return Redirect(nextUrl);
+                            }
+                            // If no valid next page found, treat as last page and complete the flow
                         }
                         else
                         {
@@ -768,7 +807,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
         }
 
-        private void LoadAccumulatedDataFromSession()
+        private async Task LoadAccumulatedDataFromSessionAsync()
         {
             // Get accumulated form data from session and populate the Data dictionary
             var accumulatedData = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
@@ -782,6 +821,44 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 }
 
                 _logger.LogInformation("Loaded {Count} accumulated form data entries from session", accumulatedData.Count);
+            }
+
+            // Apply conditional logic after loading data
+            await ApplyConditionalLogicAsync();
+        }
+
+        private async Task ApplyConditionalLogicAsync()
+        {
+            try
+            {
+                if (Template?.ConditionalLogic != null && Template.ConditionalLogic.Any())
+                {
+                    var context = new ConditionalLogicContext
+                    {
+                        CurrentPageId = CurrentPageId,
+                        CurrentTaskId = TaskId,
+                        IsClientSide = false,
+                        Trigger = "load"
+                    };
+
+                    ConditionalState = await _conditionalLogicOrchestrator.ApplyConditionalLogicAsync(Template, Data, context);
+                    
+                    // Apply field values from conditional logic
+                    if (ConditionalState.FieldValues.Any())
+                    {
+                        foreach (var kvp in ConditionalState.FieldValues)
+                        {
+                            Data[kvp.Key] = kvp.Value;
+                        }
+                    }
+
+                    _logger.LogDebug("Applied conditional logic with {ActionCount} actions", 
+                        ConditionalState.EvaluationResult?.Actions.Count ?? 0);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error applying conditional logic");
             }
         }
 
@@ -954,6 +1031,59 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             };
         }
 
+        /// <summary>
+        /// Check if a field should be hidden based on conditional logic
+        /// </summary>
+        /// <param name="fieldId">The field ID to check</param>
+        /// <returns>True if the field should be hidden</returns>
+        public bool IsFieldHidden(string fieldId)
+        {
+            if (ConditionalState?.FieldVisibility.TryGetValue(fieldId, out var isVisible) == true)
+            {
+                return !isVisible;
+            }
+            return false; // Default to visible if no conditional logic or field not found
+        }
+
+        /// <summary>
+        /// Check if a field should be hidden for a specific collection item based on conditional logic
+        /// </summary>
+        /// <param name="fieldId">The field ID to check</param>
+        /// <param name="itemData">The specific item's data to evaluate against</param>
+        /// <returns>True if the field should be hidden for this specific item</returns>
+        public bool IsFieldHiddenForItem(string fieldId, Dictionary<string, object> itemData)
+        {
+            try
+            {
+                if (Template?.ConditionalLogic == null || !Template.ConditionalLogic.Any())
+                {
+                    return false; // No conditional logic defined
+                }
+
+                var context = new ConditionalLogicContext
+                {
+                    CurrentPageId = CurrentPageId,
+                    CurrentTaskId = TaskId,
+                    IsClientSide = false,
+                    Trigger = "load"
+                };
+
+                // Evaluate conditional logic synchronously using the specific item's data
+                var itemConditionalState = _conditionalLogicOrchestrator.ApplyConditionalLogicAsync(Template, itemData, context).GetAwaiter().GetResult();
+                
+                if (itemConditionalState.FieldVisibility.TryGetValue(fieldId, out var isVisible))
+                {
+                    return !isVisible;
+                }
+
+                return false; // Default to visible if field not found in conditional logic
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error evaluating conditional logic for field {FieldId} with item data", fieldId);
+                return false; // Default to visible on error
+            }
+        }
 
     }
 }

@@ -18,7 +18,10 @@ namespace DfE.ExternalApplications.Domain.Models
             [JsonPropertyName("taskGroups")]
     public required List<TaskGroup> TaskGroups { get; set; }
 
-        //[JsonPropertyName("conditionalLogic")]
-        //public List<ConditionalLogic>? ConditionalLogic { get; set; }
+        /// <summary>
+        /// Conditional logic rules for this template
+        /// </summary>
+        [JsonPropertyName("conditionalLogic")]
+        public List<ConditionalLogic>? ConditionalLogic { get; set; }
     }
 }

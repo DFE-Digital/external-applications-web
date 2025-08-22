@@ -10,7 +10,8 @@
 <govuk-textarea
              id="@Model.Id"
              name="Data[@Model.Field.FieldId]"
-             value="@Model.CurrentValue">
+             value="@Model.CurrentValue"
+             data-field-id="@Model.Field.FieldId">
     <govuk-textarea-label class="@labelClasses">@Model.Field.Label.Value</govuk-textarea-label>
     <govuk-textarea-hint>@Model.Field.Tooltip</govuk-textarea-hint>
     @if (Model.ErrorMessage != String.Empty)

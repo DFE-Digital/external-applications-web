@@ -82,8 +82,8 @@
                         </div>
                     }
                     
-                    @* Item fields *@
-                    @foreach (var col in (flow.SummaryColumns ?? new List<DfE.ExternalApplications.Domain.Models.FlowSummaryColumn>()))
+                                          @* Item fields *@
+                     @foreach (var col in (flow.SummaryColumns ?? new List<DfE.ExternalApplications.Domain.Models.FlowSummaryColumn>()).Where(c => !renderModel.IsFieldHiddenForItem(c.Field, item)))
                     {
                         var value = item.TryGetValue(col.Field, out var v) ? v?.ToString() : string.Empty;
                         // Find which page contains this field within this flow
@@ -142,9 +142,9 @@
                             </li>
                         </ul>
                     </div>
-                    <div class="govuk-summary-card__content">
-                        <dl class="govuk-summary-list">
-                            @foreach (var col in (flow.SummaryColumns ?? new List<DfE.ExternalApplications.Domain.Models.FlowSummaryColumn>()))
+                                          <div class="govuk-summary-card__content">
+                          <dl class="govuk-summary-list">
+                             @foreach (var col in (flow.SummaryColumns ?? new List<DfE.ExternalApplications.Domain.Models.FlowSummaryColumn>()).Where(c => !renderModel.IsFieldHiddenForItem(c.Field, item)))
                             {
                                 var value = item.TryGetValue(col.Field, out var v) ? v?.ToString() : string.Empty;
                                 // Find which page contains this field within this flow
