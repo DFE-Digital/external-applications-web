@@ -38,6 +38,7 @@
                 @{
                     var ModelStateWithFieldProps = from m in ViewData.ModelState
                                                    join f in Model.CurrentPage.Fields on m.Key.ToString() equals f.FieldId
+                                                   where !Model.IsFieldHidden(f.FieldId)
                                                    select new { m, f };
                 }
                 @foreach (var s in ModelStateWithFieldProps.OrderBy(s => s.f.Order))
@@ -52,7 +53,7 @@
                 }
             </govuk-error-summary>
 
-            @foreach (var field in Model.CurrentPage.Fields.OrderBy(f => f.Order))
+            @foreach (var field in Model.CurrentPage.Fields.OrderBy(f => f.Order).Where(f => !Model.IsFieldHidden(f.FieldId)))
             {
                 var currentValue = Model.Data.TryGetValue(field.FieldId, out var val) ? val?.ToString() ?? String.Empty : String.Empty;
 
@@ -110,7 +111,7 @@
 @* Render upload fields outside the main form to avoid nesting *@
 @if (hasUploadField)
 {
-    @foreach (var field in Model.CurrentPage.Fields.OrderBy(f => f.Order))
+    @foreach (var field in Model.CurrentPage.Fields.OrderBy(f => f.Order).Where(f => !Model.IsFieldHidden(f.FieldId)))
     {
         @if (field.Type == "complexField" &&
            field.ComplexField != null &&
