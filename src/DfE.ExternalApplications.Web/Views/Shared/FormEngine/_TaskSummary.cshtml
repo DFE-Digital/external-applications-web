@@ -16,7 +16,22 @@
 
             var fieldIdHyphenated = field.FieldId.Replace(" ", "-").ToLower();
 
-            if ((field.Type == "autocomplete" || field.Type == "complexField") && hasValue)
+            // DEBUG: Log field visibility info for complex fields
+            if (field.Type == "complexField")
+            {
+                var complexFieldType = field.ComplexField != null ? ComplexFieldConfigurationService.GetConfiguration(field.ComplexField.Id).FieldType : "null";
+                System.Diagnostics.Debug.WriteLine($">>>>>>>>>>>>TASK SUMMARY COMPLEX FIELD: {field.FieldId}, HasValue: {hasValue}, FieldValue: {fieldValue}, ComplexFieldId: {field.ComplexField?.Id}, ComplexFieldType: {complexFieldType}");
+            }
+            
+            // DEBUG: Log all field checks
+            System.Diagnostics.Debug.WriteLine($">>>>>>>>>>>>TASK SUMMARY FIELD: {field.FieldId}, Type: {field.Type}, Hidden: {Model.IsFieldHidden(field.FieldId)}");
+
+            // Show complex fields if they have value OR if they're upload fields that should be visible
+            bool shouldShowComplexField = hasValue || 
+                (field.Type == "complexField" && field.ComplexField != null && 
+                 ComplexFieldConfigurationService.GetConfiguration(field.ComplexField.Id).FieldType.Equals("upload", StringComparison.OrdinalIgnoreCase));
+                 
+            if ((field.Type == "autocomplete" || field.Type == "complexField") && shouldShowComplexField)
             {
                 // Handle multiple autocomplete/complex field values as main header + individual rows
                 var formattedValues = Model.GetFormattedFieldValues(field.FieldId);
