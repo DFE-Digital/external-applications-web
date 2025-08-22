@@ -490,9 +490,9 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         
                         if (ConditionalState != null && Template != null)
                         {
-                            // First check if any conditional rules actually triggered for this page change
-                            hasConditionalTrigger = HasConditionalLogicTriggered();
-                            _logger.LogInformation(">>>>>>>>>>>>REGULAR NAV: Conditional logic triggered: {HasTriggered}", hasConditionalTrigger);
+                            // FIXED: Check if conditional rules specifically show/reveal new pages, not just any trigger
+                            hasConditionalTrigger = HasConditionalLogicShowingPages();
+                            _logger.LogInformation(">>>>>>>>>>>>REGULAR NAV: Conditional logic shows new pages: {ShowsNewPages}", hasConditionalTrigger);
                             
                             if (hasConditionalTrigger)
                             {
@@ -1353,6 +1353,36 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 }
             }
 
+            return false;
+        }
+
+        /// <summary>
+        /// Check if conditional logic specifically shows/reveals new pages based on current form data
+        /// </summary>
+        /// <returns>True if conditional logic rules with "show" actions are met by current data</returns>
+        private bool HasConditionalLogicShowingPages()
+        {
+            if (Template?.ConditionalLogic == null)
+                return false;
+            
+            foreach (var rule in Template.ConditionalLogic.Where(r => r.Enabled))
+            {
+                // Only check rules that have "show" actions for pages
+                var hasShowPageAction = rule.AffectedElements.Any(element => 
+                    element.ElementType == "page" && element.Action == "show");
+                
+                if (!hasShowPageAction) continue;
+                
+                _logger.LogInformation(">>>>>>>>>>>>CONDITIONAL SHOW CHECK: Checking rule '{RuleId}' for show page actions", rule.Id);
+                
+                if (EvaluateRuleConditions(rule))
+                {
+                    _logger.LogInformation(">>>>>>>>>>>>CONDITIONAL SHOW CHECK: Rule '{RuleId}' with show page action is met", rule.Id);
+                    return true;
+                }
+            }
+            
+            _logger.LogInformation(">>>>>>>>>>>>CONDITIONAL SHOW CHECK: No rules with show page actions are met");
             return false;
         }
 
