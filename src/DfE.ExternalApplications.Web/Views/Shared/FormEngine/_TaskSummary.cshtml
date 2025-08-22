@@ -6,9 +6,9 @@
 <h1 class="govuk-heading-xl govuk-!-margin-bottom-6">@Model.CurrentTask.TaskName</h1>
 
 <dl class="govuk-summary-list">
-    @foreach (var page in (Model.CurrentTask.Pages ?? new List<DfE.ExternalApplications.Domain.Models.Page>()).OrderBy(p => p.PageOrder))
+    @foreach (var page in (Model.CurrentTask.Pages ?? new List<DfE.ExternalApplications.Domain.Models.Page>()).OrderBy(p => p.PageOrder).Where(p => !Model.IsPageHidden(p.PageId)))
     {
-        @foreach (var field in page.Fields.OrderBy(f => f.Order))
+        @foreach (var field in page.Fields.OrderBy(f => f.Order).Where(f => !Model.IsFieldHidden(f.FieldId)))
         {
             var fieldValue = Model.GetFieldValue(field.FieldId);
             var hasValue = Model.HasFieldValue(field.FieldId);
