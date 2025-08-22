@@ -1,4 +1,7 @@
-﻿@{
+﻿@using Microsoft.AspNetCore.Authorization
+@inject IAuthorizationService AuthService
+
+@{
     Layout = "_GovUkPageTemplate";
     @inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 }
@@ -8,6 +11,17 @@
 <meta name="api-base" content="@apiBase" />
 @Html.AntiForgeryToken()
 @section Header {
+    @{
+        var currentEnvironment = ViewContext.HttpContext.RequestServices.GetService<IWebHostEnvironment>()?.EnvironmentName ?? "Unknown";
+    }
+    @if (!currentEnvironment.Equals("Production", StringComparison.OrdinalIgnoreCase))
+    {
+        <div class="environment-banner" style="background-color: #FFE3AA; color: black; text-align: left; padding: 8px; font-family: Cascadia; font-size: 12px; font-weight: bold;">
+            <div class="govuk-width-container">
+                @currentEnvironment.ToUpper() ENVIRONMENT
+            </div>
+        </div>
+    }
     <header class="govuk-header" data-module="govuk-header">
         <div class="govuk-header__container govuk-width-container">
             <div class="govuk-header__logo">
@@ -49,22 +63,30 @@
                 </span>
                 @if (User?.Identity?.IsAuthenticated ?? false)
                 {
-                <nav aria-label="Menu" class="govuk-service-navigation__wrapper app-service-nav-right">
-                    <button type="button" class="govuk-service-navigation__toggle govuk-js-service-navigation-toggle" aria-controls="navigation" hidden>
-                        Menu
-                    </button>
-                    <ul class="govuk-service-navigation__list" id="navigation">
-                        <li class="govuk-service-navigation__item">
-                            <a class="govuk-service-navigation__link app-badge-container" href="/Notifications" style="position: relative;">
-                                Notifications
-                                <span id="notifications-unread-badge" class="app-notifications-badge" aria-hidden="true"></span>
-                            </a>
-                        </li>
-                        <li class="govuk-service-navigation__item">
-                            <a class="govuk-service-navigation__link" href="/Logout">Log out</a>
-                        </li>
-                    </ul>
-                </nav>
+                    <nav aria-label="Menu" class="govuk-service-navigation__wrapper app-service-nav-right">
+                        <button type="button" class="govuk-service-navigation__toggle govuk-js-service-navigation-toggle" aria-controls="navigation" hidden>
+                            Menu
+                        </button>
+                        <ul class="govuk-service-navigation__list" id="navigation">
+                            @if (User.IsInRole("Admin"))
+                            {
+                                <li class="govuk-service-navigation__item">
+                                    <a class="govuk-service-navigation__link app-badge-container" href="/admin" style="position: relative;">
+                                        Admin
+                                    </a>
+                                </li>
+                            }
+                            <li class="govuk-service-navigation__item">
+                                <a class="govuk-service-navigation__link app-badge-container" href="/Notifications" style="position: relative;">
+                                    Notifications
+                                    <span id="notifications-unread-badge" class="app-notifications-badge" aria-hidden="true"></span>
+                                </a>
+                            </li>
+                            <li class="govuk-service-navigation__item">
+                                <a class="govuk-service-navigation__link" href="/Logout">Log out</a>
+                            </li>
+                        </ul>
+                    </nav>
                 }
             </div>
         </div>
