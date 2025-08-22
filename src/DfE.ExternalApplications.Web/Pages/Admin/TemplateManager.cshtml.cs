@@ -43,6 +43,7 @@ public class TemplateManagerModel : PageModel
     public bool HasError { get; set; }
     public string ErrorMessage { get; set; } = string.Empty;
     public bool ShowSuccess { get; set; }
+    public bool ShowCacheCleared { get; set; }
 
     [BindProperty]
     [Required(ErrorMessage = "Version number is required")]
@@ -52,10 +53,11 @@ public class TemplateManagerModel : PageModel
     [Required(ErrorMessage = "JSON schema is required")]
     public string? NewSchema { get; set; }
 
-    public async Task<IActionResult> OnGetAsync(bool showForm = false, bool success = false)
+    public async Task<IActionResult> OnGetAsync(bool showForm = false, bool success = false, bool cleared = false)
     {
         ShowAddVersionForm = showForm;
         ShowSuccess = success;
+        ShowCacheCleared = cleared;
 
         var templateId = HttpContext.Session.GetString("TemplateId");
         if (string.IsNullOrEmpty(templateId))
@@ -108,6 +110,36 @@ public class TemplateManagerModel : PageModel
         return RedirectToPage();
     }
 
+    public async Task<IActionResult> OnPostClearAllAsync()
+    {
+        try
+        {
+            // Clear all session data
+            HttpContext.Session.Clear();
+            
+            // Clear template cache
+            var templateId = HttpContext.Session.GetString("TemplateId");
+            if (!string.IsNullOrEmpty(templateId))
+            {
+                var cacheKey = $"FormTemplate_{CacheKeyHelper.GenerateHashedCacheKey(templateId)}";
+                _cacheService.Remove(cacheKey);
+                _logger.LogInformation("Cleared template cache for key: {CacheKey}", cacheKey);
+            }
+
+            _logger.LogInformation("Successfully cleared all sessions and caches from TemplateManager");
+            
+            // Redirect back to template manager with success message
+            return RedirectToPage(new { success = true, cleared = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error clearing sessions and caches from TemplateManager");
+            HasError = true;
+            ErrorMessage = "Failed to clear sessions and caches.";
+            return Page();
+        }
+    }
+
     private async Task LoadTemplateDataAsync(string templateId)
     {
         try
@@ -119,6 +151,11 @@ public class TemplateManagerModel : PageModel
             
             _logger.LogDebug("API returned template version {VersionNumber} for {TemplateId}", 
                 CurrentVersionNumber, templateId);
+            
+            // Clear cache before loading to ensure we get the latest template
+            var cacheKey = $"FormTemplate_{CacheKeyHelper.GenerateHashedCacheKey(templateId)}";
+            _cacheService.Remove(cacheKey);
+            _logger.LogDebug("Cleared template cache for {TemplateId} to ensure latest version is loaded", templateId);
             
             CurrentTemplate = await _formTemplateProvider.GetTemplateAsync(templateId);
             if (CurrentTemplate != null)
