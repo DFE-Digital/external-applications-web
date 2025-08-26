@@ -54,6 +54,9 @@ namespace DfE.ExternalApplications.Web.Extensions
             services.AddScoped<IFormDataManager, FormDataManager>();
             services.AddScoped<IFormValidationOrchestrator, FormValidationOrchestrator>();
             services.AddScoped<IFormConfigurationService, FormConfigurationService>();
+            
+            // Confirmation Service
+            services.AddScoped<IConfirmationService, ConfirmationService>();
             return services;
         }
     }

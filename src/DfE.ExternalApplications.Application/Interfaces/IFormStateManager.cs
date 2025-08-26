@@ -36,6 +36,13 @@ namespace DfE.ExternalApplications.Application.Interfaces
         /// <returns>True if application preview should be shown</returns>
         bool ShouldShowApplicationPreview(string pageId);
 
+        /// <summary>
+        /// Determines if the confirmation page should be shown
+        /// </summary>
+        /// <param name="pageId">The current page ID</param>
+        /// <returns>True if confirmation page should be shown</returns>
+        bool ShouldShowConfirmation(string pageId);
+
         // Sub-flow support
         bool ShouldShowCollectionFlowSummary(Domain.Models.Task task);
         bool IsInSubFlow(string flowId, string pageId);
@@ -74,6 +81,11 @@ namespace DfE.ExternalApplications.Application.Interfaces
         /// <summary>
         /// Shows a page within a sub-flow (linear mini-form)
         /// </summary>
-        SubFlowPage
+        SubFlowPage,
+
+        /// <summary>
+        /// Shows a confirmation page for add/update/delete operations
+        /// </summary>
+        Confirmation
     }
 }

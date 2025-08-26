@@ -72,6 +72,17 @@ namespace DfE.ExternalApplications.Application.Interfaces
         /// <returns>The URL for the next navigation target</returns>
         string GetNextNavigationTargetAfterSave(Domain.Models.Page currentPage, Domain.Models.Task currentTask, string referenceNumber);
 
+        /// <summary>
+        /// Gets the URL for the confirmation page
+        /// </summary>
+        /// <param name="taskId">The task ID</param>
+        /// <param name="referenceNumber">The application reference number</param>
+        /// <param name="operation">The operation being confirmed</param>
+        /// <param name="fieldId">The field ID</param>
+        /// <param name="confirmationToken">The confirmation token</param>
+        /// <returns>The URL for the confirmation page</returns>
+        string GetConfirmationUrl(string taskId, string referenceNumber, string operation, string fieldId, string confirmationToken);
+
         // Sub-flow URLs
         string GetCollectionFlowSummaryUrl(string taskId, string referenceNumber);
         string GetStartSubFlowUrl(string taskId, string referenceNumber, string flowId, string instanceId);

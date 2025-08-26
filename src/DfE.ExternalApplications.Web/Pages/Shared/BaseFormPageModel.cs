@@ -48,9 +48,22 @@ namespace DfE.ExternalApplications.Web.Pages.Shared
         /// </summary>
         protected async Task EnsureApplicationIdAsync()
         {
-            var (applicationId, application) = await _applicationStateService.EnsureApplicationIdAsync(ReferenceNumber, HttpContext.Session);
-            ApplicationId = applicationId;
-            CurrentApplication = application;
+            try
+            {
+                _logger.LogDebug("EnsureApplicationIdAsync: Starting for ReferenceNumber: {ReferenceNumber}", ReferenceNumber);
+                
+                var (applicationId, application) = await _applicationStateService.EnsureApplicationIdAsync(ReferenceNumber, HttpContext.Session);
+                ApplicationId = applicationId;
+                CurrentApplication = application;
+                
+                _logger.LogDebug("EnsureApplicationIdAsync: Completed - ApplicationId: {ApplicationId}, Application null: {ApplicationNull}", 
+                    applicationId, application == null);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "EnsureApplicationIdAsync: Failed for ReferenceNumber: {ReferenceNumber}", ReferenceNumber);
+                throw;
+            }
         }
 
         /// <summary>
@@ -58,7 +71,36 @@ namespace DfE.ExternalApplications.Web.Pages.Shared
         /// </summary>
         protected async Task LoadTemplateAsync()
         {
-            Template = await _templateManagementService.LoadTemplateAsync(TemplateId, CurrentApplication);
+            try
+            {
+                _logger.LogDebug("LoadTemplateAsync: Starting with TemplateId: {TemplateId}", TemplateId);
+                
+                if (string.IsNullOrEmpty(TemplateId))
+                {
+                    _logger.LogError("TemplateId is null or empty when trying to load template");
+                    throw new InvalidOperationException("TemplateId is required to load template");
+                }
+
+                _logger.LogDebug("Loading template with ID: {TemplateId}, CurrentApplication null: {ApplicationNull}", 
+                    TemplateId, CurrentApplication == null);
+                
+                _logger.LogDebug("LoadTemplateAsync: Calling _templateManagementService.LoadTemplateAsync");
+                Template = await _templateManagementService.LoadTemplateAsync(TemplateId, CurrentApplication);
+                _logger.LogDebug("LoadTemplateAsync: _templateManagementService.LoadTemplateAsync completed - Template null: {TemplateNull}", Template == null);
+                
+                if (Template == null)
+                {
+                    _logger.LogError("Template loading returned null for TemplateId: {TemplateId}", TemplateId);
+                    throw new InvalidOperationException($"Failed to load template with ID: {TemplateId}");
+                }
+                
+                _logger.LogDebug("Successfully loaded template: {TemplateName}", Template.TemplateName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to load template with ID: {TemplateId}", TemplateId);
+                throw;
+            }
         }
 
         /// <summary>
@@ -216,11 +258,49 @@ namespace DfE.ExternalApplications.Web.Pages.Shared
         /// </summary>
         protected async Task CommonInitializationAsync()
         {
-            TemplateId = HttpContext.Session.GetString("TemplateId") ?? string.Empty;
-            await EnsureApplicationIdAsync();
-            await LoadTemplateAsync();
-            LoadFormDataFromSession();
-            LoadApplicationStatus();
+            try
+            {
+                _logger.LogDebug("CommonInitializationAsync: Starting for ReferenceNumber: {ReferenceNumber}", ReferenceNumber);
+                
+                // Log session state before loading TemplateId
+                var sessionKeys = HttpContext.Session.Keys.ToList();
+                _logger.LogDebug("CommonInitializationAsync: Session keys before TemplateId load: {SessionKeys}", string.Join(", ", sessionKeys));
+                
+                TemplateId = HttpContext.Session.GetString("TemplateId") ?? string.Empty;
+                _logger.LogDebug("CommonInitializationAsync: TemplateId loaded from session: {TemplateId}", TemplateId);
+                
+                if (string.IsNullOrEmpty(TemplateId))
+                {
+                    _logger.LogError("TemplateId not found in session. Session keys: {SessionKeys}", 
+                        string.Join(", ", HttpContext.Session.Keys));
+                    throw new InvalidOperationException("TemplateId is required but not found in session");
+                }
+                
+                _logger.LogDebug("CommonInitializationAsync: TemplateId validation passed: {TemplateId}", TemplateId);
+                
+                _logger.LogDebug("CommonInitializationAsync: Calling EnsureApplicationIdAsync");
+                await EnsureApplicationIdAsync();
+                _logger.LogDebug("CommonInitializationAsync: EnsureApplicationIdAsync completed - ApplicationId: {ApplicationId}", ApplicationId);
+                
+                _logger.LogDebug("CommonInitializationAsync: Calling LoadTemplateAsync");
+                await LoadTemplateAsync();
+                _logger.LogDebug("CommonInitializationAsync: LoadTemplateAsync completed - Template null: {TemplateNull}", Template == null);
+                
+                _logger.LogDebug("CommonInitializationAsync: Calling LoadFormDataFromSession");
+                LoadFormDataFromSession();
+                _logger.LogDebug("CommonInitializationAsync: LoadFormDataFromSession completed");
+                
+                _logger.LogDebug("CommonInitializationAsync: Calling LoadApplicationStatus");
+                LoadApplicationStatus();
+                _logger.LogDebug("CommonInitializationAsync: LoadApplicationStatus completed");
+                
+                _logger.LogDebug("Common initialization completed successfully for TemplateId: {TemplateId}", TemplateId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed during common initialization for TemplateId: {TemplateId}, ReferenceNumber: {ReferenceNumber}", TemplateId, ReferenceNumber);
+                throw;
+            }
         }
 
         #endregion

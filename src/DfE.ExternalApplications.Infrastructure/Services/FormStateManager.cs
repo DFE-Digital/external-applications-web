@@ -16,6 +16,12 @@ namespace DfE.ExternalApplications.Infrastructure.Services
         /// <returns>The current form state</returns>
         public FormState GetCurrentState(string referenceNumber, string taskId, string pageId)
         {
+            // Confirmation routing pattern: pageId may include "confirm/..." segment
+            if (!string.IsNullOrEmpty(pageId) && pageId.StartsWith("confirm/", StringComparison.OrdinalIgnoreCase))
+            {
+                return FormState.Confirmation;
+            }
+            
             // Sub-flow routing pattern: pageId may include "flow/flowId/..." segment when mapped in the Razor Page
             if (!string.IsNullOrEmpty(pageId) && pageId.StartsWith("flow/", StringComparison.OrdinalIgnoreCase))
             {
@@ -65,19 +71,38 @@ namespace DfE.ExternalApplications.Infrastructure.Services
         /// <returns>True if application preview should be shown</returns>
         public bool ShouldShowApplicationPreview(string pageId)
         {
-            // This would be determined by specific routing logic
-            // For now, we'll return false as this is handled by separate pages
-            return false;
+            return !string.IsNullOrEmpty(pageId) && pageId.Equals("preview", StringComparison.OrdinalIgnoreCase);
         }
 
+        /// <summary>
+        /// Determines if the confirmation page should be shown
+        /// </summary>
+        /// <param name="pageId">The current page ID</param>
+        /// <returns>True if confirmation page should be shown</returns>
+        public bool ShouldShowConfirmation(string pageId)
+        {
+            return !string.IsNullOrEmpty(pageId) && pageId.StartsWith("confirm/", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Determines if the collection flow summary should be shown
+        /// </summary>
+        /// <param name="task">The task to check</param>
+        /// <returns>True if collection flow summary should be shown</returns>
         public bool ShouldShowCollectionFlowSummary(Domain.Models.Task task)
         {
             return task?.Summary?.Mode?.Equals("multiCollectionFlow", StringComparison.OrdinalIgnoreCase) == true;
         }
 
+        /// <summary>
+        /// Determines if the current page is within a sub-flow
+        /// </summary>
+        /// <param name="flowId">The flow ID</param>
+        /// <param name="pageId">The current page ID</param>
+        /// <returns>True if the page is within a sub-flow</returns>
         public bool IsInSubFlow(string flowId, string pageId)
         {
-            return !string.IsNullOrEmpty(pageId) && pageId.StartsWith($"flow/{flowId}", StringComparison.OrdinalIgnoreCase);
+            return !string.IsNullOrEmpty(flowId) && !string.IsNullOrEmpty(pageId) && pageId.StartsWith("flow/", StringComparison.OrdinalIgnoreCase);
         }
     }
 }

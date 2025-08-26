@@ -27,11 +27,13 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         IAutocompleteService autocompleteService,
         IFileUploadService fileUploadService,
         IApplicationsClient applicationsClient,
+        IConfirmationService confirmationService,
         ILogger<RenderFormModel> logger)
         : BaseFormEngineModel(renderer, applicationResponseService, fieldFormattingService, templateManagementService,
             applicationStateService, formStateManager, formNavigationService, formDataManager, formValidationOrchestrator, formConfigurationService, logger)
     {
         private readonly IApplicationsClient _applicationsClient = applicationsClient;
+        private readonly IConfirmationService _confirmationService = confirmationService;
 
         [BindProperty] public Dictionary<string, object> Data { get; set; } = new();
 
@@ -42,102 +44,283 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         public async Task OnGetAsync()
         {
-            await CommonFormEngineInitializationAsync();
-
-            // Check if this is a preview request
-            if (Request.Query.ContainsKey("preview"))
+            try
             {
-                // Override the form state for preview requests
-                CurrentFormState = FormState.ApplicationPreview;
-                CurrentGroup = null;
-                CurrentTask = null;
-                CurrentPage = null;
+                // Log session state before initialization
+                _logger.LogInformation("OnGetAsync: Starting - ReferenceNumber: {ReferenceNumber}, TaskId: {TaskId}, CurrentPageId: {CurrentPageId}, SessionKeys: {SessionKeys}", 
+                    ReferenceNumber, TaskId, CurrentPageId, string.Join(", ", HttpContext.Session.Keys));
                 
-                // Clear all validation errors for preview since we don't need validation on preview page
-                ModelState.Clear();
-            }
-            else
-            {
-                // Detect sub-flow route segments inside pageId via route value parsing if needed in future
-            // If application is not editable and trying to access a specific page, redirect to preview
-            if (!IsApplicationEditable() && !string.IsNullOrEmpty(CurrentPageId))
-            {
-                    Response.Redirect($"~/applications/{ReferenceNumber}");
-                return;
-            }
-
-            if (!string.IsNullOrEmpty(CurrentPageId))
+                // Log template ID from session before initialization
+                var sessionTemplateId = HttpContext.Session.GetString("TemplateId");
+                _logger.LogInformation("OnGetAsync: Session TemplateId before initialization: {SessionTemplateId}", sessionTemplateId);
+                
+                // Log session ID to track session continuity
+                var sessionId = HttpContext.Session.Id;
+                _logger.LogInformation("OnGetAsync: Session ID: {SessionId}", sessionId);
+                
+                // Log the full request URL for debugging
+                var fullUrl = $"{Request.Scheme}://{Request.Host}{Request.Path}{Request.QueryString}";
+                _logger.LogInformation("OnGetAsync: Full request URL: {FullUrl}", fullUrl);
+                
+                // Log route parsing attempts
+                if (!string.IsNullOrEmpty(CurrentPageId))
                 {
-                    if (TryParseFlowRoute(CurrentPageId, out var flowId, out var instanceId, out var flowPageId))
+                    _logger.LogInformation("OnGetAsync: Attempting to parse CurrentPageId: {CurrentPageId}", CurrentPageId);
+                    
+                    if (TryParseConfirmationRoute(CurrentPageId, out var operation, out var fieldId, out var confirmationToken))
                     {
-                        // Sub-flow: initialize task and resolve page from task's pages
-                        var (group, task) = InitializeCurrentTask(TaskId);
-                        CurrentGroup = group;
-                        CurrentTask = task;
+                        _logger.LogInformation("OnGetAsync: Confirmation route detected - Operation: {Operation}, Field: {FieldId}, Token: {Token}", 
+                            operation, fieldId, confirmationToken);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("OnGetAsync: Not a confirmation route - CurrentPageId: {CurrentPageId}", CurrentPageId);
+                    }
+                }
+                
+                await CommonFormEngineInitializationAsync();
 
-                        // Find the correct flow and its pages
-                        var flowPages = GetFlowPages(task, flowId);
-                        if (flowPages != null)
+                // Log template loading status for debugging
+                _logger.LogInformation("OnGetAsync: Template loaded - TemplateId: {TemplateId}, Template null: {TemplateNull}, CurrentPageId: {CurrentPageId}", 
+                    TemplateId, Template == null, CurrentPageId);
+
+                // Check if this is a preview request
+                if (Request.Query.ContainsKey("preview"))
+                {
+                    // Override the form state for preview requests
+                    CurrentFormState = FormState.ApplicationPreview;
+                    CurrentGroup = null;
+                    CurrentTask = null;
+                    CurrentPage = null;
+                    
+                    // Clear all validation errors for preview since we don't need validation on preview page
+                    ModelState.Clear();
+                }
+                else
+                {
+                    // Detect sub-flow route segments inside pageId via route value parsing if needed in future
+                    // If application is not editable and trying to access a specific page, redirect to preview
+                    if (!IsApplicationEditable() && !string.IsNullOrEmpty(CurrentPageId))
+                    {
+                        Response.Redirect($"~/applications/{ReferenceNumber}");
+                        return;
+                    }
+
+                    if (!string.IsNullOrEmpty(CurrentPageId))
+                    {
+                        if (TryParseFlowRoute(CurrentPageId, out var flowId, out var instanceId, out var flowPageId))
                         {
-                            var page = string.IsNullOrEmpty(flowPageId) ? flowPages.FirstOrDefault() : flowPages.FirstOrDefault(p => p.PageId == flowPageId);
-                            if (page != null)
+                            // Sub-flow: initialize task and resolve page from task's pages
+                            var (group, task) = InitializeCurrentTask(TaskId);
+                            CurrentGroup = group;
+                            CurrentTask = task;
+
+                            // Find the correct flow and its pages
+                            var flowPages = GetFlowPages(task, flowId);
+                            if (flowPages != null)
                             {
-                                CurrentPage = page;
-                                CurrentFormState = FormState.FormPage; // Render as a normal page
-                                
-                                // If editing existing item, load its data into form fields
-                                // This must happen AFTER LoadAccumulatedDataFromSession is skipped for sub-flows
-                                LoadExistingFlowItemData(flowId, instanceId);
-                                
-                                // Also load any in-progress data for this specific flow instance
-                                var progressData = LoadFlowProgress(flowId, instanceId);
-                                foreach (var kvp in progressData)
+                                var page = string.IsNullOrEmpty(flowPageId) ? flowPages.FirstOrDefault() : flowPages.FirstOrDefault(p => p.PageId == flowPageId);
+                                if (page != null)
                                 {
-                                    if (!Data.ContainsKey(kvp.Key)) // Don't overwrite data from existing item
+                                    CurrentPage = page;
+                                    CurrentFormState = FormState.FormPage; // Render as a normal page
+                                    
+                                    // If editing existing item, load its data into form fields
+                                    // This must happen AFTER LoadAccumulatedDataFromSession is skipped for sub-flows
+                                    LoadExistingFlowItemData(flowId, instanceId);
+                                    
+                                    // Also load any in-progress data for this specific flow instance
+                                    var progressData = LoadFlowProgress(flowId, instanceId);
+                                    foreach (var kvp in progressData)
                                     {
-                                        Data[kvp.Key] = kvp.Value;
+                                        if (!Data.ContainsKey(kvp.Key)) // Don't overwrite data from existing item
+                                        {
+                                            Data[kvp.Key] = kvp.Value;
+                                        }
                                     }
                                 }
                             }
                         }
+                        else if (TryParseConfirmationRoute(CurrentPageId, out var operation, out var fieldId, out var confirmationToken))
+                        {
+                            // Confirmation route: ensure template is loaded and initialize task
+                            _logger.LogInformation("Processing confirmation route - Operation: {Operation}, Field: {FieldId}, Token: {Token}, Template null: {TemplateNull}", 
+                                operation, fieldId, confirmationToken, Template == null);
+                            
+                            // Ensure template is loaded for confirmation routes
+                            if (Template == null)
+                            {
+                                _logger.LogWarning("Template is null for confirmation route, attempting to reload");
+                                
+                                // Try multiple approaches to load the template
+                                bool templateLoaded = false;
+                                
+                                // First, try to reload using the current TemplateId
+                                if (!string.IsNullOrEmpty(TemplateId))
+                                {
+                                    try
+                                    {
+                                        _logger.LogInformation("Attempting to reload template with existing TemplateId: {TemplateId}", TemplateId);
+                                        await LoadTemplateAsync();
+                                        if (Template != null)
+                                        {
+                                            templateLoaded = true;
+                                            _logger.LogInformation("Template reloaded successfully using existing TemplateId");
+                                        }
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        _logger.LogWarning(ex, "Failed to reload template with existing TemplateId: {TemplateId}", TemplateId);
+                                    }
+                                }
+                                
+                                // If that failed, try to get TemplateId from session and reload
+                                if (!templateLoaded)
+                                {
+                                    try
+                                    {
+                                        var sessionTemplateIdValue = HttpContext.Session.GetString("TemplateId");
+                                        if (!string.IsNullOrEmpty(sessionTemplateIdValue))
+                                        {
+                                            _logger.LogInformation("Attempting to reload template with session TemplateId: {SessionTemplateId}", sessionTemplateIdValue);
+                                            TemplateId = sessionTemplateIdValue;
+                                            await LoadTemplateAsync();
+                                            if (Template != null)
+                                            {
+                                                templateLoaded = true;
+                                                _logger.LogInformation("Template reloaded successfully using session TemplateId");
+                                            }
+                                        }
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        _logger.LogWarning(ex, "Failed to reload template with session TemplateId");
+                                    }
+                                }
+                                
+                                // If still no template, try to ensure application context and reload
+                                if (!templateLoaded)
+                                {
+                                    try
+                                    {
+                                        _logger.LogInformation("Attempting to ensure application context and reload template");
+                                        await EnsureApplicationIdAsync();
+                                        await LoadTemplateAsync();
+                                        if (Template != null)
+                                        {
+                                            templateLoaded = true;
+                                            _logger.LogInformation("Template reloaded successfully after ensuring application context");
+                                        }
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        _logger.LogWarning(ex, "Failed to reload template after ensuring application context");
+                                    }
+                                }
+                                
+                                // If still no template, try to force template loading from scratch
+                                if (!templateLoaded)
+                                {
+                                    try
+                                    {
+                                        _logger.LogInformation("Attempting to force template loading from scratch");
+                                        
+                                        // Clear any existing template state
+                                        Template = null;
+                                        
+                                        // Get template ID from session again
+                                        var forceTemplateId = HttpContext.Session.GetString("TemplateId");
+                                        if (!string.IsNullOrEmpty(forceTemplateId))
+                                        {
+                                            _logger.LogInformation("Force loading template with ID: {ForceTemplateId}", forceTemplateId);
+                                            TemplateId = forceTemplateId;
+                                            
+                                            // Try to load template directly from service
+                                            if (_templateManagementService != null)
+                                            {
+                                                Template = await _templateManagementService.LoadTemplateAsync(TemplateId, CurrentApplication);
+                                                if (Template != null)
+                                                {
+                                                    templateLoaded = true;
+                                                    _logger.LogInformation("Template force loaded successfully from service");
+                                                }
+                                            }
+                                        }
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        _logger.LogWarning(ex, "Failed to force load template");
+                                    }
+                                }
+                                
+                                // If all attempts failed, redirect to application list
+                                if (!templateLoaded)
+                                {
+                                    _logger.LogError("All template loading attempts failed for confirmation route. Session keys: {SessionKeys}, TemplateId: {TemplateId}", 
+                                        string.Join(", ", HttpContext.Session.Keys), TemplateId);
+                                    Response.Redirect($"~/applications/{ReferenceNumber}");
+                                    return;
+                                }
+                            }
+                            
+                            var (group, task) = InitializeCurrentTask(TaskId);
+                            CurrentGroup = group;
+                            CurrentTask = task;
+                            CurrentPage = null; // No specific page for confirmation
+                            CurrentFormState = FormState.Confirmation;
+                            
+                            // Load any accumulated data for display on confirmation page
+                            LoadAccumulatedDataFromSession();
+                            
+                            _logger.LogInformation("Confirmation route initialized successfully - Operation: {Operation}, Field: {FieldId}, Task: {TaskId}", 
+                                operation, fieldId, TaskId);
+                        }
+                        else
+                        {
+                            var (group, task, page) = InitializeCurrentPage(CurrentPageId);
+                            CurrentGroup = group;
+                            CurrentTask = task;
+                            CurrentPage = page;
+                        }
                     }
-                    else
-            {
-                var (group, task, page) = InitializeCurrentPage(CurrentPageId);
-                CurrentGroup = group;
-                CurrentTask = task;
-                CurrentPage = page;
-                    }
-                }
-                else if (!string.IsNullOrEmpty(TaskId))
-                {
-                    var (group, task) = InitializeCurrentTask(TaskId);
-                    CurrentGroup = group;
-                    CurrentTask = task;
-                    CurrentPage = null; // No specific page for task summary
-
-                    // If task requests collectionFlow summary, switch state accordingly
-                    if (_formStateManager.ShouldShowCollectionFlowSummary(CurrentTask))
+                    else if (!string.IsNullOrEmpty(TaskId))
                     {
-                        CurrentFormState = FormState.TaskSummary; // view chooses partial
+                        var (group, task) = InitializeCurrentTask(TaskId);
+                        CurrentGroup = group;
+                        CurrentTask = task;
+                        CurrentPage = null; // No specific page for task summary
+
+                        // If task requests collectionFlow summary, switch state accordingly
+                        if (_formStateManager.ShouldShowCollectionFlowSummary(CurrentTask))
+                        {
+                            CurrentFormState = FormState.TaskSummary; // view chooses partial
+                        }
                     }
                 }
+
+                // Check if we need to clear session data for a new application
+                CheckAndClearSessionForNewApplication();
+
+                // Load accumulated form data from session to pre-populate fields (only if not in a sub-flow)
+                if (string.IsNullOrEmpty(CurrentPageId) || !CurrentPageId.Contains("flow/"))
+                {
+                    LoadAccumulatedDataFromSession();
+                }
+
+                // Initialize task completion status if we're showing a task summary
+                if (CurrentFormState == FormState.TaskSummary && CurrentTask != null)
+                {
+                    var taskStatus = GetTaskStatusFromSession(CurrentTask.TaskId);
+                    IsTaskCompleted = taskStatus == Domain.Models.TaskStatus.Completed;
+                }
             }
-
-            // Check if we need to clear session data for a new application
-            CheckAndClearSessionForNewApplication();
-
-            // Load accumulated form data from session to pre-populate fields (only if not in a sub-flow)
-            if (string.IsNullOrEmpty(CurrentPageId) || !CurrentPageId.Contains("flow/"))
+            catch (Exception ex)
             {
-            LoadAccumulatedDataFromSession();
-            }
-
-            // Initialize task completion status if we're showing a task summary
-            if (CurrentFormState == FormState.TaskSummary && CurrentTask != null)
-            {
-                var taskStatus = GetTaskStatusFromSession(CurrentTask.TaskId);
-                IsTaskCompleted = taskStatus == Domain.Models.TaskStatus.Completed;
+                _logger.LogError(ex, "Error in OnGetAsync for reference {ReferenceNumber}, pageId {CurrentPageId}", ReferenceNumber, CurrentPageId);
+                
+                // Redirect to error page or back to application list
+                Response.Redirect($"~/applications/{ReferenceNumber}");
+                return;
             }
         }
 
@@ -330,6 +513,43 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             bool isSubFlow = TryParseFlowRoute(CurrentPageId, out _, out _, out _);
             if (ApplicationId.HasValue && Data.Any() && !isSubFlow)
             {
+                // Check if any fields require confirmation before saving
+                var fieldsRequiringConfirmation = GetFieldsRequiringConfirmation(Data);
+                if (fieldsRequiringConfirmation.Any())
+                {
+                    // Store the form data in session for after confirmation
+                    var confirmationData = new
+                    {
+                        FormData = Data,
+                        CurrentPageId = CurrentPageId,
+                        TaskId = TaskId,
+                        ReferenceNumber = ReferenceNumber
+                    };
+                    
+                    HttpContext.Session.SetString("PendingFormSubmission", JsonSerializer.Serialize(confirmationData));
+                    
+                    // Redirect to confirmation page for the first field that requires confirmation
+                    var firstField = fieldsRequiringConfirmation.First();
+                    var confirmationModel = _confirmationService.CreateConfirmationModel(
+                        firstField, 
+                        ConfirmationOperation.Update, 
+                        Data, 
+                        TaskId, 
+                        ReferenceNumber);
+
+                    var confirmationUrl = _formNavigationService.GetConfirmationUrl(
+                        TaskId, 
+                        ReferenceNumber, 
+                        "update", 
+                        firstField.FieldId, 
+                        confirmationModel.ConfirmationToken);
+
+                    _logger.LogInformation("Redirecting to confirmation page - URL: {ConfirmationUrl}, Field: {FieldId}, Operation: update", 
+                        confirmationUrl, firstField.FieldId);
+
+                    return Redirect(confirmationUrl);
+                }
+
                 try
                 {
                     await _applicationResponseService.SaveApplicationResponseAsync(ApplicationId.Value, Data, HttpContext.Session);
@@ -502,8 +722,231 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         }
                         catch { }
                     }
+                }
+            }
+
+            // Check if confirmation is required for this field
+            var field = FindFieldById(fieldId);
+            if (field != null && _confirmationService.RequiresConfirmation(field, ConfirmationOperation.Delete))
+            {
+                // Create confirmation model and redirect to confirmation page
+                var confirmationModel = _confirmationService.CreateConfirmationModel(
+                    field, 
+                    ConfirmationOperation.Delete, 
+                    itemData, 
+                    TaskId, 
+                    ReferenceNumber);
+
+                // Store the item data and flow ID in session for after confirmation
+                HttpContext.Session.SetString($"PendingDelete_{fieldId}_{itemId}", JsonSerializer.Serialize(new
+                {
+                    ItemData = itemData,
+                    FlowId = flowId,
+                    FlowTitle = flowTitle
+                }));
+
+                var confirmationUrl = _formNavigationService.GetConfirmationUrl(
+                    TaskId, 
+                    ReferenceNumber, 
+                    "delete", 
+                    fieldId, 
+                    confirmationModel.ConfirmationToken);
+
+                _logger.LogInformation("Redirecting to delete confirmation page - URL: {ConfirmationUrl}, Field: {FieldId}, Operation: delete", 
+                    confirmationUrl, fieldId);
+
+                return Redirect(confirmationUrl);
+            }
+
+            // No confirmation required, proceed with deletion
+            return await PerformCollectionItemRemoval(fieldId, itemId, flowId, itemData, flowTitle);
+        }
+
+        /// <summary>
+        /// Handles confirmed delete operations after user confirmation
+        /// </summary>
+        public async Task<IActionResult> OnPostConfirmedDeleteAsync(string fieldId, string itemId, string? flowId = null)
+        {
+            await CommonFormEngineInitializationAsync();
+            
+            if (!string.IsNullOrEmpty(TaskId))
+            {
+                var (group, task) = InitializeCurrentTask(TaskId);
+                CurrentGroup = group;
+                CurrentTask = task;
+            }
+            
+            if (string.IsNullOrEmpty(fieldId) || string.IsNullOrEmpty(itemId))
+            {
+                return BadRequest("Field ID and Item ID are required");
+            }
+
+            // Retrieve the pending delete data from session
+            var pendingDeleteKey = $"PendingDelete_{fieldId}_{itemId}";
+            var pendingDeleteJson = HttpContext.Session.GetString(pendingDeleteKey);
+            
+            Dictionary<string, object>? itemData = null;
+            string? flowTitle = null;
+            
+            if (!string.IsNullOrEmpty(pendingDeleteJson))
+            {
+                try
+                {
+                    var pendingData = JsonSerializer.Deserialize<Dictionary<string, object>>(pendingDeleteJson);
+                    if (pendingData != null)
+                    {
+                        if (pendingData.TryGetValue("ItemData", out var itemDataObj) && itemDataObj != null)
+                        {
+                            itemData = JsonSerializer.Deserialize<Dictionary<string, object>>(itemDataObj.ToString() ?? "{}");
+                        }
+                        if (pendingData.TryGetValue("FlowTitle", out var flowTitleObj))
+                        {
+                            flowTitle = flowTitleObj?.ToString();
+                        }
+                        if (pendingData.TryGetValue("FlowId", out var flowIdObj))
+                        {
+                            flowId = flowIdObj?.ToString();
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to deserialize pending delete data for field {FieldId}, item {ItemId}", fieldId, itemId);
+                }
+                
+                // Clear the pending delete data
+                HttpContext.Session.Remove(pendingDeleteKey);
+            }
+
+            // Perform the actual deletion
+            return await PerformCollectionItemRemoval(fieldId, itemId, flowId, itemData, flowTitle);
+        }
+
+        /// <summary>
+        /// Handles confirmed add operations after user confirmation
+        /// </summary>
+        public async Task<IActionResult> OnPostConfirmedAddAsync(string fieldId)
+        {
+            await CommonFormEngineInitializationAsync();
+            
+            if (!string.IsNullOrEmpty(TaskId))
+            {
+                var (group, task) = InitializeCurrentTask(TaskId);
+                CurrentGroup = group;
+                CurrentTask = task;
+            }
+            
+            if (string.IsNullOrEmpty(fieldId))
+            {
+                return BadRequest("Field ID is required");
+            }
+
+            // For now, just redirect back to the task summary
+            // In a real implementation, you would perform the add operation here
+            return Redirect(_formNavigationService.GetTaskSummaryUrl(TaskId, ReferenceNumber));
+        }
+
+        /// <summary>
+        /// Handles confirmed update operations after user confirmation
+        /// </summary>
+        public async Task<IActionResult> OnPostConfirmedUpdateAsync(string fieldId)
+        {
+            _logger.LogInformation("OnPostConfirmedUpdateAsync: Starting for fieldId: {FieldId}", fieldId);
+            
+            try
+            {
+                await CommonFormEngineInitializationAsync();
+                
+                if (!string.IsNullOrEmpty(TaskId))
+                {
+                    var (group, task) = InitializeCurrentTask(TaskId);
+                    CurrentGroup = group;
+                    CurrentTask = task;
+                }
+                
+                if (string.IsNullOrEmpty(fieldId))
+                {
+                    _logger.LogError("FieldId is required but not provided");
+                    return BadRequest("Field ID is required");
+                }
+
+                _logger.LogInformation("OnPostConfirmedUpdateAsync: Processing confirmed update for field: {FieldId}", fieldId);
+
+                // Retrieve the pending form submission data from session
+                var pendingFormSubmissionJson = HttpContext.Session.GetString("PendingFormSubmission");
+                if (!string.IsNullOrEmpty(pendingFormSubmissionJson))
+                {
+                    try
+                    {
+                        var pendingData = JsonSerializer.Deserialize<Dictionary<string, object>>(pendingFormSubmissionJson);
+                        if (pendingData != null && pendingData.TryGetValue("FormData", out var formDataObj))
+                        {
+                            var formData = JsonSerializer.Deserialize<Dictionary<string, object>>(formDataObj.ToString() ?? "{}");
+                            if (formData != null)
+                            {
+                                _logger.LogInformation("OnPostConfirmedUpdateAsync: Retrieved pending form data with {Count} fields", formData.Count);
+                                
+                                // Save the confirmed form data to the API
+                                if (ApplicationId.HasValue)
+                                {
+                                    await _applicationResponseService.SaveApplicationResponseAsync(ApplicationId.Value, formData, HttpContext.Session);
+                                    _logger.LogInformation("Successfully saved confirmed response for Application {ApplicationId}, Field {FieldId}",
+                                        ApplicationId.Value, fieldId);
+                                }
+                                
+                                // Clear the pending form submission data
+                                HttpContext.Session.Remove("PendingFormSubmission");
+                                
+                                // Redirect to the next page or task summary
+                                if (CurrentTask != null)
+                                {
+                                    var nextUrl = _formNavigationService.GetNextNavigationTargetAfterSave(CurrentPage, CurrentTask, ReferenceNumber);
+                                    _logger.LogInformation("Redirecting to next URL: {NextUrl}", nextUrl);
+                                    return Redirect(nextUrl);
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to process confirmed form submission for field {FieldId}", fieldId);
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning("No pending form submission data found in session for field {FieldId}", fieldId);
+                }
+
+                // Fallback: redirect back to the task summary
+                var fallbackUrl = _formNavigationService.GetTaskSummaryUrl(TaskId, ReferenceNumber);
+                _logger.LogInformation("Fallback redirect to task summary: {FallbackUrl}", fallbackUrl);
+                return Redirect(fallbackUrl);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in OnPostConfirmedUpdateAsync for fieldId: {FieldId}", fieldId);
+                
+                // Fallback: redirect back to the task summary
+                var fallbackUrl = _formNavigationService.GetTaskSummaryUrl(TaskId, ReferenceNumber);
+                _logger.LogInformation("Error fallback redirect to task summary: {FallbackUrl}", fallbackUrl);
+                return Redirect(fallbackUrl);
+            }
+        }
+
+        /// <summary>
+        /// Performs the actual removal of a collection item
+        /// </summary>
+        private async Task<IActionResult> PerformCollectionItemRemoval(string fieldId, string itemId, string? flowId, Dictionary<string, object>? itemData, string? flowTitle)
+        {
+            // Get current collection from session
+            var accumulatedData = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
                     
                     // Generate success message using custom message or fallback
+            if (!string.IsNullOrEmpty(flowId) && CurrentTask != null)
+            {
+                var flow = CurrentTask.Summary?.Flows?.FirstOrDefault(f => f.FlowId == flowId);
+                if (flow != null)
+                {
                     SuccessMessage = GenerateSuccessMessage(flow.DeleteItemMessage, "delete", itemData, flowTitle);
                 }
             }
@@ -537,6 +980,74 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
             // Redirect back to the collection summary
             return Redirect(_formNavigationService.GetCollectionFlowSummaryUrl(TaskId, ReferenceNumber));
+        }
+
+        /// <summary>
+        /// Finds a field by ID in the current template
+        /// </summary>
+        private Field? FindFieldById(string fieldId)
+        {
+            if (Template?.TaskGroups == null) return null;
+
+            foreach (var group in Template.TaskGroups)
+            {
+                if (group.Tasks == null) continue;
+
+                foreach (var task in group.Tasks)
+                {
+                    if (task.Pages == null) continue;
+
+                    foreach (var page in task.Pages)
+                    {
+                        if (page.Fields == null) continue;
+
+                        var field = page.Fields.FirstOrDefault(f => f.FieldId == fieldId);
+                        if (field != null) return field;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Gets all fields that require confirmation for the given form data
+        /// </summary>
+        /// <param name="formData">The form data to check</param>
+        /// <returns>List of fields that require confirmation</returns>
+        private List<Field> GetFieldsRequiringConfirmation(Dictionary<string, object> formData)
+        {
+            var fieldsRequiringConfirmation = new List<Field>();
+            
+            if (Template?.TaskGroups == null) return fieldsRequiringConfirmation;
+
+            foreach (var group in Template.TaskGroups)
+            {
+                if (group.Tasks == null) continue;
+
+                foreach (var task in group.Tasks)
+                {
+                    if (task.Pages == null) continue;
+
+                    foreach (var page in task.Pages)
+                    {
+                        if (page.Fields == null) continue;
+
+                        foreach (var field in page.Fields)
+                        {
+                            // Check if the field has data and requires confirmation
+                            if (formData.ContainsKey(field.FieldId) && 
+                                !string.IsNullOrWhiteSpace(formData[field.FieldId]?.ToString()) &&
+                                _confirmationService.RequiresConfirmation(field, ConfirmationOperation.Update))
+                            {
+                                fieldsRequiringConfirmation.Add(field);
+                            }
+                        }
+                    }
+                }
+            }
+
+            return fieldsRequiringConfirmation;
         }
 
         public async Task<IActionResult> OnGetComplexFieldAsync(string complexFieldId, string query)
@@ -578,6 +1089,39 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 flowPageId = parts.Length > 3 ? parts[3] : string.Empty;
                 return true;
             }
+            return false;
+        }
+
+        /// <summary>
+        /// Parses confirmation route segments to extract operation, fieldId, and confirmationToken
+        /// </summary>
+        /// <param name="pageId">The page ID to parse</param>
+        /// <param name="operation">The operation being confirmed</param>
+        /// <param name="fieldId">The field ID</param>
+        /// <param name="confirmationToken">The confirmation token</param>
+        /// <returns>True if the route is a confirmation route</returns>
+        private static bool TryParseConfirmationRoute(string pageId, out string operation, out string fieldId, out string confirmationToken)
+        {
+            operation = fieldId = confirmationToken = string.Empty;
+            if (string.IsNullOrEmpty(pageId)) return false;
+            
+            // Expected: confirm/{operation}/{fieldId}/{confirmationToken}
+            var parts = pageId.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            
+            // Log the parsing attempt for debugging
+            Console.WriteLine($"TryParseConfirmationRoute: pageId='{pageId}', parts.Length={parts.Length}, parts=[{string.Join(", ", parts)}]");
+            
+            if (parts.Length >= 4 && parts[0].Equals("confirm", StringComparison.OrdinalIgnoreCase))
+            {
+                operation = parts[1];
+                fieldId = parts[2];
+                confirmationToken = parts[3];
+                
+                Console.WriteLine($"TryParseConfirmationRoute: SUCCESS - operation='{operation}', fieldId='{fieldId}', token='{confirmationToken}'");
+                return true;
+            }
+            
+            Console.WriteLine($"TryParseConfirmationRoute: FAILED - parts[0]='{parts[0]}', expected 'confirm'");
             return false;
         }
 

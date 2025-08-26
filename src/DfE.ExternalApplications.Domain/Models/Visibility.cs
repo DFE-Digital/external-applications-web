@@ -8,4 +8,7 @@ public class Visibility
 {
     [JsonPropertyName("default")]
     public bool Default { get; set; }
+
+    [JsonPropertyName("requireConfirmation")]
+    public bool RequireConfirmation { get; set; }
 }

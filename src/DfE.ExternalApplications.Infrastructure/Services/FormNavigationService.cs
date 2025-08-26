@@ -170,5 +170,19 @@ namespace DfE.ExternalApplications.Infrastructure.Services
         {
             return $"/applications/{referenceNumber}/{taskId}/flow/{flowId}/{instanceId}/{pageId}";
         }
+
+        /// <summary>
+        /// Gets the URL for the confirmation page
+        /// </summary>
+        /// <param name="taskId">The task ID</param>
+        /// <param name="referenceNumber">The application reference number</param>
+        /// <param name="operation">The operation being confirmed</param>
+        /// <param name="fieldId">The field ID</param>
+        /// <param name="confirmationToken">The confirmation token</param>
+        /// <returns>The URL for the confirmation page</returns>
+        public string GetConfirmationUrl(string taskId, string referenceNumber, string operation, string fieldId, string confirmationToken)
+        {
+            return $"/applications/{referenceNumber}/{taskId}/confirm/{operation}/{fieldId}/{confirmationToken}";
+        }
     }
 }

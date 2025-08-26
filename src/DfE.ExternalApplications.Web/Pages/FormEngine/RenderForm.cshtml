@@ -30,4 +30,7 @@
     case FormState.ApplicationPreview:
         @await Html.PartialAsync("FormEngine/_ApplicationPreview", Model)
         break;
+    case FormState.Confirmation:
+        @await Html.PartialAsync("FormEngine/_Confirmation", Model)
+        break;
 }
