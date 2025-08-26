@@ -64,7 +64,19 @@ namespace DfE.ExternalApplications.Web.Filters
                 if (r.StatusCode == 403)
                 {
                     page.TempData["ApiErrorId"] = r.ErrorId;
-                    executedContext.Result = new RedirectToPageResult("/Error/Forbidden");
+                    
+                    // Check if this is likely a token issue and redirect to logout
+                    if (r.Message?.Contains("token", StringComparison.OrdinalIgnoreCase) == true ||
+                        r.Message?.Contains("expired", StringComparison.OrdinalIgnoreCase) == true ||
+                        r.Message?.Contains("unauthorized", StringComparison.OrdinalIgnoreCase) == true)
+                    {
+                        executedContext.Result = new RedirectToPageResult("/Logout", new { reason = "token_expired" });
+                    }
+                    else
+                    {
+                        executedContext.Result = new RedirectToPageResult("/Error/Forbidden");
+                    }
+                    
                     executedContext.ExceptionHandled = true;
                     return;
                 }

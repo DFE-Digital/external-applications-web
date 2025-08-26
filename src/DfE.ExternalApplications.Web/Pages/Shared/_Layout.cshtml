@@ -1,4 +1,6 @@
 ﻿@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Authentication
+@using System.IdentityModel.Tokens.Jwt
 @inject IAuthorizationService AuthService
 
 @{
@@ -13,12 +15,114 @@
 @section Header {
     @{
         var currentEnvironment = ViewContext.HttpContext.RequestServices.GetService<IWebHostEnvironment>()?.EnvironmentName ?? "Unknown";
+        
+        // Get token expiry info for development
+        string tokenInfo = "";
+        bool isTokenExpiringSoon = false;
+        if (!currentEnvironment.Equals("Production", StringComparison.OrdinalIgnoreCase) && User?.Identity?.IsAuthenticated == true)
+        {
+            try
+            {
+                // First try to get expiry from authentication properties
+                var authResult = await ViewContext.HttpContext.AuthenticateAsync();
+                DateTimeOffset? expiryTime = null;
+                
+                if (authResult.Succeeded && authResult.Properties?.ExpiresUtc.HasValue == true)
+                {
+                    expiryTime = authResult.Properties.ExpiresUtc.Value;
+                }
+                else
+                {
+                    // Try to get the access token and decode it directly
+                    string accessToken = null;
+                    
+                    // Try to get token from different possible locations
+                    if (authResult.Succeeded && authResult.Properties?.GetTokenValue("access_token") != null)
+                    {
+                        accessToken = authResult.Properties.GetTokenValue("access_token");
+                    }
+                    else if (ViewContext.HttpContext.Session.GetString("access_token") != null)
+                    {
+                        accessToken = ViewContext.HttpContext.Session.GetString("access_token");
+                    }
+                    
+                    if (!string.IsNullOrEmpty(accessToken))
+                    {
+                        try
+                        {
+                            var tokenHandler = new JwtSecurityTokenHandler();
+                            if (tokenHandler.CanReadToken(accessToken))
+                            {
+                                var jsonToken = tokenHandler.ReadJwtToken(accessToken);
+                                
+                                // Get the exp claim from the JWT payload
+                                var expClaim = jsonToken.Claims.FirstOrDefault(c => c.Type == "exp");
+                                if (expClaim != null && long.TryParse(expClaim.Value, out var exp))
+                                {
+                                    expiryTime = DateTimeOffset.FromUnixTimeSeconds(exp);
+                                }
+                                else
+                                {
+                                    tokenInfo = " | ⚠️ No exp claim found in token";
+                                }
+                            }
+                            else
+                            {
+                                tokenInfo = " | ⚠️ Invalid JWT token format";
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            tokenInfo = $" | ⚠️ Error reading token: {ex.Message}";
+                        }
+                    }
+                    else
+                    {
+                        tokenInfo = " | ⚠️ No access token found";
+                    }
+                }
+                
+                if (expiryTime.HasValue)
+                {
+                    var timeLeft = expiryTime.Value - DateTimeOffset.UtcNow;
+                    var totalMinutes = (int)timeLeft.TotalMinutes;
+                    
+                    if (totalMinutes <= 0)
+                    {
+                        tokenInfo = " | ⚠️ TOKEN EXPIRED - Please log out and sign in again";
+                        isTokenExpiringSoon = true;
+                    }
+                    else if (totalMinutes <= 10)
+                    {
+                        tokenInfo = $" | ⚠️ TOKEN EXPIRES IN: {totalMinutes}m {timeLeft.Seconds}s - Consider refreshing";
+                        isTokenExpiringSoon = true;
+                    }
+                    else
+                    {
+                        tokenInfo = $" | Token expires in: {totalMinutes}m";
+                    }
+                }
+                else
+                {
+                    tokenInfo = " | ⚠️ Token expiry unavailable";
+                }
+            }
+            catch 
+            {
+                tokenInfo = " | ⚠️ Token info unavailable";
+                isTokenExpiringSoon = true;
+            }
+        }
+        
+        // Determine banner color based on token status
+        var bannerColor = isTokenExpiringSoon ? "#f47738" : "#FFE3AA";
+        var textColor = isTokenExpiringSoon ? "white" : "black";
     }
     @if (!currentEnvironment.Equals("Production", StringComparison.OrdinalIgnoreCase))
     {
-        <div class="environment-banner" style="background-color: #FFE3AA; color: black; text-align: left; padding: 8px; font-family: Cascadia; font-size: 12px; font-weight: bold;">
+        <div class="environment-banner" style="background-color: @bannerColor; color: @textColor; text-align: left; padding: 8px; font-family: Cascadia; font-size: 12px; font-weight: bold;">
             <div class="govuk-width-container">
-                @currentEnvironment.ToUpper() ENVIRONMENT
+                🚧 @(currentEnvironment.ToUpper()) ENVIRONMENT@(tokenInfo) 🚧
             </div>
         </div>
     }

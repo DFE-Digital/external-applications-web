@@ -32,9 +32,18 @@ public class PermissionsCacheMiddleware(
                         var permissions = await usersClient.GetMyPermissionsAsync();
                         cache.Set(cacheKey, permissions, TimeSpan.FromMinutes(5));
                     }
-                    catch (Exception)
+                    catch (HttpRequestException ex) when (ex.Message.Contains("403") || ex.Message.Contains("Forbidden"))
                     {
-                        // Cache empty auth data on error
+                        // Token is invalid/expired - force re-authentication
+                        context.Response.Redirect("/Logout?reason=token_expired");
+                        return;
+                    }
+                    catch (Exception ex)
+                    {
+                        // Cache empty auth data on other errors but log the issue
+                        var logger = context.RequestServices.GetService<ILogger<PermissionsCacheMiddleware>>();
+                        logger?.LogWarning(ex, "Failed to load user permissions for user {UserId}. Error: {Error}", userId, ex.Message);
+                        
                         var emptyAuthData = new UserAuthorizationDto
                         {
                             Permissions = Enumerable.Empty<UserPermissionDto>(),

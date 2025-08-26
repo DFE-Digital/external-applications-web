@@ -37,14 +37,37 @@ namespace DfE.ExternalApplications.Web.Middleware
             var result = await context.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             if (result.Succeeded)
             {
+                var userId = context.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
                 var expiresUtc = result.Properties?.ExpiresUtc;
+                
                 if (expiresUtc.HasValue)
                 {
                     var remaining = expiresUtc.Value - DateTimeOffset.UtcNow;
-                    if (remaining <= ExpiryThreshold)
+                    
+                    // Log token status for debugging
+                    _logger.LogDebug(
+                        "Token check for user {UserId}: {RemainingMinutes} minutes remaining (Expires: {ExpiresUtc})", 
+                        userId,
+                        remaining.TotalMinutes,
+                        expiresUtc.Value);
+                    
+                    if (remaining <= TimeSpan.Zero)
+                    {
+                        _logger.LogWarning(
+                            "Authentication ticket EXPIRED for user {UserId} (Expired: {ExpiresUtc}, Current: {UtcNow}). Forcing logout.", 
+                            userId,
+                            expiresUtc.Value,
+                            DateTimeOffset.UtcNow);
+
+                        // Token already expired - force logout immediately
+                        context.Response.Redirect("/Logout?reason=token_expired");
+                        return;
+                    }
+                    else if (remaining <= ExpiryThreshold)
                     {
                         _logger.LogInformation(
-                            "Authentication ticket expiring in {RemainingSeconds} seconds (UTC: {UtcNow}, Expires: {ExpiresUtc}). Signing out.", 
+                            "Authentication ticket expiring soon for user {UserId}: {RemainingSeconds} seconds remaining (UTC: {UtcNow}, Expires: {ExpiresUtc}). Triggering refresh.", 
+                            userId,
                             remaining.TotalSeconds,
                             DateTimeOffset.UtcNow,
                             expiresUtc.Value);
@@ -54,6 +77,16 @@ namespace DfE.ExternalApplications.Web.Middleware
                         return;
                     }
                 }
+                else
+                {
+                    _logger.LogWarning(
+                        "Authentication ticket for user {UserId} has no expiry time. This may indicate a configuration issue.", 
+                        userId);
+                }
+            }
+            else
+            {
+                _logger.LogDebug("Authentication failed or user not authenticated. Reason: {Failure}", result.Failure?.Message ?? "Unknown");
             }
 
             await _next(context);
