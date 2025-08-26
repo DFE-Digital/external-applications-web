@@ -34,18 +34,28 @@ public class TestAuthenticationHandler : AuthenticationHandler<TestAuthenticatio
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
+        var requestPath = Context.Request.Path;
+        Logger.LogDebug(">>>>>>>>>> Authentication >>> TestAuthenticationHandler: HandleAuthenticateAsync called for path {Path}", requestPath);
+        
         var email = Context.Session.GetString(SessionKeys.Email);
         var token = Context.Session.GetString(SessionKeys.Token);
 
         if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(token))
         {
+            Logger.LogDebug(">>>>>>>>>> Authentication >>> TestAuthenticationHandler: No email ({EmailExists}) or token ({TokenExists}) found in session for path {Path}", 
+                !string.IsNullOrEmpty(email), !string.IsNullOrEmpty(token), requestPath);
             return Task.FromResult(AuthenticateResult.NoResult());
         }
 
+        Logger.LogDebug(">>>>>>>>>> Authentication >>> TestAuthenticationHandler: Creating authentication ticket for user {Email} at path {Path}", email, requestPath);
+        
         var claims = CreateUserClaims(email);
         var identity = new ClaimsIdentity(claims, SchemeName);
         var principal = new ClaimsPrincipal(identity);
         var ticket = new AuthenticationTicket(principal, CreateAuthenticationProperties(token), SchemeName);
+
+        Logger.LogDebug(">>>>>>>>>> Authentication >>> TestAuthenticationHandler: Authentication successful for user {Email} with {ClaimCount} claims", 
+            email, claims.Count());
 
         return Task.FromResult(AuthenticateResult.Success(ticket));
     }
@@ -56,6 +66,9 @@ public class TestAuthenticationHandler : AuthenticationHandler<TestAuthenticatio
         var loginUrl = string.IsNullOrEmpty(returnUrl) 
             ? "/TestLogin" 
             : $"/TestLogin?returnUrl={Uri.EscapeDataString(returnUrl)}";
+            
+        Logger.LogDebug(">>>>>>>>>> Authentication >>> TestAuthenticationHandler: HandleChallengeAsync triggered. Redirecting to {LoginUrl} (return URL: {ReturnUrl})", 
+            loginUrl, returnUrl ?? "None");
             
         Response.Redirect(loginUrl);
         return Task.CompletedTask;

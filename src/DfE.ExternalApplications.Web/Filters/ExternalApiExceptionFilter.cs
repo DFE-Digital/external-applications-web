@@ -56,6 +56,11 @@ namespace DfE.ExternalApplications.Web.Filters
 
                 if (r.StatusCode == 401)
                 {
+                    var logger = context.HttpContext.RequestServices.GetService<ILogger<ExternalApiPageExceptionFilter>>();
+                    var userId = context.HttpContext.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "Anonymous";
+                    logger?.LogWarning(">>>>>>>>>> Authentication >>> ExternalApiPageExceptionFilter: 401 Unauthorized error for user {UserId} at {Path}. Redirecting to forbidden page.", 
+                        userId, context.HttpContext.Request.Path);
+                    
                     page.TempData["ApiErrorId"] = r.ErrorId;
                     executedContext.Result = new RedirectToPageResult("/Error/Forbidden");
                     executedContext.ExceptionHandled = true;
@@ -63,6 +68,10 @@ namespace DfE.ExternalApplications.Web.Filters
                 }
                 if (r.StatusCode == 403)
                 {
+                    var logger = context.HttpContext.RequestServices.GetService<ILogger<ExternalApiPageExceptionFilter>>();
+                    var userId = context.HttpContext.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "Anonymous";
+                    var userClaims = string.Join(", ", context.HttpContext.User?.Claims?.Select(c => $"{c.Type}:{c.Value}") ?? Array.Empty<string>());
+                    
                     page.TempData["ApiErrorId"] = r.ErrorId;
                     
                     // Check if this is likely a token issue and redirect to logout
@@ -70,10 +79,18 @@ namespace DfE.ExternalApplications.Web.Filters
                         r.Message?.Contains("expired", StringComparison.OrdinalIgnoreCase) == true ||
                         r.Message?.Contains("unauthorized", StringComparison.OrdinalIgnoreCase) == true)
                     {
+                        logger?.LogWarning(">>>>>>>>>> Authentication >>> ExternalApiPageExceptionFilter: 403 Forbidden with token-related error for user {UserId} at {Path}. " +
+                                          "Error message: {ErrorMessage}. User claims: {UserClaims}. Redirecting to logout.", 
+                            userId, context.HttpContext.Request.Path, r.Message, userClaims);
+                        
                         executedContext.Result = new RedirectToPageResult("/Logout", new { reason = "token_expired" });
                     }
                     else
                     {
+                        logger?.LogWarning(">>>>>>>>>> Authentication >>> ExternalApiPageExceptionFilter: 403 Forbidden error for user {UserId} at {Path}. " +
+                                          "User claims: {UserClaims}. Redirecting to forbidden page.", 
+                            userId, context.HttpContext.Request.Path, userClaims);
+                        
                         executedContext.Result = new RedirectToPageResult("/Error/Forbidden");
                     }
                     
