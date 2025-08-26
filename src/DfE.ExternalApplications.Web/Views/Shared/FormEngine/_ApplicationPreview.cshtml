@@ -233,8 +233,16 @@
 @if (Model.IsApplicationEditable())
 {
     <div class="govuk-!-margin-top-6">
+        <h2 class="govuk-heading-m govuk-!-margin-top-9">Now submit your application</h2>
+        <p class="govuk-body">By submitting this application you are confirming that, to the best of your knowledge, the details you are providing are correct.</p>
+
+
         <form method="post" asp-page-handler="SubmitApplication">
-            <input type="hidden" asp-for="ReferenceNumber" />
+            <input type="hidden" asp-for="ReferenceNumber"/>
+            @if (ViewContext.HttpContext.Request.Query.ContainsKey("preview"))
+            {
+                <input type="hidden" name="preview" value="true"/>
+            }
             <govuk-button type="submit" id="submit-application-button">
                 Submit application
             </govuk-button>

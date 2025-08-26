@@ -72,13 +72,13 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
 
             if (!string.IsNullOrEmpty(CurrentPageId))
-                {
+            {
                     if (TryParseFlowRoute(CurrentPageId, out var flowId, out var instanceId, out var flowPageId))
                     {
                         // Sub-flow: initialize task and resolve page from task's pages
                         var (group, task) = InitializeCurrentTask(TaskId);
-                        CurrentGroup = group;
-                        CurrentTask = task;
+                CurrentGroup = group;
+                CurrentTask = task;
 
                         // Find the correct flow and its pages
                         var flowPages = GetFlowPages(task, flowId);
@@ -87,7 +87,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                             var page = string.IsNullOrEmpty(flowPageId) ? flowPages.FirstOrDefault() : flowPages.FirstOrDefault(p => p.PageId == flowPageId);
                             if (page != null)
                             {
-                                CurrentPage = page;
+                CurrentPage = page;
                                 CurrentFormState = FormState.FormPage; // Render as a normal page
                                 
                                 // If editing existing item, load its data into form fields
@@ -199,8 +199,17 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         public async Task<IActionResult> OnPostSubmitApplicationAsync()
         {
+            // Clear any model state errors for route parameters since they're not relevant for preview submission
+            ModelState.Remove(nameof(TaskId));
+            ModelState.Remove(nameof(CurrentPageId));
+            ModelState.Remove("TaskId");
+            ModelState.Remove("CurrentPageId");
+            ModelState.Remove("pageId");
+            ModelState.Remove("taskId");
+            
+            // Initialize common form engine data first (loads Template, FormData, etc.)
             await CommonFormEngineInitializationAsync();
-
+            
             // Prevent submission if application is not editable
             if (!IsApplicationEditable())
             {
@@ -211,6 +220,10 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             if (!AreAllTasksCompleted())
             {
                 _logger.LogWarning("Cannot submit application {ReferenceNumber} - not all tasks completed", ReferenceNumber);
+                
+                // Override the form state for preview with errors
+                CurrentFormState = FormState.ApplicationPreview;
+                
                 ModelState.AddModelError("", "All sections must be completed before you can submit your application.");
                 return Page();
             }
@@ -273,8 +286,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 {
                     _logger.LogInformation("Detected sub-flow: flowId={FlowId} instance={InstanceId} flowPageId={FlowPageId}", flowId, instanceId, flowPageId);
                     var (group, task) = InitializeCurrentTask(TaskId);
-                    CurrentGroup = group;
-                    CurrentTask = task;
+            CurrentGroup = group;
+            CurrentTask = task;
 
                     // Find the correct flow and its pages
                     var flowPages = GetFlowPages(task, flowId);
@@ -283,7 +296,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         var page = string.IsNullOrEmpty(flowPageId) ? flowPages.FirstOrDefault() : flowPages.FirstOrDefault(p => p.PageId == flowPageId);
                         if (page != null)
                         {
-                            CurrentPage = page;
+            CurrentPage = page;
                         }
                     }
                 }
