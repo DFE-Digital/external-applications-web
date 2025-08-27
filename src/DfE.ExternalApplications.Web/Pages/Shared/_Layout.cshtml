@@ -120,9 +120,9 @@
     }
     @if (!currentEnvironment.Equals("Production", StringComparison.OrdinalIgnoreCase))
     {
-        <div class="environment-banner" style="background-color: @bannerColor; color: @textColor; text-align: left; padding: 8px; font-family: Cascadia; font-size: 12px; font-weight: bold;">
+        <div class="environment-banner govuk-link govuk-link--no-underline govuk-!-font-weight-regular govuk-!-font-size-19" style="background-color: @bannerColor; color: @textColor; text-align: left; padding: 8px;">
             <div class="govuk-width-container">
-                🚧 @(currentEnvironment.ToUpper()) ENVIRONMENT@(tokenInfo) 🚧
+                 @(currentEnvironment.ToUpper()) ENVIRONMENT@(tokenInfo)
             </div>
         </div>
     }

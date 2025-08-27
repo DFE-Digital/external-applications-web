@@ -56,7 +56,7 @@ if (isTestAuthEnabled && testAuthOptions != null)
 // Add services to the container.
 builder.Services.AddRazorPages(options =>
 {
-    // Note: Keeping the original filter configuration to avoid DI complications
+    options.Conventions.ConfigureFilter(new ExternalApiPageExceptionFilter());
 
     options.Conventions.AuthorizeFolder("/", "OpenIdConnectPolicy");
     options.Conventions.AllowAnonymousToPage("/Index");
