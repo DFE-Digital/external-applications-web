@@ -32,6 +32,8 @@ declare global {
             getByLabelFor(labelFor: string): Chainable<Element>;
             getByRadioOption(radioText: string): Chainable<Element>;
             login(): Chainable<Element>;
+            SaveAndContinue(): Chainable<Element>;
+            SaveTaskSummary(): Chainable<Element>;
             loginWithCredentials(): Chainable<Element>;
             assertChildList(selector: string, values: string[]): Chainable<Element>;
             executeAccessibilityTests(ruleExclusions?: RuleObject): Chainable<Element>;

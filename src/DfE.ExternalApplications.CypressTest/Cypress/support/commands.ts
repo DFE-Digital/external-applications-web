@@ -96,6 +96,15 @@ Cypress.Commands.add("login", () => {
     cy.visit(Cypress.env('url'));
 });
 
+// Custom command to Save and Continue
+Cypress.Commands.add("SaveAndContinue", () => {
+    cy.getById('save-and-continue-button').click();
+});
+
+// Custom command to Save Task Summary
+            Cypress.Commands.add("SaveTaskSummary", () => {
+    cy.getById('save-task-summary-button').click();
+            });
 // Custom command to execute accessibility tests using Axe
 Cypress.Commands.add("executeAccessibilityTests", () => {
     Logger.log("Executing the command");
