@@ -68,7 +68,7 @@ public class TokenInfo
     public string? Value { get; set; }
     public DateTime? ExpiryTime { get; set; }
     public bool IsPresent => !string.IsNullOrEmpty(Value);
-    public bool IsExpired => ExpiryTime.HasValue && (ExpiryTime.Value - DateTime.UtcNow) <= TimeSpan.FromMinutes(59);
+    public bool IsExpired => ExpiryTime.HasValue && (ExpiryTime.Value - DateTime.UtcNow) <= TimeSpan.FromMinutes(5);
     public bool IsValid => IsPresent && !IsExpired;
     public TimeSpan? TimeUntilExpiry => ExpiryTime?.Subtract(DateTime.UtcNow);
 }

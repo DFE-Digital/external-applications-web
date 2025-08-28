@@ -19,7 +19,7 @@ public class CachedInternalUserTokenStore(
     /// <summary>
     /// Unified expiry buffer - consistent with TokenExpiryService
     /// </summary>
-    private static readonly TimeSpan ExpiryBuffer = TimeSpan.FromMinutes(54);
+    private static readonly TimeSpan ExpiryBuffer = TimeSpan.FromMinutes(5);
 
     public string? GetToken()
     {
