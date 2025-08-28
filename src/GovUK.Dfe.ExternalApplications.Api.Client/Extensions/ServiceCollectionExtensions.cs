@@ -47,8 +47,7 @@ namespace GovUK.Dfe.ExternalApplications.Api.Client.Extensions
                 // This allows each application to implement their own authentication logic
                 // and removes coupling from this reusable library
                 
-                // Register backward-compatible service that delegates to new architecture
-                services.AddScoped<ITokenExpiryService, TokenExpiryService>();
+                // All services now use the new clean architecture with TokenStateManager
                 
                 // Ensure distributed cache is available for logout tracking
                 if (!services.Any(x => x.ServiceType == typeof(IDistributedCache)))
@@ -120,114 +119,10 @@ namespace GovUK.Dfe.ExternalApplications.Api.Client.Extensions
             return app.UseMiddleware<TokenManagementMiddleware>();
         }
 
-        /// <summary>
-        /// DEPRECATED: Use UseTokenManagementMiddleware instead
-        /// Adds token expiry middleware for proactive token expiry checking
-        /// </summary>
-        /// <param name="app">The application builder</param>
-        /// <returns>The application builder for chaining</returns>
-        /// <remarks>
-        /// This middleware should be added after authentication middleware but before any middleware
-        /// that requires token validation. It will proactively check for token expiry and handle
-        /// expired tokens appropriately.
-        /// </remarks>
-        public static IApplicationBuilder UseTokenExpiryMiddleware(this IApplicationBuilder app)
-        {
-            // For backward compatibility, delegate to new middleware
-            return app.UseTokenManagementMiddleware();
-        }
 
-        /// <summary>
-        /// Extension method to check if tokens are expired in the current request
-        /// </summary>
-        /// <param name="app">The application builder</param>
-        /// <param name="onTokenExpired">Action to execute when tokens are expired</param>
-        /// <returns>The application builder for chaining</returns>
-        /// <remarks>
-        /// This can be used in custom middleware or controllers to handle token expiry
-        /// </remarks>
-        public static IApplicationBuilder UseTokenExpiryHandler(
-            this IApplicationBuilder app, 
-            Action<HttpContext, TokenExpiryInfo> onTokenExpired)
-        {
-            return app.Use(async (context, next) =>
-            {
-                // Check if token expiry middleware has flagged tokens as expired
-                if (context.Items.TryGetValue("TokenExpired", out var tokenExpired) && 
-                    tokenExpired is true &&
-                    context.Items.TryGetValue("TokenExpiryInfo", out var expiryInfo) &&
-                    expiryInfo is TokenExpiryInfo info)
-                {
-                    onTokenExpired(context, info);
-                    return;
-                }
 
-                await next();
-            });
-        }
+
     }
 
-    /// <summary>
-    /// Extension methods for token management in controllers and pages
-    /// </summary>
-    [ExcludeFromCodeCoverage]
-    public static class TokenManagementExtensions
-    {
-        /// <summary>
-        /// Checks if any user tokens are expired or will expire soon
-        /// </summary>
-        /// <param name="serviceProvider">Service provider to resolve dependencies</param>
-        /// <returns>True if tokens are expired or will expire within the buffer time</returns>
-        public static bool AreTokensExpired(this IServiceProvider serviceProvider)
-        {
-            var tokenExpiryService = serviceProvider.GetService<ITokenExpiryService>();
-            return tokenExpiryService?.IsAnyTokenExpired() ?? true;
-        }
 
-        /// <summary>
-        /// Gets comprehensive token expiry information
-        /// </summary>
-        /// <param name="serviceProvider">Service provider to resolve dependencies</param>
-        /// <returns>Token expiry information</returns>
-        public static TokenExpiryInfo GetTokenExpiryInfo(this IServiceProvider serviceProvider)
-        {
-            var tokenExpiryService = serviceProvider.GetService<ITokenExpiryService>();
-            return tokenExpiryService?.GetTokenExpiryInfo() ?? new TokenExpiryInfo
-            {
-                IsAnyTokenExpired = true,
-                ExpiryReason = "TokenExpiryService not available"
-            };
-        }
-
-        /// <summary>
-        /// Forces logout by clearing all tokens
-        /// </summary>
-        /// <param name="serviceProvider">Service provider to resolve dependencies</param>
-        public static void ForceLogout(this IServiceProvider serviceProvider)
-        {
-            var tokenExpiryService = serviceProvider.GetService<ITokenExpiryService>();
-            tokenExpiryService?.ForceLogout();
-        }
-
-        /// <summary>
-        /// Forces token refresh by clearing cached tokens
-        /// </summary>
-        /// <param name="serviceProvider">Service provider to resolve dependencies</param>
-        public static void ForceTokenRefresh(this IServiceProvider serviceProvider)
-        {
-            var tokenStore = serviceProvider.GetService<IInternalUserTokenStore>();
-            tokenStore?.ClearToken();
-        }
-
-        /// <summary>
-        /// Checks if logout is required due to token expiry
-        /// </summary>
-        /// <param name="serviceProvider">Service provider to resolve dependencies</param>
-        /// <returns>True if the application should perform logout/redirect</returns>
-        public static bool IsLogoutRequired(this IServiceProvider serviceProvider)
-        {
-            var tokenExpiryService = serviceProvider.GetService<ITokenExpiryService>();
-            return tokenExpiryService?.IsLogoutRequired() ?? false;
-        }
-    }
 }

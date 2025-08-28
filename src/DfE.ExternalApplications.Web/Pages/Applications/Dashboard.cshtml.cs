@@ -133,8 +133,8 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
 
             logger.LogInformation("Created new application {ApplicationId} and cleared accumulated form data", response.ApplicationId);
 
-            httpContextAccessor.ForceTokenRefresh();
-
+            // Note: Token management now handled automatically by TokenManagementMiddleware
+            
             return RedirectToPage("/Applications/Contributors", new { referenceNumber = response.ApplicationReference });
         }
 
