@@ -6,4 +6,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="DfE.CoreLibs.Contracts" Version="1.0.43" />
+  </ItemGroup>
+
 </Project>

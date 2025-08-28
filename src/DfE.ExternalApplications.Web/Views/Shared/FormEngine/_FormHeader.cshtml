@@ -1,0 +1,13 @@
+@model DfE.ExternalApplications.Web.Pages.FormEngine.RenderFormModel
+@{
+    var applicationId = Context.Session.GetString("ApplicationId");
+    var leadApplicantName = Context.Session.GetString($"ApplicationLeadApplicantName_{applicationId}");
+    var leadApplicantEmail = Context.Session.GetString($"ApplicationLeadApplicantEmail_{applicationId}");
+    var applicationFormVersion = Context.Session.GetString($"ApplicationFormVersion_{applicationId}");
+}
+
+<div class="govuk-!-margin-bottom-6" style="border-left: 4px solid #b1b4b6; padding-left: 15px;">
+    <p class="govuk-body govuk-!-margin-bottom-1">Application reference: <strong>@Model.ReferenceNumber</strong></p>
+    <p class="govuk-body govuk-!-margin-bottom-0">Application form version: <strong>@applicationFormVersion</strong></p>
+    <p class="govuk-body govuk-!-margin-bottom-0">Lead applicant: <strong>@leadApplicantName</strong></p>
+</div>

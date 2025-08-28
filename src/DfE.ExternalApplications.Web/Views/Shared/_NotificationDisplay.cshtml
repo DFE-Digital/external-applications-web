@@ -1,0 +1,47 @@
+<div id="notification-container" class="govuk-!-margin-bottom-4"></div>
+
+<style>
+    .notification-item {
+        position: relative;
+        margin-bottom: 20px;
+    }
+    .notification-close-btn {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background-color: #0b0c0c; /* GOV.UK black */
+        color: #ffffff;
+        text-decoration: none;
+        font-weight: 700;
+        font-size: 14px;
+        line-height: 1;
+        z-index: 1;
+        cursor: pointer;
+    }
+    .notification-close-btn:hover {
+        background-color: #000000 !important;
+        color: #ffffff;
+        opacity: 0.9;
+    }
+    .notification-close-btn:focus {
+        outline: 3px solid #fd0; /* GOV.UK focus yellow */
+        outline-offset: 2px;
+    }
+    .govuk-notification-banner--warning {
+        border-color: #ffdd00;
+    }
+    .govuk-notification-banner--warning .govuk-notification-banner__header {
+        background-color: #ffdd00;
+        color: #0b0c0c;
+    }
+    #notification-container {
+        width: 100%;
+        margin-bottom: 30px;
+    }
+</style>

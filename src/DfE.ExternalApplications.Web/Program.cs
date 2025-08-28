@@ -9,9 +9,13 @@ using DfE.ExternalApplications.Infrastructure.Providers;
 using DfE.ExternalApplications.Infrastructure.Services;
 using DfE.ExternalApplications.Infrastructure.Stores;
 using DfE.ExternalApplications.Web.Authentication;
+using DfE.ExternalApplications.Web.Filters;
 using DfE.ExternalApplications.Web.Middleware;
 using DfE.ExternalApplications.Web.Security;
 using DfE.ExternalApplications.Web.Services;
+using DfE.ExternalApplications.Web.Interfaces;
+using DfE.ExternalApplications.Web.Extensions;
+using Microsoft.AspNetCore.ResponseCompression;
 using GovUk.Frontend.AspNetCore;
 using GovUK.Dfe.ExternalApplications.Api.Client;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
@@ -21,9 +25,8 @@ using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
-using DfE.CoreLibs.Security;
-using DfE.CoreLibs.Security.Configurations;
 using System.Diagnostics.CodeAnalysis;
+ 
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -53,6 +56,8 @@ if (isTestAuthEnabled && testAuthOptions != null)
 // Add services to the container.
 builder.Services.AddRazorPages(options =>
 {
+    options.Conventions.ConfigureFilter(new ExternalApiPageExceptionFilter());
+
     options.Conventions.AuthorizeFolder("/", "OpenIdConnectPolicy");
     options.Conventions.AllowAnonymousToPage("/Index");
     options.Conventions.AllowAnonymousToPage("/Logout");
@@ -66,12 +71,21 @@ builder.Services.AddRazorPages(options =>
 });
 
 // Add controllers for API endpoints
-builder.Services.AddControllers();
+builder.Services.AddControllers(options =>
+{
+    options.Filters.Add<ExternalApiMvcExceptionFilter>();
+});
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession();
 builder.Services.AddMemoryCache();
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.Providers.Add<BrotliCompressionProvider>();
+    options.Providers.Add<GzipCompressionProvider>();
+});
 
 // Configure authentication based on test mode
 if (isTestAuthEnabled)
@@ -116,22 +130,32 @@ builder.Services.AddScoped<ICustomClaimProvider, PermissionsClaimProvider>();
 // Add HttpClient for API calls
 builder.Services.AddHttpClient();
 
-builder.Services.AddExternalApplicationsApiClient<ITokensClient, TokensClient>(configuration);
-builder.Services.AddExternalApplicationsApiClient<IUsersClient, UsersClient>(configuration);
-builder.Services.AddExternalApplicationsApiClient<IApplicationsClient, ApplicationsClient>(configuration);
-builder.Services.AddExternalApplicationsApiClient<ITemplatesClient, TemplatesClient>(configuration);
+builder.Services.AddScoped<IContributorService, ContributorService>();
 
-builder.Services.AddGovUkFrontend();
+builder.Services.AddExternalApplicationsApiClients(configuration);
+
+builder.Services.AddGovUkFrontend(options => options.Rebrand = true);
 builder.Services.AddSingleton<IActionContextAccessor, ActionContextAccessor>();
 builder.Services.AddScoped<IHtmlHelper, HtmlHelper>();
-builder.Services.AddScoped<IFieldRendererService, FieldRendererService>();
+builder.Services.AddWebLayerServices();
 builder.Services.AddScoped<IApplicationResponseService, ApplicationResponseService>();
 
+// New refactored services for Clean Architecture
+builder.Services.AddScoped<IFieldFormattingService, FieldFormattingService>();
+builder.Services.AddScoped<ITemplateManagementService, TemplateManagementService>();
+builder.Services.AddScoped<IApplicationStateService, ApplicationStateService>();
+builder.Services.AddScoped<IFileUploadService, FileUploadService>();
+
 builder.Services.AddScoped<IAutocompleteService, AutocompleteService>();
-builder.Services.AddScoped<IApiErrorParser, ApiErrorParser>();
-builder.Services.AddScoped<IModelStateErrorHandler, ModelStateErrorHandler>();
+builder.Services.AddScoped<IComplexFieldConfigurationService, ComplexFieldConfigurationService>();
+builder.Services.AddScoped<IComplexFieldRendererFactory, ComplexFieldRendererFactory>();
+builder.Services.AddScoped<IComplexFieldRenderer, AutocompleteComplexFieldRenderer>();
+builder.Services.AddScoped<IComplexFieldRenderer, CompositeComplexFieldRenderer>();
+builder.Services.AddScoped<IComplexFieldRenderer, UploadComplexFieldRenderer>();
 
 builder.Services.AddSingleton<ITemplateStore, ApiTemplateStore>();
+
+ 
 
 // Add test token handler and services when test authentication is enabled
 if (isTestAuthEnabled)
@@ -150,18 +174,35 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
-    app.UseExceptionHandler("/Error");
+    //app.UseExceptionHandler("/Error");
     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        const int days = 30;
+        ctx.Context.Response.Headers["Cache-Control"] = $"public, max-age={days * 24 * 60 * 60}";
+    }
+});
 
 app.UseRouting();
+app.UseResponseCompression();
 
 app.UseSession();
 app.UseHostTemplateResolution();
+
+app.UseStatusCodePages(ctx =>
+{
+    var c = ctx.HttpContext.Response.StatusCode;
+    if (c == 401) ctx.HttpContext.Response.Redirect("/Error/Forbidden");
+    else if (c == 403) ctx.HttpContext.Response.Redirect("/Error/Forbidden");
+    return Task.CompletedTask;
+});
 
 app.UseAuthentication();
 app.UsePermissionsCache();
@@ -170,6 +211,8 @@ app.UseAuthorization();
 
 app.MapRazorPages();
 app.MapControllers();
+
+app.UseGovUkFrontend();
 
 await app.RunAsync();
 

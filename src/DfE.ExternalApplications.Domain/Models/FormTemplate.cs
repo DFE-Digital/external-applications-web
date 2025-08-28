@@ -15,8 +15,8 @@ namespace DfE.ExternalApplications.Domain.Models
         [JsonPropertyName("description")]
         public required string Description { get; set; }
 
-        [JsonPropertyName("taskGroups")]
-        public required List<TaskGroup> TaskGroups { get; set; }
+            [JsonPropertyName("taskGroups")]
+    public required List<TaskGroup> TaskGroups { get; set; }
 
         //[JsonPropertyName("conditionalLogic")]
         //public List<ConditionalLogic>? ConditionalLogic { get; set; }

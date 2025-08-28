@@ -1,5 +1,5 @@
 module "azure_container_apps_hosting" {
-  source = "github.com/DFE-Digital/terraform-azurerm-container-apps-hosting?ref=v1.19.1"
+  source = "github.com/DFE-Digital/terraform-azurerm-container-apps-hosting?ref=v2.4.0"
 
   environment    = local.environment
   project_name   = local.project_name
@@ -30,6 +30,12 @@ module "azure_container_apps_hosting" {
   enable_health_insights_api             = local.enable_health_insights_api
   health_insights_api_cors_origins       = local.health_insights_api_cors_origins
   health_insights_api_ipv4_allow_list    = local.health_insights_api_ipv4_allow_list
+
+  enable_redis_cache      = local.enable_redis_cache
+  redis_cache_sku         = local.redis_cache_sku
+  redis_cache_subnet_cidr = local.redis_cache_subnet_cidr
+
+  linux_function_apps = local.linux_function_apps
 
   enable_monitoring            = local.enable_monitoring
   monitor_email_receivers      = local.monitor_email_receivers

@@ -1,102 +1,116 @@
 using System.Text.Json;
+using DfE.ExternalApplications.Application.Interfaces;
+using DfE.ExternalApplications.Domain.Models;
 
 namespace DfE.ExternalApplications.Web.Services
 {
     public class AutocompleteService : IAutocompleteService
     {
         private readonly HttpClient _httpClient;
-        private readonly IConfiguration _configuration;
+        private readonly IComplexFieldConfigurationService _complexFieldConfigurationService;
         private readonly ILogger<AutocompleteService> _logger;
 
-        public AutocompleteService(HttpClient httpClient, IConfiguration configuration, ILogger<AutocompleteService> logger)
+        public AutocompleteService(
+            HttpClient httpClient, 
+            IComplexFieldConfigurationService complexFieldConfigurationService,
+            ILogger<AutocompleteService> logger)
         {
             _httpClient = httpClient;
-            _configuration = configuration;
+            _complexFieldConfigurationService = complexFieldConfigurationService;
             _logger = logger;
         }
 
-        public async Task<List<object>> SearchAsync(string endpoint, string query)
+        public async Task<List<object>> SearchAsync(string complexFieldId, string query)
         {
-            if (string.IsNullOrWhiteSpace(query) || query.Length < 3)
+            _logger.LogInformation("AutocompleteService.SearchAsync called with complexFieldId: {ComplexFieldId}, query: {Query}", complexFieldId, query);
+            
+            if (string.IsNullOrWhiteSpace(query))
             {
+                _logger.LogDebug("Query is empty, returning empty results");
                 return new List<object>();
             }
 
-            if (string.IsNullOrWhiteSpace(endpoint))
+            var configuration = _complexFieldConfigurationService.GetConfiguration(complexFieldId);
+            _logger.LogInformation("Retrieved configuration for complexFieldId: {ComplexFieldId}, ApiEndpoint: {ApiEndpoint}", complexFieldId, configuration.ApiEndpoint);
+            
+            if (string.IsNullOrWhiteSpace(configuration.ApiEndpoint))
             {
-                _logger.LogWarning("No endpoint provided for autocomplete search");
+                _logger.LogWarning("No API endpoint configured for complex field: {ComplexFieldId}", complexFieldId);
+                return new List<object>();
+            }
+
+            if (query.Length < configuration.MinLength)
+            {
+                _logger.LogDebug("Query too short for complex field {ComplexFieldId}: {QueryLength} < {MinLength}", 
+                    complexFieldId, query.Length, configuration.MinLength);
                 return new List<object>();
             }
 
             try
             {
                 // Build the request URL with query parameter
-                var requestUrl = BuildRequestUrl(endpoint, query);
+                var requestUrl = BuildRequestUrl(configuration.ApiEndpoint, query);
                 
-                _logger.LogDebug("Making autocomplete request to: {RequestUrl}", requestUrl);
+                _logger.LogInformation("Making autocomplete request to: {RequestUrl} for complex field: {ComplexFieldId}", requestUrl, complexFieldId);
 
                 // Create the request
                 using var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
                 
-                // Add authentication headers if configured for this endpoint
-                AddAuthenticationHeaders(request, endpoint);
+                // Add authentication headers if configured
+                AddAuthenticationHeaders(request, configuration);
 
                 // Make the API call
                 var response = await _httpClient.SendAsync(request);
                 
-                _logger.LogDebug("HTTP response status: {StatusCode} for endpoint: {Endpoint}", response.StatusCode, endpoint);
+                _logger.LogDebug("HTTP response status: {StatusCode} for complex field: {ComplexFieldId}", response.StatusCode, complexFieldId);
                 
                 if (!response.IsSuccessStatusCode)
                 {
                     var errorContent = await response.Content.ReadAsStringAsync();
-                    _logger.LogWarning("Autocomplete API call failed with status {StatusCode} for endpoint: {Endpoint}. Response: {ErrorContent}", response.StatusCode, endpoint, errorContent);
+                    _logger.LogWarning("Autocomplete API call failed with status {StatusCode} for complex field: {ComplexFieldId}. Response: {ErrorContent}", 
+                        response.StatusCode, complexFieldId, errorContent);
                     return new List<object>();
                 }
 
                 var jsonResponse = await response.Content.ReadAsStringAsync();
+                _logger.LogDebug("Raw JSON response for complex field {ComplexFieldId}: {JsonResponse}", complexFieldId, jsonResponse);
+                
                 var results = ParseResponse(jsonResponse);
+                
+                // Sort results alphabetically
+                var sortedResults = SortResultsAlphabetically(results);
 
-                _logger.LogDebug("Found {Count} results for query: {Query} from endpoint: {Endpoint}", results.Count, query, endpoint);
-                return results;
+                _logger.LogDebug("Found {Count} results for query: {Query} from complex field: {ComplexFieldId}", 
+                    sortedResults.Count, query, complexFieldId);
+                return sortedResults;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error calling autocomplete API for endpoint: {Endpoint}, query: {Query}", endpoint, query);
+                _logger.LogError(ex, "Error calling autocomplete API for complex field: {ComplexFieldId}, query: {Query}", complexFieldId, query);
                 return new List<object>();
             }
         }
-
+       
         private string BuildRequestUrl(string endpoint, string query)
         {
             var encodedQuery = Uri.EscapeDataString(query);
             
-            // If endpoint contains {0} placeholders, replace them with the query
             if (endpoint.Contains("{0}"))
             {
-                return endpoint.Split("{0}").Aggregate((current, next) => current + encodedQuery + next);
+                return endpoint.Replace("{0}", encodedQuery);
             }
             
-            // Otherwise, append as a query parameter
             var separator = endpoint.Contains("?") ? "&" : "?";
             return $"{endpoint}{separator}q={encodedQuery}";
         }
 
-        private void AddAuthenticationHeaders(HttpRequestMessage request, string endpoint)
+        private void AddAuthenticationHeaders(HttpRequestMessage request, ComplexFieldConfiguration configuration)
         {
-            // Check if this endpoint requires API key authentication
-            // This could be made more sophisticated with endpoint-specific config
-            var hostKey = $"ApiKeys:AcademiesApi";
-            var apiKey = _configuration[hostKey];
-            
-            _logger.LogDebug("Looking for API key with configuration key: {HostKey}", hostKey);
-            
-            if (!string.IsNullOrEmpty(apiKey))
+            if (!string.IsNullOrEmpty(configuration.ApiKey))
             {
-                request.Headers.Add("ApiKey", apiKey);
+                request.Headers.Add("ApiKey", configuration.ApiKey);
+                _logger.LogDebug("Added API key authentication header for complex field");
             }
-            
-            // Could add other authentication methods here based on configuration
-            // e.g., Bearer tokens, Basic auth, etc.
         }
 
         private List<object> ParseResponse(string jsonResponse)
@@ -215,6 +229,46 @@ namespace DfE.ExternalApplications.Web.Services
             }
             
             return string.Empty;
+        }
+
+        /// <summary>
+        /// Sorts autocomplete results alphabetically by their display name
+        /// </summary>
+        /// <param name="results">The list of results to sort</param>
+        /// <returns>A new list with results sorted alphabetically</returns>
+        private List<object> SortResultsAlphabetically(List<object> results)
+        {
+            return results.OrderBy(result => GetDisplayTextForSorting(result), StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
+        /// <summary>
+        /// Extracts the display text from a result object for sorting purposes
+        /// </summary>
+        /// <param name="result">The result object (either string or Dictionary)</param>
+        /// <returns>The display text to use for sorting</returns>
+        private string GetDisplayTextForSorting(object result)
+        {
+            if (result is string stringResult)
+            {
+                return stringResult;
+            }
+            
+            if (result is Dictionary<string, object> dictResult)
+            {
+                // Try to get the display name from common properties
+                var displayProperties = new[] { "name", "title", "label", "value", "displayName", "groupName", "text" };
+                
+                foreach (var propertyName in displayProperties)
+                {
+                    if (dictResult.TryGetValue(propertyName, out var value) && value != null)
+                    {
+                        return value.ToString() ?? string.Empty;
+                    }
+                }
+            }
+            
+            // Fallback to string representation
+            return result?.ToString() ?? string.Empty;
         }
     }
 } 
