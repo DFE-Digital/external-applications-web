@@ -56,32 +56,64 @@ public class OidcAuthenticationStrategy(ILogger<OidcAuthenticationStrategy> logg
 
     public async Task<bool> CanRefreshTokenAsync(HttpContext context)
     {
-        logger.LogDebug(">>>>>>>>>> AuthStrategy >>> OIDC scheme CANNOT refresh - forcing logout when tokens expire (as per requirement)");
-        
-        // According to requirement: when tokens are within 5 minutes of expiry, force logout, don't refresh
-        return await Task.FromResult(false);
+        try
+        {
+            // Get current token to check its expiry
+            var tokenInfo = await GetExternalIdpTokenAsync(context);
+            
+            if (!tokenInfo.IsPresent || !tokenInfo.ExpiryTime.HasValue)
+            {
+                logger.LogDebug(">>>>>>>>>> AuthStrategy >>> Cannot refresh - no valid token found");
+                return false;
+            }
+            
+            var timeUntilExpiry = tokenInfo.ExpiryTime.Value - DateTime.UtcNow;
+            var minutesRemaining = timeUntilExpiry.TotalMinutes;
+            
+            // Allow refresh if token is in the 5-10 minute window
+            // - More than 10 minutes: no refresh needed
+            // - 5-10 minutes: allow refresh to get fresh token  
+            // - Less than 5 minutes: force logout (handled by TokenInfo.IsExpired)
+            if (minutesRemaining > 5 && minutesRemaining <= 10)
+            {
+                logger.LogInformation(">>>>>>>>>> AuthStrategy >>> Token expires in {Minutes:F1} minutes - ALLOWING refresh during 5-10 minute window", minutesRemaining);
+                // Note: Actual OIDC refresh implementation needed in RefreshExternalIdpTokenAsync
+                return true; 
+            }
+            
+            if (minutesRemaining <= 5)
+            {
+                logger.LogWarning(">>>>>>>>>> AuthStrategy >>> Token expires in {Minutes:F1} minutes - FORCING logout (less than 5 minutes remaining)", minutesRemaining);
+            }
+            else
+            {
+                logger.LogDebug(">>>>>>>>>> AuthStrategy >>> Token expires in {Minutes:F1} minutes - no refresh needed yet", minutesRemaining);
+            }
+            
+            return false;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, ">>>>>>>>>> AuthStrategy >>> Error checking if OIDC token can be refreshed");
+            return false;
+        }
     }
 
     public async Task<bool> RefreshExternalIdpTokenAsync(HttpContext context)
     {
-        logger.LogInformation(">>>>>>>>>> AuthStrategy >>> Refresh called but will NOT refresh - forcing logout instead (as per requirement)");
-        
-        // According to requirement: when tokens expire, force logout, don't refresh
-        // This method should never be called since CanRefreshTokenAsync returns false
-        return false;
+        logger.LogInformation(">>>>>>>>>> AuthStrategy >>> OIDC refresh called during 5-10 minute window");
         
         try
         {
             var refreshToken = await context.GetTokenAsync("refresh_token");
             if (string.IsNullOrEmpty(refreshToken))
             {
-                logger.LogWarning(">>>>>>>>>> AuthStrategy >>> No refresh token available for OIDC");
+                logger.LogWarning(">>>>>>>>>> AuthStrategy >>> No refresh token available for OIDC - cannot refresh");
                 return false;
             }
 
             // For OIDC, we typically need to use the refresh token to get new tokens
             // This would involve calling the token endpoint of the OIDC provider
-            // For now, log that this is not implemented but the framework is in place
             logger.LogWarning(">>>>>>>>>> AuthStrategy >>> OIDC token refresh not yet implemented - would use refresh_token: {RefreshTokenPresent}", 
                 !string.IsNullOrEmpty(refreshToken));
             
@@ -92,7 +124,8 @@ public class OidcAuthenticationStrategy(ILogger<OidcAuthenticationStrategy> logg
             // 3. Update the authentication properties
             // 4. Re-sign in the user with new tokens
             
-            return await Task.FromResult(false);
+            logger.LogWarning(">>>>>>>>>> AuthStrategy >>> OIDC refresh logic not implemented - falling back to force logout");
+            return false;
         }
         catch (Exception ex)
         {

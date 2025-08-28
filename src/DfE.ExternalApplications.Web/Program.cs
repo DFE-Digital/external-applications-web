@@ -9,16 +9,12 @@ using DfE.ExternalApplications.Infrastructure.Providers;
 using DfE.ExternalApplications.Infrastructure.Services;
 using DfE.ExternalApplications.Infrastructure.Stores;
 using DfE.ExternalApplications.Web.Authentication;
+using DfE.ExternalApplications.Web.Extensions;
 using DfE.ExternalApplications.Web.Filters;
 using DfE.ExternalApplications.Web.Middleware;
 using DfE.ExternalApplications.Web.Security;
 using DfE.ExternalApplications.Web.Services;
-using DfE.ExternalApplications.Web.Interfaces;
-using DfE.ExternalApplications.Web.Extensions;
-using Microsoft.AspNetCore.ResponseCompression;
 using GovUk.Frontend.AspNetCore;
-using GovUK.Dfe.ExternalApplications.Api.Client;
-using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using GovUK.Dfe.ExternalApplications.Api.Client.Extensions;
 using GovUK.Dfe.ExternalApplications.Api.Client.Security;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -26,8 +22,8 @@ using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using Microsoft.AspNetCore.ResponseCompression;
 using System.Diagnostics.CodeAnalysis;
-using Microsoft.AspNetCore.Authentication;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -49,7 +45,7 @@ if (isTestAuthEnabled && testAuthOptions != null)
         options.SecretKey = testAuthOptions.JwtSigningKey;
         options.Issuer = testAuthOptions.JwtIssuer;
         options.Audience = testAuthOptions.JwtAudience;
-        options.TokenLifetimeMinutes = 6; // 1 hour default
+        options.TokenLifetimeMinutes = 60; // 1 hour default
     });
 }
 
@@ -222,7 +218,7 @@ app.UseStatusCodePages(ctx =>
 });
 
 app.UseAuthentication();
-app.UseTokenManagementMiddleware(); // New clean architecture middleware
+app.UseTokenManagementMiddleware();
 
 app.UsePermissionsCache();
 app.UseAuthorization();

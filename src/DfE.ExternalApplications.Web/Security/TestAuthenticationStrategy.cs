@@ -73,18 +73,51 @@ public class TestAuthenticationStrategy(
 
     public async Task<bool> CanRefreshTokenAsync(HttpContext context)
     {
-        logger.LogDebug(">>>>>>>>>> AuthStrategy >>> Test scheme CANNOT refresh - forcing logout when tokens expire (as per requirement)");
-        // According to requirement: when tokens are within 5 minutes of expiry, force logout, don't refresh
-        return await Task.FromResult(false);
+        try
+        {
+            // Get current token to check its expiry
+            var tokenInfo = await GetExternalIdpTokenAsync(context);
+            
+            if (!tokenInfo.IsPresent || !tokenInfo.ExpiryTime.HasValue)
+            {
+                logger.LogDebug(">>>>>>>>>> AuthStrategy >>> Cannot refresh - no valid token found");
+                return false;
+            }
+            
+            var timeUntilExpiry = tokenInfo.ExpiryTime.Value - DateTime.UtcNow;
+            var minutesRemaining = timeUntilExpiry.TotalMinutes;
+            
+            // Allow refresh if token is in the 5-10 minute window
+            // - More than 10 minutes: no refresh needed
+            // - 5-10 minutes: allow refresh to get fresh token  
+            // - Less than 5 minutes: force logout (handled by TokenInfo.IsExpired)
+            if (minutesRemaining > 5 && minutesRemaining <= 10)
+            {
+                logger.LogInformation(">>>>>>>>>> AuthStrategy >>> Token expires in {Minutes:F1} minutes - ALLOWING refresh during 5-10 minute window", minutesRemaining);
+                return true;
+            }
+            
+            if (minutesRemaining <= 5)
+            {
+                logger.LogWarning(">>>>>>>>>> AuthStrategy >>> Token expires in {Minutes:F1} minutes - FORCING logout (less than 5 minutes remaining)", minutesRemaining);
+            }
+            else
+            {
+                logger.LogDebug(">>>>>>>>>> AuthStrategy >>> Token expires in {Minutes:F1} minutes - no refresh needed yet", minutesRemaining);
+            }
+            
+            return false;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, ">>>>>>>>>> AuthStrategy >>> Error checking if token can be refreshed");
+            return false;
+        }
     }
 
     public async Task<bool> RefreshExternalIdpTokenAsync(HttpContext context)
     {
-        logger.LogInformation(">>>>>>>>>> AuthStrategy >>> Refresh called but will NOT refresh - forcing logout instead (as per requirement)");
-        
-        // According to requirement: when tokens expire, force logout, don't refresh
-        // This method should never be called since CanRefreshTokenAsync returns false
-        return false;
+        logger.LogInformation(">>>>>>>>>> AuthStrategy >>> Starting token refresh during 5-10 minute window");
         
         try
         {
@@ -113,7 +146,7 @@ public class TestAuthenticationStrategy(
             // Update the authentication context with the new token
             await UpdateAuthenticationTokenAsync(context, newToken);
             
-            logger.LogInformation(">>>>>>>>>> AuthStrategy >>> Test token refresh successful for user: {UserId}", userId);
+            logger.LogInformation(">>>>>>>>>> AuthStrategy >>> Test token refresh successful for user: {UserId} - fresh token generated", userId);
             return true;
         }
         catch (Exception ex)
