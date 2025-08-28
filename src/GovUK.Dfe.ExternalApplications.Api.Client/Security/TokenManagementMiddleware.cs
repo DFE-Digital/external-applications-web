@@ -58,12 +58,25 @@ public class TokenManagementMiddleware(RequestDelegate next, ILogger<TokenManage
                     // For web requests, force immediate logout and redirect
                     _logger.LogWarning(">>>>>>>>>> TokenManagement >>> Forcing web logout and redirect for user: {UserName}", userName);
                     
-                    // Sign out from both cookie and OIDC schemes for complete logout
-                    await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-                    await context.SignOutAsync(OpenIdConnectDefaults.AuthenticationScheme);
+                    // Get authentication scheme to determine which schemes to sign out from
+                    var authScheme = context.User?.Identity?.AuthenticationType;
+                    
+                    // Sign out from appropriate schemes based on current authentication
+                    if (authScheme == "AuthenticationTypes.Federation")
+                    {
+                        // For OIDC, sign out from both cookie and OIDC schemes
+                        await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+                        await context.SignOutAsync(OpenIdConnectDefaults.AuthenticationScheme);
+                        _logger.LogInformation(">>>>>>>>>> TokenManagement >>> Signed out from both Cookie and OIDC schemes");
+                    }
+                    else
+                    {
+                        // For other schemes (like TestAuthentication), only sign out from default scheme
+                        await context.SignOutAsync();
+                        _logger.LogInformation(">>>>>>>>>> TokenManagement >>> Signed out from default authentication scheme: {Scheme}", authScheme);
+                    }
                     
                     // Clear authentication-specific session data to prevent re-authentication
-                    var authScheme = context.User?.Identity?.AuthenticationType;
                     if (authScheme == "TestAuthentication")
                     {
                         // Clear TestAuth session data to prevent infinite logout loop
