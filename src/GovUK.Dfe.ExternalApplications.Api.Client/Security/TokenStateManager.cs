@@ -214,7 +214,9 @@ public class TokenStateManager(
             return false;
         }
 
-        var strategy = GetAuthenticationStrategy(httpContext.User?.Identity?.AuthenticationType);
+        // Use mapped authentication scheme for consistency
+        var mappedScheme = GetActualAuthenticationScheme(httpContext);
+        var strategy = GetAuthenticationStrategy(mappedScheme);
         var userId = strategy?.GetUserId(httpContext);
 
         if (string.IsNullOrEmpty(userId))
@@ -252,7 +254,9 @@ public class TokenStateManager(
             return false;
         }
 
-        var strategy = GetAuthenticationStrategy(httpContext.User?.Identity?.AuthenticationType);
+        // Use mapped authentication scheme for consistency  
+        var mappedScheme = GetActualAuthenticationScheme(httpContext);
+        var strategy = GetAuthenticationStrategy(mappedScheme);
         if (strategy == null)
         {
             logger.LogWarning(">>>>>>>>>> TokenState >>> Cannot refresh tokens - No authentication strategy");

@@ -2,6 +2,8 @@ using System;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
@@ -56,8 +58,9 @@ public class TokenManagementMiddleware(RequestDelegate next, ILogger<TokenManage
                     // For web requests, force immediate logout and redirect
                     _logger.LogWarning(">>>>>>>>>> TokenManagement >>> Forcing web logout and redirect for user: {UserName}", userName);
                     
-                    // Sign out the user from authentication
-                    await context.SignOutAsync();
+                    // Sign out from both cookie and OIDC schemes for complete logout
+                    await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+                    await context.SignOutAsync(OpenIdConnectDefaults.AuthenticationScheme);
                     
                     // Clear authentication-specific session data to prevent re-authentication
                     var authScheme = context.User?.Identity?.AuthenticationType;
@@ -67,6 +70,12 @@ public class TokenManagementMiddleware(RequestDelegate next, ILogger<TokenManage
                         context.Session.Remove("TestAuth:Email");
                         context.Session.Remove("TestAuth:Token");
                         _logger.LogInformation(">>>>>>>>>> TokenManagement >>> Cleared TestAuth session data for logout");
+                    }
+                    else if (authScheme == "AuthenticationTypes.Federation")
+                    {
+                        // Clear OIDC-related data to prevent re-authentication
+                        context.Session.Clear(); // Clear entire session for OIDC
+                        _logger.LogInformation(">>>>>>>>>> TokenManagement >>> Cleared OIDC session data for logout");
                     }
                     
                     // Redirect to home page or login page

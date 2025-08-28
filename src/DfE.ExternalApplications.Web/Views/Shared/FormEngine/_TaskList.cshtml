@@ -1,8 +1,15 @@
+@using System.Security.Claims
 @model DfE.ExternalApplications.Web.Pages.FormEngine.RenderFormModel
 @{
     var applicationId = Context.Session.GetString("ApplicationId");
     var leadApplicantEmail = Context.Session.GetString($"ApplicationLeadApplicantEmail_{applicationId}");
-    var currentUser = Context.User.Claims.First(c => c.Type == "email");
+    
+    // Use robust claim checking like authentication strategies do
+    var currentUserEmail = Context.User?.FindFirst(ClaimTypes.Email)?.Value 
+                        ?? Context.User?.FindFirst("email")?.Value
+                        ?? Context.User?.FindFirst("sub")?.Value
+                        ?? Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                        ?? Context.User?.Identity?.Name;
 }
 
 <div class="govuk-grid-row">
@@ -68,7 +75,7 @@
         </div>
     </div>
 
-    @if (currentUser.Value == leadApplicantEmail)
+    @if (currentUserEmail == leadApplicantEmail)
     {
         <div class="govuk-grid-column-one-third">
             <div class="govuk-!-margin-top-6">
