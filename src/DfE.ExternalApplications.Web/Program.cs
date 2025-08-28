@@ -20,14 +20,14 @@ using GovUk.Frontend.AspNetCore;
 using GovUK.Dfe.ExternalApplications.Api.Client;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using GovUK.Dfe.ExternalApplications.Api.Client.Extensions;
+using GovUK.Dfe.ExternalApplications.Api.Client.Security;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using System.Diagnostics.CodeAnalysis;
- 
-
+using Microsoft.AspNetCore.Authentication;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -49,7 +49,7 @@ if (isTestAuthEnabled && testAuthOptions != null)
         options.SecretKey = testAuthOptions.JwtSigningKey;
         options.Issuer = testAuthOptions.JwtIssuer;
         options.Audience = testAuthOptions.JwtAudience;
-        options.TokenLifetimeMinutes = 60; // 1 hour default
+        options.TokenLifetimeMinutes = 6; // 1 hour default
     });
 }
 
@@ -134,6 +134,19 @@ builder.Services.AddScoped<IContributorService, ContributorService>();
 
 builder.Services.AddExternalApplicationsApiClients(configuration);
 
+// Register authentication strategies in consuming app (Clean Architecture)
+// These were moved out of the library to remove coupling
+if (isTestAuthEnabled)
+{
+    // Register TestAuthenticationStrategy when test auth is enabled
+    builder.Services.AddScoped<IAuthenticationSchemeStrategy, TestAuthenticationStrategy>();
+}
+else
+{
+    // Register OidcAuthenticationStrategy when OIDC is enabled
+    builder.Services.AddScoped<IAuthenticationSchemeStrategy, OidcAuthenticationStrategy>();
+}
+
 builder.Services.AddGovUkFrontend(options => options.Rebrand = true);
 builder.Services.AddSingleton<IActionContextAccessor, ActionContextAccessor>();
 builder.Services.AddScoped<IHtmlHelper, HtmlHelper>();
@@ -209,7 +222,9 @@ app.UseStatusCodePages(ctx =>
 });
 
 app.UseAuthentication();
-app.UseTokenExpiryCheck();
+//app.UseTokenExpiryCheck();
+app.UseTokenExpiryMiddleware(); // Add this line
+
 app.UsePermissionsCache();
 app.UseAuthorization();
 
@@ -217,6 +232,51 @@ app.MapRazorPages();
 app.MapControllers();
 
 app.UseGovUkFrontend();
+
+app.UseTokenExpiryHandler(async (context, expiryInfo) =>
+{
+    // Check if we've already processed logout for this request to prevent loops
+    if (context.Items.ContainsKey("LogoutProcessed"))
+    {
+        context.Response.Redirect("/");
+        return;
+    }
+
+    // Mark that we're processing logout
+    context.Items["LogoutProcessed"] = true;
+
+    try
+    {
+        // Handle test authentication if available
+        var testAuth = context.RequestServices.GetService<ITestAuthenticationService>();
+        if (testAuth is not null)
+        {
+            await testAuth.SignOutAsync(context);
+        }
+
+        // Sign out of cookie authentication
+        await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+
+        // Also sign out of OpenId Connect if you're using it
+        // Uncomment this if you need to clear the external authentication
+        //await context.SignOutAsync(OpenIdConnectDefaults.AuthenticationScheme, new AuthenticationProperties
+        //{
+        //    RedirectUri = "/" // Specify where to redirect after logout
+        //});
+
+        // Clear any additional session data or custom authentication
+        context.Session?.Clear(); // If you're using sessions
+
+        // Instead of direct redirect, use a proper logout page or add query parameter
+        context.Response.Redirect("/");
+    }
+    catch (Exception ex)
+    {
+
+        // Fallback redirect
+        context.Response.Redirect("/?logout=error");
+    }
+});
 
 await app.RunAsync();
 

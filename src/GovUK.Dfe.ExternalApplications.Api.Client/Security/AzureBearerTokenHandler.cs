@@ -1,0 +1,77 @@
+using System;
+using System.Diagnostics.CodeAnalysis;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+
+namespace GovUK.Dfe.ExternalApplications.Api.Client.Security;
+
+[ExcludeFromCodeCoverage]
+public class AzureBearerTokenHandler(
+    ITokenAcquisitionService tokenAcquisitionService,
+    ILogger<AzureBearerTokenHandler> logger)
+    : DelegatingHandler
+{
+    protected override async Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request,
+        CancellationToken cancellationToken)
+    {
+        logger.LogDebug(">>>>>>>>>> Authentication >>> AzureBearerTokenHandler.SendAsync called for request: {Method} {Uri}", 
+            request.Method, request.RequestUri);
+
+        try
+        {
+            // Always use Azure token for tokens client authentication
+            logger.LogDebug(">>>>>>>>>> Authentication >>> Getting Azure token for tokens client authentication");
+            
+            var azureToken = await tokenAcquisitionService.GetTokenAsync();
+            
+            if (string.IsNullOrEmpty(azureToken))
+            {
+                logger.LogError(">>>>>>>>>> Authentication >>> Azure token acquisition returned null or empty token for request: {Method} {Uri}", 
+                    request.Method, request.RequestUri);
+                throw new InvalidOperationException("Azure token acquisition returned null or empty token");
+            }
+
+            logger.LogDebug(">>>>>>>>>> Authentication >>> Azure token acquired successfully, length: {TokenLength} chars", 
+                azureToken.Length);
+
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", azureToken);
+            
+            logger.LogDebug(">>>>>>>>>> Authentication >>> Authorization header set with Azure Bearer token for request: {Method} {Uri}", 
+                request.Method, request.RequestUri);
+            
+            var response = await base.SendAsync(request, cancellationToken);
+            
+            logger.LogInformation(">>>>>>>>>> Authentication >>> Request completed with status: {StatusCode} for {Method} {Uri}", 
+                response.StatusCode, request.Method, request.RequestUri);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                logger.LogWarning(">>>>>>>>>> Authentication >>> Request failed with status: {StatusCode} {ReasonPhrase} for {Method} {Uri}", 
+                    response.StatusCode, response.ReasonPhrase, request.Method, request.RequestUri);
+                
+                if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                {
+                    logger.LogError(">>>>>>>>>> Authentication >>> 401 Unauthorized response received - Azure token may be invalid or expired for {Method} {Uri}", 
+                        request.Method, request.RequestUri);
+                }
+                else if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                {
+                    logger.LogError(">>>>>>>>>> Authentication >>> 403 Forbidden response received - Azure token may lack required permissions for {Method} {Uri}", 
+                        request.Method, request.RequestUri);
+                }
+            }
+            
+            return response;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, ">>>>>>>>>> Authentication >>> Exception in AzureBearerTokenHandler for request: {Method} {Uri}", 
+                request.Method, request.RequestUri);
+            throw;
+        }
+    }
+} 
