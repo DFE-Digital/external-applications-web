@@ -9,25 +9,21 @@ using DfE.ExternalApplications.Infrastructure.Providers;
 using DfE.ExternalApplications.Infrastructure.Services;
 using DfE.ExternalApplications.Infrastructure.Stores;
 using DfE.ExternalApplications.Web.Authentication;
+using DfE.ExternalApplications.Web.Extensions;
 using DfE.ExternalApplications.Web.Filters;
 using DfE.ExternalApplications.Web.Middleware;
 using DfE.ExternalApplications.Web.Security;
 using DfE.ExternalApplications.Web.Services;
-using DfE.ExternalApplications.Web.Interfaces;
-using DfE.ExternalApplications.Web.Extensions;
-using Microsoft.AspNetCore.ResponseCompression;
 using GovUk.Frontend.AspNetCore;
-using GovUK.Dfe.ExternalApplications.Api.Client;
-using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using GovUK.Dfe.ExternalApplications.Api.Client.Extensions;
+using GovUK.Dfe.ExternalApplications.Api.Client.Security;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using Microsoft.AspNetCore.ResponseCompression;
 using System.Diagnostics.CodeAnalysis;
- 
-
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -134,6 +130,19 @@ builder.Services.AddScoped<IContributorService, ContributorService>();
 
 builder.Services.AddExternalApplicationsApiClients(configuration);
 
+// Register authentication strategies in consuming app (Clean Architecture)
+// These were moved out of the library to remove coupling
+if (isTestAuthEnabled)
+{
+    // Register TestAuthenticationStrategy when test auth is enabled
+    builder.Services.AddScoped<IAuthenticationSchemeStrategy, TestAuthenticationStrategy>();
+}
+else
+{
+    // Register OidcAuthenticationStrategy when OIDC is enabled
+    builder.Services.AddScoped<IAuthenticationSchemeStrategy, OidcAuthenticationStrategy>();
+}
+
 builder.Services.AddGovUkFrontend(options => options.Rebrand = true);
 builder.Services.AddSingleton<IActionContextAccessor, ActionContextAccessor>();
 builder.Services.AddScoped<IHtmlHelper, HtmlHelper>();
@@ -209,7 +218,7 @@ app.UseStatusCodePages(ctx =>
 });
 
 app.UseAuthentication();
-app.UseTokenExpiryCheck();
+app.UseTokenManagementMiddleware();
 app.UsePermissionsCache();
 app.UseAuthorization();
 
@@ -217,6 +226,9 @@ app.MapRazorPages();
 app.MapControllers();
 
 app.UseGovUkFrontend();
+
+// TokenManagementMiddleware now handles all logout logic internally
+// No additional token expiry handlers needed
 
 await app.RunAsync();
 
