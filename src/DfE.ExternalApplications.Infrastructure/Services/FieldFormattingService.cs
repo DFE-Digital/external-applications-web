@@ -94,7 +94,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             // Find the field in the template
             var field = template?.TaskGroups?
                 .SelectMany(g => g.Tasks)
-                .SelectMany(t => t.Pages)
+                .SelectMany(t => t.Pages ?? new List<Domain.Models.Page>())
                 .SelectMany(p => p.Fields)
                 .FirstOrDefault(f => f.FieldId == fieldId);
 
@@ -114,7 +114,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             // Find the field in the template
             var field = template?.TaskGroups?
                 .SelectMany(g => g.Tasks)
-                .SelectMany(t => t.Pages)
+                .SelectMany(t => t.Pages ?? new List<Domain.Models.Page>())
                 .SelectMany(p => p.Fields)
                 .FirstOrDefault(f => f.FieldId == fieldId);
 

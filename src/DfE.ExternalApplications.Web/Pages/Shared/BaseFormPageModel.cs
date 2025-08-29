@@ -28,7 +28,7 @@ namespace DfE.ExternalApplications.Web.Pages.Shared
         public string TemplateId { get; set; }
         public Guid? ApplicationId { get; set; }
         public Dictionary<string, object> FormData { get; set; } = new();
-        public string ApplicationStatus { get; set; } = "In progress";
+        public string ApplicationStatus { get; set; } = "InProgress";
 
         // Current application data for template schema access
         protected ApplicationDto? CurrentApplication { get; set; }

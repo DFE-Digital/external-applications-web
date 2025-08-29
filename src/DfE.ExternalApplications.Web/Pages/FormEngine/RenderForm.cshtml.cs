@@ -27,18 +27,23 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         IAutocompleteService autocompleteService,
         IFileUploadService fileUploadService,
         IApplicationsClient applicationsClient,
+        IConditionalLogicOrchestrator conditionalLogicOrchestrator,
         ILogger<RenderFormModel> logger)
         : BaseFormEngineModel(renderer, applicationResponseService, fieldFormattingService, templateManagementService,
             applicationStateService, formStateManager, formNavigationService, formDataManager, formValidationOrchestrator, formConfigurationService, logger)
     {
         private readonly IApplicationsClient _applicationsClient = applicationsClient;
+        private readonly IConditionalLogicOrchestrator _conditionalLogicOrchestrator = conditionalLogicOrchestrator;
 
         [BindProperty] public Dictionary<string, object> Data { get; set; } = new();
 
         [BindProperty] public bool IsTaskCompleted { get; set; }
-        
+
         // Success message for collection operations
         [TempData] public string? SuccessMessage { get; set; }
+
+        // Conditional logic state for the current form
+        public FormConditionalState? ConditionalState { get; set; }
 
         public async Task OnGetAsync()
         {
@@ -67,13 +72,13 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
 
             if (!string.IsNullOrEmpty(CurrentPageId))
-                {
+            {
                     if (TryParseFlowRoute(CurrentPageId, out var flowId, out var instanceId, out var flowPageId))
                     {
                         // Sub-flow: initialize task and resolve page from task's pages
                         var (group, task) = InitializeCurrentTask(TaskId);
-                        CurrentGroup = group;
-                        CurrentTask = task;
+                CurrentGroup = group;
+                CurrentTask = task;
 
                         // Find the correct flow and its pages
                         var flowPages = GetFlowPages(task, flowId);
@@ -82,7 +87,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                             var page = string.IsNullOrEmpty(flowPageId) ? flowPages.FirstOrDefault() : flowPages.FirstOrDefault(p => p.PageId == flowPageId);
                             if (page != null)
                             {
-                                CurrentPage = page;
+                CurrentPage = page;
                                 CurrentFormState = FormState.FormPage; // Render as a normal page
                                 
                                 // If editing existing item, load its data into form fields
@@ -90,14 +95,17 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                 LoadExistingFlowItemData(flowId, instanceId);
                                 
                                 // Also load any in-progress data for this specific flow instance
+                                // IMPORTANT: Progress data takes priority over existing item data as it contains the latest user changes
                                 var progressData = LoadFlowProgress(flowId, instanceId);
                                 foreach (var kvp in progressData)
                                 {
-                                    if (!Data.ContainsKey(kvp.Key)) // Don't overwrite data from existing item
-                                    {
-                                        Data[kvp.Key] = kvp.Value;
-                                    }
+                                    Data[kvp.Key] = kvp.Value; // Always overwrite with progress data (latest changes)
                                 }
+                                
+                                _logger.LogInformation(">>>>>>>>>>>>SUB-FLOW GET: loaded data for flow {FlowId}, instance {InstanceId}, page {PageId}. Data: {Data}", 
+                                    flowId, instanceId, flowPageId, string.Join(", ", Data.Select(kv => $"{kv.Key}:{kv.Value}")));
+                                _logger.LogInformation(">>>>>>>>>>>>SUB-FLOW GET: existingMember field value = '{ExistingMemberValue}'", 
+                                    Data.TryGetValue("existingMember", out var existingMemberVal) ? existingMemberVal : "NOT_FOUND");
                             }
                         }
                     }
@@ -130,7 +138,17 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             // Load accumulated form data from session to pre-populate fields (only if not in a sub-flow)
             if (string.IsNullOrEmpty(CurrentPageId) || !CurrentPageId.Contains("flow/"))
             {
-            LoadAccumulatedDataFromSession();
+                await LoadAccumulatedDataFromSessionAsync();
+                // Apply conditional logic for regular pages too
+                _logger.LogInformation(">>>>>>>>>>>>TASK SUMMARY GET: About to apply conditional logic for task summary");
+                _logger.LogInformation(">>>>>>>>>>>>TASK SUMMARY DATA: {Data}", 
+                    string.Join(", ", Data.Select(kv => $"{kv.Key}={kv.Value}")));
+                await ApplyConditionalLogicAsync();
+            }
+            else
+            {
+                // For sub-flows, still apply conditional logic using the current Data
+                await ApplyConditionalLogicAsync();
             }
 
             // Initialize task completion status if we're showing a task summary
@@ -181,8 +199,17 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         public async Task<IActionResult> OnPostSubmitApplicationAsync()
         {
+            // Clear any model state errors for route parameters since they're not relevant for preview submission
+            ModelState.Remove(nameof(TaskId));
+            ModelState.Remove(nameof(CurrentPageId));
+            ModelState.Remove("TaskId");
+            ModelState.Remove("CurrentPageId");
+            ModelState.Remove("pageId");
+            ModelState.Remove("taskId");
+            
+            // Initialize common form engine data first (loads Template, FormData, etc.)
             await CommonFormEngineInitializationAsync();
-
+            
             // Prevent submission if application is not editable
             if (!IsApplicationEditable())
             {
@@ -193,6 +220,10 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             if (!AreAllTasksCompleted())
             {
                 _logger.LogWarning("Cannot submit application {ReferenceNumber} - not all tasks completed", ReferenceNumber);
+                
+                // Override the form state for preview with errors
+                CurrentFormState = FormState.ApplicationPreview;
+                
                 ModelState.AddModelError("", "All sections must be completed before you can submit your application.");
                 return Page();
             }
@@ -255,8 +286,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 {
                     _logger.LogInformation("Detected sub-flow: flowId={FlowId} instance={InstanceId} flowPageId={FlowPageId}", flowId, instanceId, flowPageId);
                     var (group, task) = InitializeCurrentTask(TaskId);
-                    CurrentGroup = group;
-                    CurrentTask = task;
+            CurrentGroup = group;
+            CurrentTask = task;
 
                     // Find the correct flow and its pages
                     var flowPages = GetFlowPages(task, flowId);
@@ -265,7 +296,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         var page = string.IsNullOrEmpty(flowPageId) ? flowPages.FirstOrDefault() : flowPages.FirstOrDefault(p => p.PageId == flowPageId);
                         if (page != null)
                         {
-                            CurrentPage = page;
+            CurrentPage = page;
                         }
                     }
                 }
@@ -309,6 +340,12 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     }
                 }
             }
+
+            // Apply conditional logic after processing form data changes
+            _logger.LogInformation(">>>>>>>>>>>>POST: About to apply conditional logic after form submission");
+            _logger.LogInformation(">>>>>>>>>>>>POST DATA BEFORE CONDITIONAL LOGIC: {Data}", 
+                string.Join(", ", Data.Select(kv => $"{kv.Key}={kv.Value}")));
+            await ApplyConditionalLogicAsync("change");
 
             if (CurrentPage != null)
             {
@@ -363,9 +400,46 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         var isLast = index == -1 || index >= flowPages.Count - 1;
                         if (!isLast)
                         {
-                            var nextPageId = flowPages[index + 1].PageId;
-                            var nextUrl = _formNavigationService.GetSubFlowPageUrl(CurrentTask.TaskId, ReferenceNumber, flowId, instanceId, nextPageId);
-                            return Redirect(nextUrl);
+                            // Find the next visible page using conditional logic
+                            string? nextPageId = null;
+                            
+                            // Check if we have conditional logic to determine next page
+                            if (ConditionalState != null)
+                            {
+                                _logger.LogDebug("Sub-flow navigation: checking conditional logic for pages. Current page: {CurrentPageId}, Flow: {FlowId}", CurrentPage.PageId, flowId);
+                                
+                                // Look for the next visible page after current page
+                                for (int i = index + 1; i < flowPages.Count; i++)
+                                {
+                                    var candidatePage = flowPages[i];
+                                    
+                                    // Check if this page should be skipped due to conditional logic
+                                    var isHidden = ConditionalState.PageVisibility.TryGetValue(candidatePage.PageId, out var isVisible) && !isVisible;
+                                    var isSkipped = ConditionalState.SkippedPages.Contains(candidatePage.PageId);
+                                    
+                                    _logger.LogDebug("Sub-flow navigation: checking page {PageId}, isHidden: {IsHidden}, isSkipped: {IsSkipped}, visibility: {Visibility}", 
+                                        candidatePage.PageId, isHidden, isSkipped, isVisible);
+                                    
+                                    if (!isHidden && !isSkipped)
+                                    {
+                                        nextPageId = candidatePage.PageId;
+                                        _logger.LogDebug("Sub-flow navigation: selected next page {NextPageId}", nextPageId);
+                                        break;
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                // Fallback to simple next page logic if no conditional logic
+                                nextPageId = flowPages[index + 1].PageId;
+                            }
+                            
+                            if (!string.IsNullOrEmpty(nextPageId))
+                            {
+                                var nextUrl = _formNavigationService.GetSubFlowPageUrl(CurrentTask.TaskId, ReferenceNumber, flowId, instanceId, nextPageId);
+                                return Redirect(nextUrl);
+                            }
+                            // If no valid next page found, treat as last page and complete the flow
                         }
                         else
                         {
@@ -418,8 +492,99 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 }
                 else
                 {
-                    var nextUrl = _formNavigationService.GetNextNavigationTargetAfterSave(CurrentPage, CurrentTask, ReferenceNumber);
-                    return Redirect(nextUrl);
+                    // First check if returnToSummaryPage is true and should be respected
+                    if (CurrentPage.ReturnToSummaryPage)
+                    {
+                        _logger.LogInformation(">>>>>>>>>>>>REGULAR NAV: returnToSummaryPage=true, checking if conditional logic should override");
+                        
+                        // Check if conditional logic suggests a different next page (override returnToSummaryPage)
+                        string? conditionalNextPageId = null;
+                        bool hasConditionalTrigger = false;
+                        
+                        if (ConditionalState != null && Template != null)
+                        {
+                            // FIXED: Check if conditional rules specifically show/reveal new pages, not just any trigger
+                            hasConditionalTrigger = HasConditionalLogicShowingPages();
+                            _logger.LogInformation(">>>>>>>>>>>>REGULAR NAV: Conditional logic shows new pages: {ShowsNewPages}", hasConditionalTrigger);
+                            
+                            if (hasConditionalTrigger)
+                            {
+                                var context = new ConditionalLogicContext
+                                {
+                                    CurrentPageId = CurrentPageId,
+                                    CurrentTaskId = TaskId,
+                                    IsClientSide = false,
+                                    Trigger = "change"
+                                };
+                                
+                                conditionalNextPageId = await _conditionalLogicOrchestrator.GetNextPageAsync(Template, Data, CurrentPage.PageId, context);
+                                _logger.LogInformation(">>>>>>>>>>>>REGULAR NAV: Conditional logic suggested: {NextPageId}", conditionalNextPageId ?? "NULL");
+                            }
+                        }
+                        
+                        // If conditional logic found a next page AND was triggered, navigate there (override returnToSummaryPage)
+                        if (hasConditionalTrigger && !string.IsNullOrEmpty(conditionalNextPageId))
+                        {
+                            var nextUrl = $"/applications/{ReferenceNumber}/{CurrentTask.TaskId}/{conditionalNextPageId}";
+                            _logger.LogInformation(">>>>>>>>>>>>REGULAR NAV: Conditional logic OVERRIDES returnToSummaryPage - going to: {NextUrl}", nextUrl);
+                            return Redirect(nextUrl);
+                        }
+                        
+                        // No conditional override - respect returnToSummaryPage
+                        var summaryUrl = _formNavigationService.GetTaskSummaryUrl(CurrentTask.TaskId, ReferenceNumber);
+                        _logger.LogInformation(">>>>>>>>>>>>REGULAR NAV: Respecting returnToSummaryPage=true - going to summary: {SummaryUrl}", summaryUrl);
+                        return Redirect(summaryUrl);
+                    }
+                    
+                    // returnToSummaryPage=false - proceed with normal next page logic
+                    string? nextPageId = null;
+                    
+                    if (ConditionalState != null && Template != null)
+                    {
+                        _logger.LogInformation(">>>>>>>>>>>>REGULAR NAV: returnToSummaryPage=false, using conditional logic for next page");
+                        
+                        var context = new ConditionalLogicContext
+                        {
+                            CurrentPageId = CurrentPageId,
+                            CurrentTaskId = TaskId,
+                            IsClientSide = false,
+                            Trigger = "change"
+                        };
+                        
+                        nextPageId = await _conditionalLogicOrchestrator.GetNextPageAsync(Template, Data, CurrentPage.PageId, context);
+                        _logger.LogInformation(">>>>>>>>>>>>REGULAR NAV: Conditional logic suggested next page: {NextPageId}", nextPageId ?? "NULL");
+                    }
+                    
+                    // If conditional logic found a next page, navigate to it
+                    if (!string.IsNullOrEmpty(nextPageId))
+                    {
+                        var nextUrl = $"/applications/{ReferenceNumber}/{CurrentTask.TaskId}/{nextPageId}";
+                        _logger.LogInformation(">>>>>>>>>>>>REGULAR NAV: Going to conditional next page: {NextUrl}", nextUrl);
+                        return Redirect(nextUrl);
+                    }
+                    
+                    // No conditional next page - find the next page in sequence
+                    Domain.Models.Page? sequentialNextPage = null;
+                    if (CurrentTask.Pages != null && CurrentTask.Pages.Any())
+                    {
+                        var currentPageIndex = CurrentTask.Pages.FindIndex(p => p.PageId == CurrentPage.PageId);
+                        if (currentPageIndex != -1 && currentPageIndex < CurrentTask.Pages.Count - 1)
+                        {
+                            sequentialNextPage = CurrentTask.Pages[currentPageIndex + 1];
+                        }
+                    }
+                    
+                    if (sequentialNextPage != null)
+                    {
+                        var nextUrl = $"/applications/{ReferenceNumber}/{CurrentTask.TaskId}/{sequentialNextPage.PageId}";
+                        _logger.LogInformation(">>>>>>>>>>>>REGULAR NAV: Going to sequential next page: {NextUrl}", nextUrl);
+                        return Redirect(nextUrl);
+                    }
+                    
+                    // No next page found - go to task summary as fallback
+                    var fallbackUrl = _formNavigationService.GetTaskSummaryUrl(CurrentTask.TaskId, ReferenceNumber);
+                    _logger.LogInformation(">>>>>>>>>>>>REGULAR NAV: No next page available - fallback to summary: {FallbackUrl}", fallbackUrl);
+                    return Redirect(fallbackUrl);
                 }
             }
             else if (CurrentTask != null)
@@ -686,10 +851,10 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 // New item: create fresh item with all possible fields from flow pages
                 item = new Dictionary<string, object>();
                 foreach (var page in pages)
-                {
-                    foreach (var field in page.Fields)
-                    {
-                        var key = field.FieldId;
+        {
+            foreach (var field in page.Fields)
+            {
+                var key = field.FieldId;
                         if (itemData.TryGetValue(key, out var value))
                         {
                             item[key] = value;
@@ -718,14 +883,21 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         {
             var key = GetFlowProgressSessionKey(flowId, instanceId);
             var json = HttpContext.Session.GetString(key);
-            if (string.IsNullOrWhiteSpace(json)) return new Dictionary<string, object>();
+            if (string.IsNullOrWhiteSpace(json)) 
+            {
+                _logger.LogInformation(">>>>>>>>>>>>FLOW PROGRESS LOAD: flowId={FlowId}, instanceId={InstanceId}, result=EMPTY", flowId, instanceId);
+                return new Dictionary<string, object>();
+            }
             try
             {
                 var dict = JsonSerializer.Deserialize<Dictionary<string, object>>(json);
+                _logger.LogInformation(">>>>>>>>>>>>FLOW PROGRESS LOAD: flowId={FlowId}, instanceId={InstanceId}, data={Data}", 
+                    flowId, instanceId, string.Join(", ", (dict ?? new()).Select(kv => $"{kv.Key}={kv.Value}")));
                 return dict ?? new Dictionary<string, object>();
             }
             catch
             {
+                _logger.LogInformation(">>>>>>>>>>>>FLOW PROGRESS LOAD: flowId={FlowId}, instanceId={InstanceId}, result=ERROR", flowId, instanceId);
                 return new Dictionary<string, object>();
             }
         }
@@ -739,6 +911,9 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
             var key = GetFlowProgressSessionKey(flowId, instanceId);
             HttpContext.Session.SetString(key, JsonSerializer.Serialize(existing));
+            
+            _logger.LogInformation(">>>>>>>>>>>>FLOW PROGRESS SAVED: flowId={FlowId}, instanceId={InstanceId}, data={Data}", 
+                flowId, instanceId, string.Join(", ", existing.Select(kv => $"{kv.Key}={kv.Value}")));
         }
 
         private void ClearFlowProgress(string flowId, string instanceId)
@@ -768,7 +943,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
         }
 
-        private void LoadAccumulatedDataFromSession()
+        private async Task LoadAccumulatedDataFromSessionAsync()
         {
             // Get accumulated form data from session and populate the Data dictionary
             var accumulatedData = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
@@ -782,6 +957,73 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 }
 
                 _logger.LogInformation("Loaded {Count} accumulated form data entries from session", accumulatedData.Count);
+            }
+
+            // Apply conditional logic after loading data
+            await ApplyConditionalLogicAsync();
+        }
+
+                private async Task ApplyConditionalLogicAsync(string trigger = "load")
+                    {
+                        try
+                        {
+                _logger.LogInformation(">>>>>>>>>>>>CONDITIONAL LOGIC START: CurrentPageId={CurrentPageId}, TaskId={TaskId}, Template has {RuleCount} rules, Trigger={Trigger}", 
+                    CurrentPageId, TaskId, Template?.ConditionalLogic?.Count ?? 0, trigger);
+                _logger.LogInformation(">>>>>>>>>>>>CURRENT DATA: {Data}", 
+                    string.Join(", ", Data.Select(kv => $"{kv.Key}={kv.Value}")));
+
+                if (Template?.ConditionalLogic != null && Template.ConditionalLogic.Any())
+                {
+                    // Log all rules in template
+                    foreach (var rule in Template.ConditionalLogic)
+                    {
+                        _logger.LogInformation(">>>>>>>>>>>>RULE: {RuleId} - {RuleName}, Priority: {Priority}, Enabled: {Enabled}, ExecuteOn: [{ExecuteOn}]", 
+                            rule.Id, rule.Name, rule.Priority, rule.Enabled, string.Join(", ", rule.ExecuteOn));
+                        foreach (var condition in rule.ConditionGroup.Conditions)
+                        {
+                            _logger.LogInformation(">>>>>>>>>>>>  CONDITION: {TriggerField} {Operator} {Value} (Current Value: {CurrentValue})", 
+                                condition.TriggerField, condition.Operator, condition.Value, 
+                                Data.TryGetValue(condition.TriggerField, out var currentVal) ? currentVal : "NOT_SET");
+                        }
+                    }
+
+                    var context = new ConditionalLogicContext
+                    {
+                        CurrentPageId = CurrentPageId,
+                        CurrentTaskId = TaskId,
+                        IsClientSide = false,
+                        Trigger = trigger
+                    };
+
+                    ConditionalState = await _conditionalLogicOrchestrator.ApplyConditionalLogicAsync(Template, Data, context);
+                    
+                    _logger.LogInformation(">>>>>>>>>>>>CONDITIONAL LOGIC RESULT:");
+                    _logger.LogInformation(">>>>>>>>>>>>  FieldVisibility: {FieldVisibility}", 
+                        string.Join(", ", ConditionalState.FieldVisibility.Select(kv => $"{kv.Key}={kv.Value}")));
+                    _logger.LogInformation(">>>>>>>>>>>>  SkippedPages: {SkippedPages}", 
+                        string.Join(", ", ConditionalState.SkippedPages));
+                    _logger.LogInformation(">>>>>>>>>>>>  Actions Executed: {ActionCount}", 
+                        ConditionalState.EvaluationResult?.Actions.Count ?? 0);
+                    
+                    // Apply field values from conditional logic
+                    if (ConditionalState.FieldValues.Any())
+                    {
+                        foreach (var kvp in ConditionalState.FieldValues)
+                        {
+                            Data[kvp.Key] = kvp.Value;
+                        }
+                        _logger.LogInformation(">>>>>>>>>>>>  Applied FieldValues: {FieldValues}", 
+                            string.Join(", ", ConditionalState.FieldValues.Select(kv => $"{kv.Key}={kv.Value}")));
+                    }
+                }
+                else
+                {
+                    _logger.LogInformation(">>>>>>>>>>>>CONDITIONAL LOGIC: No rules found in template");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, ">>>>>>>>>>>>CONDITIONAL LOGIC ERROR: {Message}", ex.Message);
             }
         }
 
@@ -954,6 +1196,287 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             };
         }
 
+        /// <summary>
+        /// Check if a field should be hidden based on conditional logic
+        /// </summary>
+        /// <param name="fieldId">The field ID to check</param>
+        /// <returns>True if the field should be hidden</returns>
+        public bool IsFieldHidden(string fieldId)
+        {
+            _logger.LogInformation(">>>>>>>>>>>>FIELD VISIBILITY CHECK: Checking field '{FieldId}'", fieldId);
+            
+            if (ConditionalState == null)
+            {
+                _logger.LogInformation(">>>>>>>>>>>>FIELD VISIBILITY: ConditionalState is null for field '{FieldId}' - checking if field has conditional logic", fieldId);
+                // If no conditional state but field has conditional logic rules, hide it by default
+                if (Template?.ConditionalLogic != null && HasFieldConditionalLogic(fieldId))
+                {
+                    _logger.LogInformation(">>>>>>>>>>>>FIELD VISIBILITY: Field '{FieldId}' has conditional logic but no state - hiding by default", fieldId);
+                    return true;
+                }
+                return false;
+            }
+
+            if (ConditionalState.FieldVisibility.TryGetValue(fieldId, out var isVisible))
+            {
+                _logger.LogInformation(">>>>>>>>>>>>FIELD VISIBILITY: Field '{FieldId}' found with visibility={IsVisible}, returning hidden={IsHidden}", 
+                    fieldId, isVisible, !isVisible);
+                return !isVisible;
+            }
+            
+            // Check if field has conditional logic rules - if so, hide by default until conditions are met
+            if (Template?.ConditionalLogic != null && HasFieldConditionalLogic(fieldId))
+            {
+                _logger.LogInformation(">>>>>>>>>>>>FIELD VISIBILITY: Field '{FieldId}' has conditional logic but not evaluated - hiding by default", fieldId);
+                return true;
+            }
+            
+            _logger.LogInformation(">>>>>>>>>>>>FIELD VISIBILITY: Field '{FieldId}' not found and no conditional logic - defaulting to visible", fieldId);
+            return false;
+        }
+
+        /// <summary>
+        /// Check if a field has conditional logic rules that affect its visibility
+        /// </summary>
+        /// <param name="fieldId">The field ID to check</param>
+        /// <returns>True if the field has conditional visibility rules</returns>
+        private bool HasFieldConditionalLogic(string fieldId)
+        {
+            if (Template?.ConditionalLogic == null) return false;
+            
+            return Template.ConditionalLogic.Any(rule => 
+                rule.Enabled && 
+                rule.AffectedElements.Any(element => 
+                    element.ElementId == fieldId && 
+                    element.ElementType == "field" && 
+                    (element.Action == "hide" || element.Action == "show")));
+        }
+
+        /// <summary>
+        /// Check if a page should be hidden/skipped based on conditional logic
+        /// </summary>
+        /// <param name="pageId">The page ID to check</param>
+        /// <returns>True if the page should be hidden</returns>
+        public bool IsPageHidden(string pageId)
+        {
+            _logger.LogInformation(">>>>>>>>>>>>PAGE VISIBILITY CHECK: Checking page '{PageId}'", pageId);
+            
+            if (ConditionalState == null)
+            {
+                _logger.LogInformation(">>>>>>>>>>>>PAGE VISIBILITY: ConditionalState is null for page '{PageId}' - checking if page has conditional logic", pageId);
+                // If no conditional state but page has conditional logic rules, hide it by default
+                if (Template?.ConditionalLogic != null && HasPageConditionalLogic(pageId))
+                {
+                    _logger.LogInformation(">>>>>>>>>>>>PAGE VISIBILITY: Page '{PageId}' has conditional logic but no state - hiding by default", pageId);
+                    return true;
+                }
+                return false;
+            }
+
+            // Check if page is in skipped list
+            if (ConditionalState.SkippedPages.Contains(pageId))
+            {
+                _logger.LogInformation(">>>>>>>>>>>>PAGE VISIBILITY: Page '{PageId}' is in SkippedPages list - hidden", pageId);
+                return true;
+            }
+
+            // Check if page is hidden by visibility rules
+            if (ConditionalState.PageVisibility.TryGetValue(pageId, out var isVisible) && !isVisible)
+            {
+                _logger.LogInformation(">>>>>>>>>>>>PAGE VISIBILITY: Page '{PageId}' found with visibility={IsVisible} - hidden", pageId, isVisible);
+                return true;
+            }
+            
+            // NEW: Check if page has conditional logic rules and evaluate them
+            if (Template?.ConditionalLogic != null && HasPageConditionalLogic(pageId))
+            {
+                // Check if any show rules for this page are triggered
+                var hasShowRuleMet = Template.ConditionalLogic.Any(rule => 
+                    rule.Enabled && 
+                    rule.AffectedElements.Any(element => 
+                        element.ElementId == pageId && 
+                        element.ElementType == "page" && 
+                        element.Action == "show") &&
+                    EvaluateRuleConditions(rule));
+                
+                if (hasShowRuleMet)
+                {
+                    _logger.LogInformation(">>>>>>>>>>>>PAGE VISIBILITY: Page '{PageId}' has show rule that is met - visible", pageId);
+                    return false; // Show the page
+                }
+                
+                // Check if any hide/skip rules for this page are triggered
+                var hasHideRuleMet = Template.ConditionalLogic.Any(rule => 
+                    rule.Enabled && 
+                    rule.AffectedElements.Any(element => 
+                        element.ElementId == pageId && 
+                        element.ElementType == "page" && 
+                        (element.Action == "hide" || element.Action == "skip")) &&
+                    EvaluateRuleConditions(rule));
+                
+                if (hasHideRuleMet)
+                {
+                    _logger.LogInformation(">>>>>>>>>>>>PAGE VISIBILITY: Page '{PageId}' has hide/skip rule that is met - hidden", pageId);
+                    return true; // Hide the page
+                }
+                
+                _logger.LogInformation(">>>>>>>>>>>>PAGE VISIBILITY: Page '{PageId}' has conditional logic but no rules are met - hiding by default", pageId);
+                return true; // Hide by default if page has conditional logic but no rules match
+            }
+            
+            _logger.LogInformation(">>>>>>>>>>>>PAGE VISIBILITY: Page '{PageId}' not found and no conditional logic - defaulting to visible", pageId);
+            return false;
+        }
+
+        /// <summary>
+        /// Check if a page has conditional logic rules that affect its visibility
+        /// </summary>
+        /// <param name="pageId">The page ID to check</param>
+        /// <returns>True if the page has conditional visibility rules</returns>
+        private bool HasPageConditionalLogic(string pageId)
+        {
+            if (Template?.ConditionalLogic == null) return false;
+            
+            return Template.ConditionalLogic.Any(rule => 
+                rule.Enabled && 
+                rule.AffectedElements.Any(element => 
+                    element.ElementId == pageId && 
+                    element.ElementType == "page" && 
+                    (element.Action == "hide" || element.Action == "show" || element.Action == "skip")));
+        }
+
+        /// <summary>
+        /// Check if conditional logic was actually triggered based on current data and field changes
+        /// </summary>
+        /// <returns>True if any conditional logic rules were triggered</returns>
+        private bool HasConditionalLogicTriggered()
+        {
+            if (Template?.ConditionalLogic == null || ConditionalState == null)
+            {
+                return false;
+            }
+
+            // Check if any rules have their conditions met with current data
+            foreach (var rule in Template.ConditionalLogic.Where(r => r.Enabled))
+            {
+                if (EvaluateRuleConditions(rule))
+                {
+                    _logger.LogInformation(">>>>>>>>>>>>CONDITIONAL TRIGGER: Rule '{RuleId}' conditions are met", rule.Id);
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Check if conditional logic specifically shows/reveals new pages based on current form data
+        /// </summary>
+        /// <returns>True if conditional logic rules with "show" actions are met by current data</returns>
+        private bool HasConditionalLogicShowingPages()
+        {
+            if (Template?.ConditionalLogic == null)
+                return false;
+            
+            foreach (var rule in Template.ConditionalLogic.Where(r => r.Enabled))
+            {
+                // Only check rules that have "show" actions for pages
+                var hasShowPageAction = rule.AffectedElements.Any(element => 
+                    element.ElementType == "page" && element.Action == "show");
+                
+                if (!hasShowPageAction) continue;
+                
+                _logger.LogInformation(">>>>>>>>>>>>CONDITIONAL SHOW CHECK: Checking rule '{RuleId}' for show page actions", rule.Id);
+                
+                if (EvaluateRuleConditions(rule))
+                {
+                    _logger.LogInformation(">>>>>>>>>>>>CONDITIONAL SHOW CHECK: Rule '{RuleId}' with show page action is met", rule.Id);
+                    return true;
+                }
+            }
+            
+            _logger.LogInformation(">>>>>>>>>>>>CONDITIONAL SHOW CHECK: No rules with show page actions are met");
+            return false;
+        }
+
+        /// <summary>
+        /// Evaluate if a conditional logic rule's conditions are met
+        /// </summary>
+        /// <param name="rule">The rule to evaluate</param>
+        /// <returns>True if all conditions are met</returns>
+        private bool EvaluateRuleConditions(Domain.Models.ConditionalLogic rule)
+        {
+            if (rule.ConditionGroup?.Conditions == null || !rule.ConditionGroup.Conditions.Any())
+            {
+                return false;
+            }
+
+            var results = new List<bool>();
+            
+            foreach (var condition in rule.ConditionGroup.Conditions)
+            {
+                var fieldValue = Data.TryGetValue(condition.TriggerField, out var value) ? value?.ToString() : "";
+                var conditionValue = condition.Value?.ToString() ?? "";
+                var conditionMet = condition.Operator.ToLower() switch
+                {
+                    "equals" => string.Equals(fieldValue, conditionValue, StringComparison.OrdinalIgnoreCase),
+                    "not_equals" => !string.Equals(fieldValue, conditionValue, StringComparison.OrdinalIgnoreCase),
+                    "contains" => fieldValue?.Contains(conditionValue, StringComparison.OrdinalIgnoreCase) == true,
+                    "not_contains" => fieldValue?.Contains(conditionValue, StringComparison.OrdinalIgnoreCase) != true,
+                    _ => false
+                };
+                
+                results.Add(conditionMet);
+            }
+
+            // Apply logical operator
+            return rule.ConditionGroup.LogicalOperator?.ToUpper() switch
+            {
+                "AND" => results.All(r => r),
+                "OR" => results.Any(r => r),
+                _ => results.All(r => r) // Default to AND
+            };
+        }
+
+        /// <summary>
+        /// Check if a field should be hidden for a specific collection item based on conditional logic
+        /// </summary>
+        /// <param name="fieldId">The field ID to check</param>
+        /// <param name="itemData">The specific item's data to evaluate against</param>
+        /// <returns>True if the field should be hidden for this specific item</returns>
+        public bool IsFieldHiddenForItem(string fieldId, Dictionary<string, object> itemData)
+        {
+            try
+            {
+                if (Template?.ConditionalLogic == null || !Template.ConditionalLogic.Any())
+                {
+                    return false; // No conditional logic defined
+                }
+
+                var context = new ConditionalLogicContext
+                {
+                    CurrentPageId = CurrentPageId,
+                    CurrentTaskId = TaskId,
+                    IsClientSide = false,
+                    Trigger = "load"
+                };
+
+                // Evaluate conditional logic synchronously using the specific item's data
+                var itemConditionalState = _conditionalLogicOrchestrator.ApplyConditionalLogicAsync(Template, itemData, context).GetAwaiter().GetResult();
+                
+                if (itemConditionalState.FieldVisibility.TryGetValue(fieldId, out var isVisible))
+                {
+                    return !isVisible;
+                }
+
+                return false; // Default to visible if field not found in conditional logic
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error evaluating conditional logic for field {FieldId} with item data", fieldId);
+                return false; // Default to visible on error
+            }
+        }
 
     }
 }

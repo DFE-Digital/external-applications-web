@@ -7,7 +7,7 @@
     var legendValue = Model.Field.Label.IsVisible ? Model.Field.Label.Value : "";
 }
 
-<govuk-radios id="@Model.Id" name="Data[@Model.Field.FieldId]">
+<govuk-radios id="@Model.Id" name="Data[@Model.Field.FieldId]" data-field-id="@Model.Field.FieldId">
     <govuk-radios-fieldset>
         <govuk-radios-fieldset-legend>
             @legendValue

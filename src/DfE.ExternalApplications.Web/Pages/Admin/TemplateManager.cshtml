@@ -24,6 +24,33 @@
                         Template version created successfully
                     </h3>
                     <p class="govuk-body">The new template version has been saved.</p>
+                    <p class="govuk-body">
+                        <strong>Recommended:</strong> 
+                        <form method="post" asp-page-handler="ClearAll" style="display: inline;">
+                            <button type="submit" class="govuk-link govuk-!-font-size-16" 
+                                    style="background: none; border: none; padding: 0; color: #1d70b8; text-decoration: underline; cursor: pointer;"
+                                    onclick="return confirm('This will clear all sessions and caches. Are you sure?')">
+                                Clear all caches
+                            </button>
+                        </form> to ensure the new template version is immediately available across the application.
+                    </p>
+                </div>
+            </div>
+        }
+
+        @if (Model.ShowCacheCleared)
+        {
+            <div class="govuk-notification-banner govuk-notification-banner--success" role="alert" aria-labelledby="govuk-notification-banner-title-cleared" data-module="govuk-notification-banner">
+                <div class="govuk-notification-banner__header">
+                    <h2 class="govuk-notification-banner__title" id="govuk-notification-banner-title-cleared">
+                        Success
+                    </h2>
+                </div>
+                <div class="govuk-notification-banner__content">
+                    <h3 class="govuk-notification-banner__heading">
+                        All caches cleared successfully
+                    </h3>
+                    <p class="govuk-body">Sessions and caches have been cleared. The new template version should now be immediately available.</p>
                 </div>
             </div>
         }

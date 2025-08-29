@@ -146,6 +146,10 @@ builder.Services.AddScoped<ITemplateManagementService, TemplateManagementService
 builder.Services.AddScoped<IApplicationStateService, ApplicationStateService>();
 builder.Services.AddScoped<IFileUploadService, FileUploadService>();
 
+// Conditional Logic Services
+builder.Services.AddScoped<IConditionalLogicEngine, ConditionalLogicEngine>();
+builder.Services.AddScoped<IConditionalLogicOrchestrator, ConditionalLogicOrchestrator>();
+
 builder.Services.AddScoped<IAutocompleteService, AutocompleteService>();
 builder.Services.AddScoped<IComplexFieldConfigurationService, ComplexFieldConfigurationService>();
 builder.Services.AddScoped<IComplexFieldRendererFactory, ComplexFieldRendererFactory>();
@@ -205,8 +209,8 @@ app.UseStatusCodePages(ctx =>
 });
 
 app.UseAuthentication();
-app.UsePermissionsCache();
 app.UseTokenExpiryCheck();
+app.UsePermissionsCache();
 app.UseAuthorization();
 
 app.MapRazorPages();

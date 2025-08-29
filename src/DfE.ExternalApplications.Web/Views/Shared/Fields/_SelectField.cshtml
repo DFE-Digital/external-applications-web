@@ -14,7 +14,8 @@
     name="@Model.Name"
     select-required="@isRequired"
     select-validation="@validationAttributes"
-    label-class="@labelClasses">
+    label-class="@labelClasses"
+    data-field-id="@Model.Field.FieldId">
         <govuk-select-label>@Model.Field.Label.Value</govuk-select-label>
         <govuk-select-hint>@Model.Field.Tooltip</govuk-select-hint>
         @if (Model.ErrorMessage != String.Empty)

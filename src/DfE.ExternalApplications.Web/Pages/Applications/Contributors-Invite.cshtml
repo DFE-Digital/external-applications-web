@@ -39,9 +39,6 @@
                         Full name
                     </label>
                 </h2>
-                <div id="Name-hint" class="govuk-hint">
-                    Enter the full name of the person you want to invite as a contributor
-                </div>
                 
                 @if (ViewData.ModelState.ContainsKey(nameof(Model.Name)) && ViewData.ModelState[nameof(Model.Name)]!.Errors.Count > 0)
                 {
