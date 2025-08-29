@@ -219,7 +219,6 @@ app.UseStatusCodePages(ctx =>
 
 app.UseAuthentication();
 app.UseTokenManagementMiddleware();
-
 app.UsePermissionsCache();
 app.UseAuthorization();
 
