@@ -83,6 +83,15 @@ namespace DfE.ExternalApplications.Application.Interfaces
         /// <returns>The URL for the confirmation page</returns>
         string GetConfirmationUrl(string taskId, string referenceNumber, string operation, string fieldId, string confirmationToken);
 
+        /// <summary>
+        /// Gets the URL for a specific page within a task
+        /// </summary>
+        /// <param name="taskId">The task ID</param>
+        /// <param name="referenceNumber">The application reference number</param>
+        /// <param name="pageId">The page ID (supports plain page IDs and sub-flow IDs like 'flow/{flowId}/{instanceId}/{pageId}')</param>
+        /// <returns>The URL for the requested page</returns>
+        string GetPageUrl(string taskId, string referenceNumber, string pageId);
+
         // Sub-flow URLs
         string GetCollectionFlowSummaryUrl(string taskId, string referenceNumber);
         string GetStartSubFlowUrl(string taskId, string referenceNumber, string flowId, string instanceId);

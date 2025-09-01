@@ -2,6 +2,7 @@ using DfE.ExternalApplications.Application.Interfaces;
 using DfE.ExternalApplications.Domain.Models;
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Extensions.Logging;
 
 namespace DfE.ExternalApplications.Infrastructure.Services
 {
@@ -10,36 +11,74 @@ namespace DfE.ExternalApplications.Infrastructure.Services
     /// </summary>
     public class ConfirmationService : IConfirmationService
     {
+        private readonly ILogger<ConfirmationService> _logger;
+
+        public ConfirmationService(ILogger<ConfirmationService> logger)
+        {
+            _logger = logger;
+        }
+
         /// <summary>
-        /// Determines if a field requires confirmation before proceeding
+        /// Determines if a field requires confirmation for the specified operation
         /// </summary>
         /// <param name="field">The field to check</param>
         /// <param name="operation">The operation being performed (add, update, delete)</param>
         /// <returns>True if confirmation is required</returns>
         public bool RequiresConfirmation(Field field, ConfirmationOperation operation)
         {
+            // Add logging to debug confirmation logic
+            _logger.LogInformation("RequiresConfirmation called for field: {FieldId}, Type: {FieldType}, Operation: {Operation}", 
+                field.FieldId, field.Type, operation);
+            _logger.LogInformation("Field has ComplexField: {HasComplexField}", field.ComplexField != null);
+            _logger.LogInformation("Field Visibility RequireConfirmation: {RequireConfirmation}", field.Visibility?.RequireConfirmation);
+            
             // Check if the field has a confirmation requirement
             if (field.Visibility?.RequireConfirmation == true)
             {
+                _logger.LogInformation("Field {FieldId} requires confirmation due to Visibility.RequireConfirmation", field.FieldId);
                 return true;
             }
 
             // Check if the field type requires confirmation for certain operations
             if (field.Type == "complexField" && field.ComplexField != null)
             {
+                _logger.LogInformation("Field {FieldId} is a complex field with ID: {ComplexFieldId}", 
+                    field.FieldId, field.ComplexField.Id);
+                
                 // Complex fields like file uploads might require confirmation for delete operations
                 if (operation == ConfirmationOperation.Delete)
                 {
+                    _logger.LogInformation("Field {FieldId} requires confirmation for delete operation", field.FieldId);
                     return true;
+                }
+                
+                // For complex fields, check if they require confirmation based on their configuration
+                if (operation == ConfirmationOperation.Update)
+                {
+                    // Trust selection fields should require confirmation for updates
+                    if (field.ComplexField.Id.Equals("TrustComplexField", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _logger.LogInformation("Field {FieldId} requires confirmation for update operation (trust selection)", field.FieldId);
+                        return true;
+                    }
+                    
+                    // File upload fields should require confirmation for updates
+                    if (field.ComplexField.Id.Equals("UploadDocumentsComplexField", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _logger.LogInformation("Field {FieldId} requires confirmation for update operation (file upload)", field.FieldId);
+                        return true;
+                    }
                 }
             }
 
             // Check for autocomplete fields specifically
             if (field.Type == "autocomplete")
             {
+                _logger.LogInformation("Field {FieldId} is an autocomplete field", field.FieldId);
                 // Autocomplete fields might require confirmation for update operations
                 if (operation == ConfirmationOperation.Update)
                 {
+                    _logger.LogInformation("Field {FieldId} requires confirmation for update operation (autocomplete)", field.FieldId);
                     return true;
                 }
             }
@@ -47,9 +86,11 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             // Check if the field has validation rules that suggest confirmation is needed
             if (field.Validations?.Any(v => v.Type == "confirmation") == true)
             {
+                _logger.LogInformation("Field {FieldId} requires confirmation due to validation rules", field.FieldId);
                 return true;
             }
 
+            _logger.LogInformation("Field {FieldId} does NOT require confirmation", field.FieldId);
             return false;
         }
 

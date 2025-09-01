@@ -2,7 +2,6 @@
 @using DfE.ExternalApplications.Application.Interfaces
 @using GovUk.Frontend.AspNetCore.TagHelpers
 @using System.Text.Json
-@using System.Globalization
 
 @{
     // Extract confirmation parameters from the pageId
@@ -11,150 +10,162 @@
     var fieldId = pageIdParts.Length > 2 ? pageIdParts[2] : string.Empty;
     var confirmationToken = pageIdParts.Length > 3 ? pageIdParts[3] : string.Empty;
     
-    // Find the field being confirmed - be defensive about null template
-    var targetField = Model.Template?.TaskGroups?
-        .SelectMany(g => g.Tasks ?? Enumerable.Empty<Domain.Models.Task>())
-        .SelectMany(t => t.Pages ?? Enumerable.Empty<Domain.Models.Page>())
-        .SelectMany(p => p.Fields ?? Enumerable.Empty<Domain.Models.Field>())
-        .FirstOrDefault(f => f.FieldId == fieldId);
-    
-    // Helper function to convert string to title case
-    string ToTitleCase(string input)
-    {
-        if (string.IsNullOrWhiteSpace(input))
-            return input;
-        
-        var textInfo = CultureInfo.CurrentCulture.TextInfo;
-        return textInfo.ToTitleCase(input.ToLower());
-    }
+    // Check if we have the required data
+    var hasRequiredData = !string.IsNullOrEmpty(operation) && !string.IsNullOrEmpty(fieldId) && !string.IsNullOrEmpty(confirmationToken);
+    var hasFormData = Model.Data != null && Model.Data.Any();
 }
 
-<govuk-back-link href="/applications/@Model.ReferenceNumber/@Model.TaskId">Back to search for a trust</govuk-back-link>
-
-<div class="govuk-grid-row">
-    <div class="govuk-grid-column-two-thirds">
-        @if (targetField != null)
-        {
-            <div class="govuk-body govuk-!-margin-bottom-2">
-                <span class="govuk-caption-m">@(targetField.Label?.Value ?? fieldId) details</span>
-            </div>
-            
-            <h1 class="govuk-heading-l">Is this the right @(targetField.Label?.Value?.ToLowerInvariant() ?? "item")?</h1>
-            
-            <div class="govuk-summary-card">
-                <div class="govuk-summary-card__content">
-                    @if (operation == "update" && Model.Data.ContainsKey(fieldId))
-                    {
-                        var fieldValue = Model.Data[fieldId];
-                        if (fieldValue != null)
-                        {
-                            var valueString = fieldValue.ToString();
-                            if (!string.IsNullOrWhiteSpace(valueString))
-                            {
-                                // Try to parse as JSON and format it nicely
-                                try
-                                {
-                                    if (valueString.StartsWith("{") || valueString.StartsWith("["))
-                                    {
-                                        var jsonElement = JsonDocument.Parse(valueString).RootElement;
-                                        if (jsonElement.ValueKind == JsonValueKind.Object)
-                                        {
-                                            // Display the main item name prominently
-                                            if (jsonElement.TryGetProperty("name", out var nameElement))
-                                            {
-                                                <h2 class="govuk-heading-m govuk-!-margin-bottom-4">@nameElement</h2>
-                                            }
-                                            
-                                            // Display other properties as key-value pairs
-                                            foreach (var property in jsonElement.EnumerateObject())
-                                            {
-                                                if (property.Name != "name") // Skip name as it's already displayed above
-                                                {
-                                                    <div class="govuk-body govuk-!-margin-bottom-2">
-                                                        <strong>@(ToTitleCase(property.Name.Replace("_", " "))):</strong> @property.Value
-                                                    </div>
-                                                }
-                                            }
-                                        }
-                                        else if (jsonElement.ValueKind == JsonValueKind.Array)
-                                        {
-                                            // For arrays, show the first item prominently
-                                            if (jsonElement.GetArrayLength() > 0)
-                                            {
-                                                var firstItem = jsonElement[0];
-                                                if (firstItem.ValueKind == JsonValueKind.Object)
-                                                {
-                                                    if (firstItem.TryGetProperty("name", out var nameElement))
-                                                    {
-                                                        <h2 class="govuk-heading-m govuk-!-margin-bottom-4">@nameElement</h2>
-                                                    }
-                                                    
-                                                    foreach (var prop in firstItem.EnumerateObject())
-                                                    {
-                                                        if (prop.Name != "name")
-                                                        {
-                                                            <div class="govuk-body govuk-!-margin-bottom-2">
-                                                                <strong>@(ToTitleCase(prop.Name.Replace("_", " "))):</strong> @prop.Value
-                                                            </div>
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                    else
-                                    {
-                                        // Not JSON, display as plain text
-                                        <h2 class="govuk-heading-m govuk-!-margin-bottom-4">@valueString</h2>
-                                    }
-                                }
-                                catch (JsonException)
-                                {
-                                    // Not valid JSON, display as plain text
-                                    <h2 class="govuk-heading-m govuk-!-margin-bottom-4">@valueString</h2>
-                                }
-                            }
-                        }
-                    }
-                </div>
-            </div>
-        }
-        else
-        {
-            <div class="govuk-body govuk-!-margin-bottom-2">
-                <span class="govuk-caption-m">Field details</span>
-            </div>
-            
-            <h1 class="govuk-heading-l">Is this the right item?</h1>
-            
-            <div class="govuk-summary-card">
-                <div class="govuk-summary-card__content">
-                    <p class="govuk-body govuk-!-margin-top-4">
-                        <strong>Note:</strong> Field details could not be loaded. Please proceed with caution.
-                    </p>
-                </div>
-            </div>
-        }
-
-        <form method="post" action="/applications/@Model.ReferenceNumber/@Model.TaskId?handler=ConfirmedUpdate&fieldId=@fieldId">
-            @Html.AntiForgeryToken()
-            <input type="hidden" name="Operation" value="@operation" />
-            <input type="hidden" name="FieldId" value="@fieldId" />
-            <input type="hidden" name="ConfirmationToken" value="@confirmationToken" />
-
-            <govuk-radios name="UserConfirmed">
-                <govuk-radios-fieldset>
-                    <govuk-radios-fieldset-legend class="govuk-fieldset__legend--m">
-                        Please confirm your choice
-                    </govuk-radios-fieldset-legend>
-                    <govuk-radios-item value="true">Yes</govuk-radios-item>
-                    <govuk-radios-item value="false">No</govuk-radios-item>
-                </govuk-radios-fieldset>
-            </govuk-radios>
-
-            <govuk-button type="submit" class="govuk-button--primary">
-                Continue
-            </govuk-button>
-        </form>
+@if (!hasRequiredData)
+{
+    <div class="govuk-error-summary" aria-labelledby="error-summary-title" role="alert" tabindex="-1" data-module="govuk-error-summary">
+        <h2 class="govuk-error-summary__title" id="error-summary-title">
+            There is a problem
+        </h2>
+        <div class="govuk-error-summary__body">
+            <ul class="govuk-list govuk-error-summary__list">
+                <li>
+                    <a href="#error-message">Missing required confirmation data. Please return to the previous page and try again.</a>
+                </li>
+            </ul>
+        </div>
     </div>
-</div>
+}
+else
+{
+    <!-- Back link -->
+    <govuk-back-link href="/applications/@Model.ReferenceNumber/@Model.TaskId">Back to search for a trust</govuk-back-link>
+
+    <div class="govuk-grid-row">
+        <div class="govuk-grid-column-two-thirds">
+            
+            @if (hasFormData && Model.Data.ContainsKey(fieldId))
+            {
+                var value = Model.Data[fieldId];
+                var valueString = value?.ToString() ?? string.Empty;
+                
+                <div class="govuk-form-group">
+                    <fieldset class="govuk-fieldset" aria-describedby="trust-confirmed-hint">
+                        <legend class="govuk-fieldset__legend govuk-fieldset__legend--l">
+                            <h1 class="govuk-fieldset__heading">
+                                <span class="govuk-caption-l">Trust details</span>
+                                Is this the right trust?
+                            </h1>
+                        </legend>
+                        
+                        <div id="trust-confirmed-hint" class="govuk-hint">
+                            <div class="govuk-inset-text">
+                                @if (!string.IsNullOrWhiteSpace(valueString))
+                                {
+                                    try
+                                    {
+                                        // Try to parse as JSON for complex field values (like trust selection data)
+                                        if (valueString.StartsWith("{") || valueString.StartsWith("["))
+                                        {
+                                            var jsonValue = JsonSerializer.Deserialize<JsonElement>(valueString);
+                                            if (jsonValue.ValueKind == JsonValueKind.Object && jsonValue.TryGetProperty("name", out var nameElement))
+                                            {
+                                                var trustName = nameElement.GetString();
+                                                
+                                                <h2 class="govuk-heading-m">@trustName</h2>
+                                                
+                                                @if (jsonValue.TryGetProperty("ukprn", out var ukprnElement))
+                                                {
+                                                    <p class="govuk-body">UKPRN: @ukprnElement.GetString()</p>
+                                                }
+                                                
+                                                @if (jsonValue.TryGetProperty("companiesHouseNumber", out var companiesHouseElement))
+                                                {
+                                                    <p class="govuk-body">Companies house number: @companiesHouseElement.GetString()</p>
+                                                }
+                                            }
+                                            else if (jsonValue.ValueKind == JsonValueKind.Array)
+                                            {
+                                                <h2 class="govuk-heading-m">@jsonValue.GetArrayLength() item(s) selected</h2>
+                                            }
+                                            else
+                                            {
+                                                <h2 class="govuk-heading-m">@valueString</h2>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <h2 class="govuk-heading-m">@valueString</h2>
+                                        }
+                                    }
+                                    catch (JsonException)
+                                    {
+                                        <h2 class="govuk-heading-m">@valueString</h2>
+                                    }
+                                }
+                                else
+                                {
+                                    <p class="govuk-body">
+                                        <strong>Note:</strong> Trust details could not be loaded. Please proceed with caution.
+                                    </p>
+                                }
+                            </div>
+                        </div>
+                    </fieldset>
+                </div>
+            }
+            else
+            {
+                <div class="govuk-form-group">
+                    <fieldset class="govuk-fieldset" aria-describedby="trust-confirmed-hint">
+                        <legend class="govuk-fieldset__legend govuk-fieldset__legend--l">
+                            <h1 class="govuk-fieldset__heading">
+                                <span class="govuk-caption-l">Trust details</span>
+                                Is this the right trust?
+                            </h1>
+                        </legend>
+                        
+                        <div id="trust-confirmed-hint" class="govuk-hint">
+                            <div class="govuk-inset-text">
+                                <p class="govuk-body">
+                                    <strong>Note:</strong> Trust details could not be loaded. Please proceed with caution.
+                                </p>
+                            </div>
+                        </div>
+                    </fieldset>
+                </div>
+            }
+
+            <!-- Confirmation form -->
+            <form method="post" action="?handler=Confirmation">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="Operation" value="@operation" />
+                <input type="hidden" name="FieldId" value="@fieldId" />
+                <input type="hidden" name="ConfirmationToken" value="@confirmationToken" />
+
+                <!-- Radio buttons for confirmation -->
+                <div class="govuk-form-group">
+                    <fieldset class="govuk-fieldset">
+                        <legend class="govuk-fieldset__legend govuk-fieldset__legend--m">
+                            <h2 class="govuk-fieldset__heading">Please confirm your choice</h2>
+                        </legend>
+                        
+                        <div class="govuk-radios" data-module="govuk-radios" data-govuk-radios-init="">
+                            <div class="govuk-radios__item">
+                                <input class="govuk-radios__input" id="UserConfirmed-true" name="UserConfirmed" type="radio" value="true" required>
+                                <label class="govuk-label govuk-radios__label" for="UserConfirmed-true">
+                                    Yes
+                                </label>
+                            </div>
+                            
+                            <div class="govuk-radios__item">
+                                <input class="govuk-radios__input" id="UserConfirmed-false" name="UserConfirmed" type="radio" value="false" required>
+                                <label class="govuk-label govuk-radios__label" for="UserConfirmed-false">
+                                    No
+                                </label>
+                            </div>
+                        </div>
+                    </fieldset>
+                </div>
+
+                <button type="submit" class="govuk-button" data-module="govuk-button" data-govuk-button-init="">
+                    Continue
+                </button>
+            </form>
+        </div>
+    </div>
+}

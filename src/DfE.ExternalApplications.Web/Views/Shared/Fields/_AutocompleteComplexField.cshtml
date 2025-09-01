@@ -19,92 +19,39 @@
     
     // Generate unique IDs
     var inputId = $"{Model.Id}-complex-field";
-    var selectedItemsId = $"{Model.Id}-selected-items";
-    var searchInputId = $"{Model.Id}-search-input";
     
-    // Helper function to format display value
-    string FormatDisplayValue(object value)
-    {
-        if (value is Dictionary<string, object> dict)
-        {
-            var name = dict.ContainsKey("name") ? dict["name"]?.ToString() : "";
-            var ukprn = dict.ContainsKey("ukprn") ? dict["ukprn"]?.ToString() : "";
-            
-            if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(ukprn))
-            {
-                return $"{name} (UKPRN: {ukprn})";
-            }
-            else if (!string.IsNullOrEmpty(name))
-            {
-                return name;
-            }
-        }
-        return value?.ToString() ?? "";
-    }
+    // Get current value for initial display
+    var currentValue = Model.CurrentValue;
+    var displayValue = "";
     
-    // Get current values (for multiple selection, stored as JSON array)
-    var currentValues = new List<object>();
-    if (!string.IsNullOrEmpty(Model.CurrentValue))
+    if (!string.IsNullOrEmpty(currentValue))
     {
         try
         {
-            // Try to deserialize as array of objects first
-            using (var doc = JsonDocument.Parse(Model.CurrentValue))
+            // Try to parse as JSON and extract the name
+            using (var doc = JsonDocument.Parse(currentValue))
             {
-                if (doc.RootElement.ValueKind == JsonValueKind.Array)
+                if (doc.RootElement.ValueKind == JsonValueKind.Object)
                 {
-                    foreach (var element in doc.RootElement.EnumerateArray())
+                    if (doc.RootElement.TryGetProperty("name", out var nameElement))
                     {
-                        if (element.ValueKind == JsonValueKind.Object)
-                        {
-                            var obj = new Dictionary<string, object>();
-                            foreach (var property in element.EnumerateObject())
-                            {
-                                if (property.Value.ValueKind == JsonValueKind.String)
-                                {
-                                    obj[property.Name] = property.Value.GetString();
-                                }
-                                else if (property.Value.ValueKind == JsonValueKind.Number)
-                                {
-                                    obj[property.Name] = property.Value.GetInt64().ToString();
-                                }
-                            }
-                            currentValues.Add(obj);
-                        }
-                        else if (element.ValueKind == JsonValueKind.String)
-                        {
-                            currentValues.Add(element.GetString());
-                        }
+                        displayValue = nameElement.GetString() ?? "";
                     }
                 }
-                else if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                else if (doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
                 {
-                    // Single object
-                    var obj = new Dictionary<string, object>();
-                    foreach (var property in doc.RootElement.EnumerateObject())
+                    var firstElement = doc.RootElement[0];
+                    if (firstElement.ValueKind == JsonValueKind.Object && firstElement.TryGetProperty("name", out var nameElement))
                     {
-                        if (property.Value.ValueKind == JsonValueKind.String)
-                        {
-                            obj[property.Name] = property.Value.GetString();
-                        }
-                        else if (property.Value.ValueKind == JsonValueKind.Number)
-                        {
-                            obj[property.Name] = property.Value.GetInt64().ToString();
-                        }
+                        displayValue = nameElement.GetString() ?? "";
                     }
-                    currentValues.Add(obj);
-                }
-                else
-                {
-                    // Single string value
-                    currentValues.Add(Model.CurrentValue);
                 }
             }
         }
         catch
         {
-            // If not JSON, treat as single string value
-            currentValues.Add(Model.CurrentValue);
+            // If not JSON, use as is
+            displayValue = currentValue;
         }
     }
 }
@@ -157,46 +104,24 @@ else
                  data-complex-field-id="@complexFieldId"
                  data-min-length="@configuration.MinLength"
                  data-allow-multiple="@configuration.AllowMultiple.ToString().ToLower()"
-                 data-max-selections="@configuration.MaxSelections"
                  data-target-input="@Model.Id"
-                 data-selected-items-container="@selectedItemsId"
                  data-placeholder="@configuration.Placeholder"
+                 data-display-value="@displayValue"
                  aria-describedby="@inputId-hint"
                  aria-labelledby="@ariaLabel">
-            </div>
+                 
+                 <!-- Fallback input in case accessible-autocomplete fails -->
+                 <input type="text" 
+                        id="@inputId-fallback" 
+                        class="govuk-input" 
+                        placeholder="@configuration.Placeholder"
+                        value="@displayValue"
+                        style="display: none;" />
+             </div>
             
             <div id="@inputId-hint" class="govuk-visually-hidden">
                 Use this field to search and select options. Type at least @configuration.MinLength characters to see results.
                 @(configuration.AllowMultiple ? "<span>You can select multiple options.</span>" : "")
-            </div>
-            
-            <!-- Maximum selections message -->
-            @if (configuration.AllowMultiple && configuration.MaxSelections > 0)
-            {
-                <div id="@inputId-max-message" class="govuk-inset-text" style="display: none;">
-                    <p class="govuk-body">You have reached the maximum number of selections (@configuration.MaxSelections). Remove a selection to add a different one.</p>
-                </div>
-            }
-            
-            <!-- Selected items container -->
-            <div id="@selectedItemsId" class="complex-field-selected-items">
-                @if (currentValues.Any())
-                {
-                    foreach (var value in currentValues)
-                    {
-                        var displayValue = FormatDisplayValue(value);
-                        var valueJson = JsonSerializer.Serialize(value);
-                        
-                        <div class="complex-field-selected-inset govuk-inset-text" data-value="@valueJson">
-                            <p class="govuk-body">@displayValue</p>
-                            <button type="button" class="govuk-button govuk-button--secondary govuk-button--small remove-selected-item" 
-                                    data-field-id="@Model.Id" 
-                                    data-value="@valueJson">
-                                Remove
-                            </button>
-                        </div>
-                    }
-                }
             </div>
         </div>
     </div>
@@ -207,30 +132,8 @@ else
         position: relative;
     }
     
-    /* Selected items styling - GovUK Inset Text */
-    .complex-field-selected-items {
-        margin-top: 15px;
-    }
-    
-    .complex-field-selected-inset {
+    .complex-field-search-containser {
         position: relative;
-        margin-bottom: 15px;
-    }
-    
-    .complex-field-selected-inset:last-child {
-        margin-bottom: 0;
-    }
-    
-    .complex-field-selected-inset .govuk-body {
-        margin-bottom: 15px;
-    }
-    
-    .complex-field-selected-inset .govuk-hint {
-        margin-top: 0;
-    }
-    
-    .complex-field-selected-inset .govuk-button {
-        margin-top: 0;
     }
     
     /* Custom autocomplete suggestion styling */
@@ -319,7 +222,7 @@ else
     .autocomplete__option:hover {
         background-color: #1d70b8;
         border-color: #1d70b8;
-        color: #ffffff;
+        color: #ffffff !important;
     }
     
     .autocomplete__option--odd {
@@ -330,7 +233,18 @@ else
     .autocomplete__option--selected {
         background-color: #1d70b8;
         border-color: #1d70b8;
-        color: #ffffff;
+        color: #ffffff !important;
+    }
+    
+    /* Ensure text color changes for all states */
+    .autocomplete__option:focus *,
+    .autocomplete__option:hover * {
+        color: #ffffff !important;
+    }
+    
+    .autocomplete__option--focused *,
+    .autocomplete__option--selected * {
+        color: #ffffff !important;
     }
     
     .autocomplete__hint {
@@ -342,36 +256,221 @@ else
 </style>
 
 <script>
-// Helper function to update hidden input value based on selected items
-function updateHiddenInputValue(hiddenInput, allowMultiple) {
-    const selectedItems = hiddenInput.closest('.complex-field-container').querySelectorAll('.complex-field-selected-inset');
-    const values = [];
-    
-    selectedItems.forEach(function(item) {
-        const valueData = item.dataset.value;
-        if (valueData) {
-            try {
-                const parsedValue = JSON.parse(valueData);
-                values.push(parsedValue);
-            } catch (e) {
-                console.error('Error parsing value data:', e);
-            }
-        }
-    });
-    
-    if (allowMultiple) {
-        hiddenInput.value = JSON.stringify(values);
-    } else {
-        hiddenInput.value = values.length > 0 ? JSON.stringify(values[0]) : '';
-    }
-    
-    console.log('Updated hidden input value:', hiddenInput.value);
-}
+// Global escapeHtml function for templates - defined at the top to avoid "not defined" errors
+window.escapeHtml = function(text) {
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+};
 
 document.addEventListener('DOMContentLoaded', function() {
     // Test if accessible-autocomplete is available
     console.log('DOM loaded. Testing accessible-autocomplete...');
     console.log('accessibleAutocomplete:', typeof accessibleAutocomplete);
+    console.log('accessibleAutocomplete object:', accessibleAutocomplete);
+    
+    // Check if the library is loaded from CDN
+    if (typeof accessibleAutocomplete === 'undefined') {
+        console.error('accessibleAutocomplete library is NOT loaded!');
+        console.error('Check if the CDN script is loading correctly in _Layout.cshtml');
+        
+        // Show all fallback inputs immediately since library is not available
+        const fallbackInputs = document.querySelectorAll('[id$="-fallback"]');
+        console.log('Found fallback inputs:', fallbackInputs.length);
+        fallbackInputs.forEach(function(input) {
+            input.style.display = 'block';
+            console.log('Showing fallback input:', input.id);
+            
+            // Make fallback inputs functional for search
+            const container = input.closest('[data-module="autocomplete-complex-field"]');
+            if (container) {
+                const complexFieldContainer = container.querySelector('[data-complex-field-id]');
+                const hiddenInput = container.querySelector('input[type="hidden"]');
+                const complexFieldId = complexFieldContainer?.dataset.complexFieldId;
+                const minLength = parseInt(complexFieldContainer?.dataset.minLength) || 3;
+                
+                console.log('Setting up fallback input for complex field:', complexFieldId);
+                
+                // Add search functionality to fallback input
+                let searchTimeout;
+                input.addEventListener('input', function(e) {
+                    const query = e.target.value;
+                    console.log('Fallback input changed:', query);
+                    
+                    // Clear previous timeout
+                    if (searchTimeout) {
+                        clearTimeout(searchTimeout);
+                    }
+                    
+                    // Update hidden input
+                    hiddenInput.value = query;
+                    
+                    // Search if query is long enough
+                    if (query && query.length >= minLength) {
+                        console.log('Triggering search for query:', query);
+                        
+                        // Debounce the search
+                        searchTimeout = setTimeout(function() {
+                            performSearch(complexFieldId, query, input);
+                        }, 300);
+                    }
+                });
+            }
+        });
+        
+        // Function to perform search
+        function performSearch(complexFieldId, query, inputElement) {
+            console.log('Performing search for:', query, 'in complex field:', complexFieldId);
+            
+            const requestUrl = window.location.pathname + '?handler=complexField&complexFieldId=' + encodeURIComponent(complexFieldId) + '&query=' + encodeURIComponent(query);
+            console.log('Making API call to:', requestUrl);
+            
+            fetch(requestUrl)
+                .then(response => {
+                    console.log('Search API response status:', response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Search results:', data);
+                    
+                    // Show results in a dropdown
+                    showSearchResults(data, inputElement);
+                })
+                .catch(error => {
+                    console.error('Search API error:', error);
+                });
+        }
+        
+        // Function to show search results in a dropdown
+        function showSearchResults(results, inputElement) {
+            // Remove existing dropdown
+            const existingDropdown = inputElement.parentNode.querySelector('.search-results-dropdown');
+            if (existingDropdown) {
+                existingDropdown.remove();
+            }
+            
+            if (!Array.isArray(results) || results.length === 0) {
+                console.log('No search results to show');
+                return;
+            }
+            
+            console.log('Showing', results.length, 'search results');
+            
+            // Create dropdown
+            const dropdown = document.createElement('div');
+            dropdown.className = 'search-results-dropdown';
+            dropdown.style.cssText = `
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: white;
+                border: 2px solid #0b0c0c;
+                border-top: none;
+                max-height: 200px;
+                overflow-y: auto;
+                z-index: 1000;
+                box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            `;
+            
+            // Add results
+            results.forEach((result, index) => {
+                const resultItem = document.createElement('div');
+                resultItem.className = 'search-result-item';
+                resultItem.style.cssText = `
+                    padding: 10px;
+                    border-bottom: 1px solid #b1b4b6;
+                    cursor: pointer;
+                    font-family: "GDS Transport", arial, sans-serif;
+                    font-size: 16px;
+                `;
+                
+                // Handle different result types
+                let displayText = '';
+                if (typeof result === 'object' && result !== null && result.name) {
+                    displayText = result.name;
+                    const parts = [];
+                    if (result.ukprn) { parts.push(`UKPRN: ${result.ukprn}`); }
+                    if (result.companiesHouseNumber) { parts.push(`Companies House: ${result.companiesHouseNumber}`); }
+                    if (parts.length > 0) {
+                        displayText += ' - ' + parts.join(' - ');
+                    }
+                } else if (typeof result === 'string') {
+                    displayText = result;
+                } else {
+                    displayText = JSON.stringify(result);
+                }
+                
+                resultItem.textContent = displayText;
+                
+                // Add hover effect
+                resultItem.addEventListener('mouseenter', function() {
+                    this.style.backgroundColor = '#f8f9fa';
+                });
+                
+                resultItem.addEventListener('mouseleave', function() {
+                    this.style.backgroundColor = 'white';
+                });
+                
+                // Add click handler
+                resultItem.addEventListener('click', function() {
+                    console.log('Result selected:', result);
+                    
+                    // Update the input with the selected result
+                    if (typeof result === 'object' && result !== null && result.name) {
+                        inputElement.value = result.name;
+                    } else {
+                        inputElement.value = result.toString();
+                    }
+                    
+                    // Update hidden input with JSON
+                    const container = inputElement.closest('[data-module="autocomplete-complex-field"]');
+                    const hiddenInput = container.querySelector('input[type="hidden"]');
+                    hiddenInput.value = JSON.stringify(result);
+                    
+                    console.log('Updated hidden input with:', hiddenInput.value);
+                    
+                    // Hide dropdown
+                    dropdown.remove();
+                });
+                
+                dropdown.appendChild(resultItem);
+            });
+            
+            // Insert dropdown after input
+            inputElement.parentNode.appendChild(dropdown);
+            
+            // Close dropdown when clicking outside
+            document.addEventListener('click', function closeDropdown(e) {
+                if (!dropdown.contains(e.target) && e.target !== inputElement) {
+                    dropdown.remove();
+                    document.removeEventListener('click', closeDropdown);
+                }
+            });
+        }
+        
+        // Add a visible error message to the page
+        const errorDiv = document.createElement('div');
+        errorDiv.style.cssText = 'background-color: #f8d7da; color: #721c24; padding: 10px; margin: 10px 0; border: 1px solid #f5c6cb; border-radius: 4px;';
+        errorDiv.innerHTML = '<strong>Warning:</strong> The autocomplete library failed to load. Using fallback input field.';
+        document.body.insertBefore(errorDiv, document.body.firstChild);
+        
+        return;
+    }
+    
+    console.log('accessibleAutocomplete library is available, proceeding with initialization');
+    
+    // Ensure fallback inputs are hidden when library is available
+    const fallbackInputs = document.querySelectorAll('[id$="-fallback"]');
+    fallbackInputs.forEach(function(input) {
+        input.style.display = 'none';
+        console.log('Hiding fallback input:', input.id, 'since accessible-autocomplete is available');
+    });
     
     // Initialize autocomplete complex field functionality
     const containers = document.querySelectorAll('[data-module="autocomplete-complex-field"]');
@@ -384,12 +483,21 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
+        console.log('Processing container:', container);
+        console.log('Container HTML:', container.outerHTML);
+        
         const complexFieldContainer = container.querySelector('[data-complex-field-id]');
         const hiddenInput = container.querySelector('input[type="hidden"]');
-        const selectedItemsContainer = container.querySelector('.complex-field-selected-items');
         const complexFieldId = complexFieldContainer.dataset.complexFieldId;
         const fieldId = hiddenInput.id; // Use the actual field ID for form submission
         const allowMultiple = complexFieldContainer.dataset.allowMultiple === 'true';
+        
+        console.log('Container found:', container);
+        console.log('Complex field container found:', complexFieldContainer);
+        console.log('Hidden input found:', hiddenInput);
+        console.log('Complex field ID:', complexFieldId);
+        console.log('Field ID:', fieldId);
+        console.log('Allow multiple:', allowMultiple);
         
         // Extract the actual field ID without the "Data_" prefix
         const actualFieldId = fieldId.startsWith('Data_') ? fieldId.substring(5) : fieldId;
@@ -400,46 +508,120 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('Hidden input value:', hiddenInput.value);
         const minLength = parseInt(complexFieldContainer.dataset.minLength) || 3;
         const placeholder = complexFieldContainer.dataset.placeholder;
-        const maxSelections = parseInt(complexFieldContainer.dataset.maxSelections) || 0;
+        const displayValue = complexFieldContainer.dataset.displayValue || '';
         
         console.log('Initializing autocomplete complex field for container element:', complexFieldContainer);
         console.log('Complex Field ID:', complexFieldId);
         console.log('Placeholder:', placeholder);
-        console.log('Max selections:', maxSelections);
-        
-        // Initialize remove buttons for existing selected items
-        const removeButtons = container.querySelectorAll('.remove-selected-item');
-        removeButtons.forEach(function(button) {
-            button.addEventListener('click', function() {
-                const valueToRemove = this.dataset.value;
-                const fieldId = this.dataset.fieldId;
-                const hiddenInput = document.getElementById(fieldId);
-                
-                // Remove the selected item from the DOM
-                this.closest('.complex-field-selected-inset').remove();
-                
-                // Update the hidden input value
-                updateHiddenInputValue(hiddenInput, allowMultiple);
-            });
-        });
+        console.log('Display Value:', displayValue);
         
         // Initialize accessible autocomplete on the container element
+        console.log('Checking if accessibleAutocomplete is available...');
+        console.log('Type of accessibleAutocomplete:', typeof accessibleAutocomplete);
+        console.log('accessibleAutocomplete object:', accessibleAutocomplete);
+        
         if (typeof accessibleAutocomplete !== 'undefined') {
             try {
+                console.log('Initializing accessible-autocomplete for autocomplete complex field');
+                console.log('Container element:', complexFieldContainer);
+                console.log('Container ID:', complexFieldContainer.id);
+                console.log('Display value:', displayValue);
+                
                 accessibleAutocomplete({
                     element: complexFieldContainer,
                     id: complexFieldContainer.id,
-                    placeholder: placeholder,
+                    placeholder: placeholder, // Always show placeholder
                     showAllValues: false,
-                    autoselect: true,
+                    autoselect: false, // Don't auto-select to avoid unwanted value display
                     confirmOnBlur: false,
+                    defaultValue: '', // Keep empty
+                    displayMenu: 'overlay',
+                    preserveNull: true,
+                    allowEmpty: true,
+                    onConfirm: function(option) {
+                        console.log('OnConfirm function triggered!');
+                        console.log('Option confirmed:', option);
+                        console.log('Option type:', typeof option);
+                        console.log('Option details:', JSON.stringify(option));
+                        
+                        if (option) {
+                            var isValidString = typeof option === 'string' && option.trim() !== '';
+                            var isValidObject = typeof option === 'object' && option !== null && option.name;
+                            
+                            console.log('Is valid string:', isValidString);
+                            console.log('Is valid object:', isValidObject);
+                            
+                            if (isValidString || isValidObject) {
+                                console.log('Option selected, updating hidden input');
+                                
+                                // Update the hidden input with the selected value
+                                if (allowMultiple) {
+                                    // For multiple selection, append to existing array
+                                    const currentValue = hiddenInput.value;
+                                    let values = [];
+                                    if (currentValue) {
+                                        try {
+                                            values = JSON.parse(currentValue);
+                                            if (!Array.isArray(values)) {
+                                                values = [values];
+                                            }
+                                        } catch {
+                                            values = [currentValue];
+                                        }
+                                    }
+                                    
+                                    // Check if value already exists
+                                    const exists = values.some(v => 
+                                        (typeof v === 'object' && typeof option === 'object' && v.name === option.name) ||
+                                        (typeof v === 'string' && typeof option === 'string' && v === option)
+                                    );
+                                    
+                                    if (!exists) {
+                                        values.push(option);
+                                        hiddenInput.value = JSON.stringify(values);
+                                        console.log('Added to multiple selection, total values:', values.length);
+                                    } else {
+                                        console.log('Value already selected, skipping');
+                                    }
+                                } else {
+                                    // For single selection, replace the value
+                                    hiddenInput.value = JSON.stringify(option);
+                                    console.log('Single selection updated');
+                                }
+                                
+                                console.log('Hidden input value updated to:', hiddenInput.value);
+                            } else {
+                                console.log('Option validation failed');
+                            }
+                        } else {
+                            console.log('No option provided to onConfirm');
+                        }
+                    },
                     templates: {
                         inputValue: function(result) {
                             console.log('inputValue template called with:', result);
-                            if (typeof result === 'object' && result !== null && result.name) {
-                                return result.name;
+                            
+                            // Show the selected value in the input when confirmed
+                            if (result && typeof result === 'object' && result !== null && result.name) {
+                                var displayText = result.name;
+                                var parts = [];
+                                
+                                if (result.ukprn) {
+                                    parts.push('UKPRN: ' + result.ukprn);
+                                }
+                                if (result.companiesHouseNumber) {
+                                    parts.push('Companies House Number: ' + result.companiesHouseNumber);
+                                }
+                                
+                                if (parts.length > 0) {
+                                    displayText += ' - ' + parts.join(' - ');
+                                }
+                                
+                                return displayText;
                             }
-                            return result ? result.toString() : '';
+                            
+                            // Return empty string for initial load or when no result
+                            return '';
                         },
                         suggestion: function(result) {
                             console.log('suggestion template called with:', result);
@@ -447,8 +629,15 @@ document.addEventListener('DOMContentLoaded', function() {
                                 var html = '<div class="complex-field-suggestion">';
                                 html += '<div class="complex-field-suggestion-name">' + escapeHtml(result.name) + '</div>';
                                 
+                                var parts = [];
                                 if (result.ukprn) {
-                                    html += '<div class="complex-field-suggestion-identifiers">UKPRN: ' + escapeHtml(result.ukprn) + '</div>';
+                                    parts.push('UKPRN: ' + escapeHtml(result.ukprn));
+                                }
+                                if (result.companiesHouseNumber) {
+                                    parts.push('Companies House: ' + escapeHtml(result.companiesHouseNumber));
+                                }
+                                if (parts.length > 0) {
+                                    html += '<div class="complex-field-suggestion-identifiers">' + parts.join(' - ') + '</div>';
                                 }
                                 
                                 html += '</div>';
@@ -500,110 +689,30 @@ document.addEventListener('DOMContentLoaded', function() {
                             });
                     },
                     minLength: minLength,
-                    onConfirm: function(option) {
-                        console.log('OnConfirm function triggered!');
-                        console.log('Option confirmed:', option);
-                        console.log('Option type:', typeof option);
-                        console.log('Option details:', JSON.stringify(option));
-                        
-                        if (option) {
-                            var isValidString = typeof option === 'string' && option.trim() !== '';
-                            var isValidObject = typeof option === 'object' && option !== null && option.name;
-                            
-                            console.log('Is valid string:', isValidString);
-                            console.log('Is valid object:', isValidObject);
-                            
-                            if (isValidString || isValidObject) {
-                                console.log('Adding selected item...');
-                                addSelectedItem(option);
-                                
-                                // Clear the input after selection using multiple approaches
-                                const autocompleteInput = container.querySelector('.autocomplete__input');
-                                if (autocompleteInput) {
-                                    console.log('Clearing autocomplete input with multiple methods');
-                                    
-                                    // Method 1: Direct value assignment
-                                    autocompleteInput.value = '';
-                                    
-                                    // Method 2: Set React-compatible value using property descriptor
-                                    try {
-                                        const valueSetter = Object.getOwnPropertyDescriptor(autocompleteInput, 'value')?.set ||
-                                                          Object.getOwnPropertyDescriptor(Object.getPrototypeOf(autocompleteInput), 'value')?.set;
-                                        if (valueSetter) {
-                                            valueSetter.call(autocompleteInput, '');
-                                        }
-                                    } catch (e) {
-                                        console.log('React-style value setting failed:', e);
-                                    }
-                                    
-                                    // Method 3: Trigger input events to notify any listeners
-                                    autocompleteInput.dispatchEvent(new Event('input', { bubbles: true }));
-                                    autocompleteInput.dispatchEvent(new Event('change', { bubbles: true }));
-                                    
-                                    // Method 4: Use setTimeout to ensure clearing happens after any library updates
-                                    setTimeout(function() {
-                                        autocompleteInput.value = '';
-                                        autocompleteInput.dispatchEvent(new Event('input', { bubbles: true }));
-                                        console.log('Input cleared with timeout method');
-                                    }, 10);
-                                    
-                                } else {
-                                    console.warn('Autocomplete input not found for clearing');
-                                }
-                            } else {
-                                console.log('Option validation failed');
-                            }
-                        } else {
-                            console.log('No option provided to onConfirm');
-                        }
-                    }
                 });
                 
                 console.log('Autocomplete complex field initialized successfully');
                 
-                // Add backup event listeners for debugging onConfirm issues
-                setTimeout(function() {
-                    const autocompleteInput = container.querySelector('.autocomplete__input');
-                    if (autocompleteInput) {
-                        // Listen for Enter key as backup
-                        autocompleteInput.addEventListener('keydown', function(e) {
-                            if (e.key === 'Enter') {
-                                console.log('Enter key pressed on autocomplete input');
-                                console.log('Current input value:', this.value);
-                                
-                                // Check if there's a highlighted option
-                                const highlightedOption = container.querySelector('.autocomplete__option--focused');
-                                if (highlightedOption) {
-                                    console.log('Highlighted option found:', highlightedOption.textContent);
-                                    // Try to trigger selection manually if onConfirm doesn't work
-                                    // This is a backup mechanism
-                                    const optionText = highlightedOption.textContent.trim();
-                                    if (optionText) {
-                                        console.log('Manually triggering selection for:', optionText);
-                                        // Clear input as backup
-                                        setTimeout(() => {
-                                            this.value = '';
-                                            this.dispatchEvent(new Event('input', { bubbles: true }));
-                                            console.log('Backup input clearing triggered');
-                                        }, 50);
-                                    }
-                                }
-                            }
-                        });
-                        
-                        // Listen for click events on options
-                        container.addEventListener('click', function(e) {
-                            if (e.target.closest('.autocomplete__option')) {
-                                console.log('Option clicked:', e.target.closest('.autocomplete__option').textContent);
-                            }
-                        });
-                        
-                        console.log('Backup event listeners added for debugging');
-                    }
-                }, 200);
-                
                 // Mark this container as initialized
                 container.dataset.initialized = 'true';
+                
+                // Monitor form submission to track data preservation
+                const form = container.closest('form');
+                if (form) {
+                    form.addEventListener('submit', function(e) {
+                        console.log('Form submission detected');
+                        console.log('Hidden input value before submission:', hiddenInput.value);
+                        
+                        // Log all form data
+                        const formData = new FormData(form);
+                        console.log('Form data being submitted:');
+                        for (let [key, value] of formData.entries()) {
+                            console.log('  ', key, ':', value);
+                        }
+                    });
+                    
+                    console.log('Added form submission monitoring');
+                }
                 
                 // Apply GovUK styling to the created input after a short delay
                 setTimeout(function() {
@@ -617,6 +726,35 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                         console.log('Applied GovUK styling to autocomplete complex field input');
                         console.log('Set input ID to:', autocompleteInput.id);
+                        
+                        // Add event listener to clear selection when user starts typing
+                        autocompleteInput.addEventListener('input', function(e) {
+                            const currentValue = e.target.value;
+                            console.log('Input changed to:', currentValue);
+                            
+                            // If the user is typing something different from what was selected,
+                            // clear the hidden input to trigger new searches
+                            if (currentValue && currentValue.trim() !== '') {
+                                // User is typing, clear the selection to allow new searches
+                                if (hiddenInput.value) {
+                                    console.log('User started typing, clearing current selection');
+                                    hiddenInput.value = '';
+                                }
+                            }
+                        });
+                        
+                        // Add blur event listener to handle when input is completely cleared
+                        autocompleteInput.addEventListener('blur', function(e) {
+                            const currentValue = e.target.value;
+                            console.log('Input blur, current value:', currentValue);
+                            
+                            // If the input is completely empty, ensure placeholder is visible
+                            if (!currentValue || currentValue.trim() === '') {
+                                console.log('Input is empty, ensuring placeholder is visible');
+                                // The accessible-autocomplete library should automatically show placeholder
+                                // when the input is empty
+                            }
+                        });
                     }
                 }, 100);
                 
@@ -626,237 +764,42 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         } else {
             console.error('accessibleAutocomplete is not available');
-        }
-        
-        // Attach event listeners to existing remove buttons (for server-rendered items)
-        attachRemoveButtonListeners();
-        
-        // Check initial selection limit state
-        const initialValues = getCurrentValues();
-        updateSelectionLimitUI(initialValues);
-        
-        function attachRemoveButtonListeners() {
-            const existingRemoveButtons = selectedItemsContainer.querySelectorAll('.complex-field-remove-item');
-            existingRemoveButtons.forEach(function(button) {
-                button.addEventListener('click', function() {
-                    const itemElement = button.closest('.complex-field-selected-inset');
-                    if (itemElement) {
-                        const dataValue = itemElement.getAttribute('data-value');
-                        let valueToRemove;
-                        
-                        try {
-                            // Try to parse as JSON object
-                            valueToRemove = JSON.parse(dataValue);
-                        } catch {
-                            // If not JSON, use as string
-                            valueToRemove = dataValue;
-                        }
-                        
-                        console.log('Removing value:', valueToRemove);
-                        removeSelectedItem(valueToRemove);
-                    }
+            
+            // Show fallback input if accessible-autocomplete is not available
+            const fallbackInput = container.querySelector('#@inputId-fallback');
+            if (fallbackInput) {
+                fallbackInput.style.display = 'block';
+                console.log('Showing fallback input');
+                
+                // Add event listener to update hidden input when fallback input changes
+                fallbackInput.addEventListener('input', function(e) {
+                    hiddenInput.value = e.target.value;
+                    console.log('Fallback input changed, updated hidden input to:', e.target.value);
                 });
-            });
-        }
-        
-        function addSelectedItem(value) {
-            const currentValues = getCurrentValues();
-            
-            // Check maximum selections limit for multiple selection
-            if (allowMultiple && maxSelections > 0 && currentValues.length >= maxSelections) {
-                console.log('Maximum selections reached:', maxSelections);
-                return; // Don't add more items
-            }
-            
-            if (!allowMultiple) {
-                // Single selection - replace existing
-                currentValues.length = 0;
-                currentValues.push(value);
             } else {
-                // Multiple selection - add if not already present
-                if (!isValueAlreadySelected(value, currentValues)) {
-                    currentValues.push(value);
-                }
-            }
-            
-            updateSelectedItems(currentValues);
-            updateHiddenInput(currentValues);
-            updateSelectionLimitUI(currentValues);
-        }
-        
-        function removeSelectedItem(value) {
-            const currentValues = getCurrentValues();
-            const index = findValueIndex(value, currentValues);
-            if (index > -1) {
-                currentValues.splice(index, 1);
-            }
-            
-            updateSelectedItems(currentValues);
-            updateHiddenInput(currentValues);
-            updateSelectionLimitUI(currentValues);
-        }
-        
-        function isValueAlreadySelected(value, currentValues) {
-            return findValueIndex(value, currentValues) > -1;
-        }
-        
-        function findValueIndex(value, currentValues) {
-            for (let i = 0; i < currentValues.length; i++) {
-                if (valuesEqual(value, currentValues[i])) {
-                    return i;
-                }
-            }
-            return -1;
-        }
-        
-        function valuesEqual(value1, value2) {
-            // If both are objects, compare their JSON representation
-            if (typeof value1 === 'object' && typeof value2 === 'object' && value1 !== null && value2 !== null) {
-                return JSON.stringify(value1) === JSON.stringify(value2);
-            }
-            // If both are strings or one is string, compare as strings
-            return value1.toString() === value2.toString();
-        }
-        
-        function getCurrentValues() {
-            const hiddenValue = hiddenInput.value;
-            if (!hiddenValue) return [];
-            
-            try {
-                const parsed = JSON.parse(hiddenValue);
-                // If it's already an array, return it
-                if (Array.isArray(parsed)) {
-                    return parsed;
-                }
-                // If it's a single object, wrap it in an array
-                return [parsed];
-            } catch {
-                // If not JSON, treat as single string value
-                return [hiddenValue];
-            }
-        }
-        
-        function updateSelectedItems(values) {
-            selectedItemsContainer.innerHTML = '';
-            
-            values.forEach(function(value) {
-                const itemElement = document.createElement('div');
-                itemElement.className = 'govuk-inset-text complex-field-selected-inset';
+                console.log('Fallback input not found, creating a simple input manually');
                 
-                // Handle both object and string values
-                var displayName, ukprnText = '';
-                if (typeof value === 'object' && value !== null) {
-                    displayName = value.name || value.toString();
-                    if (value.ukprn) {
-                        ukprnText = 'UKPRN: ' + value.ukprn;
-                    }
-                    itemElement.setAttribute('data-value', JSON.stringify(value));
-                } else {
-                    displayName = value.toString();
-                    itemElement.setAttribute('data-value', value);
-                }
+                // Create a simple input field manually as a last resort
+                const simpleInput = document.createElement('input');
+                simpleInput.type = 'text';
+                simpleInput.className = 'govuk-input';
+                simpleInput.placeholder = placeholder || 'Search...';
+                simpleInput.value = displayValue || '';
+                simpleInput.style.width = '100%';
                 
-                var html = '<p class="govuk-body">';
-                html += '<strong>' + escapeHtml(displayName) + '</strong>';
-                if (ukprnText) {
-                    html += '<br />';
-                    html += '<span class="govuk-hint">' + ukprnText + '</span>';
-                }
-                html += '</p>';
-                html += '<button type="button" class="govuk-button govuk-button--secondary govuk-button--small complex-field-remove-item" aria-label="Remove ' + escapeHtml(displayName) + '">';
-                html += 'Remove';
-                html += '</button>';
-                
-                itemElement.innerHTML = html;
-                
-                const removeButton = itemElement.querySelector('.complex-field-remove-item');
-                removeButton.addEventListener('click', function() {
-                    removeSelectedItem(value);
+                // Add event listener
+                simpleInput.addEventListener('input', function(e) {
+                    hiddenInput.value = e.target.value;
+                    console.log('Simple input changed, updated hidden input to:', e.target.value);
                 });
                 
-                selectedItemsContainer.appendChild(itemElement);
-            });
-        }
-        
-        function updateHiddenInput(values) {
-            console.log('updateHiddenInput called with values:', values);
-            console.log('Current fieldId:', fieldId);
-            console.log('Actual field ID:', actualFieldId);
-            
-            if (allowMultiple) {
-                hiddenInput.value = JSON.stringify(values);
-            } else {
-                // For single selection, still serialize objects to JSON
-                if (values.length > 0) {
-                    const value = values[0];
-                    if (typeof value === 'object' && value !== null) {
-                        hiddenInput.value = JSON.stringify(value);
-                    } else {
-                        hiddenInput.value = value;
-                    }
-                } else {
-                    hiddenInput.value = '';
-                }
-            }
-            
-            // Ensure the hidden input has the correct name attribute for form submission
-            if (hiddenInput.name !== `Data[${actualFieldId}]`) {
-                hiddenInput.name = `Data[${actualFieldId}]`;
-            }
-            
-            console.log('Updated hidden input value:', hiddenInput.value);
-            console.log('Updated hidden input name:', hiddenInput.name);
-        }
-        
-        function updateSelectionLimitUI(currentValues) {
-            if (!allowMultiple || maxSelections === 0) return;
-            
-            const autocompleteInput = container.querySelector('.autocomplete__input');
-            const maxMessage = document.getElementById(complexFieldContainer.id.replace('-container', '') + '-max-message');
-            
-            if (currentValues.length >= maxSelections) {
-                // Hide autocomplete input and show message
-                if (autocompleteInput) {
-                    autocompleteInput.style.display = 'none';
-                    autocompleteInput.disabled = true;
-                }
-                if (maxMessage) {
-                    maxMessage.style.display = 'block';
-                }
-            } else {
-                // Show autocomplete input and hide message
-                if (autocompleteInput) {
-                    autocompleteInput.style.display = 'block';
-                    autocompleteInput.disabled = false;
-                }
-                if (maxMessage) {
-                    maxMessage.style.display = 'none';
-                }
+                // Insert the input into the container
+                complexFieldContainer.appendChild(simpleInput);
+                console.log('Created and inserted simple input field');
             }
         }
         
-        function escapeHtml(text) {
-            const map = {
-                '&': '&amp;',
-                '<': '&lt;',
-                '>': '&gt;',
-                '"': '&quot;',
-                "'": '&#039;'
-            };
-            return text.replace(/[&<>"']/g, function(m) { return map[m]; });
-        }
+        // Apply GovUK styling to the created input after a short delay
     });
-    
-    // Global escapeHtml function for templates
-    window.escapeHtml = function(text) {
-        const map = {
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#039;'
-        };
-        return text.replace(/[&<>"']/g, function(m) { return map[m]; });
-    };
 });
 </script> 

@@ -90,7 +90,7 @@ namespace DfE.ExternalApplications.Web.Services
 
                 if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(ukprn))
                 {
-                    return $"{name} (UKPRN: {ukprn})";
+                    return $"{name} - UKPRN: {ukprn}";
                 }
                 else if (!string.IsNullOrEmpty(name))
                 {

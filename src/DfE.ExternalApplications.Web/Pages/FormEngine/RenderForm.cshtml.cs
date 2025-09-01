@@ -269,8 +269,50 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                             CurrentPage = null; // No specific page for confirmation
                             CurrentFormState = FormState.Confirmation;
                             
-                            // Load any accumulated data for display on confirmation page
-                            LoadAccumulatedDataFromSession();
+                            // Load the pending form data for display on confirmation page instead of accumulated data
+                            // This ensures we show the newly selected trust, not the old one
+                            var pendingFormSubmissionJson = HttpContext.Session.GetString("PendingFormSubmission");
+                            if (!string.IsNullOrEmpty(pendingFormSubmissionJson))
+                            {
+                                try
+                                {
+                                    var pendingData = JsonSerializer.Deserialize<Dictionary<string, object>>(pendingFormSubmissionJson);
+                                    if (pendingData != null && pendingData.TryGetValue("FormData", out var formDataObj))
+                                    {
+                                        var formData = JsonSerializer.Deserialize<Dictionary<string, object>>(formDataObj.ToString() ?? "{}");
+                                        if (formData != null)
+                                        {
+                                            // Clear existing data and load the pending form data
+                                            Data.Clear();
+                                            foreach (var kvp in formData)
+                                            {
+                                                // Transform Data_ prefixed keys to regular field IDs for the view
+                                                var key = kvp.Key;
+                                                if (key.StartsWith("Data_"))
+                                                {
+                                                    var transformedKey = key.Substring(5); // Remove "Data_" prefix
+                                                    Data[transformedKey] = kvp.Value;
+                                                }
+                                                else
+                                                {
+                                                    Data[key] = kvp.Value;
+                                                }
+                                            }
+                                            _logger.LogInformation("Loaded pending form data for confirmation page: {Count} fields", formData.Count);
+                                        }
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogWarning(ex, "Failed to load pending form data for confirmation page, falling back to accumulated data");
+                                    LoadAccumulatedDataFromSession();
+                                }
+                            }
+                            else
+                            {
+                                _logger.LogWarning("No pending form submission data found, falling back to accumulated data");
+                                LoadAccumulatedDataFromSession();
+                            }
                             
                             _logger.LogInformation("Confirmation route initialized successfully - Operation: {Operation}, Field: {FieldId}, Task: {TaskId}", 
                                 operation, fieldId, TaskId);
@@ -301,8 +343,9 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 // Check if we need to clear session data for a new application
                 CheckAndClearSessionForNewApplication();
 
-                // Load accumulated form data from session to pre-populate fields (only if not in a sub-flow)
-                if (string.IsNullOrEmpty(CurrentPageId) || !CurrentPageId.Contains("flow/"))
+                // Load accumulated form data from session to pre-populate fields (only if not in a sub-flow or confirmation route)
+                if ((string.IsNullOrEmpty(CurrentPageId) || !CurrentPageId.Contains("flow/")) && 
+                    !CurrentPageId?.StartsWith("confirm/") == true)
                 {
                     LoadAccumulatedDataFromSession();
                 }
@@ -658,6 +701,102 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             return Redirect(listUrl);
         }
 
+        /// <summary>
+        /// Handles POST requests for the confirmation page
+        /// </summary>
+        public async Task<IActionResult> OnPostAsync()
+        {
+            // Check if this is a confirmation form submission
+            var operation = Request.Form["Operation"].ToString();
+            var fieldId = Request.Form["FieldId"].ToString();
+            var confirmationToken = Request.Form["ConfirmationToken"].ToString();
+            
+            _logger.LogInformation("OnPostAsync: Confirmation form submitted - Operation: {Operation}, Field: {FieldId}, Token: {Token}", 
+                operation, fieldId, confirmationToken);
+            
+            // Route to the appropriate confirmation handler based on operation
+            switch (operation?.ToLower())
+            {
+                case "update":
+                    return await OnPostConfirmedUpdateAsync(fieldId);
+                    
+                case "delete":
+                    // For delete operations, we need itemId which should be passed in the form
+                    var itemId = Request.Form["ItemId"].ToString();
+                    var flowId = Request.Form["FlowId"].ToString();
+                    return await OnPostConfirmedDeleteAsync(fieldId, itemId, flowId);
+                    
+                case "add":
+                    return await OnPostConfirmedAddAsync(fieldId);
+                    
+                default:
+                    _logger.LogWarning("Unknown confirmation operation: {Operation}", operation);
+                    return BadRequest($"Unknown confirmation operation: {operation}");
+            }
+        }
+
+        /// <summary>
+        /// Handles POST requests specifically for confirmation forms
+        /// </summary>
+        public async Task<IActionResult> OnPostConfirmationAsync()
+        {
+            _logger.LogInformation("OnPostConfirmationAsync: Method called");
+            
+            // Log all form data for debugging
+            foreach (var key in Request.Form.Keys)
+            {
+                _logger.LogInformation("Form field: {Key} = {Value}", key, Request.Form[key].ToString());
+            }
+            
+            // Check if this is a confirmation form submission
+            var operation = Request.Form["Operation"].ToString();
+            var fieldId = Request.Form["FieldId"].ToString();
+            var confirmationToken = Request.Form["ConfirmationToken"].ToString();
+            var userConfirmed = Request.Form["UserConfirmed"].ToString();
+            
+            _logger.LogInformation("OnPostConfirmationAsync: Extracted values - Operation: {Operation}, Field: {FieldId}, Token: {Token}, UserConfirmed: {UserConfirmed}", 
+                operation, fieldId, confirmationToken, userConfirmed);
+            
+            // Validate required fields
+            if (string.IsNullOrEmpty(operation))
+            {
+                _logger.LogError("Operation is missing from form data");
+                return BadRequest("Operation is required");
+            }
+            
+            if (string.IsNullOrEmpty(fieldId))
+            {
+                _logger.LogError("FieldId is missing from form data");
+                return BadRequest("FieldId is required");
+            }
+            
+            if (string.IsNullOrEmpty(userConfirmed))
+            {
+                _logger.LogError("UserConfirmed is missing from form data");
+                return BadRequest("Please select Yes or No");
+            }
+            
+            // Route to the appropriate confirmation handler based on operation
+            switch (operation?.ToLower())
+            {
+                case "update":
+                    return await OnPostConfirmedUpdateAsync(fieldId);
+                    
+                case "delete":
+                    // For delete operations, we need itemId which should be passed in the form
+                    var itemId = Request.Form["ItemId"].ToString();
+                    var flowId = Request.Form["FlowId"].ToString();
+                    return await OnPostConfirmedDeleteAsync(fieldId, itemId, flowId);
+                    
+                case "add":
+                    return await OnPostConfirmedAddAsync(fieldId);
+                    
+                default:
+                    _logger.LogWarning("Unknown confirmation operation: {Operation}", operation);
+                    return BadRequest($"Unknown confirmation operation: {operation}");
+            }
+        }
+
         public async Task<IActionResult> OnGetAutocompleteAsync(string endpoint, string query)
         {
             _logger.LogInformation("Autocomplete search called with endpoint: {Endpoint}, query: {Query}", endpoint, query);
@@ -857,11 +996,51 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             {
                 await CommonFormEngineInitializationAsync();
                 
+                // Retrieve the pending form submission data from session first to get the original page ID
+                var pendingFormSubmissionJson = HttpContext.Session.GetString("PendingFormSubmission");
+                string? originalPageId = null;
+                Dictionary<string, object>? formData = null;
+                
+                if (!string.IsNullOrEmpty(pendingFormSubmissionJson))
+                {
+                    try
+                    {
+                        var pendingData = JsonSerializer.Deserialize<Dictionary<string, object>>(pendingFormSubmissionJson);
+                        if (pendingData != null && pendingData.TryGetValue("FormData", out var formDataObj))
+                        {
+                            formData = JsonSerializer.Deserialize<Dictionary<string, object>>(formDataObj.ToString() ?? "{}");
+                            
+                            // Get the original page ID from the stored data
+                            if (pendingData.TryGetValue("CurrentPageId", out var pageIdObj))
+                            {
+                                originalPageId = pageIdObj?.ToString();
+                                _logger.LogDebug("Retrieved original page ID from session: {OriginalPageId}", originalPageId);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to deserialize pending form submission data for field {FieldId}", fieldId);
+                    }
+                }
+                
                 if (!string.IsNullOrEmpty(TaskId))
                 {
                     var (group, task) = InitializeCurrentTask(TaskId);
                     CurrentGroup = group;
                     CurrentTask = task;
+                    
+                    // Use the original page ID from session to set CurrentPage for navigation after save
+                    if (!string.IsNullOrEmpty(originalPageId))
+                    {
+                        var (_, _, page) = InitializeCurrentPage(originalPageId);
+                        CurrentPage = page;
+                        _logger.LogDebug("Set CurrentPage to {PageId} for navigation using original page ID from session", CurrentPage?.PageId);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("No original page ID found in session, CurrentPage will remain null");
+                    }
                 }
                 
                 if (string.IsNullOrEmpty(fieldId))
@@ -870,46 +1049,64 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     return BadRequest("Field ID is required");
                 }
 
+                // Check if the user confirmed the selection
+                var userConfirmed = Request.Form["UserConfirmed"].ToString();
+                _logger.LogInformation("OnPostConfirmedUpdateAsync: User confirmed value: {UserConfirmed}", userConfirmed);
+
+                if (string.IsNullOrEmpty(userConfirmed))
+                {
+                    _logger.LogError("UserConfirmed value is required but not provided");
+                    return BadRequest("Please select Yes or No");
+                }
+
+                // If user selected "No", don't save the data and redirect back to the previous page
+                if (userConfirmed == "false")
+                {
+                    _logger.LogInformation("User selected 'No', not saving data and redirecting back to previous page");
+                    
+                    // Clear the pending form submission data
+                    HttpContext.Session.Remove("PendingFormSubmission");
+                    
+                    // Redirect back to the previous page where the user was
+                    if (!string.IsNullOrEmpty(originalPageId))
+                    {
+                        var previousPageUrl = _formNavigationService.GetPageUrl(TaskId, ReferenceNumber, originalPageId);
+                        _logger.LogInformation("Redirecting back to previous page: {PreviousPageUrl}", previousPageUrl);
+                        return Redirect(previousPageUrl);
+                    }
+                    else
+                    {
+                        // Fallback to task summary if we can't determine the previous page
+                        var taskSummaryUrl = _formNavigationService.GetTaskSummaryUrl(TaskId, ReferenceNumber);
+                        _logger.LogInformation("Fallback redirect to task summary: {TaskSummaryUrl}", taskSummaryUrl);
+                        return Redirect(taskSummaryUrl);
+                    }
+                }
+
                 _logger.LogInformation("OnPostConfirmedUpdateAsync: Processing confirmed update for field: {FieldId}", fieldId);
 
-                // Retrieve the pending form submission data from session
-                var pendingFormSubmissionJson = HttpContext.Session.GetString("PendingFormSubmission");
-                if (!string.IsNullOrEmpty(pendingFormSubmissionJson))
+                // Process the confirmed form data (user selected "Yes")
+                if (formData != null)
                 {
-                    try
+                    _logger.LogInformation("OnPostConfirmedUpdateAsync: Retrieved pending form data with {Count} fields", formData.Count);
+                    
+                    // Save the confirmed form data to the API
+                    if (ApplicationId.HasValue)
                     {
-                        var pendingData = JsonSerializer.Deserialize<Dictionary<string, object>>(pendingFormSubmissionJson);
-                        if (pendingData != null && pendingData.TryGetValue("FormData", out var formDataObj))
-                        {
-                            var formData = JsonSerializer.Deserialize<Dictionary<string, object>>(formDataObj.ToString() ?? "{}");
-                            if (formData != null)
-                            {
-                                _logger.LogInformation("OnPostConfirmedUpdateAsync: Retrieved pending form data with {Count} fields", formData.Count);
-                                
-                                // Save the confirmed form data to the API
-                                if (ApplicationId.HasValue)
-                                {
-                                    await _applicationResponseService.SaveApplicationResponseAsync(ApplicationId.Value, formData, HttpContext.Session);
-                                    _logger.LogInformation("Successfully saved confirmed response for Application {ApplicationId}, Field {FieldId}",
-                                        ApplicationId.Value, fieldId);
-                                }
-                                
-                                // Clear the pending form submission data
-                                HttpContext.Session.Remove("PendingFormSubmission");
-                                
-                                // Redirect to the next page or task summary
-                                if (CurrentTask != null)
-                                {
-                                    var nextUrl = _formNavigationService.GetNextNavigationTargetAfterSave(CurrentPage, CurrentTask, ReferenceNumber);
-                                    _logger.LogInformation("Redirecting to next URL: {NextUrl}", nextUrl);
-                                    return Redirect(nextUrl);
-                                }
-                            }
-                        }
+                        await _applicationResponseService.SaveApplicationResponseAsync(ApplicationId.Value, formData, HttpContext.Session);
+                        _logger.LogInformation("Successfully saved confirmed response for Application {ApplicationId}, Field {FieldId}",
+                            ApplicationId.Value, fieldId);
                     }
-                    catch (Exception ex)
+                    
+                    // Clear the pending form submission data
+                    HttpContext.Session.Remove("PendingFormSubmission");
+                    
+                    // Redirect to the next page or task summary
+                    if (CurrentTask != null)
                     {
-                        _logger.LogError(ex, "Failed to process confirmed form submission for field {FieldId}", fieldId);
+                        var nextUrl = _formNavigationService.GetNextNavigationTargetAfterSave(CurrentPage, CurrentTask, ReferenceNumber);
+                        _logger.LogInformation("Redirecting to next URL: {NextUrl}", nextUrl);
+                        return Redirect(nextUrl);
                     }
                 }
                 else
@@ -1011,7 +1208,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         }
 
         /// <summary>
-        /// Gets all fields that require confirmation for the given form data
+        /// Gets fields that require confirmation from the current page only
         /// </summary>
         /// <param name="formData">The form data to check</param>
         /// <returns>List of fields that require confirmation</returns>
@@ -1019,34 +1216,44 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         {
             var fieldsRequiringConfirmation = new List<Field>();
             
-            if (Template?.TaskGroups == null) return fieldsRequiringConfirmation;
-
-            foreach (var group in Template.TaskGroups)
+            // Only check fields on the current page, not the entire template
+            if (CurrentPage?.Fields == null) 
             {
-                if (group.Tasks == null) continue;
+                _logger.LogDebug("CurrentPage or Fields is null, cannot check for confirmation requirements");
+                return fieldsRequiringConfirmation;
+            }
 
-                foreach (var task in group.Tasks)
+            _logger.LogDebug("Checking {FieldCount} fields on current page for confirmation requirements", CurrentPage.Fields.Count);
+
+            foreach (var field in CurrentPage.Fields)
+            {
+                // Check if the field has data - form data keys are prefixed with "Data_"
+                var dataKey = "Data_" + field.FieldId;
+                if (formData.ContainsKey(dataKey) && 
+                    !string.IsNullOrWhiteSpace(formData[dataKey]?.ToString()))
                 {
-                    if (task.Pages == null) continue;
-
-                    foreach (var page in task.Pages)
+                    _logger.LogDebug("Field {FieldId} has data at key {DataKey}, checking if it requires confirmation", field.FieldId, dataKey);
+                    
+                    // Now call the confirmation service to check if this field requires confirmation
+                    if (_confirmationService.RequiresConfirmation(field, ConfirmationOperation.Update))
                     {
-                        if (page.Fields == null) continue;
-
-                        foreach (var field in page.Fields)
-                        {
-                            // Check if the field has data and requires confirmation
-                            if (formData.ContainsKey(field.FieldId) && 
-                                !string.IsNullOrWhiteSpace(formData[field.FieldId]?.ToString()) &&
-                                _confirmationService.RequiresConfirmation(field, ConfirmationOperation.Update))
-                            {
-                                fieldsRequiringConfirmation.Add(field);
-                            }
-                        }
+                        _logger.LogDebug("Field {FieldId} requires confirmation and will be added to list", field.FieldId);
+                        fieldsRequiringConfirmation.Add(field);
                     }
+                    else
+                    {
+                        _logger.LogDebug("Field {FieldId} does NOT require confirmation", field.FieldId);
+                    }
+                }
+                else
+                {
+                    _logger.LogDebug("Field {FieldId} has no data or empty data at key {DataKey}, skipping confirmation check", field.FieldId, dataKey);
                 }
             }
 
+            _logger.LogDebug("GetFieldsRequiringConfirmation returning {Count} fields that require confirmation", 
+                fieldsRequiringConfirmation.Count);
+            
             return fieldsRequiringConfirmation;
         }
 
@@ -1100,7 +1307,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         /// <param name="fieldId">The field ID</param>
         /// <param name="confirmationToken">The confirmation token</param>
         /// <returns>True if the route is a confirmation route</returns>
-        private static bool TryParseConfirmationRoute(string pageId, out string operation, out string fieldId, out string confirmationToken)
+        private bool TryParseConfirmationRoute(string pageId, out string operation, out string fieldId, out string confirmationToken)
         {
             operation = fieldId = confirmationToken = string.Empty;
             if (string.IsNullOrEmpty(pageId)) return false;
@@ -1109,7 +1316,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             var parts = pageId.Split('/', StringSplitOptions.RemoveEmptyEntries);
             
             // Log the parsing attempt for debugging
-            Console.WriteLine($"TryParseConfirmationRoute: pageId='{pageId}', parts.Length={parts.Length}, parts=[{string.Join(", ", parts)}]");
+            _logger.LogDebug("TryParseConfirmationRoute: pageId='{PageId}', parts.Length={PartsLength}, parts=[{Parts}]", 
+                pageId, parts.Length, string.Join(", ", parts));
             
             if (parts.Length >= 4 && parts[0].Equals("confirm", StringComparison.OrdinalIgnoreCase))
             {
@@ -1117,11 +1325,12 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 fieldId = parts[2];
                 confirmationToken = parts[3];
                 
-                Console.WriteLine($"TryParseConfirmationRoute: SUCCESS - operation='{operation}', fieldId='{fieldId}', token='{confirmationToken}'");
+                _logger.LogDebug("TryParseConfirmationRoute: SUCCESS - operation='{Operation}', fieldId='{FieldId}', token='{Token}'", 
+                    operation, fieldId, confirmationToken);
                 return true;
             }
             
-            Console.WriteLine($"TryParseConfirmationRoute: FAILED - parts[0]='{parts[0]}', expected 'confirm'");
+            _logger.LogDebug("TryParseConfirmationRoute: FAILED - parts[0]='{FirstPart}', expected 'confirm'", parts[0]);
             return false;
         }
 

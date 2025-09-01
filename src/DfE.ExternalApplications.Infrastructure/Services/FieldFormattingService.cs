@@ -208,6 +208,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             {
                 string name = "";
                 string ukprn = "";
+                string chNumber = "";
 
                 if (element.TryGetProperty("name", out var nameProperty) && nameProperty.ValueKind == JsonValueKind.String)
                 {
@@ -226,9 +227,21 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                     }
                 }
 
-                if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(ukprn))
+                if (element.TryGetProperty("companiesHouseNumber", out var chProperty))
                 {
-                    return $"{System.Web.HttpUtility.HtmlEncode(name)} (UKPRN: {System.Web.HttpUtility.HtmlEncode(ukprn)})";
+                    if (chProperty.ValueKind == JsonValueKind.String)
+                    {
+                        chNumber = chProperty.GetString() ?? "";
+                    }
+                }
+
+                var parts = new List<string>();
+                if (!string.IsNullOrEmpty(ukprn)) parts.Add($"UKPRN: {System.Web.HttpUtility.HtmlEncode(ukprn)}");
+                if (!string.IsNullOrEmpty(chNumber)) parts.Add($"Companies House: {System.Web.HttpUtility.HtmlEncode(chNumber)}");
+
+                if (!string.IsNullOrEmpty(name) && parts.Count > 0)
+                {
+                    return $"{System.Web.HttpUtility.HtmlEncode(name)} - {string.Join(" - ", parts)}";
                 }
                 else if (!string.IsNullOrEmpty(name))
                 {

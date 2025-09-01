@@ -154,6 +154,23 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             return currentTask.Pages[currentPageIndex + 1];
         }
 
+        public string GetPageUrl(string taskId, string referenceNumber, string pageId)
+        {
+            if (string.IsNullOrWhiteSpace(pageId))
+            {
+                return GetTaskSummaryUrl(taskId, referenceNumber);
+            }
+
+            // If the pageId already contains a sub-flow route, return it directly under the task
+            if (pageId.StartsWith("flow/", StringComparison.OrdinalIgnoreCase))
+            {
+                return $"/applications/{referenceNumber}/{taskId}/{pageId}";
+            }
+
+            // Regular page under the task
+            return $"/applications/{referenceNumber}/{taskId}/{pageId}";
+        }
+
         // Sub-flow helpers
         public string GetCollectionFlowSummaryUrl(string taskId, string referenceNumber)
         {
