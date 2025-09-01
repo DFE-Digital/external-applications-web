@@ -1675,11 +1675,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 Console.WriteLine($"[UPLOAD DEBUG] === END MODEL STATE ERRORS ===");
                 
                 // CRITICAL: Save errors to FormErrorStore like original implementation
-                if (!string.IsNullOrEmpty(fieldId))
-                {
-                    Console.WriteLine($"[UPLOAD DEBUG] Saving ModelState errors to FormErrorStore for field: {fieldId}");
-                    _formErrorStore.Save(fieldId, ModelState);
-                }
+                // Note: API errors will be handled by ExternalApiExceptionFilter with FormErrorStore
+                Console.WriteLine($"[UPLOAD DEBUG] Non-API validation errors - handling locally");
                 
                 // Load existing files (CRITICAL - exactly like original)
                 Console.WriteLine($"[UPLOAD DEBUG] Loading existing files...");
@@ -1700,14 +1697,22 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 return Page();
             }
             
-            // Continue with successful upload
+            // Continue with successful upload - let filter handle API errors
             Console.WriteLine($"[UPLOAD DEBUG] File validation passed, proceeding with upload");
+            Console.WriteLine($"[UPLOAD DEBUG] *** ABOUT TO CALL API - NO TRY-CATCH ***");
+            Console.WriteLine($"[UPLOAD DEBUG] *** ExternalApiExceptionFilter should catch any API errors ***");
             
+            using var stream = file.OpenReadStream();
+            var fileParam = new FileParameter(stream, file.FileName, file.ContentType);
+            
+            Console.WriteLine($"[UPLOAD DEBUG] *** CALLING UploadFileAsync API ***");
             try
             {
-                using var stream = file.OpenReadStream();
-                var fileParam = new FileParameter(stream, file.FileName, file.ContentType);
                 await fileUploadService.UploadFileAsync(appId, file.FileName, uploadDescription, fileParam);
+                Console.WriteLine($"[UPLOAD DEBUG] *** API CALL COMPLETED SUCCESSFULLY - NO EXCEPTION ***");
+                
+                // SUCCESS PATH: Only execute this code if API call succeeds
+                Console.WriteLine($"[UPLOAD DEBUG] *** ENTERING SUCCESS PATH ***");
                 
                 // Get and update files
                 var currentFieldFiles = (await GetFilesForFieldAsync(appId, fieldId)).ToList();
@@ -1754,28 +1759,12 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[UPLOAD DEBUG] Upload failed: {ex.Message}");
-                ErrorMessage = $"Failed to upload file: {ex.Message}";
-                ModelState.AddModelError("UploadFile", ErrorMessage);
-                
-                // CRITICAL: Save errors to FormErrorStore for display
-                if (!string.IsNullOrEmpty(fieldId))
-                {
-                    Console.WriteLine($"[UPLOAD DEBUG] Saving upload exception errors to FormErrorStore for field: {fieldId}");
-                    _formErrorStore.Save(fieldId, ModelState);
-                }
-                
-                // Load files for error display
-                Files = await GetFilesForFieldAsync(appId, fieldId);
-                
-                if (!string.IsNullOrEmpty(returnUrl))
-                {
-                    Console.WriteLine($"[UPLOAD DEBUG] Upload exception - redirecting to: {returnUrl}");
-                    return Redirect(returnUrl);
-                }
-                
-                Console.WriteLine($"[UPLOAD DEBUG] Upload exception - returning Page()");
-                return Page();
+                Console.WriteLine($"[UPLOAD DEBUG] *** EXCEPTION CAUGHT IN UPLOAD METHOD ***");
+                Console.WriteLine($"[UPLOAD DEBUG] *** Exception: {ex.GetType().Name} - {ex.Message} ***");
+                Console.WriteLine($"[UPLOAD DEBUG] *** RETHROWING FOR FILTER TO HANDLE ***");
+                // Don't handle the exception here - let the ExternalApiExceptionFilter handle it
+                // This ensures that API errors get proper ModelState treatment
+                throw;
             }
         }
 

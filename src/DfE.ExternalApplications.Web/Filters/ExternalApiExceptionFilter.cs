@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
+using DfE.ExternalApplications.Web.Interfaces;
 
 namespace DfE.ExternalApplications.Web.Filters
 {
@@ -17,32 +18,94 @@ namespace DfE.ExternalApplications.Web.Filters
             PageHandlerExecutingContext context,
             PageHandlerExecutionDelegate next)
         {
+            Console.WriteLine($"[API FILTER DEBUG] *** FILTER ENTRY - Handler: {context.HandlerMethod?.Name} ***");
+            Console.WriteLine($"[API FILTER DEBUG] *** Page: {context.ActionDescriptor.DisplayName} ***");
+            
+            // DETECT UPLOAD REQUESTS BEFORE EXECUTION
+            var uploadInfo = DetectUploadRequest(context);
+            if (uploadInfo.isUpload)
+            {
+                Console.WriteLine($"[API FILTER DEBUG] *** UPLOAD REQUEST DETECTED - FieldId: {uploadInfo.fieldId} ***");
+                context.HttpContext.Items["UploadRequestInfo"] = uploadInfo;
+            }
+            
             var executedContext = await next();
+
+            Console.WriteLine($"[API FILTER DEBUG] *** FILTER POST-EXECUTION ***");
+            Console.WriteLine($"[API FILTER DEBUG] *** Exception: {executedContext.Exception?.GetType().Name} ***");
+            Console.WriteLine($"[API FILTER DEBUG] *** Exception Handled: {executedContext.ExceptionHandled} ***");
 
             if (executedContext.Exception is ExternalApplicationsException<ExceptionResponse> ex
                 && !executedContext.ExceptionHandled)
             {
+                Console.WriteLine($"[API FILTER DEBUG] *** HANDLING ExternalApplicationsException ***");
+                Console.WriteLine($"[API FILTER DEBUG] *** Status Code: {ex.Result?.StatusCode} ***");
+                Console.WriteLine($"[API FILTER DEBUG] *** Message: {ex.Result?.Message} ***");
+                
                 var r = ex.Result;
                 var page = context.HandlerInstance as PageModel
                            ?? throw new InvalidOperationException("Page filter only for Razor Pages");
+                           
+                Console.WriteLine($"[API FILTER DEBUG] *** Page Model Type: {page.GetType().Name} ***");
 
                 // 1) Validation: attempt to map structured validation errors into ModelState
                 if (r.StatusCode is 400 or 422)
                 {
+                    Console.WriteLine($"[API FILTER DEBUG] *** 400/422 VALIDATION ERROR PATH ***");
                     if (TryAddModelStateErrorsFromContext(page, r))
                     {
+                        Console.WriteLine($"[API FILTER DEBUG] *** Added structured validation errors to ModelState ***");
                         executedContext.Result = new PageResult();
                         executedContext.ExceptionHandled = true;
+                        Console.WriteLine($"[API FILTER DEBUG] *** RETURNING PageResult() for validation errors ***");
                         return;
                     }
                 }
 
                 if (r.StatusCode == 400 || r.StatusCode == 409)
                 {
+                    Console.WriteLine($"[API FILTER DEBUG] *** 400/409 CONFLICT ERROR PATH ***");
+                    Console.WriteLine($"[API FILTER DEBUG] *** Adding non-field error: {ex.Result.Message} ***");
                     AddNonFieldError(page, ex.Result.Message);
 
+                    // SPECIAL HANDLING FOR UPLOAD REQUESTS: Use stored upload info
+                    Console.WriteLine($"[API FILTER DEBUG] *** CHECKING FOR STORED UPLOAD INFO ***");
+                    var storedUploadInfo = context.HttpContext.Items.TryGetValue("UploadRequestInfo", out var storedInfo) 
+                        ? ((bool isUpload, string fieldId))storedInfo 
+                        : (false, string.Empty);
+                    Console.WriteLine($"[API FILTER DEBUG] *** STORED UPLOAD INFO: isUpload={storedUploadInfo.Item1}, fieldId='{storedUploadInfo.Item2}' ***");
+                    if (storedUploadInfo.Item1)
+                    {
+                        Console.WriteLine($"[API FILTER DEBUG] *** UPLOAD REQUEST - SAVING TO FORMERRORSTORE ***");
+                        try 
+                        {
+                            var formErrorStore = context.HttpContext.RequestServices.GetService<DfE.ExternalApplications.Web.Interfaces.IFormErrorStore>();
+                            if (formErrorStore != null)
+                            {
+                                formErrorStore.Save(storedUploadInfo.Item2, page.ModelState);
+                                Console.WriteLine($"[API FILTER DEBUG] *** SAVED ERRORS TO FORMERRORSTORE FOR FIELD: {storedUploadInfo.Item2} ***");
+                                
+                                // Get the return URL from the request
+                                var returnUrl = context.HttpContext.Request.Form["ReturnUrl"].ToString();
+                                if (!string.IsNullOrEmpty(returnUrl))
+                                {
+                                    Console.WriteLine($"[API FILTER DEBUG] *** REDIRECTING TO RETURN URL: {returnUrl} ***");
+                                    executedContext.Result = new Microsoft.AspNetCore.Mvc.RedirectResult(returnUrl);
+                                    executedContext.ExceptionHandled = true;
+                                    return;
+                                }
+                            }
+                        }
+                        catch (Exception saveEx)
+                        {
+                            Console.WriteLine($"[API FILTER DEBUG] *** ERROR SAVING TO FORMERRORSTORE: {saveEx.Message} ***");
+                        }
+                    }
+
+                    Console.WriteLine($"[API FILTER DEBUG] *** Setting PageResult() for conflict error ***");
                     executedContext.Result = new PageResult();
                     executedContext.ExceptionHandled = true;
+                    Console.WriteLine($"[API FILTER DEBUG] *** EXCEPTION HANDLED - RETURNING PageResult() ***");
                     return;
                 }
 
@@ -99,10 +162,22 @@ namespace DfE.ExternalApplications.Web.Filters
                     return;
                 }
 
+                Console.WriteLine($"[API FILTER DEBUG] *** OTHER STATUS CODE - REDIRECTING TO /Error/General ***");
                 page.TempData["ApiErrorId"] = r.ErrorId;
                 executedContext.Result = new RedirectToPageResult("/Error/General");
                 executedContext.ExceptionHandled = true;
             }
+            else
+            {
+                Console.WriteLine($"[API FILTER DEBUG] *** EXCEPTION NOT HANDLED BY FILTER ***");
+                if (executedContext.Exception != null)
+                {
+                    Console.WriteLine($"[API FILTER DEBUG] *** Exception Type: {executedContext.Exception.GetType().Name} ***");
+                    Console.WriteLine($"[API FILTER DEBUG] *** Already Handled: {executedContext.ExceptionHandled} ***");
+                }
+            }
+            
+            Console.WriteLine($"[API FILTER DEBUG] *** FILTER EXIT ***");
         }
 
         private static void AddNonFieldError(PageModel page, string message)
@@ -159,6 +234,48 @@ namespace DfE.ExternalApplications.Web.Filters
             }
 
             return false;
+        }
+        
+        private static (bool isUpload, string fieldId) DetectUploadRequest(PageHandlerExecutingContext context)
+        {
+            // Check if this is an upload handler
+            var handlerName = context.HandlerMethod?.Name;
+            Console.WriteLine($"[API FILTER DEBUG] *** DETECTING UPLOAD REQUEST - HANDLER: {handlerName} ***");
+            
+            // Handle both possible handler name formats
+            var isUploadHandler = handlerName == "OnPostUploadFileAsync" || handlerName == "UploadFile";
+            if (!isUploadHandler)
+            {
+                Console.WriteLine($"[API FILTER DEBUG] *** NOT UPLOAD HANDLER - EXPECTED: OnPostUploadFileAsync OR UploadFile, GOT: {handlerName} ***");
+                return (false, string.Empty);
+            }
+            
+            Console.WriteLine($"[API FILTER DEBUG] *** HANDLER MATCHES - CHECKING FORM DATA ***");
+            
+            // Try to get FieldId from form data
+            if (context.HttpContext.Request.HasFormContentType)
+            {
+                Console.WriteLine($"[API FILTER DEBUG] *** HAS FORM CONTENT TYPE ***");
+                var fieldId = context.HttpContext.Request.Form["FieldId"].ToString();
+                Console.WriteLine($"[API FILTER DEBUG] *** FORM FIELDID: '{fieldId}' ***");
+                
+                if (!string.IsNullOrEmpty(fieldId))
+                {
+                    Console.WriteLine($"[API FILTER DEBUG] *** UPLOAD REQUEST IDENTIFIED - FieldId: {fieldId} ***");
+                    return (true, fieldId);
+                }
+                else
+                {
+                    Console.WriteLine($"[API FILTER DEBUG] *** FIELDID IS EMPTY ***");
+                }
+            }
+            else
+            {
+                Console.WriteLine($"[API FILTER DEBUG] *** NO FORM CONTENT TYPE ***");
+            }
+            
+            Console.WriteLine($"[API FILTER DEBUG] *** UPLOAD REQUEST BUT NO FIELDID FOUND ***");
+            return (false, string.Empty);
         }
     }
 }
