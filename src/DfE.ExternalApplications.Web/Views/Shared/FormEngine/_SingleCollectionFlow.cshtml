@@ -1,4 +1,5 @@
 @model Tuple<DfE.ExternalApplications.Web.Pages.FormEngine.RenderFormModel, DfE.ExternalApplications.Domain.Models.MultiCollectionFlowConfiguration>
+@inject Application.Interfaces.IFieldFormattingService FieldFormattingService
 @{
     var renderModel = Model.Item1;
     var flow = Model.Item2;
@@ -97,7 +98,10 @@
                             <dd class="govuk-summary-list__value">
                                 @if (!string.IsNullOrEmpty(value))
                                 {
-                                    @value
+                                    // Create temporary FormData to use the existing formatting service
+                                    var tempFormData = new Dictionary<string, object> { { col.Field, value } };
+                                    var formattedValue = FieldFormattingService.GetFormattedFieldValue(col.Field, tempFormData);
+                                    @Html.Raw(formattedValue)
                                 }
                                 else
                                 {
@@ -158,7 +162,10 @@
                                     <dd class="govuk-summary-list__value">
                                         @if (!string.IsNullOrEmpty(value))
                                         {
-                                            @value
+                                            // Create temporary FormData to use the existing formatting service
+                                            var tempFormData = new Dictionary<string, object> { { col.Field, value } };
+                                            var formattedValue = FieldFormattingService.GetFormattedFieldValue(col.Field, tempFormData);
+                                            @Html.Raw(formattedValue)
                                         }
                                         else
                                         {
