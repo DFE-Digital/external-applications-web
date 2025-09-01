@@ -9,6 +9,7 @@ namespace DfE.ExternalApplications.Web.Filters
 {
     public class ExternalApiPageExceptionFilter : IAsyncPageFilter
     {
+        
         public Task OnPageHandlerSelectionAsync(PageHandlerSelectedContext context)
             => Task.CompletedTask;
 

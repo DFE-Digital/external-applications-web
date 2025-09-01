@@ -100,7 +100,7 @@
 
         <p class="govuk-body">Give the file a clear, descriptive name. Files up to 10MB are accepted.</p>
 
-        <form method="post" asp-page="/FormEngine/UploadFile" asp-route-referenceNumber="@referenceNumber" asp-route-taskId="@taskId" asp-route-pageId="@actualPageId" asp-page-handler="UploadFile" enctype="multipart/form-data">
+        <form method="post" asp-page="/FormEngine/RenderForm" asp-route-referenceNumber="@referenceNumber" asp-route-taskId="@taskId" asp-route-pageId="@actualPageId" asp-page-handler="UploadFile" enctype="multipart/form-data">
             <input type="hidden" name="ApplicationId" value="@applicationId" />
             <input type="hidden" name="FieldId" value="@fieldId" />
             <input type="hidden" name="ReturnUrl" value="@actualReturnUrl" />
@@ -154,7 +154,7 @@
                     {
                         <tr class="govuk-table__row">
                             <td class="govuk-table__cell">
-                                <form method="post" asp-page="/FormEngine/UploadFile" asp-route-referenceNumber="@referenceNumber" asp-route-taskId="@taskId" asp-route-pageId="@actualPageId" asp-page-handler="DownloadFile" style="display:inline">
+                                <form method="post" asp-page="/FormEngine/RenderForm" asp-route-referenceNumber="@referenceNumber" asp-route-taskId="@taskId" asp-route-pageId="@actualPageId" asp-page-handler="DownloadFile" style="display:inline">
                                     <input type="hidden" name="FileId" value="@file.Id" />
                                     <input type="hidden" name="ApplicationId" value="@applicationId" />
                                     @if (isCollectionFlow)
@@ -170,7 +170,7 @@
                             <td class="govuk-table__cell">@FormatFileSize(file.FileSize)</td>
                             <td class="govuk-table__cell">@(System.IO.Path.GetExtension(file.OriginalFileName)?.TrimStart('.').ToUpperInvariant() ?? "Unknown")</td>
                             <td class="govuk-table__cell">
-                                <form method="post" asp-page="/FormEngine/UploadFile" asp-route-referenceNumber="@referenceNumber" asp-route-taskId="@taskId" asp-route-pageId="@actualPageId" asp-page-handler="DeleteFile" style="display:inline">
+                                <form method="post" asp-page="/FormEngine/RenderForm" asp-route-referenceNumber="@referenceNumber" asp-route-taskId="@taskId" asp-route-pageId="@actualPageId" asp-page-handler="DeleteFile" style="display:inline">
                                     <input type="hidden" name="FileId" value="@file.Id" />
                                     <input type="hidden" name="FieldId" value="@fieldId" />
                                     <input type="hidden" name="ApplicationId" value="@applicationId" />

@@ -44,6 +44,29 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         public async Task<IActionResult> OnPostUploadFileAsync()
         {
+            // Debug: Check for validation errors
+            Console.WriteLine($"[UPLOAD DEBUG] IsCollectionFlow: {IsCollectionFlow}");
+            Console.WriteLine($"[UPLOAD DEBUG] FlowId: '{FlowId}', InstanceId: '{InstanceId}'");
+            
+            // Clear validation errors for FlowId and InstanceId when not in collection flow
+            if (!IsCollectionFlow)
+            {
+                ModelState.Remove("FlowId");
+                ModelState.Remove("InstanceId");
+            }
+            
+            Console.WriteLine($"[UPLOAD DEBUG] ModelState.IsValid: {ModelState.IsValid}");
+            if (!ModelState.IsValid)
+            {
+                foreach (var error in ModelState)
+                {
+                    foreach (var errorMsg in error.Value.Errors)
+                    {
+                        Console.WriteLine($"[UPLOAD DEBUG] ModelState Error - {error.Key}: {errorMsg.ErrorMessage}");
+                    }
+                }
+            }
+            
             var addRequest = new AddNotificationRequest
             {
                 Message = string.Empty, // set later when known
@@ -86,6 +109,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
             // Get the current files for this field
             var currentFieldFiles = (await GetFilesForFieldAsync(appId, FieldId)).ToList();
+            Console.WriteLine($"[UPLOAD DEBUG] Current files count before adding new file: {currentFieldFiles.Count}");
+            foreach (var existingFile in currentFieldFiles)
+            {
+                Console.WriteLine($"[UPLOAD DEBUG] Existing file: {existingFile.OriginalFileName} (ID: {existingFile.Id})");
+            }
             
             // Get the latest file list from database to find the newly uploaded file
             var allDbFiles = await fileUploadService.GetFilesForApplicationAsync(appId);
@@ -97,8 +125,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             // Add the newly uploaded file to our field's file list
             if (newlyUploadedFile != null)
             {
+                Console.WriteLine($"[UPLOAD DEBUG] Adding new file: {newlyUploadedFile.OriginalFileName} (ID: {newlyUploadedFile.Id})");
                 currentFieldFiles.Add(newlyUploadedFile);
             }
+            
+            Console.WriteLine($"[UPLOAD DEBUG] Total files count after adding new file: {currentFieldFiles.Count}");
             
             Files = currentFieldFiles.AsReadOnly();
             UpdateSessionFileList(appId, FieldId, Files);
@@ -223,18 +254,42 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         private void UpdateSessionFileList(Guid appId, string fieldId, IReadOnlyList<UploadDto> files)
         {
+            Console.WriteLine($"[UPLOAD DEBUG] UpdateSessionFileList called with {files.Count} files for field {fieldId}");
+            foreach (var file in files)
+            {
+                Console.WriteLine($"[UPLOAD DEBUG] Storing file: {file.OriginalFileName} (ID: {file.Id})");
+            }
+            
             if (IsCollectionFlow)
             {
                 // For collection flows, store in flow progress system
                 var progressKey = GetFlowProgressSessionKey(FlowId, InstanceId);
+                Console.WriteLine($"[UPLOAD DEBUG] Storing in flow progress with key: {progressKey}");
+                
+                // CRITICAL FIX: Try multiple sources to find existing flow data
                 var existingProgress = LoadFlowProgress();
-                existingProgress[fieldId] = JsonSerializer.Serialize(files);
-                HttpContext.Session.SetString(progressKey, JsonSerializer.Serialize(existingProgress));
+                Console.WriteLine($"[UPLOAD DEBUG] LoadFlowProgress returned {existingProgress.Keys.Count} keys: {string.Join(", ", existingProgress.Keys)}");
+                
+                // CRITICAL FIX: The 'files' parameter contains ALL files (existing + new), so just save it directly
+                // No need to merge because GetFilesForFieldAsync already combined existing and new files
+                var serializedFiles = JsonSerializer.Serialize(files);
+                Console.WriteLine($"[UPLOAD DEBUG] Serialized ALL files (existing + new): {serializedFiles.Substring(0, Math.Min(200, serializedFiles.Length))}...");
+                existingProgress[fieldId] = serializedFiles;
+                
+                // Force session to commit immediately
+                var progressJson = JsonSerializer.Serialize(existingProgress);
+                HttpContext.Session.SetString(progressKey, progressJson);
+                
+                Console.WriteLine($"[UPLOAD DEBUG] Saved flow progress with {existingProgress.Keys.Count} keys");
+                
+                // Flow progress saved successfully
+                Console.WriteLine($"[UPLOAD DEBUG] Flow progress saved successfully");
             }
             else
             {
                 // For regular forms, use the original session key
                 var key = $"UploadedFiles_{appId}_{fieldId}";
+                Console.WriteLine($"[UPLOAD DEBUG] Storing in regular session with key: {key}");
                 HttpContext.Session.SetString(key, JsonSerializer.Serialize(files));
             }
         }
@@ -275,9 +330,90 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             if (IsCollectionFlow)
             {
                 // For collection flows, get files from flow progress system
+                Console.WriteLine($"[UPLOAD DEBUG] Loading files for collection flow - FlowId: {FlowId}, InstanceId: {InstanceId}");
                 var progressData = LoadFlowProgress();
-                progressData.TryGetValue(fieldId, out var progressValue);
-                sessionFilesJson = progressValue?.ToString();
+                Console.WriteLine($"[UPLOAD DEBUG] Progress data keys: {string.Join(", ", progressData.Keys)}");
+                
+                if (progressData.TryGetValue(fieldId, out var progressValue))
+                {
+                    sessionFilesJson = progressValue?.ToString();
+                    Console.WriteLine($"[UPLOAD DEBUG] Found files in flow progress: {sessionFilesJson?.Substring(0, Math.Min(200, sessionFilesJson?.Length ?? 0))}...");
+                }
+                else
+                {
+                    // CRITICAL FIX: Flow progress not found, initialize from database if possible
+                    Console.WriteLine($"[UPLOAD DEBUG] Flow progress empty, initializing from database and session sources");
+                    
+                    // 1. Check if any files exist in database for this application
+                    // Note: Since UploadDto doesn't have FieldId, we'll rely on session data for field association
+                    try
+                    {
+                        var allDbFiles = await fileUploadService.GetFilesForApplicationAsync(appId);
+                        Console.WriteLine($"[UPLOAD DEBUG] Found {allDbFiles.Count()} total files in database for application");
+                        
+                        // For now, we can't filter by field ID since UploadDto doesn't have that property
+                        // We'll rely on session data to maintain field-specific file associations
+                        Console.WriteLine($"[UPLOAD DEBUG] Cannot initialize from database - UploadDto lacks FieldId property");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[UPLOAD DEBUG] Error loading files from database: {ex.Message}");
+                    }
+                    
+                    // 2. If still no files, check accumulated form data
+                    if (string.IsNullOrWhiteSpace(sessionFilesJson))
+                    {
+                        var alternativeAccumulatedData = applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
+                        if (alternativeAccumulatedData.TryGetValue(fieldId, out var accFieldValue))
+                        {
+                            sessionFilesJson = accFieldValue?.ToString();
+                            Console.WriteLine($"[UPLOAD DEBUG] Found files in accumulated data: {sessionFilesJson?.Substring(0, Math.Min(200, sessionFilesJson?.Length ?? 0))}...");
+                        }
+                    }
+                    
+                    // 3. If still not found, search all session keys for this field data
+                    if (string.IsNullOrWhiteSpace(sessionFilesJson))
+                    {
+                        Console.WriteLine($"[UPLOAD DEBUG] Searching all session keys for field data");
+                        foreach (var sessionKey in HttpContext.Session.Keys)
+                        {
+                            var keyValue = HttpContext.Session.GetString(sessionKey);
+                            if (!string.IsNullOrWhiteSpace(keyValue))
+                            {
+                                // Check if this key contains our field data
+                                if (sessionKey.Contains(fieldId, StringComparison.OrdinalIgnoreCase) ||
+                                    (keyValue.StartsWith("[") && keyValue.Contains("\"id\"") && keyValue.Contains(fieldId)))
+                                {
+                                    Console.WriteLine($"[UPLOAD DEBUG] Found potential field data in session key '{sessionKey}': {keyValue.Substring(0, Math.Min(100, keyValue.Length))}...");
+                                    sessionFilesJson = keyValue;
+                                    break;
+                                }
+                                
+                                // Also check if the key contains flow progress for our specific flow
+                                if (sessionKey.Contains($"FlowProgress_{FlowId}") && keyValue.Contains(fieldId))
+                                {
+                                    Console.WriteLine($"[UPLOAD DEBUG] Found flow progress data in key '{sessionKey}', extracting field data");
+                                    try
+                                    {
+                                        var flowData = JsonSerializer.Deserialize<Dictionary<string, object>>(keyValue);
+                                        if (flowData != null && flowData.TryGetValue(fieldId, out var fieldData))
+                                        {
+                                            sessionFilesJson = fieldData?.ToString();
+                                            Console.WriteLine($"[UPLOAD DEBUG] Extracted field data from flow progress: {sessionFilesJson?.Substring(0, Math.Min(100, sessionFilesJson?.Length ?? 0))}...");
+                                            break;
+                                        }
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Console.WriteLine($"[UPLOAD DEBUG] Error parsing flow progress: {ex.Message}");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                Console.WriteLine($"[UPLOAD DEBUG] Session files JSON from flow progress: {sessionFilesJson?.Substring(0, Math.Min(200, sessionFilesJson?.Length ?? 0))}...");
             }
             else
             {
@@ -351,19 +487,51 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         private Dictionary<string, object> LoadFlowProgress()
         {
             if (!IsCollectionFlow)
+            {
+                Console.WriteLine($"[UPLOAD DEBUG] Not a collection flow, returning empty progress");
                 return new Dictionary<string, object>();
+            }
 
             var key = GetFlowProgressSessionKey(FlowId, InstanceId);
+            Console.WriteLine($"[UPLOAD DEBUG] Loading flow progress with key: {key}");
+            
+            // Debug: List all session keys to see what's actually in the session
+            Console.WriteLine($"[UPLOAD DEBUG] Session ID: {HttpContext.Session.Id}");
+            Console.WriteLine($"[UPLOAD DEBUG] Session is available: {HttpContext.Session.IsAvailable}");
+            
+            // Try to get all session keys
+            try
+            {
+                var sessionKeys = new List<string>();
+                foreach (var sessionKey in HttpContext.Session.Keys)
+                {
+                    sessionKeys.Add(sessionKey);
+                }
+                Console.WriteLine($"[UPLOAD DEBUG] All session keys: {string.Join(", ", sessionKeys)}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[UPLOAD DEBUG] Error getting session keys: {ex.Message}");
+            }
+            
             var json = HttpContext.Session.GetString(key);
+            Console.WriteLine($"[UPLOAD DEBUG] Flow progress JSON from session: {json?.Substring(0, Math.Min(100, json?.Length ?? 0))}...");
+            
             if (string.IsNullOrWhiteSpace(json))
+            {
+                Console.WriteLine($"[UPLOAD DEBUG] No flow progress data found in session");
                 return new Dictionary<string, object>();
+            }
 
             try
             {
-                return JsonSerializer.Deserialize<Dictionary<string, object>>(json) ?? new Dictionary<string, object>();
+                var result = JsonSerializer.Deserialize<Dictionary<string, object>>(json) ?? new Dictionary<string, object>();
+                Console.WriteLine($"[UPLOAD DEBUG] Successfully loaded flow progress with {result.Count} keys: {string.Join(", ", result.Keys)}");
+                return result;
             }
-            catch
+            catch (Exception ex)
             {
+                Console.WriteLine($"[UPLOAD DEBUG] Failed to deserialize flow progress: {ex.Message}");
                 return new Dictionary<string, object>();
             }
         }

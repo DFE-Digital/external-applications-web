@@ -9,6 +9,10 @@ using System.Text.RegularExpressions;
 using Task = System.Threading.Tasks.Task;
 using DfE.ExternalApplications.Infrastructure.Services;
 using System.Text.Json;
+using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response;
+using DfE.CoreLibs.Contracts.ExternalApplications.Models.Request;
+using DfE.CoreLibs.Contracts.ExternalApplications.Enums;
+using DfE.ExternalApplications.Web.Interfaces;
 
 namespace DfE.ExternalApplications.Web.Pages.FormEngine
 {
@@ -28,25 +32,37 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         IFileUploadService fileUploadService,
         IApplicationsClient applicationsClient,
         IConditionalLogicOrchestrator conditionalLogicOrchestrator,
+        INotificationsClient notificationsClient,
+        IFormErrorStore formErrorStore,
         ILogger<RenderFormModel> logger)
         : BaseFormEngineModel(renderer, applicationResponseService, fieldFormattingService, templateManagementService,
             applicationStateService, formStateManager, formNavigationService, formDataManager, formValidationOrchestrator, formConfigurationService, logger)
     {
         private readonly IApplicationsClient _applicationsClient = applicationsClient;
         private readonly IConditionalLogicOrchestrator _conditionalLogicOrchestrator = conditionalLogicOrchestrator;
+        private readonly INotificationsClient _notificationsClient = notificationsClient;
+        private readonly IFormErrorStore _formErrorStore = formErrorStore;
 
         [BindProperty] public Dictionary<string, object> Data { get; set; } = new();
 
         [BindProperty] public bool IsTaskCompleted { get; set; }
         
         // Collection flow properties from form submission
-        [BindProperty] public bool IsCollectionFlow { get; set; }
-        [BindProperty] public string? FlowId { get; set; }
-        [BindProperty] public string? InstanceId { get; set; }
+        [BindProperty] public new string? FlowId { get; set; }
+        [BindProperty] public new string? InstanceId { get; set; }
         [BindProperty] public string? FlowPageId { get; set; }
+        
+        // Calculate IsCollectionFlow automatically based on FlowId and InstanceId presence
+        private bool IsCollectionFlow => !string.IsNullOrEmpty(FlowId) && !string.IsNullOrEmpty(InstanceId);
 
         // Success message for collection operations
         [TempData] public string? SuccessMessage { get; set; }
+        
+        // Error message for upload operations
+        [TempData] public string? ErrorMessage { get; set; }
+        
+        // Files property for upload field (matches original UploadFile.cshtml.cs)
+        public IReadOnlyList<UploadDto> Files { get; set; } = new List<UploadDto>();
 
         // Conditional logic state for the current form
         public FormConditionalState? ConditionalState { get; set; }
@@ -504,8 +520,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                 // Determine if this is a new item or an update
                                 bool isNewItem = !IsExistingCollectionItem(flowFieldId, instanceId);
                                 
-                                                // Merge accumulated progress with final page data
-                var accumulated = LoadFlowProgress(flowId, instanceId);
+                                // Merge accumulated progress with final page data
+                                var accumulated = LoadFlowProgress(flowId, instanceId);
                 Console.WriteLine($"[FLOW COMPLETE DEBUG] Loaded flow progress for {flowId}/{instanceId}:");
                 foreach (var kv in accumulated)
                 {
@@ -518,10 +534,10 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     }
                 }
                 
-                foreach (var kv in Data)
-                {
-                    accumulated[kv.Key] = kv.Value;
-                }
+                                foreach (var kv in Data)
+                                {
+                                    accumulated[kv.Key] = kv.Value;
+                                }
                 
                 Console.WriteLine($"[FLOW COMPLETE DEBUG] Final accumulated data before saving to collection:");
                 foreach (var kv in accumulated)
@@ -533,7 +549,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     {
                         Console.WriteLine($"[FLOW COMPLETE DEBUG UPLOAD] Final upload value: {valueStr}");
                     }
-                }
+                                }
 
                                 AppendCollectionItemToSession(flowPages, flowFieldId, instanceId, accumulated);
                                 
@@ -1584,6 +1600,410 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 return false; // Default to visible on error
             }
         }
+
+        #region Upload File Handlers
+
+        public async Task<IActionResult> OnPostUploadFileAsync()
+        {
+            Console.WriteLine($"[UPLOAD DEBUG] ========== OnPostUploadFileAsync START ==========");
+            
+            // Ensure Template is not null (required for RenderForm)
+            if (Template == null)
+            {
+                Template = new FormTemplate
+                {
+                    TemplateId = "dummy",
+                    TemplateName = "dummy",
+                    Description = "dummy",
+                    TaskGroups = new List<TaskGroup>()
+                };
+            }
+            
+            // Extract form data
+            var applicationId = Request.Form["ApplicationId"].ToString();
+            var fieldId = Request.Form["FieldId"].ToString();
+            var returnUrl = Request.Form["ReturnUrl"].ToString();
+            var uploadName = Request.Form["UploadName"].ToString();
+            var uploadDescription = Request.Form["UploadDescription"].ToString();
+            
+            Console.WriteLine($"[UPLOAD DEBUG] ApplicationId: '{applicationId}'");
+            Console.WriteLine($"[UPLOAD DEBUG] FieldId: '{fieldId}'");
+            Console.WriteLine($"[UPLOAD DEBUG] ReturnUrl: '{returnUrl}'");
+            Console.WriteLine($"[UPLOAD DEBUG] IsCollectionFlow: {IsCollectionFlow}");
+            
+            // Clear validation errors for FlowId/InstanceId if not in collection flow
+            if (!IsCollectionFlow)
+            {
+                ModelState.Remove("FlowId");
+                ModelState.Remove("InstanceId");
+                Console.WriteLine($"[UPLOAD DEBUG] Cleared FlowId/InstanceId validation errors");
+            }
+            
+            // Parse application ID
+            if (!Guid.TryParse(applicationId, out var appId))
+            {
+                Console.WriteLine($"[UPLOAD DEBUG] Invalid ApplicationId: {applicationId}");
+                return NotFound();
+            }
+            
+            // Get uploaded file
+            var file = Request.Form.Files["UploadFile"];
+            Console.WriteLine($"[UPLOAD DEBUG] File check - null: {file == null}, length: {file?.Length ?? 0}");
+            
+            // === EXACT REPLICA OF ORIGINAL ERROR HANDLING ===
+            if (file == null || file.Length == 0)
+            {
+                Console.WriteLine($"[UPLOAD DEBUG] *** FILE VALIDATION FAILED ***");
+                
+                ErrorMessage = "Please select a file to upload.";
+                ModelState.AddModelError("UploadFile", ErrorMessage);
+                
+                Console.WriteLine($"[UPLOAD DEBUG] Set ErrorMessage: '{ErrorMessage}'");
+                Console.WriteLine($"[UPLOAD DEBUG] Added ModelState error for 'UploadFile'");
+                Console.WriteLine($"[UPLOAD DEBUG] ModelState.IsValid: {ModelState.IsValid}");
+                Console.WriteLine($"[UPLOAD DEBUG] ModelState.ErrorCount: {ModelState.ErrorCount}");
+                
+                // Debug all ModelState errors
+                Console.WriteLine($"[UPLOAD DEBUG] === ALL MODEL STATE ERRORS ===");
+                foreach (var kvp in ModelState)
+                {
+                    foreach (var error in kvp.Value.Errors)
+                    {
+                        Console.WriteLine($"[UPLOAD DEBUG] ModelState[{kvp.Key}]: {error.ErrorMessage}");
+                    }
+                }
+                Console.WriteLine($"[UPLOAD DEBUG] === END MODEL STATE ERRORS ===");
+                
+                // CRITICAL: Save errors to FormErrorStore like original implementation
+                if (!string.IsNullOrEmpty(fieldId))
+                {
+                    Console.WriteLine($"[UPLOAD DEBUG] Saving ModelState errors to FormErrorStore for field: {fieldId}");
+                    _formErrorStore.Save(fieldId, ModelState);
+                }
+                
+                // Load existing files (CRITICAL - exactly like original)
+                Console.WriteLine($"[UPLOAD DEBUG] Loading existing files...");
+                Files = await GetFilesForFieldAsync(appId, fieldId);
+                Console.WriteLine($"[UPLOAD DEBUG] Loaded {Files.Count} existing files");
+                
+                // Check if we have return URL
+                if (!string.IsNullOrEmpty(returnUrl))
+                {
+                    Console.WriteLine($"[UPLOAD DEBUG] *** REDIRECTING TO: {returnUrl} ***");
+                    return Redirect(returnUrl);
+                }
+                
+                Console.WriteLine($"[UPLOAD DEBUG] *** RETURNING PAGE() WITH ERRORS ***");
+                Console.WriteLine($"[UPLOAD DEBUG] ErrorMessage property: '{ErrorMessage}'");
+                Console.WriteLine($"[UPLOAD DEBUG] Files property count: {Files.Count}");
+                Console.WriteLine($"[UPLOAD DEBUG] Template property null: {Template == null}");
+                return Page();
+            }
+            
+            // Continue with successful upload
+            Console.WriteLine($"[UPLOAD DEBUG] File validation passed, proceeding with upload");
+            
+            try
+            {
+                using var stream = file.OpenReadStream();
+                var fileParam = new FileParameter(stream, file.FileName, file.ContentType);
+                await fileUploadService.UploadFileAsync(appId, file.FileName, uploadDescription, fileParam);
+                
+                // Get and update files
+                var currentFieldFiles = (await GetFilesForFieldAsync(appId, fieldId)).ToList();
+                var allDbFiles = await fileUploadService.GetFilesForApplicationAsync(appId);
+                var newlyUploadedFile = allDbFiles
+                    .Where(f => !currentFieldFiles.Any(cf => cf.Id == f.Id))
+                    .OrderByDescending(f => f.UploadedOn)
+                    .FirstOrDefault();
+                
+                if (newlyUploadedFile != null)
+                {
+                    currentFieldFiles.Add(newlyUploadedFile);
+                }
+                
+                UpdateSessionFileList(appId, fieldId, currentFieldFiles);
+                await SaveUploadedFilesToResponseAsync(appId, fieldId, currentFieldFiles);
+                
+                // Set success message
+                SuccessMessage = $"Your file '{file.FileName}' uploaded.";
+                Console.WriteLine($"[UPLOAD DEBUG] Upload successful: {SuccessMessage}");
+                
+                // Send notification
+                var addRequest = new AddNotificationRequest
+                {
+                    Message = SuccessMessage,
+                    Category = "file-upload",
+                    Context = fieldId + "FileUpload",
+                    Type = NotificationType.Success,
+                    AutoDismiss = false,
+                    AutoDismissSeconds = 5
+                };
+                await _notificationsClient.CreateNotificationAsync(addRequest);
+                Console.WriteLine($"[UPLOAD DEBUG] Notification sent");
+                
+                // Redirect back if we have return URL
+                if (!string.IsNullOrEmpty(returnUrl))
+                {
+                    Console.WriteLine($"[UPLOAD DEBUG] Redirecting to return URL: {returnUrl}");
+                    return Redirect(returnUrl);
+                }
+                
+                Console.WriteLine($"[UPLOAD DEBUG] Upload successful, returning Page()");
+                return Page();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[UPLOAD DEBUG] Upload failed: {ex.Message}");
+                ErrorMessage = $"Failed to upload file: {ex.Message}";
+                ModelState.AddModelError("UploadFile", ErrorMessage);
+                
+                // CRITICAL: Save errors to FormErrorStore for display
+                if (!string.IsNullOrEmpty(fieldId))
+                {
+                    Console.WriteLine($"[UPLOAD DEBUG] Saving upload exception errors to FormErrorStore for field: {fieldId}");
+                    _formErrorStore.Save(fieldId, ModelState);
+                }
+                
+                // Load files for error display
+                Files = await GetFilesForFieldAsync(appId, fieldId);
+                
+                if (!string.IsNullOrEmpty(returnUrl))
+                {
+                    Console.WriteLine($"[UPLOAD DEBUG] Upload exception - redirecting to: {returnUrl}");
+                    return Redirect(returnUrl);
+                }
+                
+                Console.WriteLine($"[UPLOAD DEBUG] Upload exception - returning Page()");
+                return Page();
+            }
+        }
+
+        public async Task<IActionResult> OnPostDownloadFileAsync()
+        {
+            Console.WriteLine($"[UPLOAD DEBUG] Download handler called in RenderForm");
+            
+            // Simple fix: Ensure Template is not null to prevent NullReferenceException
+            if (Template == null)
+            {
+                Template = new FormTemplate 
+                { 
+                    TemplateId = "dummy", 
+                    TemplateName = "dummy", 
+                    Description = "dummy", 
+                    TaskGroups = new List<TaskGroup>() 
+                }; // Create empty template to prevent null reference
+                Console.WriteLine($"[UPLOAD DEBUG] Created empty template to prevent null reference for download");
+            }
+            
+            var applicationId = Request.Form["ApplicationId"].ToString();
+            var fileIdStr = Request.Form["FileId"].ToString();
+            
+            if (!Guid.TryParse(applicationId, out var appId))
+                return NotFound();
+            if (!Guid.TryParse(fileIdStr, out var fileId))
+                return NotFound();
+
+            var fileResponse = await fileUploadService.DownloadFileAsync(fileId, appId);
+
+            // Extract content type
+            var contentType = fileResponse.Headers.TryGetValue("Content-Type", out var ct)
+                ? ct.FirstOrDefault()
+                : "application/octet-stream";
+
+            string fileName = "downloadedfile";
+            if (fileResponse.Headers.TryGetValue("Content-Disposition", out var cd))
+            {
+                var disposition = cd.FirstOrDefault();
+                if (!string.IsNullOrEmpty(disposition))
+                {
+                    var fileNameMatch = System.Text.RegularExpressions.Regex.Match(
+                        disposition,
+                        @"filename\*=UTF-8''(?<fileName>.+)|filename=""?(?<fileName>[^\"";]+)""?"
+                    );
+                    if (fileNameMatch.Success)
+                        fileName = System.Net.WebUtility.UrlDecode(fileNameMatch.Groups["fileName"].Value);
+                }
+            }
+
+            return File(fileResponse.Stream, contentType, fileName);
+        }
+
+        public async Task<IActionResult> OnPostDeleteFileAsync()
+        {
+            Console.WriteLine($"[UPLOAD DEBUG] Delete handler called in RenderForm");
+            
+            // Simple fix: Ensure Template is not null to prevent NullReferenceException
+            if (Template == null)
+            {
+                Template = new FormTemplate 
+                { 
+                    TemplateId = "dummy", 
+                    TemplateName = "dummy", 
+                    Description = "dummy", 
+                    TaskGroups = new List<TaskGroup>() 
+                }; // Create empty template to prevent null reference
+                Console.WriteLine($"[UPLOAD DEBUG] Created empty template to prevent null reference for delete");
+            }
+            
+            // CRITICAL: Setup notification request for delete operations
+            var fieldId = Request.Form["FieldId"].ToString();
+            var addRequest = new AddNotificationRequest
+            {
+                Message = string.Empty, // set later when known
+                Category = "file-upload",
+                Context = fieldId + "FileDeletion",
+                Type = NotificationType.Success
+            };
+            
+            var applicationId = Request.Form["ApplicationId"].ToString();
+            var returnUrl = Request.Form["ReturnUrl"].ToString();
+            var fileIdStr = Request.Form["FileId"].ToString();
+            
+            if (!Guid.TryParse(applicationId, out var appId))
+                return NotFound();
+                
+            if (!Guid.TryParse(fileIdStr, out var fileId))
+            {
+                ModelState.AddModelError("FileId", "Invalid file ID.");
+                
+                // If we have a return URL, redirect back with error
+                if (!string.IsNullOrEmpty(returnUrl))
+                {
+                    return Redirect(returnUrl);
+                }
+                
+                return Page();
+            }
+
+            await fileUploadService.DeleteFileAsync(fileId, appId);
+            Console.WriteLine($"[UPLOAD DEBUG] File deleted successfully: {fileId}");
+            
+            // CRITICAL: Set success message for delete operation
+            SuccessMessage = "File deleted.";
+            Console.WriteLine($"[UPLOAD DEBUG] File delete completed successfully. Success message: {SuccessMessage}");
+
+            // Get current files for this field and remove the deleted one
+            var currentFieldFiles = (await GetFilesForFieldAsync(appId, fieldId)).ToList();
+            currentFieldFiles.RemoveAll(f => f.Id == fileId);
+            
+            Console.WriteLine($"[UPLOAD DEBUG] Files after deletion: {currentFieldFiles.Count}");
+            
+            UpdateSessionFileList(appId, fieldId, currentFieldFiles);
+            await SaveUploadedFilesToResponseAsync(appId, fieldId, currentFieldFiles);
+            
+            // If we have a return URL (from partial form), redirect back
+            if (!string.IsNullOrEmpty(returnUrl))
+            {
+                // CRITICAL: Send notification for successful delete
+                addRequest.Message = SuccessMessage;
+                await _notificationsClient.CreateNotificationAsync(addRequest);
+                Console.WriteLine($"[UPLOAD DEBUG] Delete notification sent: {SuccessMessage}");
+                
+                return Redirect(returnUrl);
+            }
+
+            return Page();
+        }
+
+        private async Task<IReadOnlyList<UploadDto>> GetFilesForFieldAsync(Guid appId, string fieldId)
+        {
+            string? sessionFilesJson = null;
+
+            if (IsCollectionFlow)
+            {
+                // For collection flows, get files from flow progress system  
+                Console.WriteLine($"[UPLOAD DEBUG] Loading files for collection flow - FlowId: {FlowId}, InstanceId: {InstanceId}");
+                var progressData = LoadFlowProgress(FlowId, InstanceId);
+                Console.WriteLine($"[UPLOAD DEBUG] Progress data keys: {string.Join(", ", progressData.Keys)}");
+                
+                if (progressData.TryGetValue(fieldId, out var progressValue))
+                {
+                    sessionFilesJson = progressValue?.ToString();
+                    Console.WriteLine($"[UPLOAD DEBUG] Found files in flow progress: {sessionFilesJson?.Substring(0, Math.Min(200, sessionFilesJson?.Length ?? 0))}...");
+                }
+                else
+                {
+                    Console.WriteLine($"[UPLOAD DEBUG] No files found in flow progress for field {fieldId}");
+                }
+            }
+            else
+            {
+                // For regular forms, get files from session
+                var sessionKey = $"UploadedFiles_{appId}_{fieldId}";
+                sessionFilesJson = HttpContext.Session.GetString(sessionKey);
+                Console.WriteLine($"[UPLOAD DEBUG] Session files JSON from regular session: {sessionFilesJson?.Substring(0, Math.Min(200, sessionFilesJson?.Length ?? 0))}...");
+            }
+
+            if (string.IsNullOrWhiteSpace(sessionFilesJson))
+            {
+                Console.WriteLine($"[UPLOAD DEBUG] No session files found, returning empty list");
+                return new List<UploadDto>().AsReadOnly();
+            }
+
+            try
+            {
+                var files = JsonSerializer.Deserialize<List<UploadDto>>(sessionFilesJson) ?? new List<UploadDto>();
+                Console.WriteLine($"[UPLOAD DEBUG] Successfully deserialized {files.Count} files from session");
+                return files.AsReadOnly();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[UPLOAD DEBUG] Error deserializing files: {ex.Message}");
+                return new List<UploadDto>().AsReadOnly();
+            }
+        }
+
+        private void UpdateSessionFileList(Guid appId, string fieldId, IReadOnlyList<UploadDto> files)
+        {
+            Console.WriteLine($"[UPLOAD DEBUG] UpdateSessionFileList called with {files.Count} files for field {fieldId}");
+            foreach (var file in files)
+            {
+                Console.WriteLine($"[UPLOAD DEBUG] Storing file: {file.OriginalFileName} (ID: {file.Id})");
+            }
+            
+            if (IsCollectionFlow)
+            {
+                // For collection flows, store in flow progress system
+                var progressData = LoadFlowProgress(FlowId, InstanceId);
+                Console.WriteLine($"[UPLOAD DEBUG] Storing in flow progress - existing keys: {string.Join(", ", progressData.Keys)}");
+                
+                var serializedFiles = JsonSerializer.Serialize(files);
+                progressData[fieldId] = serializedFiles;
+                
+                SaveFlowProgress(FlowId, InstanceId, progressData);
+                Console.WriteLine($"[UPLOAD DEBUG] Saved flow progress with {progressData.Keys.Count} keys");
+            }
+            else
+            {
+                // For regular forms, use the original session key
+                var key = $"UploadedFiles_{appId}_{fieldId}";
+                Console.WriteLine($"[UPLOAD DEBUG] Storing in regular session with key: {key}");
+                HttpContext.Session.SetString(key, JsonSerializer.Serialize(files));
+            }
+        }
+
+        private async Task SaveUploadedFilesToResponseAsync(Guid appId, string fieldId, IReadOnlyList<UploadDto> files)
+        {
+            if (string.IsNullOrEmpty(fieldId))
+            {
+                return;
+            }
+
+            if (IsCollectionFlow)
+            {
+                // For collection flows, files are saved via flow progress system
+                // This happens in UpdateSessionFileList, no need to save to main application response here
+                return;
+            }
+
+            var json = JsonSerializer.Serialize(files);
+            var data = new Dictionary<string, object> { { fieldId, json } };
+
+            await applicationResponseService.SaveApplicationResponseAsync(appId, data, HttpContext.Session);
+        }
+
+        #endregion
 
     }
 }
