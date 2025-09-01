@@ -1,5 +1,4 @@
 @model Tuple<DfE.ExternalApplications.Web.Pages.FormEngine.RenderFormModel, DfE.ExternalApplications.Domain.Models.MultiCollectionFlowConfiguration>
-@inject Application.Interfaces.IFieldFormattingService FieldFormattingService
 @{
     var renderModel = Model.Item1;
     var flow = Model.Item2;
@@ -87,6 +86,12 @@
                      @foreach (var col in (flow.SummaryColumns ?? new List<DfE.ExternalApplications.Domain.Models.FlowSummaryColumn>()).Where(c => !renderModel.IsFieldHiddenForItem(c.Field, item)))
                     {
                         var value = item.TryGetValue(col.Field, out var v) ? v?.ToString() : string.Empty;
+                        // DEBUG: Log what we're trying to format
+                        System.Console.WriteLine($"[COLLECTION DEBUG] Field: {col.Field}, Value type: {v?.GetType()?.Name}, Value length: {value?.Length}, Value preview: {(value?.Length > 50 ? value.Substring(0, 50) + "..." : value)}");
+                        if (col.Field.Contains("upload", StringComparison.OrdinalIgnoreCase))
+                        {
+                            System.Console.WriteLine($"[COLLECTION DEBUG UPLOAD] Full value: {value}");
+                        }
                         // Find which page contains this field within this flow
                         var targetPage = flow.Pages?.FirstOrDefault(p => p.Fields.Any(f => f.FieldId == col.Field));
                         var pageId = targetPage?.PageId ?? flow.Pages?.FirstOrDefault()?.PageId ?? "";
@@ -98,10 +103,32 @@
                             <dd class="govuk-summary-list__value">
                                 @if (!string.IsNullOrEmpty(value))
                                 {
-                                    // Create temporary FormData to use the existing formatting service
-                                    var tempFormData = new Dictionary<string, object> { { col.Field, value } };
-                                    var formattedValue = FieldFormattingService.GetFormattedFieldValue(col.Field, tempFormData);
-                                    @Html.Raw(formattedValue)
+                                    // Temporarily add this item's field data to FormData for formatting
+                                    var originalValue = renderModel.FormData.TryGetValue(col.Field, out var orig) ? orig : null;
+                                    renderModel.FormData[col.Field] = value;
+                                    var formattedValues = renderModel.GetFormattedFieldValues(col.Field);
+                                    // Restore original value
+                                    if (originalValue != null)
+                                        renderModel.FormData[col.Field] = originalValue;
+                                    else
+                                        renderModel.FormData.Remove(col.Field);
+                                    
+                                    @if (formattedValues.Count == 0)
+                                    {
+                                        <span class="govuk-hint">Not answered</span>
+                                    }
+                                    else if (formattedValues.Count == 1)
+                                    {
+                                        @Html.Raw(formattedValues.First())
+                                    }
+                                    else
+                                    {
+                                        <!-- Multiple values - display as a list -->
+                                        @foreach (var formattedValue in formattedValues)
+                                        {
+                                            <div>@Html.Raw(formattedValue)</div>
+                                        }
+                                    }
                                 }
                                 else
                                 {
@@ -162,10 +189,32 @@
                                     <dd class="govuk-summary-list__value">
                                         @if (!string.IsNullOrEmpty(value))
                                         {
-                                            // Create temporary FormData to use the existing formatting service
-                                            var tempFormData = new Dictionary<string, object> { { col.Field, value } };
-                                            var formattedValue = FieldFormattingService.GetFormattedFieldValue(col.Field, tempFormData);
-                                            @Html.Raw(formattedValue)
+                                            // Temporarily add this item's field data to FormData for formatting
+                                            var originalValue = renderModel.FormData.TryGetValue(col.Field, out var orig) ? orig : null;
+                                            renderModel.FormData[col.Field] = value;
+                                            var formattedValues = renderModel.GetFormattedFieldValues(col.Field);
+                                            // Restore original value
+                                            if (originalValue != null)
+                                                renderModel.FormData[col.Field] = originalValue;
+                                            else
+                                                renderModel.FormData.Remove(col.Field);
+                                            
+                                            @if (formattedValues.Count == 0)
+                                            {
+                                                <span class="govuk-hint">Not answered</span>
+                                            }
+                                            else if (formattedValues.Count == 1)
+                                            {
+                                                @Html.Raw(formattedValues.First())
+                                            }
+                                            else
+                                            {
+                                                <!-- Multiple values - display as a list -->
+                                                @foreach (var formattedValue in formattedValues)
+                                                {
+                                                    <div>@Html.Raw(formattedValue)</div>
+                                                }
+                                            }
                                         }
                                         else
                                         {

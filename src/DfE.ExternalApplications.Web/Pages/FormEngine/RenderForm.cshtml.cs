@@ -38,6 +38,12 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         [BindProperty] public Dictionary<string, object> Data { get; set; } = new();
 
         [BindProperty] public bool IsTaskCompleted { get; set; }
+        
+        // Collection flow properties from form submission
+        [BindProperty] public bool IsCollectionFlow { get; set; }
+        [BindProperty] public string? FlowId { get; set; }
+        [BindProperty] public string? InstanceId { get; set; }
+        [BindProperty] public string? FlowPageId { get; set; }
 
         // Success message for collection operations
         [TempData] public string? SuccessMessage { get; set; }
@@ -100,6 +106,18 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                 foreach (var kvp in progressData)
                                 {
                                     Data[kvp.Key] = kvp.Value; // Always overwrite with progress data (latest changes)
+                                }
+                                
+                                // Handle upload fields in GET requests to ensure Change button works correctly
+                                Console.WriteLine($"[RENDERFORM GET DEBUG] Checking for upload fields in flow progress data");
+                                foreach (var key in Data.Keys.ToList())
+                                {
+                                    var value = Data[key]?.ToString();
+                                    if (!string.IsNullOrEmpty(value) && value.Contains("\"id\"") && value.Contains("\"originalFileName\""))
+                                    {
+                                        Console.WriteLine($"[RENDERFORM GET DEBUG] Found upload field {key} with data: {value.Substring(0, Math.Min(100, value.Length))}...");
+                                        // Upload field data is already in correct format from session
+                                    }
                                 }
                                 
                                 _logger.LogInformation(">>>>>>>>>>>>SUB-FLOW GET: loaded data for flow {FlowId}, instance {InstanceId}, page {PageId}. Data: {Data}", 
@@ -280,11 +298,20 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
             _logger.LogInformation("POST Page: ref={ReferenceNumber} task={TaskId} pageId={PageId}", ReferenceNumber, TaskId, CurrentPageId);
 
+            
+            // URL decode the pageId to handle encoded forward slashes from form submissions
+            if (!string.IsNullOrEmpty(CurrentPageId))
+            {
+                CurrentPageId = System.Web.HttpUtility.UrlDecode(CurrentPageId);
+
+            }
+
             if (!string.IsNullOrEmpty(CurrentPageId))
             {
                 if (TryParseFlowRoute(CurrentPageId, out var flowId, out var instanceId, out var flowPageId))
                 {
                     _logger.LogInformation("Detected sub-flow: flowId={FlowId} instance={InstanceId} flowPageId={FlowPageId}", flowId, instanceId, flowPageId);
+
                     var (group, task) = InitializeCurrentTask(TaskId);
             CurrentGroup = group;
             CurrentTask = task;
@@ -345,6 +372,34 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             _logger.LogInformation(">>>>>>>>>>>>POST: About to apply conditional logic after form submission");
             _logger.LogInformation(">>>>>>>>>>>>POST DATA BEFORE CONDITIONAL LOGIC: {Data}", 
                 string.Join(", ", Data.Select(kv => $"{kv.Key}={kv.Value}")));
+            
+            // Debug: Check the actual upload field value received in POST
+            if (Data.ContainsKey("trust-upload-flow-field"))
+            {
+                var uploadValue = Data["trust-upload-flow-field"];
+                var uploadValueStr = uploadValue?.ToString() ?? "";
+                Console.WriteLine($"[RENDERFORM POST DEBUG] Raw upload field value received: '{uploadValue}'");
+                Console.WriteLine($"[RENDERFORM POST DEBUG] Upload field value length: {uploadValueStr.Length}");
+                Console.WriteLine($"[RENDERFORM POST DEBUG] Upload field value type: {uploadValue?.GetType()?.Name ?? "null"}");
+            }
+            
+            // Handle upload fields that use session data instead of form data to avoid truncation
+            if (IsCollectionFlow)
+            {
+                var flowProgress = LoadFlowProgress(FlowId, InstanceId);
+                foreach (var key in Data.Keys.ToList())
+                {
+                    if (Data[key]?.ToString() == "UPLOAD_FIELD_SESSION_DATA")
+                    {
+                        // Replace with actual data from session
+                        if (flowProgress.TryGetValue(key, out var sessionValue))
+                        {
+                            Data[key] = sessionValue;
+                            Console.WriteLine($"[RENDERFORM POST DEBUG] Replaced {key} with session data: {sessionValue?.ToString()?.Substring(0, Math.Min(100, sessionValue?.ToString()?.Length ?? 0))}...");
+                        }
+                    }
+                }
+            }
             await ApplyConditionalLogicAsync("change");
 
             if (CurrentPage != null)
@@ -449,12 +504,36 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                 // Determine if this is a new item or an update
                                 bool isNewItem = !IsExistingCollectionItem(flowFieldId, instanceId);
                                 
-                                // Merge accumulated progress with final page data
-                                var accumulated = LoadFlowProgress(flowId, instanceId);
-                                foreach (var kv in Data)
-                                {
-                                    accumulated[kv.Key] = kv.Value;
-                                }
+                                                // Merge accumulated progress with final page data
+                var accumulated = LoadFlowProgress(flowId, instanceId);
+                Console.WriteLine($"[FLOW COMPLETE DEBUG] Loaded flow progress for {flowId}/{instanceId}:");
+                foreach (var kv in accumulated)
+                {
+                    var valueStr = kv.Value?.ToString();
+                    var preview = valueStr?.Length > 100 ? valueStr.Substring(0, 100) + "..." : valueStr;
+                    Console.WriteLine($"[FLOW COMPLETE DEBUG] Progress - {kv.Key}: {preview}");
+                    if (kv.Key.Contains("upload", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Console.WriteLine($"[FLOW COMPLETE DEBUG UPLOAD] Progress upload value: {valueStr}");
+                    }
+                }
+                
+                foreach (var kv in Data)
+                {
+                    accumulated[kv.Key] = kv.Value;
+                }
+                
+                Console.WriteLine($"[FLOW COMPLETE DEBUG] Final accumulated data before saving to collection:");
+                foreach (var kv in accumulated)
+                {
+                    var valueStr = kv.Value?.ToString();
+                    var preview = valueStr?.Length > 100 ? valueStr.Substring(0, 100) + "..." : valueStr;
+                    Console.WriteLine($"[FLOW COMPLETE DEBUG] Final - {kv.Key}: {preview}");
+                    if (kv.Key.Contains("upload", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Console.WriteLine($"[FLOW COMPLETE DEBUG UPLOAD] Final upload value: {valueStr}");
+                    }
+                }
 
                                 AppendCollectionItemToSession(flowPages, flowFieldId, instanceId, accumulated);
                                 
@@ -496,6 +575,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     if (CurrentPage.ReturnToSummaryPage)
                     {
                         _logger.LogInformation(">>>>>>>>>>>>REGULAR NAV: returnToSummaryPage=true, checking if conditional logic should override");
+
                         
                         // Check if conditional logic suggests a different next page (override returnToSummaryPage)
                         string? conditionalNextPageId = null;
@@ -831,6 +911,19 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 }
             }
 
+            // DEBUG: Log item data before processing
+            Console.WriteLine($"[COLLECTION SAVE DEBUG] Processing item for field: {fieldId}, instanceId: {instanceId}");
+            foreach (var kvp in itemData)
+            {
+                var valueStr = kvp.Value?.ToString();
+                var preview = valueStr?.Length > 100 ? valueStr.Substring(0, 100) + "..." : valueStr;
+                Console.WriteLine($"[COLLECTION SAVE DEBUG] Item data - {kvp.Key}: {preview}");
+                if (kvp.Key.Contains("upload", StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine($"[COLLECTION SAVE DEBUG UPLOAD] Full upload value: {valueStr}");
+                }
+            }
+
             // Find existing item or create new one
             var idx = list.FindIndex(x => x.TryGetValue("id", out var id) && id?.ToString() == instanceId);
             Dictionary<string, object> item;
@@ -867,6 +960,19 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             // Ensure id is always set
             item["id"] = instanceId;
 
+            // DEBUG: Log final item before serialization
+            Console.WriteLine($"[COLLECTION SAVE DEBUG] Final item before serialization:");
+            foreach (var kvp in item)
+            {
+                var valueStr = kvp.Value?.ToString();
+                var preview = valueStr?.Length > 100 ? valueStr.Substring(0, 100) + "..." : valueStr;
+                Console.WriteLine($"[COLLECTION SAVE DEBUG] Final item - {kvp.Key}: {preview}");
+                if (kvp.Key.Contains("upload", StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine($"[COLLECTION SAVE DEBUG UPLOAD] Final upload value: {valueStr}");
+                }
+            }
+
             // Upsert the item
             if (idx >= 0) 
                 list[idx] = item; 
@@ -874,6 +980,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 list.Add(item);
 
             var serialized = JsonSerializer.Serialize(list);
+            Console.WriteLine($"[COLLECTION SAVE DEBUG] Serialized collection: {serialized.Substring(0, Math.Min(200, serialized.Length))}...");
             _applicationResponseService.AccumulateFormData(new Dictionary<string, object> { [fieldId] = serialized }, HttpContext.Session);
         }
 

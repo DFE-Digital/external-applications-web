@@ -24,9 +24,13 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         [BindProperty(SupportsGet = true, Name = "taskId")] public string TaskId { get; set; }
         [BindProperty(SupportsGet = true, Name = "pageId")] public string CurrentPageId { get; set; }
         [BindProperty] public string ReturnUrl { get; set; }
+        [BindProperty] public string FlowId { get; set; } = string.Empty;
+        [BindProperty] public string InstanceId { get; set; } = string.Empty;
         public IReadOnlyList<UploadDto> Files { get; set; } = new List<UploadDto>();
         public string SuccessMessage { get; set; }
         public string ErrorMessage { get; set; }
+        
+        private bool IsCollectionFlow => !string.IsNullOrEmpty(FlowId) && !string.IsNullOrEmpty(InstanceId);
 
         public async Task<IActionResult> OnGetAsync()
         {
@@ -219,15 +223,33 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         private void UpdateSessionFileList(Guid appId, string fieldId, IReadOnlyList<UploadDto> files)
         {
-            var key = $"UploadedFiles_{appId}_{fieldId}";
-            HttpContext.Session.SetString(key, System.Text.Json.JsonSerializer.Serialize(files));
+            if (IsCollectionFlow)
+            {
+                // For collection flows, store in flow progress system
+                var progressKey = GetFlowProgressSessionKey(FlowId, InstanceId);
+                var existingProgress = LoadFlowProgress();
+                existingProgress[fieldId] = JsonSerializer.Serialize(files);
+                HttpContext.Session.SetString(progressKey, JsonSerializer.Serialize(existingProgress));
+            }
+            else
+            {
+                // For regular forms, use the original session key
+                var key = $"UploadedFiles_{appId}_{fieldId}";
+                HttpContext.Session.SetString(key, JsonSerializer.Serialize(files));
+            }
         }
 
         private async Task SaveUploadedFilesToResponseAsync(Guid appId, string fieldId, IReadOnlyList<UploadDto> files)
         {
-
             if (string.IsNullOrEmpty(fieldId))
             {
+                return;
+            }
+
+            if (IsCollectionFlow)
+            {
+                // For collection flows, files are saved via flow progress system
+                // This happens in UpdateSessionFileList, no need to save to main application response here
                 return;
             }
 
@@ -235,7 +257,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             var data = new Dictionary<string, object> { { fieldId, json } };
 
             await applicationResponseService.SaveApplicationResponseAsync(appId, data, HttpContext.Session);
-
         }
 
         /// <summary>
@@ -249,9 +270,21 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 return new List<UploadDto>().AsReadOnly();
             }
 
-            // First, try to get existing files from session for this field
-            var sessionKey = $"UploadedFiles_{appId}_{fieldId}";
-            var sessionFilesJson = HttpContext.Session.GetString(sessionKey);
+            string? sessionFilesJson = null;
+
+            if (IsCollectionFlow)
+            {
+                // For collection flows, get files from flow progress system
+                var progressData = LoadFlowProgress();
+                progressData.TryGetValue(fieldId, out var progressValue);
+                sessionFilesJson = progressValue?.ToString();
+            }
+            else
+            {
+                // For regular forms, get files from session
+                var sessionKey = $"UploadedFiles_{appId}_{fieldId}";
+                sessionFilesJson = HttpContext.Session.GetString(sessionKey);
+            }
             
             if (!string.IsNullOrEmpty(sessionFilesJson))
             {
@@ -309,5 +342,30 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         }
 
         // legacy method removed in favour of IFormErrorStore
+
+        /// <summary>
+        /// Helper methods for collection flow support
+        /// </summary>
+        private static string GetFlowProgressSessionKey(string flowId, string instanceId) => $"FlowProgress_{flowId}_{instanceId}";
+
+        private Dictionary<string, object> LoadFlowProgress()
+        {
+            if (!IsCollectionFlow)
+                return new Dictionary<string, object>();
+
+            var key = GetFlowProgressSessionKey(FlowId, InstanceId);
+            var json = HttpContext.Session.GetString(key);
+            if (string.IsNullOrWhiteSpace(json))
+                return new Dictionary<string, object>();
+
+            try
+            {
+                return JsonSerializer.Deserialize<Dictionary<string, object>>(json) ?? new Dictionary<string, object>();
+            }
+            catch
+            {
+                return new Dictionary<string, object>();
+            }
+        }
     }
 }
