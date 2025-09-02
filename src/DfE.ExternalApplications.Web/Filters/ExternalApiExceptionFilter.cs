@@ -114,8 +114,7 @@ namespace DfE.ExternalApplications.Web.Filters
                 {
                     var logger = context.HttpContext.RequestServices.GetService<ILogger<ExternalApiPageExceptionFilter>>();
                     var userId = context.HttpContext.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "Anonymous";
-                    logger?.LogWarning(">>>>>>>>>> Authentication >>> ExternalApiPageExceptionFilter: 401 Unauthorized error for user {UserId} at {Path}. Redirecting to forbidden page.", 
-                        userId, context.HttpContext.Request.Path);
+
                     
                     page.TempData["ApiErrorId"] = r.ErrorId;
                     executedContext.Result = new RedirectToPageResult("/Error/Forbidden");
@@ -135,17 +134,13 @@ namespace DfE.ExternalApplications.Web.Filters
                         r.Message?.Contains("expired", StringComparison.OrdinalIgnoreCase) == true ||
                         r.Message?.Contains("unauthorized", StringComparison.OrdinalIgnoreCase) == true)
                     {
-                        logger?.LogWarning(">>>>>>>>>> Authentication >>> ExternalApiPageExceptionFilter: 403 Forbidden with token-related error for user {UserId} at {Path}. " +
-                                          "Error message: {ErrorMessage}. User claims: {UserClaims}. Redirecting to logout.", 
-                            userId, context.HttpContext.Request.Path, r.Message, userClaims);
+
                         
                         executedContext.Result = new RedirectToPageResult("/Logout", new { reason = "token_expired" });
                     }
                     else
                     {
-                        logger?.LogWarning(">>>>>>>>>> Authentication >>> ExternalApiPageExceptionFilter: 403 Forbidden error for user {UserId} at {Path}. " +
-                                          "User claims: {UserClaims}. Redirecting to forbidden page.", 
-                            userId, context.HttpContext.Request.Path, userClaims);
+                        
                         
                         executedContext.Result = new RedirectToPageResult("/Error/Forbidden");
                     }

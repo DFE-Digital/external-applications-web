@@ -22,9 +22,7 @@ namespace DfE.ExternalApplications.Web.Filters
 
             if (r.StatusCode is 401)
             {
-                logger.LogWarning(">>>>>>>>>> Authentication >>> ExternalApiMvcExceptionFilter: 401 Unauthorized error for user {UserId} at {Path}. This may indicate an authentication issue.", 
-                    context.HttpContext.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "Anonymous",
-                    context.HttpContext.Request.Path);
+
                     
                 context.Result = new UnauthorizedResult();
                 context.ExceptionHandled = true;
@@ -35,12 +33,7 @@ namespace DfE.ExternalApplications.Web.Filters
                 var userId = context.HttpContext.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "Anonymous";
                 var userClaims = string.Join(", ", context.HttpContext.User?.Claims?.Select(c => $"{c.Type}:{c.Value}") ?? Array.Empty<string>());
                 
-                logger.LogWarning(">>>>>>>>>> Authentication >>> ExternalApiMvcExceptionFilter: 403 Forbidden error for user {UserId} at {Path}. " +
-                                 "User claims: {UserClaims}. " +
-                                 "This may indicate insufficient permissions or an expired/invalid token.", 
-                    userId, 
-                    context.HttpContext.Request.Path,
-                    userClaims);
+
                     
                 context.Result = new ForbidResult();
                 context.ExceptionHandled = true;

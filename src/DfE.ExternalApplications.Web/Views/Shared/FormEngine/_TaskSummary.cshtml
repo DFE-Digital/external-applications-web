@@ -20,11 +20,11 @@
             if (field.Type == "complexField")
             {
                 var complexFieldType = field.ComplexField != null ? ComplexFieldConfigurationService.GetConfiguration(field.ComplexField.Id).FieldType : "null";
-                System.Diagnostics.Debug.WriteLine($">>>>>>>>>>>>TASK SUMMARY COMPLEX FIELD: {field.FieldId}, HasValue: {hasValue}, FieldValue: {fieldValue}, ComplexFieldId: {field.ComplexField?.Id}, ComplexFieldType: {complexFieldType}");
+
             }
             
             // DEBUG: Log all field checks
-            System.Diagnostics.Debug.WriteLine($">>>>>>>>>>>>TASK SUMMARY FIELD: {field.FieldId}, Type: {field.Type}, Hidden: {Model.IsFieldHidden(field.FieldId)}");
+
 
             // Show complex fields if they have value OR if they're upload fields that should be visible
             bool shouldShowComplexField = hasValue || 
