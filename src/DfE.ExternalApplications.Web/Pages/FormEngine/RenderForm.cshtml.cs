@@ -124,17 +124,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                     Data[kvp.Key] = kvp.Value; // Always overwrite with progress data (latest changes)
                                 }
                                 
-                                // Handle upload fields in GET requests to ensure Change button works correctly
-                                Console.WriteLine($"[RENDERFORM GET DEBUG] Checking for upload fields in flow progress data");
-                                foreach (var key in Data.Keys.ToList())
-                                {
-                                    var value = Data[key]?.ToString();
-                                    if (!string.IsNullOrEmpty(value) && value.Contains("\"id\"") && value.Contains("\"originalFileName\""))
-                                    {
-                                        Console.WriteLine($"[RENDERFORM GET DEBUG] Found upload field {key} with data: {value.Substring(0, Math.Min(100, value.Length))}...");
-                                        // Upload field data is already in correct format from session
-                                    }
-                                }
+
                                 
 
 
@@ -309,7 +299,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 return RedirectToPage("/FormEngine/RenderForm", new { referenceNumber = ReferenceNumber });
             }
 
-            _logger.LogInformation("POST Page: ref={ReferenceNumber} task={TaskId} pageId={PageId}", ReferenceNumber, TaskId, CurrentPageId);
 
             
             // URL decode the pageId to handle encoded forward slashes from form submissions
@@ -385,15 +374,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
 
             
-            // Debug: Check the actual upload field value received in POST
-            if (Data.ContainsKey("trust-upload-flow-field"))
-            {
-                var uploadValue = Data["trust-upload-flow-field"];
-                var uploadValueStr = uploadValue?.ToString() ?? "";
-                Console.WriteLine($"[RENDERFORM POST DEBUG] Raw upload field value received: '{uploadValue}'");
-                Console.WriteLine($"[RENDERFORM POST DEBUG] Upload field value length: {uploadValueStr.Length}");
-                Console.WriteLine($"[RENDERFORM POST DEBUG] Upload field value type: {uploadValue?.GetType()?.Name ?? "null"}");
-            }
+
             
             // Handle upload fields that use session data instead of form data to avoid truncation
             if (IsCollectionFlow)
@@ -407,7 +388,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         if (flowProgress.TryGetValue(key, out var sessionValue))
                         {
                             Data[key] = sessionValue;
-                            Console.WriteLine($"[RENDERFORM POST DEBUG] Replaced {key} with session data: {sessionValue?.ToString()?.Substring(0, Math.Min(100, sessionValue?.ToString()?.Length ?? 0))}...");
+
                         }
                     }
                 }
@@ -518,32 +499,23 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                 
                                 // Merge accumulated progress with final page data
                                 var accumulated = LoadFlowProgress(flowId, instanceId);
-                Console.WriteLine($"[FLOW COMPLETE DEBUG] Loaded flow progress for {flowId}/{instanceId}:");
-                foreach (var kv in accumulated)
-                {
-                    var valueStr = kv.Value?.ToString();
-                    var preview = valueStr?.Length > 100 ? valueStr.Substring(0, 100) + "..." : valueStr;
-                    Console.WriteLine($"[FLOW COMPLETE DEBUG] Progress - {kv.Key}: {preview}");
-                    if (kv.Key.Contains("upload", StringComparison.OrdinalIgnoreCase))
-                    {
-                        Console.WriteLine($"[FLOW COMPLETE DEBUG UPLOAD] Progress upload value: {valueStr}");
-                    }
-                }
+
+
                 
                                 foreach (var kv in Data)
                                 {
                                     accumulated[kv.Key] = kv.Value;
                                 }
                 
-                Console.WriteLine($"[FLOW COMPLETE DEBUG] Final accumulated data before saving to collection:");
+
                 foreach (var kv in accumulated)
                 {
                     var valueStr = kv.Value?.ToString();
                     var preview = valueStr?.Length > 100 ? valueStr.Substring(0, 100) + "..." : valueStr;
-                    Console.WriteLine($"[FLOW COMPLETE DEBUG] Final - {kv.Key}: {preview}");
+
                     if (kv.Key.Contains("upload", StringComparison.OrdinalIgnoreCase))
                     {
-                        Console.WriteLine($"[FLOW COMPLETE DEBUG UPLOAD] Final upload value: {valueStr}");
+
                     }
                                 }
 
@@ -923,18 +895,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 }
             }
 
-            // DEBUG: Log item data before processing
-            Console.WriteLine($"[COLLECTION SAVE DEBUG] Processing item for field: {fieldId}, instanceId: {instanceId}");
-            foreach (var kvp in itemData)
-            {
-                var valueStr = kvp.Value?.ToString();
-                var preview = valueStr?.Length > 100 ? valueStr.Substring(0, 100) + "..." : valueStr;
-                Console.WriteLine($"[COLLECTION SAVE DEBUG] Item data - {kvp.Key}: {preview}");
-                if (kvp.Key.Contains("upload", StringComparison.OrdinalIgnoreCase))
-                {
-                    Console.WriteLine($"[COLLECTION SAVE DEBUG UPLOAD] Full upload value: {valueStr}");
-                }
-            }
+
 
             // Find existing item or create new one
             var idx = list.FindIndex(x => x.TryGetValue("id", out var id) && id?.ToString() == instanceId);
@@ -973,15 +934,15 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             item["id"] = instanceId;
 
             // DEBUG: Log final item before serialization
-            Console.WriteLine($"[COLLECTION SAVE DEBUG] Final item before serialization:");
+
             foreach (var kvp in item)
             {
                 var valueStr = kvp.Value?.ToString();
                 var preview = valueStr?.Length > 100 ? valueStr.Substring(0, 100) + "..." : valueStr;
-                Console.WriteLine($"[COLLECTION SAVE DEBUG] Final item - {kvp.Key}: {preview}");
+
                 if (kvp.Key.Contains("upload", StringComparison.OrdinalIgnoreCase))
                 {
-                    Console.WriteLine($"[COLLECTION SAVE DEBUG UPLOAD] Final upload value: {valueStr}");
+
                 }
             }
 
@@ -992,7 +953,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 list.Add(item);
 
             var serialized = JsonSerializer.Serialize(list);
-            Console.WriteLine($"[COLLECTION SAVE DEBUG] Serialized collection: {serialized.Substring(0, Math.Min(200, serialized.Length))}...");
+
             _applicationResponseService.AccumulateFormData(new Dictionary<string, object> { [fieldId] = serialized }, HttpContext.Session);
         }
 
@@ -1002,16 +963,15 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         {
             if (!IsCollectionFlow)
             {
-                Console.WriteLine($"[UPLOAD DEBUG] Not a collection flow, returning empty progress");
+
                 return new Dictionary<string, object>();
             }
 
             var key = GetFlowProgressSessionKey(FlowId, InstanceId);
-            Console.WriteLine($"[UPLOAD DEBUG] Loading flow progress with key: {key}");
+
             
-            // Debug: List all session keys to see what's actually in the session
-            Console.WriteLine($"[UPLOAD DEBUG] Session ID: {HttpContext.Session.Id}");
-            Console.WriteLine($"[UPLOAD DEBUG] Session is available: {HttpContext.Session.IsAvailable}");
+
+
             
             // Try to get all session keys
             try
@@ -1021,7 +981,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 {
                     sessionKeys.Add(sessionKey);
                 }
-                Console.WriteLine($"[UPLOAD DEBUG] All session keys: {string.Join(", ", sessionKeys)}");
+
             }
             catch (Exception ex)
             {
@@ -1031,19 +991,19 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             var json = HttpContext.Session.GetString(key);
             if (string.IsNullOrWhiteSpace(json)) 
             {
-                Console.WriteLine($"[UPLOAD DEBUG] No flow progress found for key: {key}");
+
                 return new Dictionary<string, object>();
             }
             
             try
             {
                 var data = JsonSerializer.Deserialize<Dictionary<string, object>>(json) ?? new Dictionary<string, object>();
-                Console.WriteLine($"[UPLOAD DEBUG] Successfully loaded flow progress with {data.Count} keys: {string.Join(", ", data.Keys)}");
+
                 return data;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[UPLOAD DEBUG] Error deserializing flow progress: {ex.Message}");
+
                 return new Dictionary<string, object>();
             }
         }
@@ -1051,16 +1011,16 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         private Dictionary<string, object> LoadFlowProgress(string flowId, string instanceId)
         {
             var key = GetFlowProgressSessionKey(flowId, instanceId);
-            Console.WriteLine($"[UPLOAD DEBUG] LoadFlowProgress called - Key: {key}");
-            Console.WriteLine($"[UPLOAD DEBUG] Session ID in LoadFlowProgress: {HttpContext.Session.Id}");
+
+
             
             var json = HttpContext.Session.GetString(key);
-            Console.WriteLine($"[UPLOAD DEBUG] Raw JSON from session: {(json?.Length > 0 ? json.Substring(0, Math.Min(200, json.Length)) + "..." : "NULL/EMPTY")}");
+
             
             if (string.IsNullOrWhiteSpace(json)) 
             {
 
-                Console.WriteLine($"[UPLOAD DEBUG] LoadFlowProgress returning EMPTY for key: {key}");
+
                 return new Dictionary<string, object>();
             }
             try
@@ -1641,7 +1601,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         public async Task<IActionResult> OnPostUploadFileAsync()
         {
-            Console.WriteLine($"[UPLOAD DEBUG] ========== OnPostUploadFileAsync START ==========");
+
             
             // Ensure Template is not null (required for RenderForm)
             if (Template == null)
@@ -1659,11 +1619,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             try
             {
                 await CommonFormEngineInitializationAsync();
-                Console.WriteLine("[UPLOAD DEBUG] Initialized form engine context for POST (CurrentTask/Data ready)");
+
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[UPLOAD DEBUG] CommonFormEngineInitializationAsync failed: {ex.Message}");
+
             }
             
             // Extract form data
@@ -1673,23 +1633,23 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             var uploadName = Request.Form["UploadName"].ToString();
             var uploadDescription = Request.Form["UploadDescription"].ToString();
             
-            Console.WriteLine($"[UPLOAD DEBUG] ApplicationId: '{applicationId}'");
-            Console.WriteLine($"[UPLOAD DEBUG] FieldId: '{fieldId}'");
-            Console.WriteLine($"[UPLOAD DEBUG] ReturnUrl: '{returnUrl}'");
-            Console.WriteLine($"[UPLOAD DEBUG] IsCollectionFlow: {IsCollectionFlow}");
+
+
+
+
             
             // Clear validation errors for FlowId/InstanceId if not in collection flow
             if (!IsCollectionFlow)
             {
                 ModelState.Remove("FlowId");
                 ModelState.Remove("InstanceId");
-                Console.WriteLine($"[UPLOAD DEBUG] Cleared FlowId/InstanceId validation errors");
+
             }
             
             // Parse application ID
             if (!Guid.TryParse(applicationId, out var appId))
             {
-                Console.WriteLine($"[UPLOAD DEBUG] Invalid ApplicationId: {applicationId}");
+
                 return NotFound();
             }
             
@@ -1697,71 +1657,63 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             var file = Request.Form.Files["UploadFile"];
             // Read any existing file IDs posted by the view to preserve list
             var existingFileIds = Request.Form["ExistingFileIds"].ToArray();
-            Console.WriteLine($"[UPLOAD DEBUG] File check - null: {file == null}, length: {file?.Length ?? 0}");
+
             
             // === EXACT REPLICA OF ORIGINAL ERROR HANDLING ===
             if (file == null || file.Length == 0)
             {
-                Console.WriteLine($"[UPLOAD DEBUG] *** FILE VALIDATION FAILED ***");
+
                 
                 ErrorMessage = "Please select a file to upload.";
                 ModelState.AddModelError("UploadFile", ErrorMessage);
                 
-                Console.WriteLine($"[UPLOAD DEBUG] Set ErrorMessage: '{ErrorMessage}'");
-                Console.WriteLine($"[UPLOAD DEBUG] Added ModelState error for 'UploadFile'");
-                Console.WriteLine($"[UPLOAD DEBUG] ModelState.IsValid: {ModelState.IsValid}");
-                Console.WriteLine($"[UPLOAD DEBUG] ModelState.ErrorCount: {ModelState.ErrorCount}");
+
+
+
+
                 
-                // Debug all ModelState errors
-                Console.WriteLine($"[UPLOAD DEBUG] === ALL MODEL STATE ERRORS ===");
-                foreach (var kvp in ModelState)
-                {
-                    foreach (var error in kvp.Value.Errors)
-                    {
-                        Console.WriteLine($"[UPLOAD DEBUG] ModelState[{kvp.Key}]: {error.ErrorMessage}");
-                    }
-                }
-                Console.WriteLine($"[UPLOAD DEBUG] === END MODEL STATE ERRORS ===");
+
+
                 
                 // CRITICAL: Save errors to FormErrorStore like original implementation
                 // Note: API errors will be handled by ExternalApiExceptionFilter with FormErrorStore
-                Console.WriteLine($"[UPLOAD DEBUG] Non-API validation errors - handling locally");
+
                 
                 // Load existing files (CRITICAL - exactly like original)
-                Console.WriteLine($"[UPLOAD DEBUG] Loading existing files...");
+
                 Files = await GetFilesForFieldAsync(appId, fieldId);
-                Console.WriteLine($"[UPLOAD DEBUG] Loaded {Files.Count} existing files");
+
                 
                 // Check if we have return URL
                 if (!string.IsNullOrEmpty(returnUrl))
                 {
-                    Console.WriteLine($"[UPLOAD DEBUG] *** REDIRECTING TO: {returnUrl} ***");
+
                     return Redirect(returnUrl);
                 }
                 
-                Console.WriteLine($"[UPLOAD DEBUG] *** RETURNING PAGE() WITH ERRORS ***");
-                Console.WriteLine($"[UPLOAD DEBUG] ErrorMessage property: '{ErrorMessage}'");
-                Console.WriteLine($"[UPLOAD DEBUG] Files property count: {Files.Count}");
-                Console.WriteLine($"[UPLOAD DEBUG] Template property null: {Template == null}");
+
+
+
+
                 return Page();
             }
             
             // Continue with successful upload - let filter handle API errors
-            Console.WriteLine($"[UPLOAD DEBUG] File validation passed, proceeding with upload");
-            Console.WriteLine($"[UPLOAD DEBUG] *** ABOUT TO CALL API - NO TRY-CATCH ***");
-            Console.WriteLine($"[UPLOAD DEBUG] *** ExternalApiExceptionFilter should catch any API errors ***");
+
+
+
             
             using var stream = file.OpenReadStream();
             var fileParam = new FileParameter(stream, file.FileName, file.ContentType);
             
-            Console.WriteLine($"[UPLOAD DEBUG] *** CALLING UploadFileAsync API ***");
+
             try
             {
                 await fileUploadService.UploadFileAsync(appId, file.FileName, uploadDescription, fileParam);
-                Console.WriteLine($"[UPLOAD DEBUG] *** API CALL COMPLETED SUCCESSFULLY - NO EXCEPTION ***");
+
                 
                 // SUCCESS PATH: Only execute this code if API call succeeds
-                Console.WriteLine($"[UPLOAD DEBUG] *** ENTERING SUCCESS PATH ***");
+
                 
                 // Get and update files
                 var currentFieldFiles = (await GetFilesForFieldAsync(appId, fieldId)).ToList();
@@ -1787,7 +1739,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[UPLOAD DEBUG] Failed to merge ExistingFileIds: {ex.Message}");
+
                     }
                 }
                 var allDbFiles = await fileUploadService.GetFilesForApplicationAsync(appId);
@@ -1806,7 +1758,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 
                 // Set success message
                 SuccessMessage = $"Your file '{file.FileName}' uploaded.";
-                Console.WriteLine($"[UPLOAD DEBUG] Upload successful: {SuccessMessage}");
+
                 
                 // Send notification
                 var addRequest = new AddNotificationRequest
@@ -1819,23 +1771,23 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     AutoDismissSeconds = 5
                 };
                 await _notificationsClient.CreateNotificationAsync(addRequest);
-                Console.WriteLine($"[UPLOAD DEBUG] Notification sent");
+
                 
                 // Redirect back if we have return URL
                 if (!string.IsNullOrEmpty(returnUrl))
                 {
-                    Console.WriteLine($"[UPLOAD DEBUG] Redirecting to return URL: {returnUrl}");
+
                     return Redirect(returnUrl);
                 }
                 
-                Console.WriteLine($"[UPLOAD DEBUG] Upload successful, returning Page()");
+
                 return Page();
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[UPLOAD DEBUG] *** EXCEPTION CAUGHT IN UPLOAD METHOD ***");
-                Console.WriteLine($"[UPLOAD DEBUG] *** Exception: {ex.GetType().Name} - {ex.Message} ***");
-                Console.WriteLine($"[UPLOAD DEBUG] *** RETHROWING FOR FILTER TO HANDLE ***");
+
+
+
                 // Don't handle the exception here - let the ExternalApiExceptionFilter handle it
                 // This ensures that API errors get proper ModelState treatment
                 throw;
@@ -1844,7 +1796,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         public async Task<IActionResult> OnPostDownloadFileAsync()
         {
-            Console.WriteLine($"[UPLOAD DEBUG] Download handler called in RenderForm");
+
             
             // Simple fix: Ensure Template is not null to prevent NullReferenceException
             if (Template == null)
@@ -1856,7 +1808,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     Description = "dummy", 
                     TaskGroups = new List<TaskGroup>() 
                 }; // Create empty template to prevent null reference
-                Console.WriteLine($"[UPLOAD DEBUG] Created empty template to prevent null reference for download");
+
             }
             
             var applicationId = Request.Form["ApplicationId"].ToString();
@@ -1894,7 +1846,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         public async Task<IActionResult> OnPostDeleteFileAsync()
         {
-            Console.WriteLine($"[UPLOAD DEBUG] Delete handler called in RenderForm");
+
             
             // Simple fix: Ensure Template is not null to prevent NullReferenceException
             if (Template == null)
@@ -1906,7 +1858,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     Description = "dummy", 
                     TaskGroups = new List<TaskGroup>() 
                 }; // Create empty template to prevent null reference
-                Console.WriteLine($"[UPLOAD DEBUG] Created empty template to prevent null reference for delete");
+
             }
             
             // CRITICAL: Setup notification request for delete operations
@@ -1940,17 +1892,17 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
 
             await fileUploadService.DeleteFileAsync(fileId, appId);
-            Console.WriteLine($"[UPLOAD DEBUG] File deleted successfully: {fileId}");
+
             
             // CRITICAL: Set success message for delete operation
             SuccessMessage = "File deleted.";
-            Console.WriteLine($"[UPLOAD DEBUG] File delete completed successfully. Success message: {SuccessMessage}");
+
 
             // Get current files for this field and remove the deleted one
             var currentFieldFiles = (await GetFilesForFieldAsync(appId, fieldId)).ToList();
             currentFieldFiles.RemoveAll(f => f.Id == fileId);
             
-            Console.WriteLine($"[UPLOAD DEBUG] Files after deletion: {currentFieldFiles.Count}");
+
             
             UpdateSessionFileList(appId, fieldId, currentFieldFiles);
             await SaveUploadedFilesToResponseAsync(appId, fieldId, currentFieldFiles);
@@ -1961,7 +1913,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 // CRITICAL: Send notification for successful delete
                 addRequest.Message = SuccessMessage;
                 await _notificationsClient.CreateNotificationAsync(addRequest);
-                Console.WriteLine($"[UPLOAD DEBUG] Delete notification sent: {SuccessMessage}");
+
                 
                 return Redirect(returnUrl);
             }
@@ -1976,19 +1928,19 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 return new List<UploadDto>().AsReadOnly();
             }
 
-            Console.WriteLine($"[UPLOAD DEBUG] ========== LOADING FILES FOR FIELD START ==========");
-            Console.WriteLine($"[UPLOAD DEBUG] FlowId: {FlowId}, InstanceId: {InstanceId}, FieldId: {fieldId}");
+
+
 
             if (IsCollectionFlow)
             {
-                Console.WriteLine($"[UPLOAD DEBUG] Collection flow - using same data access as page load");
+
 
                 // CRITICAL FIX: Scan accumulated collection items to find this instance's item,
                 // then read the inner field value (matching 'fieldId') like GET does.
                 try
                 {
                     var accumulatedData = applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
-                    Console.WriteLine($"[UPLOAD DEBUG] Accumulated data keys: {string.Join(", ", accumulatedData.Keys)}");
+
 
                     foreach (var kvp in accumulatedData)
                     {
@@ -2004,7 +1956,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                             var existingItem = items.FirstOrDefault(item => item.TryGetValue("id", out var idVal) && idVal?.ToString() == InstanceId);
                             if (existingItem != null)
                             {
-                                Console.WriteLine($"[UPLOAD DEBUG] Found existing item for instance {InstanceId} under collection key '{kvp.Key}'");
+
                                 if (existingItem.TryGetValue(fieldId, out var innerValue) && innerValue != null)
                                 {
                                     // Handle JsonElement array
@@ -2015,12 +1967,12 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                             try
                                             {
                                                 var files = JsonSerializer.Deserialize<List<UploadDto>>(innerElem.GetRawText()) ?? new List<UploadDto>();
-                                                Console.WriteLine($"[UPLOAD DEBUG] Loaded {files.Count} files from existing item (JsonElement)");
+
                                                 return files.AsReadOnly();
                                             }
                                             catch (JsonException ex)
                                             {
-                                                Console.WriteLine($"[UPLOAD DEBUG] Failed to deserialize inner files (JsonElement): {ex.Message}");
+
                                             }
                                         }
                                     }
@@ -2030,18 +1982,18 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                         try
                                         {
                                             var files = JsonSerializer.Deserialize<List<UploadDto>>(innerJson) ?? new List<UploadDto>();
-                                            Console.WriteLine($"[UPLOAD DEBUG] Loaded {files.Count} files from existing item (string)");
+
                                             return files.AsReadOnly();
                                         }
                                         catch (JsonException ex)
                                         {
-                                            Console.WriteLine($"[UPLOAD DEBUG] Failed to deserialize inner files (string): {ex.Message}");
+
                                         }
                                     }
                                     // Handle direct list
                                     else if (innerValue is List<UploadDto> uploadList)
                                     {
-                                        Console.WriteLine($"[UPLOAD DEBUG] Loaded {uploadList.Count} files from existing item (typed list)");
+
                                         return uploadList.AsReadOnly();
                                     }
                                 }
@@ -2050,36 +2002,36 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         catch (Exception ex)
                         {
                             // Ignore parse errors for non-collection fields
-                            Console.WriteLine($"[UPLOAD DEBUG] Skipping non-collection accumulated key '{kvp.Key}': {ex.Message}");
+
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[UPLOAD DEBUG] Error scanning accumulated data: {ex.Message}");
+
                 }
 
                 // FALLBACK: Check session flow progress
-                Console.WriteLine($"[UPLOAD DEBUG] Falling back to session flow progress search");
+
                 var progressData = LoadFlowProgress(FlowId, InstanceId);
-                Console.WriteLine($"[UPLOAD DEBUG] Progress data keys: {string.Join(", ", progressData.Keys)}");
+
 
                 if (progressData.TryGetValue(fieldId, out var progressValue))
                 {
                     var sessionFilesJson = progressValue?.ToString();
-                    Console.WriteLine($"[UPLOAD DEBUG] Found files in flow progress: {sessionFilesJson?.Substring(0, Math.Min(200, sessionFilesJson?.Length ?? 0))}...");
+
 
                     if (!string.IsNullOrWhiteSpace(sessionFilesJson))
                     {
                         try
                         {
                             var files = JsonSerializer.Deserialize<List<UploadDto>>(sessionFilesJson);
-                            Console.WriteLine($"[UPLOAD DEBUG] Successfully deserialized {files?.Count ?? 0} files from session");
+
                             return (files ?? new List<UploadDto>()).AsReadOnly();
                         }
                         catch (JsonException ex)
                         {
-                            Console.WriteLine($"[UPLOAD DEBUG] Failed to deserialize files from session: {ex.Message}");
+
                         }
                     }
                 }
@@ -2089,71 +2041,71 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 // For regular forms, get files from session
                 var sessionKey = $"UploadedFiles_{appId}_{fieldId}";
                 var sessionFilesJson = HttpContext.Session.GetString(sessionKey);
-                Console.WriteLine($"[UPLOAD DEBUG] Session files JSON from regular session: {sessionFilesJson?.Substring(0, Math.Min(200, sessionFilesJson?.Length ?? 0))}...");
+
 
                 if (!string.IsNullOrWhiteSpace(sessionFilesJson))
                 {
                     try
                     {
                         var files = JsonSerializer.Deserialize<List<UploadDto>>(sessionFilesJson) ?? new List<UploadDto>();
-                        Console.WriteLine($"[UPLOAD DEBUG] Successfully deserialized {files.Count} files from regular session");
+
                         return files.AsReadOnly();
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[UPLOAD DEBUG] Error deserializing files from regular session: {ex.Message}");
+
                     }
                 }
             }
 
-            Console.WriteLine($"[UPLOAD DEBUG] No files found anywhere, returning empty list");
+
             return new List<UploadDto>().AsReadOnly();
         }
 
         private void UpdateSessionFileList(Guid appId, string fieldId, IReadOnlyList<UploadDto> files)
         {
-            Console.WriteLine($"[UPLOAD DEBUG] ========== UPDATE SESSION FILE LIST START ==========");
-            Console.WriteLine($"[UPLOAD DEBUG] UpdateSessionFileList called with {files.Count} files for field {fieldId}");
+
+
             foreach (var file in files)
             {
-                Console.WriteLine($"[UPLOAD DEBUG] Storing file: {file.OriginalFileName} (ID: {file.Id})");
+
             }
             
             if (IsCollectionFlow)
             {
                 // For collection flows, store in flow progress system
                 var progressKey = GetFlowProgressSessionKey(FlowId, InstanceId);
-                Console.WriteLine($"[UPLOAD DEBUG] Storing in flow progress with key: {progressKey}");
-                Console.WriteLine($"[UPLOAD DEBUG] Session ID in UpdateSessionFileList: {HttpContext.Session.Id}");
+
+
                 
                 // Debug: List all session keys before calling LoadFlowProgress
                 var sessionKeysBefore = HttpContext.Session.Keys.ToList();
-                Console.WriteLine($"[UPLOAD DEBUG] Session keys BEFORE LoadFlowProgress: {string.Join(", ", sessionKeysBefore)}");
+
                 
                 // CRITICAL FIX: Use same method as page load for consistency
                 var existingProgress = LoadFlowProgress(FlowId, InstanceId);
-                Console.WriteLine($"[UPLOAD DEBUG] LoadFlowProgress returned {existingProgress.Keys.Count} keys: {string.Join(", ", existingProgress.Keys)}");
+
                 
                 // CRITICAL FIX: The 'files' parameter contains ALL files (existing + new), so just save it directly
                 // No need to merge because GetFilesForFieldAsync already combined existing and new files
                 var serializedFiles = JsonSerializer.Serialize(files);
-                Console.WriteLine($"[UPLOAD DEBUG] Serialized ALL files (existing + new): {serializedFiles.Substring(0, Math.Min(200, serializedFiles.Length))}...");
+
                 existingProgress[fieldId] = serializedFiles;
                 
                 // Force session to commit immediately
                 var progressJson = JsonSerializer.Serialize(existingProgress);
                 HttpContext.Session.SetString(progressKey, progressJson);
                 
-                Console.WriteLine($"[UPLOAD DEBUG] Saved flow progress with {existingProgress.Keys.Count} keys");
+
                 
                 // Flow progress saved successfully
-                Console.WriteLine($"[UPLOAD DEBUG] Flow progress saved successfully");
+
             }
             else
             {
                 // For regular forms, use the original session key
                 var key = $"UploadedFiles_{appId}_{fieldId}";
-                Console.WriteLine($"[UPLOAD DEBUG] Storing in regular session with key: {key}");
+
                 HttpContext.Session.SetString(key, JsonSerializer.Serialize(files));
             }
         }

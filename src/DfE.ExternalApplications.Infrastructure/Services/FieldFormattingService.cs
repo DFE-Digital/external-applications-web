@@ -49,7 +49,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             var fieldValue = GetFieldValue(fieldId, formData);
             
             // DEBUG: Log formatting attempts
-            System.Console.WriteLine($"[FORMATTING DEBUG] Field: {fieldId}, Value: {fieldValue?.Substring(0, Math.Min(100, fieldValue?.Length ?? 0))}...");
+
             
             if (string.IsNullOrEmpty(fieldValue))
             {
@@ -61,11 +61,11 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             {
                 if (LooksLikeUploadData(fieldValue))
                 {
-                    System.Console.WriteLine($"[FORMATTING DEBUG] Detected as upload data for field: {fieldId}");
+
                     return FormatUploadValue(fieldValue);
                 }
 
-                System.Console.WriteLine($"[FORMATTING DEBUG] Detected as autocomplete data for field: {fieldId}");
+
                 return FormatAutocompleteValue(fieldValue);
             }
 
@@ -77,7 +77,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             var fieldValue = GetFieldValue(fieldId, formData);
             
             // DEBUG: Log formatting attempts for list version
-            System.Console.WriteLine($"[FORMATTING DEBUG LIST] Field: {fieldId}, Value: {fieldValue?.Substring(0, Math.Min(100, fieldValue?.Length ?? 0))}...");
+
             
             if (string.IsNullOrEmpty(fieldValue))
             {
@@ -88,11 +88,11 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             {
                 if (LooksLikeUploadData(fieldValue))
                 {
-                    System.Console.WriteLine($"[FORMATTING DEBUG LIST] Detected as upload data for field: {fieldId}");
+
                     return FormatUploadValuesList(fieldValue);
                 }
 
-                System.Console.WriteLine($"[FORMATTING DEBUG LIST] Detected as autocomplete data for field: {fieldId}");
+
                 return FormatAutocompleteValuesList(fieldValue);
             }
 

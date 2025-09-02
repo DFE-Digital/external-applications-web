@@ -204,20 +204,7 @@
                 }
             </tbody>
         </table>
-        @{
-            // Upload field handling is complete
-            System.Console.WriteLine($"[UPLOAD VIEW DEBUG] Field ID: {fieldId}");
-            System.Console.WriteLine($"[UPLOAD VIEW DEBUG] Files count: {files.Count()}");
-            if (files.Any())
-            {
-                System.Console.WriteLine($"[UPLOAD VIEW DEBUG] First file ID: {files.First().Id}");
-                System.Console.WriteLine($"[UPLOAD VIEW DEBUG] First file name: {files.First().OriginalFileName}");
-                System.Console.WriteLine($"[UPLOAD VIEW DEBUG] First file type: {files.First().GetType().Name}");
-            }
-            var serializedFiles = System.Text.Json.JsonSerializer.Serialize(files);
-            System.Console.WriteLine($"[UPLOAD VIEW DEBUG] Serialized files for hidden input: {serializedFiles.Substring(0, Math.Min(200, serializedFiles.Length))}");
-            System.Console.WriteLine($"[UPLOAD VIEW DEBUG] Full serialized length: {serializedFiles.Length}");
-        }
+
         
         @if (isCollectionFlow)
         {

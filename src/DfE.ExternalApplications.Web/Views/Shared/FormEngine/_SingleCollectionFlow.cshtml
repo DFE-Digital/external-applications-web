@@ -86,12 +86,7 @@
                      @foreach (var col in (flow.SummaryColumns ?? new List<DfE.ExternalApplications.Domain.Models.FlowSummaryColumn>()).Where(c => !renderModel.IsFieldHiddenForItem(c.Field, item)))
                     {
                         var value = item.TryGetValue(col.Field, out var v) ? v?.ToString() : string.Empty;
-                        // DEBUG: Log what we're trying to format
-                        System.Console.WriteLine($"[COLLECTION DEBUG] Field: {col.Field}, Value type: {v?.GetType()?.Name}, Value length: {value?.Length}, Value preview: {(value?.Length > 50 ? value.Substring(0, 50) + "..." : value)}");
-                        if (col.Field.Contains("upload", StringComparison.OrdinalIgnoreCase))
-                        {
-                            System.Console.WriteLine($"[COLLECTION DEBUG UPLOAD] Full value: {value}");
-                        }
+
                         // Find which page contains this field within this flow
                         var targetPage = flow.Pages?.FirstOrDefault(p => p.Fields.Any(f => f.FieldId == col.Field));
                         var pageId = targetPage?.PageId ?? flow.Pages?.FirstOrDefault()?.PageId ?? "";
