@@ -106,6 +106,11 @@
             <input type="hidden" name="ReturnUrl" value="@actualReturnUrl" />
             <input type="hidden" name="UploadName" value="FileName" />
             <input type="hidden" name="UploadDescription" value="FileDescription" />
+            @* Preserve existing files across upload by sending their IDs *@
+            @foreach (var f in files)
+            {
+                <input type="hidden" name="ExistingFileIds" value="@f.Id" />
+            }
             @* Pass collection flow context if needed *@
             @if (isCollectionFlow)
             {
