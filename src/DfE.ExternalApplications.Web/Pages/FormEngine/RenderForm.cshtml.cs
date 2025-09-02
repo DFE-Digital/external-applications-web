@@ -1146,23 +1146,17 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     {
                         try
                         {
-                _logger.LogInformation(">>>>>>>>>>>>CONDITIONAL LOGIC START: CurrentPageId={CurrentPageId}, TaskId={TaskId}, Template has {RuleCount} rules, Trigger={Trigger}", 
-                    CurrentPageId, TaskId, Template?.ConditionalLogic?.Count ?? 0, trigger);
-                _logger.LogInformation(">>>>>>>>>>>>CURRENT DATA: {Data}", 
-                    string.Join(", ", Data.Select(kv => $"{kv.Key}={kv.Value}")));
+                
 
                 if (Template?.ConditionalLogic != null && Template.ConditionalLogic.Any())
                 {
                     // Log all rules in template
                     foreach (var rule in Template.ConditionalLogic)
                     {
-                        _logger.LogInformation(">>>>>>>>>>>>RULE: {RuleId} - {RuleName}, Priority: {Priority}, Enabled: {Enabled}, ExecuteOn: [{ExecuteOn}]", 
-                            rule.Id, rule.Name, rule.Priority, rule.Enabled, string.Join(", ", rule.ExecuteOn));
+                        
                         foreach (var condition in rule.ConditionGroup.Conditions)
                         {
-                            _logger.LogInformation(">>>>>>>>>>>>  CONDITION: {TriggerField} {Operator} {Value} (Current Value: {CurrentValue})", 
-                                condition.TriggerField, condition.Operator, condition.Value, 
-                                Data.TryGetValue(condition.TriggerField, out var currentVal) ? currentVal : "NOT_SET");
+                            
                         }
                     }
 
@@ -1176,13 +1170,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
                     ConditionalState = await _conditionalLogicOrchestrator.ApplyConditionalLogicAsync(Template, Data, context);
                     
-                    _logger.LogInformation(">>>>>>>>>>>>CONDITIONAL LOGIC RESULT:");
-                    _logger.LogInformation(">>>>>>>>>>>>  FieldVisibility: {FieldVisibility}", 
-                        string.Join(", ", ConditionalState.FieldVisibility.Select(kv => $"{kv.Key}={kv.Value}")));
-                    _logger.LogInformation(">>>>>>>>>>>>  SkippedPages: {SkippedPages}", 
-                        string.Join(", ", ConditionalState.SkippedPages));
-                    _logger.LogInformation(">>>>>>>>>>>>  Actions Executed: {ActionCount}", 
-                        ConditionalState.EvaluationResult?.Actions.Count ?? 0);
+                    
                     
                     // Apply field values from conditional logic
                     if (ConditionalState.FieldValues.Any())
@@ -1191,18 +1179,17 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         {
                             Data[kvp.Key] = kvp.Value;
                         }
-                        _logger.LogInformation(">>>>>>>>>>>>  Applied FieldValues: {FieldValues}", 
-                            string.Join(", ", ConditionalState.FieldValues.Select(kv => $"{kv.Key}={kv.Value}")));
+                        
                     }
                 }
                 else
                 {
-                    _logger.LogInformation(">>>>>>>>>>>>CONDITIONAL LOGIC: No rules found in template");
+                    
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, ">>>>>>>>>>>>CONDITIONAL LOGIC ERROR: {Message}", ex.Message);
+                _logger.LogError(ex, "CONDITIONAL LOGIC ERROR: {Message}", ex.Message);
             }
         }
 
