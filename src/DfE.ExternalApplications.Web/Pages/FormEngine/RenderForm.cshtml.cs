@@ -1796,8 +1796,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         public async Task<IActionResult> OnPostDownloadFileAsync()
         {
-
-            
             // Simple fix: Ensure Template is not null to prevent NullReferenceException
             if (Template == null)
             {
@@ -1815,9 +1813,13 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             var fileIdStr = Request.Form["FileId"].ToString();
             
             if (!Guid.TryParse(applicationId, out var appId))
+            {
                 return NotFound();
+            }
             if (!Guid.TryParse(fileIdStr, out var fileId))
+            {
                 return NotFound();
+            }
 
             var fileResponse = await fileUploadService.DownloadFileAsync(fileId, appId);
 
