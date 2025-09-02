@@ -104,7 +104,30 @@
                                                     <dd class="govuk-summary-list__value">
                                                         @if (!string.IsNullOrEmpty(value))
                                                         {
-                                                            @Html.Raw(value.Replace("\r\n", "<br/>").Replace("\r", "<br/>").Replace("\n", "<br/>"))
+                                                            // Temporarily set the item's field value into FormData and use the normal formatter
+                                                            var originalValue = Model.FormData.TryGetValue(col.Field, out var orig) ? orig : null;
+                                                            Model.FormData[col.Field] = value;
+                                                            var formattedValues = Model.GetFormattedFieldValues(col.Field);
+                                                            if (originalValue != null)
+                                                                Model.FormData[col.Field] = originalValue;
+                                                            else
+                                                                Model.FormData.Remove(col.Field);
+
+                                                            if (formattedValues.Count == 0)
+                                                            {
+                                                                <span class="govuk-hint">Not answered</span>
+                                                            }
+                                                            else if (formattedValues.Count == 1)
+                                                            {
+                                                                @Html.Raw(formattedValues.First())
+                                                            }
+                                                            else
+                                                            {
+                                                                foreach (var fv in formattedValues)
+                                                                {
+                                                                    <div>@Html.Raw(fv)</div>
+                                                                }
+                                                            }
                                                         }
                                                         else
                                                         {
