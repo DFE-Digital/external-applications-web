@@ -40,7 +40,6 @@ describe('Create an Application', () => {
     
     Logger.log("Clicking the Start New Application button");
     Dashboardpage.clickStartBtn();
-  
     
     Logger.log("Verify if redirected to Dashboard page");
     cy.url().should('include', '/contributors'); 
@@ -54,7 +53,7 @@ describe('Create an Application', () => {
 
     // Verify if the contributor is added
     Logger.log("Verifying if the contributor is added");
-    Contributors.verifyContributor();
+    Contributors.verifyNewContributor();
     Logger.log("Clicking the Proceed button on Contributors page");
     Contributors.ClickProceedBtn();
 

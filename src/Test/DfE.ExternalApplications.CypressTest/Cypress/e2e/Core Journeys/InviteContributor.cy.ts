@@ -54,7 +54,7 @@ describe('Create an Application', () => {
 
     // Verify if the contributor is added
     Logger.log("Verifying if the contributor is added");
-    Contributors.verifyContributor();
+    Contributors.verifyNewContributor();
     Logger.log("Clicking the Proceed button on Contributors page");
     Contributors.ClickProceedBtn();
 
