@@ -70,9 +70,18 @@ builder.Services.AddRazorPages(options =>
 builder.Services.AddControllers(options =>
 {
     options.Filters.Add<ExternalApiMvcExceptionFilter>();
+    
+    // Add confirmation interceptor filter globally
+    options.Filters.Add<DfE.ExternalApplications.Web.Filters.ConfirmationInterceptorFilter>();
 });
 
 builder.Services.AddHttpContextAccessor();
+
+// Add confirmation interceptor filter globally for all MVC actions
+builder.Services.Configure<Microsoft.AspNetCore.Mvc.MvcOptions>(options =>
+{
+    options.Filters.Add<DfE.ExternalApplications.Web.Filters.ConfirmationInterceptorFilter>();
+});
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession();
 builder.Services.AddMemoryCache();

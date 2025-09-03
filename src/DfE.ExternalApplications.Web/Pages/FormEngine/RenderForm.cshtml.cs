@@ -38,7 +38,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         [BindProperty] public Dictionary<string, object> Data { get; set; } = new();
 
         [BindProperty] public bool IsTaskCompleted { get; set; }
-
+        
         // Success message for collection operations
         [TempData] public string? SuccessMessage { get; set; }
 
@@ -47,58 +47,58 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         public async Task OnGetAsync()
         {
-            await CommonFormEngineInitializationAsync();
+                await CommonFormEngineInitializationAsync();
 
-            // Check if this is a preview request
-            if (Request.Query.ContainsKey("preview"))
-            {
-                // Override the form state for preview requests
-                CurrentFormState = FormState.ApplicationPreview;
-                CurrentGroup = null;
-                CurrentTask = null;
-                CurrentPage = null;
-                
-                // Clear all validation errors for preview since we don't need validation on preview page
-                ModelState.Clear();
-            }
-            else
-            {
-                // Detect sub-flow route segments inside pageId via route value parsing if needed in future
-            // If application is not editable and trying to access a specific page, redirect to preview
-            if (!IsApplicationEditable() && !string.IsNullOrEmpty(CurrentPageId))
-            {
-                    Response.Redirect($"~/applications/{ReferenceNumber}");
-                return;
-            }
-
-            if (!string.IsNullOrEmpty(CurrentPageId))
-            {
-                    if (TryParseFlowRoute(CurrentPageId, out var flowId, out var instanceId, out var flowPageId))
+                // Check if this is a preview request
+                if (Request.Query.ContainsKey("preview"))
+                {
+                    // Override the form state for preview requests
+                    CurrentFormState = FormState.ApplicationPreview;
+                    CurrentGroup = null;
+                    CurrentTask = null;
+                    CurrentPage = null;
+                    
+                    // Clear all validation errors for preview since we don't need validation on preview page
+                    ModelState.Clear();
+                }
+                else
+                {
+                    // Detect sub-flow route segments inside pageId via route value parsing if needed in future
+                    // If application is not editable and trying to access a specific page, redirect to preview
+                    if (!IsApplicationEditable() && !string.IsNullOrEmpty(CurrentPageId))
                     {
-                        // Sub-flow: initialize task and resolve page from task's pages
-                        var (group, task) = InitializeCurrentTask(TaskId);
-                CurrentGroup = group;
-                CurrentTask = task;
+                        Response.Redirect($"~/applications/{ReferenceNumber}");
+                        return;
+                    }
 
-                        // Find the correct flow and its pages
-                        var flowPages = GetFlowPages(task, flowId);
-                        if (flowPages != null)
+                    if (!string.IsNullOrEmpty(CurrentPageId))
+                    {
+                        if (TryParseFlowRoute(CurrentPageId, out var flowId, out var instanceId, out var flowPageId))
                         {
-                            var page = string.IsNullOrEmpty(flowPageId) ? flowPages.FirstOrDefault() : flowPages.FirstOrDefault(p => p.PageId == flowPageId);
-                            if (page != null)
+                            // Sub-flow: initialize task and resolve page from task's pages
+                            var (group, task) = InitializeCurrentTask(TaskId);
+                            CurrentGroup = group;
+                            CurrentTask = task;
+
+                            // Find the correct flow and its pages
+                            var flowPages = GetFlowPages(task, flowId);
+                            if (flowPages != null)
                             {
-                CurrentPage = page;
-                                CurrentFormState = FormState.FormPage; // Render as a normal page
-                                
-                                // If editing existing item, load its data into form fields
-                                // This must happen AFTER LoadAccumulatedDataFromSession is skipped for sub-flows
-                                LoadExistingFlowItemData(flowId, instanceId);
-                                
-                                // Also load any in-progress data for this specific flow instance
-                                // IMPORTANT: Progress data takes priority over existing item data as it contains the latest user changes
-                                var progressData = LoadFlowProgress(flowId, instanceId);
-                                foreach (var kvp in progressData)
+                                var page = string.IsNullOrEmpty(flowPageId) ? flowPages.FirstOrDefault() : flowPages.FirstOrDefault(p => p.PageId == flowPageId);
+                                if (page != null)
                                 {
+                                    CurrentPage = page;
+                                    CurrentFormState = FormState.FormPage; // Render as a normal page
+                                    
+                                    // If editing existing item, load its data into form fields
+                                    // This must happen AFTER LoadAccumulatedDataFromSession is skipped for sub-flows
+                                    LoadExistingFlowItemData(flowId, instanceId);
+                                    
+                                    // Also load any in-progress data for this specific flow instance
+                                // IMPORTANT: Progress data takes priority over existing item data as it contains the latest user changes
+                                    var progressData = LoadFlowProgress(flowId, instanceId);
+                                    foreach (var kvp in progressData)
+                                    {
                                     Data[kvp.Key] = kvp.Value; // Always overwrite with progress data (latest changes)
                                 }
                                 
@@ -108,32 +108,32 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                     Data.TryGetValue("existingMember", out var existingMemberVal) ? existingMemberVal : "NOT_FOUND");
                             }
                         }
+                        }
+                        else
+                        {
+                            var (group, task, page) = InitializeCurrentPage(CurrentPageId);
+                            CurrentGroup = group;
+                            CurrentTask = task;
+                            CurrentPage = page;
+                        }
                     }
-                    else
-            {
-                var (group, task, page) = InitializeCurrentPage(CurrentPageId);
-                CurrentGroup = group;
-                CurrentTask = task;
-                CurrentPage = page;
-                    }
-                }
-                else if (!string.IsNullOrEmpty(TaskId))
-                {
-                    var (group, task) = InitializeCurrentTask(TaskId);
-                    CurrentGroup = group;
-                    CurrentTask = task;
-                    CurrentPage = null; // No specific page for task summary
-
-                    // If task requests collectionFlow summary, switch state accordingly
-                    if (_formStateManager.ShouldShowCollectionFlowSummary(CurrentTask))
+                    else if (!string.IsNullOrEmpty(TaskId))
                     {
-                        CurrentFormState = FormState.TaskSummary; // view chooses partial
+                        var (group, task) = InitializeCurrentTask(TaskId);
+                        CurrentGroup = group;
+                        CurrentTask = task;
+                        CurrentPage = null; // No specific page for task summary
+
+                        // If task requests collectionFlow summary, switch state accordingly
+                        if (_formStateManager.ShouldShowCollectionFlowSummary(CurrentTask))
+                        {
+                            CurrentFormState = FormState.TaskSummary; // view chooses partial
+                        }
                     }
                 }
-            }
 
-            // Check if we need to clear session data for a new application
-            CheckAndClearSessionForNewApplication();
+                // Check if we need to clear session data for a new application
+                CheckAndClearSessionForNewApplication();
 
             // Load accumulated form data from session to pre-populate fields (only if not in a sub-flow)
             if (string.IsNullOrEmpty(CurrentPageId) || !CurrentPageId.Contains("flow/"))
@@ -149,13 +149,13 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             {
                 // For sub-flows, still apply conditional logic using the current Data
                 await ApplyConditionalLogicAsync();
-            }
+                }
 
-            // Initialize task completion status if we're showing a task summary
-            if (CurrentFormState == FormState.TaskSummary && CurrentTask != null)
-            {
-                var taskStatus = GetTaskStatusFromSession(CurrentTask.TaskId);
-                IsTaskCompleted = taskStatus == Domain.Models.TaskStatus.Completed;
+                // Initialize task completion status if we're showing a task summary
+                if (CurrentFormState == FormState.TaskSummary && CurrentTask != null)
+                {
+                    var taskStatus = GetTaskStatusFromSession(CurrentTask.TaskId);
+                    IsTaskCompleted = taskStatus == Domain.Models.TaskStatus.Completed;
             }
         }
 
@@ -209,7 +209,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             
             // Initialize common form engine data first (loads Template, FormData, etc.)
             await CommonFormEngineInitializationAsync();
-            
+
             // Prevent submission if application is not editable
             if (!IsApplicationEditable())
             {
@@ -270,6 +270,36 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         public async Task<IActionResult> OnPostPageAsync()
         {
+            // Check if this is a confirmed action coming back from confirmation page
+            if (Request.Query.ContainsKey("confirmed") && Request.Query["confirmed"] == "true")
+            {
+                // Restore the original form data from TempData
+                var confirmedDataJson = TempData["ConfirmedFormData"]?.ToString();
+                var confirmedHandler = TempData["ConfirmedHandler"]?.ToString();
+                
+                if (!string.IsNullOrEmpty(confirmedDataJson))
+                {
+                    try
+                    {
+                        var confirmedData = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(confirmedDataJson);
+                        if (confirmedData != null)
+                        {
+                            // Merge confirmed data into current Data
+                            foreach (var kvp in confirmedData)
+                            {
+                                Data[kvp.Key] = kvp.Value;
+                            }
+                            _logger.LogInformation("Restored {Count} confirmed form fields for handler {Handler}", 
+                                confirmedData.Count, confirmedHandler);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to deserialize confirmed form data");
+                    }
+                }
+            }
+
             await CommonFormEngineInitializationAsync();
 
             // Prevent editing if application is not editable
@@ -286,8 +316,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 {
                     _logger.LogInformation("Detected sub-flow: flowId={FlowId} instance={InstanceId} flowPageId={FlowPageId}", flowId, instanceId, flowPageId);
                     var (group, task) = InitializeCurrentTask(TaskId);
-            CurrentGroup = group;
-            CurrentTask = task;
+                    CurrentGroup = group;
+                    CurrentTask = task;
 
                     // Find the correct flow and its pages
                     var flowPages = GetFlowPages(task, flowId);
@@ -296,7 +326,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         var page = string.IsNullOrEmpty(flowPageId) ? flowPages.FirstOrDefault() : flowPages.FirstOrDefault(p => p.PageId == flowPageId);
                         if (page != null)
                         {
-            CurrentPage = page;
+                            CurrentPage = page;
                         }
                     }
                 }
@@ -436,8 +466,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                             
                             if (!string.IsNullOrEmpty(nextPageId))
                             {
-                                var nextUrl = _formNavigationService.GetSubFlowPageUrl(CurrentTask.TaskId, ReferenceNumber, flowId, instanceId, nextPageId);
-                                return Redirect(nextUrl);
+                            var nextUrl = _formNavigationService.GetSubFlowPageUrl(CurrentTask.TaskId, ReferenceNumber, flowId, instanceId, nextPageId);
+                            return Redirect(nextUrl);
                             }
                             // If no valid next page found, treat as last page and complete the flow
                         }
@@ -851,10 +881,10 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 // New item: create fresh item with all possible fields from flow pages
                 item = new Dictionary<string, object>();
                 foreach (var page in pages)
-        {
-            foreach (var field in page.Fields)
-            {
-                var key = field.FieldId;
+                {
+                    foreach (var field in page.Fields)
+                    {
+                        var key = field.FieldId;
                         if (itemData.TryGetValue(key, out var value))
                         {
                             item[key] = value;
