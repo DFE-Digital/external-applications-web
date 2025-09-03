@@ -14,7 +14,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DfE.ExternalApplications.Domain\DfE.ExternalApplications.Domain.csproj" />
-    <ProjectReference Include="..\GovUK.Dfe.ExternalApplications.Api.Client\GovUK.Dfe.ExternalApplications.Api.Client.csproj" />
   </ItemGroup>
 
 </Project>
