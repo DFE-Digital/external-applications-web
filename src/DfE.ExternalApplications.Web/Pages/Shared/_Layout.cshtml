@@ -85,7 +85,7 @@
                 if (expiryTime.HasValue)
                 {
                     var timeLeft = expiryTime.Value - DateTimeOffset.UtcNow;
-                    var totalMinutes = (int)timeLeft.TotalMinutes;
+                    var totalMinutes = (int)timeLeft.TotalMinutes-5;
                     
                     if (totalMinutes <= 0)
                     {
