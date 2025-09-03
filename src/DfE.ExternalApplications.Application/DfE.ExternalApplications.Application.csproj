@@ -8,7 +8,7 @@
 
   <ItemGroup>
     <PackageReference Include="DfE.CoreLibs.Notifications" Version="0.1.3" />
-    <PackageReference Include="GovUK.Dfe.ExternalApplications.Api.Client" Version="0.1.22" />
+    <PackageReference Include="GovUK.Dfe.ExternalApplications.Api.Client" Version="0.1.24" />
     <PackageReference Include="Microsoft.AspNetCore.Http.Features" Version="2.3.0" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Abstractions" Version="2.3.0" />
   </ItemGroup>
