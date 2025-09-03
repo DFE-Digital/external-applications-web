@@ -45,7 +45,7 @@ if (isTestAuthEnabled && testAuthOptions != null)
         options.SecretKey = testAuthOptions.JwtSigningKey;
         options.Issuer = testAuthOptions.JwtIssuer;
         options.Audience = testAuthOptions.JwtAudience;
-        options.TokenLifetimeMinutes = 60; // 1 hour default
+        options.TokenLifetimeMinutes = 8; // 1 hour default
     });
 }
 

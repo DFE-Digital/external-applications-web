@@ -287,6 +287,8 @@
 
 @RenderBody()
 
+@await Component.InvokeAsync("SessionTimeoutBanner")
+
 @* SignalR library *@
 <script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@@8/dist/browser/signalr.min.js" defer></script>
 <script src="~/js/notifications.js" defer></script>
