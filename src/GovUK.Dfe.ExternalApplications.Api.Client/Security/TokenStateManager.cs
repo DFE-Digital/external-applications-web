@@ -136,7 +136,7 @@ public class TokenStateManager(
         // Get OBO token
         state.OboToken = GetOboToken();
 
-        // Check refresh capability
+        // Check refresh capability (existing rule: 5–10 minute window)
         if (isReAuthentication)
         {
             // During re-authentication, allow fresh token exchange even if strategy says no refresh
@@ -145,6 +145,27 @@ public class TokenStateManager(
         else
         {
             state.CanRefresh = await strategy.CanRefreshTokenAsync(httpContext);
+        }
+
+        // New rule: allow refresh if inactivity >= 15 minutes
+        var userIdForActivity = state.UserId;
+        if (!string.IsNullOrEmpty(userIdForActivity))
+        {
+            var lastActivity = await cacheManager.GetLastActivityAsync(userIdForActivity);
+            if (lastActivity.HasValue)
+            {
+                // Ensure both operands are UTC to avoid DST/local offset issues
+                var lastUtc = lastActivity.Value.Kind == DateTimeKind.Utc
+                    ? lastActivity.Value
+                    : lastActivity.Value.ToUniversalTime();
+                var inactivity = DateTime.UtcNow - lastUtc;
+                if (inactivity >= TimeSpan.FromMinutes(15))
+                {
+                    // Mark that refresh is allowed due to inactivity regardless of normal window
+                    cacheManager.SetRequestScopedFlag("AllowRefreshDueToInactivity", true);
+                    state.CanRefresh = true;
+                }
+            }
         }
 
         // Determine logout reason if needed
@@ -160,6 +181,12 @@ public class TokenStateManager(
                     "External IDP token expired and cannot refresh" : 
                     "OBO token expired and External IDP cannot refresh";
             }
+        }
+
+        // If refresh due to inactivity is allowed this request, ensure CanRefresh remains true
+        if (cacheManager.HasRequestScopedFlag("AllowRefreshDueToInactivity"))
+        {
+            state.CanRefresh = true;
         }
 
         return state;
@@ -223,8 +250,10 @@ public class TokenStateManager(
 
         try
         {
-            // Check if refresh is possible
-            if (!await strategy.CanRefreshTokenAsync(httpContext))
+            // If we allowed refresh due to inactivity on this request, bypass the strategy's CanRefresh
+            var allowDueToInactivity = cacheManager.HasRequestScopedFlag("AllowRefreshDueToInactivity");
+            var canRefresh = allowDueToInactivity || await strategy.CanRefreshTokenAsync(httpContext);
+            if (!canRefresh)
             {
                 return false;
             }
@@ -241,6 +270,9 @@ public class TokenStateManager(
                 
                 // Set re-authentication detection flag
                 cacheManager.SetRequestScopedFlag("ReAuthenticationDetected", true);
+
+                // Update last-activity timestamp since this is a successful interaction
+                await cacheManager.SetLastActivityAsync(userId, DateTime.UtcNow, TimeSpan.FromHours(2));
                 
                 return true;
             }

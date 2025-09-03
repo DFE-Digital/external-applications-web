@@ -43,4 +43,14 @@ public interface ICacheManager
     /// Checks if a request-scoped flag exists
     /// </summary>
     bool HasRequestScopedFlag(string key);
+
+    /// <summary>
+    /// Gets the last-activity timestamp for the specified user, if available
+    /// </summary>
+    Task<DateTime?> GetLastActivityAsync(string userId);
+
+    /// <summary>
+    /// Sets the last-activity timestamp for the specified user with an optional sliding TTL
+    /// </summary>
+    Task SetLastActivityAsync(string userId, DateTime timestamp, TimeSpan? ttl = null);
 }

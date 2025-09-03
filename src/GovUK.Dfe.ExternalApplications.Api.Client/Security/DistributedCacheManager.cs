@@ -147,4 +147,60 @@ public class DistributedCacheManager(
         var exists = httpContext?.Items.ContainsKey(key) == true;
         return exists;
     }
+
+    public async Task<DateTime?> GetLastActivityAsync(string userId)
+    {
+        try
+        {
+            var key = $"last_activity_{userId}";
+            var value = await distributedCache.GetStringAsync(key);
+            if (!string.IsNullOrEmpty(value))
+            {
+                // Prefer DateTimeOffset with round-trip kind, then fall back to UTC assumptions
+                if (System.DateTimeOffset.TryParseExact(
+                        value,
+                        "o",
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.RoundtripKind,
+                        out var dto))
+                {
+                    return dto.UtcDateTime;
+                }
+
+                if (System.DateTime.TryParse(
+                        value,
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal,
+                        out var parsed))
+                {
+                    return parsed;
+                }
+            }
+            return null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    public async Task SetLastActivityAsync(string userId, DateTime timestamp, TimeSpan? ttl = null)
+    {
+        try
+        {
+            var key = $"last_activity_{userId}";
+            var options = new DistributedCacheEntryOptions();
+            if (ttl.HasValue)
+            {
+                options.SlidingExpiration = ttl;
+            }
+            // Always persist as UTC in round-trip format to avoid DST/local issues
+            var utc = timestamp.Kind == DateTimeKind.Utc ? timestamp : timestamp.ToUniversalTime();
+            await distributedCache.SetStringAsync(key, utc.ToString("o"), options);
+        }
+        catch (Exception)
+        {
+            // swallow; last-activity is best-effort
+        }
+    }
 }

@@ -35,6 +35,9 @@ public class TokenManagementMiddleware(RequestDelegate next, ILogger<TokenManage
         {
             // Get current token state
             var tokenState = await tokenStateManager.GetCurrentTokenStateAsync();
+            // Check if refresh is allowed due to inactivity for this request
+            var cache = context.RequestServices.GetService(typeof(ICacheManager)) as ICacheManager;
+            var allowDueToInactivity = cache?.HasRequestScopedFlag("AllowRefreshDueToInactivity") == true;
             
             // Check if we should force logout
             if (tokenStateManager.ShouldForceLogout(tokenState))
@@ -85,7 +88,7 @@ public class TokenManagementMiddleware(RequestDelegate next, ILogger<TokenManage
                     return;
                 }
             }
-            else if (tokenState.CanRefresh && tokenState.IsAnyTokenExpired)
+            else if (allowDueToInactivity || (tokenState.CanRefresh && tokenState.IsAnyTokenExpired))
             {
                 _logger.LogInformation(">>>>>>>>>> TokenManagement >>> Attempting token refresh for user: {UserName}", userName);
                 
@@ -107,6 +110,29 @@ public class TokenManagementMiddleware(RequestDelegate next, ILogger<TokenManage
         }
 
         await _next(context);
+
+        // After successful pipeline execution, record last activity for authenticated users
+        if (context.User?.Identity?.IsAuthenticated == true)
+        {
+            try
+            {
+                var userId = context.User?.Identity?.Name;
+                if (!string.IsNullOrEmpty(userId))
+                {
+                    // We need ITokenStateManager's cache manager, but we don't have it here
+                    // Resolve from request services
+                    var cache = context.RequestServices.GetService(typeof(ICacheManager)) as ICacheManager;
+                    if (cache != null)
+                    {
+                        await cache.SetLastActivityAsync(userId, DateTime.UtcNow, TimeSpan.FromHours(2));
+                    }
+                }
+            }
+            catch
+            {
+                // best-effort
+            }
+        }
     }
 
     private static bool IsApiRequest(HttpContext context)
