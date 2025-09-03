@@ -11,7 +11,6 @@
     var apiBase = (Configuration["ExternalApplicationsApiClient:BaseUrl"] ?? "").TrimEnd('/');
 }
 <meta name="api-base" content="@apiBase" />
-@Html.AntiForgeryToken()
 @section Header {
     @{
         var currentEnvironment = ViewContext.HttpContext.RequestServices.GetService<IWebHostEnvironment>()?.EnvironmentName ?? "Unknown";
@@ -286,6 +285,9 @@
 @await Html.PartialAsync("_NotificationDisplay")
 
 @RenderBody()
+
+@* Provide a stable anti-forgery token element in the body for JS to read *@
+<form id="__af" method="post" style="display:none">@Html.AntiForgeryToken()</form>
 
 @* SignalR library *@
 <script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@@8/dist/browser/signalr.min.js" defer></script>
