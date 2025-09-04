@@ -31,8 +31,6 @@ public class TestAuthenticationStrategy(
 
     public async Task<TokenInfo> GetExternalIdpTokenAsync(HttpContext context)
     {
-        logger.LogDebug(">>>>>>>>>> AuthStrategy >>> Getting External IDP token for Test scheme");
-        
         try
         {
             // First check session storage (primary storage for TestAuth)
@@ -46,7 +44,6 @@ public class TestAuthenticationStrategy(
             
             if (string.IsNullOrEmpty(token))
             {
-                logger.LogWarning(">>>>>>>>>> AuthStrategy >>> No id_token found in session or auth properties for Test scheme");
                 return new TokenInfo();
             }
 
@@ -59,14 +56,10 @@ public class TestAuthenticationStrategy(
                 ExpiryTime = jsonToken.ValidTo
             };
 
-            logger.LogInformation(">>>>>>>>>> AuthStrategy >>> Test External IDP token: Valid={IsValid}, Expires={Expiry}", 
-                tokenInfo.IsValid, tokenInfo.ExpiryTime?.ToString("yyyy-MM-dd HH:mm:ss UTC"));
-
             return tokenInfo;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, ">>>>>>>>>> AuthStrategy >>> Error getting Test External IDP token");
             return new TokenInfo();
         }
     }
@@ -80,7 +73,6 @@ public class TestAuthenticationStrategy(
             
             if (!tokenInfo.IsPresent || !tokenInfo.ExpiryTime.HasValue)
             {
-                logger.LogDebug(">>>>>>>>>> AuthStrategy >>> Cannot refresh - no valid token found");
                 return false;
             }
             
@@ -93,37 +85,30 @@ public class TestAuthenticationStrategy(
             // - Less than 5 minutes: force logout (handled by TokenInfo.IsExpired)
             if (minutesRemaining > 5 && minutesRemaining <= 10)
             {
-                logger.LogInformation(">>>>>>>>>> AuthStrategy >>> Token expires in {Minutes:F1} minutes - ALLOWING refresh during 5-10 minute window", minutesRemaining);
                 return true;
             }
             
             if (minutesRemaining <= 5)
             {
-                logger.LogWarning(">>>>>>>>>> AuthStrategy >>> Token expires in {Minutes:F1} minutes - FORCING logout (less than 5 minutes remaining)", minutesRemaining);
             }
             else
             {
-                logger.LogDebug(">>>>>>>>>> AuthStrategy >>> Token expires in {Minutes:F1} minutes - no refresh needed yet", minutesRemaining);
             }
             
             return false;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, ">>>>>>>>>> AuthStrategy >>> Error checking if token can be refreshed");
             return false;
         }
     }
 
     public async Task<bool> RefreshExternalIdpTokenAsync(HttpContext context)
     {
-        logger.LogInformation(">>>>>>>>>> AuthStrategy >>> Starting token refresh during 5-10 minute window");
-        
         try
         {
             if (!_testAuthOptions.Enabled)
             {
-                logger.LogWarning(">>>>>>>>>> AuthStrategy >>> Test authentication is disabled, cannot refresh");
                 return false;
             }
 
@@ -131,7 +116,6 @@ public class TestAuthenticationStrategy(
             var userId = GetUserId(context);
             if (string.IsNullOrEmpty(userId))
             {
-                logger.LogWarning(">>>>>>>>>> AuthStrategy >>> Cannot refresh - no user ID found");
                 return false;
             }
 
@@ -139,19 +123,16 @@ public class TestAuthenticationStrategy(
             var newToken = await GenerateNewTestTokenAsync(userId, context);
             if (string.IsNullOrEmpty(newToken))
             {
-                logger.LogWarning(">>>>>>>>>> AuthStrategy >>> Failed to generate new test token");
                 return false;
             }
 
             // Update the authentication context with the new token
             await UpdateAuthenticationTokenAsync(context, newToken);
             
-            logger.LogInformation(">>>>>>>>>> AuthStrategy >>> Test token refresh successful for user: {UserId} - fresh token generated", userId);
             return true;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, ">>>>>>>>>> AuthStrategy >>> Error refreshing Test External IDP token");
             return false;
         }
     }
@@ -164,8 +145,6 @@ public class TestAuthenticationStrategy(
     {
         try
         {
-            logger.LogDebug(">>>>>>>>>> AuthStrategy >>> Creating claims for user {UserId}", userId);
-            
             // Create claims for the user (same as TestAuthenticationService does)
             var claims = new[]
             {
@@ -182,13 +161,10 @@ public class TestAuthenticationStrategy(
             // This ensures consistency with how tokens are generated during login
             var newToken = await userTokenService.GetUserTokenAsync(principal);
             
-            logger.LogInformation(">>>>>>>>>> AuthStrategy >>> Generated new test token for user: {UserId}", userId);
-            
             return newToken;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, ">>>>>>>>>> AuthStrategy >>> Error generating new test token using UserTokenService");
             return null;
         }
     }
@@ -203,7 +179,6 @@ public class TestAuthenticationStrategy(
         {
             // Update session first (primary storage for TestAuth)
             context.Session.SetString("TestAuth:Token", newToken);
-            logger.LogDebug(">>>>>>>>>> AuthStrategy >>> Updated session with new token");
 
             // Get current authentication result
             var authResult = await context.AuthenticateAsync();
@@ -219,17 +194,13 @@ public class TestAuthenticationStrategy(
                 
                 // Re-sign in with updated token and properties
                 await context.SignInAsync(authResult.Principal, authResult.Properties);
-                
-                logger.LogDebug(">>>>>>>>>> AuthStrategy >>> Updated authentication context with new token");
             }
             else
             {
-                logger.LogWarning(">>>>>>>>>> AuthStrategy >>> Authentication result not succeeded or no properties found - token updated in session only");
             }
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, ">>>>>>>>>> AuthStrategy >>> Error updating authentication token");
             throw;
         }
     }
@@ -240,7 +211,6 @@ public class TestAuthenticationStrategy(
                     ?? context.User?.FindFirst("sub")?.Value
                     ?? context.User?.Identity?.Name;
         
-        logger.LogDebug(">>>>>>>>>> AuthStrategy >>> Test UserId: {UserId}", userId ?? "Not found");
         return userId;
     }
 }

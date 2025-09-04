@@ -9,6 +9,10 @@ using System.Text.RegularExpressions;
 using Task = System.Threading.Tasks.Task;
 using DfE.ExternalApplications.Infrastructure.Services;
 using System.Text.Json;
+using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response;
+using DfE.CoreLibs.Contracts.ExternalApplications.Models.Request;
+using DfE.CoreLibs.Contracts.ExternalApplications.Enums;
+using DfE.ExternalApplications.Web.Interfaces;
 
 namespace DfE.ExternalApplications.Web.Pages.FormEngine
 {
@@ -28,19 +32,37 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         IFileUploadService fileUploadService,
         IApplicationsClient applicationsClient,
         IConditionalLogicOrchestrator conditionalLogicOrchestrator,
+        INotificationsClient notificationsClient,
+        IFormErrorStore formErrorStore,
         ILogger<RenderFormModel> logger)
         : BaseFormEngineModel(renderer, applicationResponseService, fieldFormattingService, templateManagementService,
             applicationStateService, formStateManager, formNavigationService, formDataManager, formValidationOrchestrator, formConfigurationService, logger)
     {
         private readonly IApplicationsClient _applicationsClient = applicationsClient;
         private readonly IConditionalLogicOrchestrator _conditionalLogicOrchestrator = conditionalLogicOrchestrator;
+        private readonly INotificationsClient _notificationsClient = notificationsClient;
+        private readonly IFormErrorStore _formErrorStore = formErrorStore;
 
         [BindProperty] public Dictionary<string, object> Data { get; set; } = new();
 
         [BindProperty] public bool IsTaskCompleted { get; set; }
+        
+        // Collection flow properties from form submission
+        [BindProperty] public new string? FlowId { get; set; }
+        [BindProperty] public new string? InstanceId { get; set; }
+        [BindProperty] public string? FlowPageId { get; set; }
+        
+        // Calculate IsCollectionFlow automatically based on FlowId and InstanceId presence
+        private bool IsCollectionFlow => !string.IsNullOrEmpty(FlowId) && !string.IsNullOrEmpty(InstanceId);
 
         // Success message for collection operations
         [TempData] public string? SuccessMessage { get; set; }
+        
+        // Error message for upload operations
+        [TempData] public string? ErrorMessage { get; set; }
+        
+        // Files property for upload field (matches original UploadFile.cshtml.cs)
+        public IReadOnlyList<UploadDto> Files { get; set; } = new List<UploadDto>();
 
         // Conditional logic state for the current form
         public FormConditionalState? ConditionalState { get; set; }
@@ -102,10 +124,10 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                     Data[kvp.Key] = kvp.Value; // Always overwrite with progress data (latest changes)
                                 }
                                 
-                                _logger.LogInformation(">>>>>>>>>>>>SUB-FLOW GET: loaded data for flow {FlowId}, instance {InstanceId}, page {PageId}. Data: {Data}", 
-                                    flowId, instanceId, flowPageId, string.Join(", ", Data.Select(kv => $"{kv.Key}:{kv.Value}")));
-                                _logger.LogInformation(">>>>>>>>>>>>SUB-FLOW GET: existingMember field value = '{ExistingMemberValue}'", 
-                                    Data.TryGetValue("existingMember", out var existingMemberVal) ? existingMemberVal : "NOT_FOUND");
+
+                                
+
+
                             }
                         }
                     }
@@ -140,9 +162,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             {
                 await LoadAccumulatedDataFromSessionAsync();
                 // Apply conditional logic for regular pages too
-                _logger.LogInformation(">>>>>>>>>>>>TASK SUMMARY GET: About to apply conditional logic for task summary");
-                _logger.LogInformation(">>>>>>>>>>>>TASK SUMMARY DATA: {Data}", 
-                    string.Join(", ", Data.Select(kv => $"{kv.Key}={kv.Value}")));
+
+
                 await ApplyConditionalLogicAsync();
             }
             else
@@ -278,13 +299,21 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 return RedirectToPage("/FormEngine/RenderForm", new { referenceNumber = ReferenceNumber });
             }
 
-            _logger.LogInformation("POST Page: ref={ReferenceNumber} task={TaskId} pageId={PageId}", ReferenceNumber, TaskId, CurrentPageId);
+
+            
+            // URL decode the pageId to handle encoded forward slashes from form submissions
+            if (!string.IsNullOrEmpty(CurrentPageId))
+            {
+                CurrentPageId = System.Web.HttpUtility.UrlDecode(CurrentPageId);
+
+            }
 
             if (!string.IsNullOrEmpty(CurrentPageId))
             {
                 if (TryParseFlowRoute(CurrentPageId, out var flowId, out var instanceId, out var flowPageId))
                 {
                     _logger.LogInformation("Detected sub-flow: flowId={FlowId} instance={InstanceId} flowPageId={FlowPageId}", flowId, instanceId, flowPageId);
+
                     var (group, task) = InitializeCurrentTask(TaskId);
             CurrentGroup = group;
             CurrentTask = task;
@@ -342,9 +371,28 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
 
             // Apply conditional logic after processing form data changes
-            _logger.LogInformation(">>>>>>>>>>>>POST: About to apply conditional logic after form submission");
-            _logger.LogInformation(">>>>>>>>>>>>POST DATA BEFORE CONDITIONAL LOGIC: {Data}", 
-                string.Join(", ", Data.Select(kv => $"{kv.Key}={kv.Value}")));
+
+
+            
+
+            
+            // Handle upload fields that use session data instead of form data to avoid truncation
+            if (IsCollectionFlow)
+            {
+                var flowProgress = LoadFlowProgress(FlowId, InstanceId);
+                foreach (var key in Data.Keys.ToList())
+                {
+                    if (Data[key]?.ToString() == "UPLOAD_FIELD_SESSION_DATA")
+                    {
+                        // Replace with actual data from session
+                        if (flowProgress.TryGetValue(key, out var sessionValue))
+                        {
+                            Data[key] = sessionValue;
+
+                        }
+                    }
+                }
+            }
             await ApplyConditionalLogicAsync("change");
 
             if (CurrentPage != null)
@@ -451,9 +499,24 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                 
                                 // Merge accumulated progress with final page data
                                 var accumulated = LoadFlowProgress(flowId, instanceId);
+
+
+                
                                 foreach (var kv in Data)
                                 {
                                     accumulated[kv.Key] = kv.Value;
+                                }
+                
+
+                foreach (var kv in accumulated)
+                {
+                    var valueStr = kv.Value?.ToString();
+                    var preview = valueStr?.Length > 100 ? valueStr.Substring(0, 100) + "..." : valueStr;
+
+                    if (kv.Key.Contains("upload", StringComparison.OrdinalIgnoreCase))
+                    {
+
+                    }
                                 }
 
                                 AppendCollectionItemToSession(flowPages, flowFieldId, instanceId, accumulated);
@@ -495,7 +558,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     // First check if returnToSummaryPage is true and should be respected
                     if (CurrentPage.ReturnToSummaryPage)
                     {
-                        _logger.LogInformation(">>>>>>>>>>>>REGULAR NAV: returnToSummaryPage=true, checking if conditional logic should override");
+
+
                         
                         // Check if conditional logic suggests a different next page (override returnToSummaryPage)
                         string? conditionalNextPageId = null;
@@ -505,7 +569,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         {
                             // FIXED: Check if conditional rules specifically show/reveal new pages, not just any trigger
                             hasConditionalTrigger = HasConditionalLogicShowingPages();
-                            _logger.LogInformation(">>>>>>>>>>>>REGULAR NAV: Conditional logic shows new pages: {ShowsNewPages}", hasConditionalTrigger);
+
                             
                             if (hasConditionalTrigger)
                             {
@@ -518,7 +582,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                 };
                                 
                                 conditionalNextPageId = await _conditionalLogicOrchestrator.GetNextPageAsync(Template, Data, CurrentPage.PageId, context);
-                                _logger.LogInformation(">>>>>>>>>>>>REGULAR NAV: Conditional logic suggested: {NextPageId}", conditionalNextPageId ?? "NULL");
+
                             }
                         }
                         
@@ -526,13 +590,13 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         if (hasConditionalTrigger && !string.IsNullOrEmpty(conditionalNextPageId))
                         {
                             var nextUrl = $"/applications/{ReferenceNumber}/{CurrentTask.TaskId}/{conditionalNextPageId}";
-                            _logger.LogInformation(">>>>>>>>>>>>REGULAR NAV: Conditional logic OVERRIDES returnToSummaryPage - going to: {NextUrl}", nextUrl);
+
                             return Redirect(nextUrl);
                         }
                         
                         // No conditional override - respect returnToSummaryPage
                         var summaryUrl = _formNavigationService.GetTaskSummaryUrl(CurrentTask.TaskId, ReferenceNumber);
-                        _logger.LogInformation(">>>>>>>>>>>>REGULAR NAV: Respecting returnToSummaryPage=true - going to summary: {SummaryUrl}", summaryUrl);
+
                         return Redirect(summaryUrl);
                     }
                     
@@ -541,7 +605,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     
                     if (ConditionalState != null && Template != null)
                     {
-                        _logger.LogInformation(">>>>>>>>>>>>REGULAR NAV: returnToSummaryPage=false, using conditional logic for next page");
+
                         
                         var context = new ConditionalLogicContext
                         {
@@ -552,14 +616,14 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         };
                         
                         nextPageId = await _conditionalLogicOrchestrator.GetNextPageAsync(Template, Data, CurrentPage.PageId, context);
-                        _logger.LogInformation(">>>>>>>>>>>>REGULAR NAV: Conditional logic suggested next page: {NextPageId}", nextPageId ?? "NULL");
+
                     }
                     
                     // If conditional logic found a next page, navigate to it
                     if (!string.IsNullOrEmpty(nextPageId))
                     {
                         var nextUrl = $"/applications/{ReferenceNumber}/{CurrentTask.TaskId}/{nextPageId}";
-                        _logger.LogInformation(">>>>>>>>>>>>REGULAR NAV: Going to conditional next page: {NextUrl}", nextUrl);
+
                         return Redirect(nextUrl);
                     }
                     
@@ -577,13 +641,13 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     if (sequentialNextPage != null)
                     {
                         var nextUrl = $"/applications/{ReferenceNumber}/{CurrentTask.TaskId}/{sequentialNextPage.PageId}";
-                        _logger.LogInformation(">>>>>>>>>>>>REGULAR NAV: Going to sequential next page: {NextUrl}", nextUrl);
+
                         return Redirect(nextUrl);
                     }
                     
                     // No next page found - go to task summary as fallback
                     var fallbackUrl = _formNavigationService.GetTaskSummaryUrl(CurrentTask.TaskId, ReferenceNumber);
-                    _logger.LogInformation(">>>>>>>>>>>>REGULAR NAV: No next page available - fallback to summary: {FallbackUrl}", fallbackUrl);
+
                     return Redirect(fallbackUrl);
                 }
             }
@@ -831,6 +895,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 }
             }
 
+
+
             // Find existing item or create new one
             var idx = list.FindIndex(x => x.TryGetValue("id", out var id) && id?.ToString() == instanceId);
             Dictionary<string, object> item;
@@ -867,6 +933,19 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             // Ensure id is always set
             item["id"] = instanceId;
 
+            // DEBUG: Log final item before serialization
+
+            foreach (var kvp in item)
+            {
+                var valueStr = kvp.Value?.ToString();
+                var preview = valueStr?.Length > 100 ? valueStr.Substring(0, 100) + "..." : valueStr;
+
+                if (kvp.Key.Contains("upload", StringComparison.OrdinalIgnoreCase))
+                {
+
+                }
+            }
+
             // Upsert the item
             if (idx >= 0) 
                 list[idx] = item; 
@@ -874,30 +953,85 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 list.Add(item);
 
             var serialized = JsonSerializer.Serialize(list);
+
             _applicationResponseService.AccumulateFormData(new Dictionary<string, object> { [fieldId] = serialized }, HttpContext.Session);
         }
 
         private static string GetFlowProgressSessionKey(string flowId, string instanceId) => $"FlowProgress_{flowId}_{instanceId}";
 
-        private Dictionary<string, object> LoadFlowProgress(string flowId, string instanceId)
+        private Dictionary<string, object> LoadFlowProgressWithDebug()
         {
-            var key = GetFlowProgressSessionKey(flowId, instanceId);
+            if (!IsCollectionFlow)
+            {
+
+                return new Dictionary<string, object>();
+            }
+
+            var key = GetFlowProgressSessionKey(FlowId, InstanceId);
+
+            
+
+
+            
+            // Try to get all session keys
+            try
+            {
+                var sessionKeys = new List<string>();
+                foreach (var sessionKey in HttpContext.Session.Keys)
+                {
+                    sessionKeys.Add(sessionKey);
+                }
+
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[UPLOAD DEBUG] Error getting session keys: {ex.Message}");
+            }
+            
             var json = HttpContext.Session.GetString(key);
             if (string.IsNullOrWhiteSpace(json)) 
             {
-                _logger.LogInformation(">>>>>>>>>>>>FLOW PROGRESS LOAD: flowId={FlowId}, instanceId={InstanceId}, result=EMPTY", flowId, instanceId);
+
+                return new Dictionary<string, object>();
+            }
+            
+            try
+            {
+                var data = JsonSerializer.Deserialize<Dictionary<string, object>>(json) ?? new Dictionary<string, object>();
+
+                return data;
+            }
+            catch (Exception ex)
+            {
+
+                return new Dictionary<string, object>();
+            }
+        }
+
+        private Dictionary<string, object> LoadFlowProgress(string flowId, string instanceId)
+        {
+            var key = GetFlowProgressSessionKey(flowId, instanceId);
+
+
+            
+            var json = HttpContext.Session.GetString(key);
+
+            
+            if (string.IsNullOrWhiteSpace(json)) 
+            {
+
+
                 return new Dictionary<string, object>();
             }
             try
             {
                 var dict = JsonSerializer.Deserialize<Dictionary<string, object>>(json);
-                _logger.LogInformation(">>>>>>>>>>>>FLOW PROGRESS LOAD: flowId={FlowId}, instanceId={InstanceId}, data={Data}", 
-                    flowId, instanceId, string.Join(", ", (dict ?? new()).Select(kv => $"{kv.Key}={kv.Value}")));
+
                 return dict ?? new Dictionary<string, object>();
             }
             catch
             {
-                _logger.LogInformation(">>>>>>>>>>>>FLOW PROGRESS LOAD: flowId={FlowId}, instanceId={InstanceId}, result=ERROR", flowId, instanceId);
+
                 return new Dictionary<string, object>();
             }
         }
@@ -912,8 +1046,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             var key = GetFlowProgressSessionKey(flowId, instanceId);
             HttpContext.Session.SetString(key, JsonSerializer.Serialize(existing));
             
-            _logger.LogInformation(">>>>>>>>>>>>FLOW PROGRESS SAVED: flowId={FlowId}, instanceId={InstanceId}, data={Data}", 
-                flowId, instanceId, string.Join(", ", existing.Select(kv => $"{kv.Key}={kv.Value}")));
+
         }
 
         private void ClearFlowProgress(string flowId, string instanceId)
@@ -967,23 +1100,17 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     {
                         try
                         {
-                _logger.LogInformation(">>>>>>>>>>>>CONDITIONAL LOGIC START: CurrentPageId={CurrentPageId}, TaskId={TaskId}, Template has {RuleCount} rules, Trigger={Trigger}", 
-                    CurrentPageId, TaskId, Template?.ConditionalLogic?.Count ?? 0, trigger);
-                _logger.LogInformation(">>>>>>>>>>>>CURRENT DATA: {Data}", 
-                    string.Join(", ", Data.Select(kv => $"{kv.Key}={kv.Value}")));
+                
 
                 if (Template?.ConditionalLogic != null && Template.ConditionalLogic.Any())
                 {
                     // Log all rules in template
                     foreach (var rule in Template.ConditionalLogic)
                     {
-                        _logger.LogInformation(">>>>>>>>>>>>RULE: {RuleId} - {RuleName}, Priority: {Priority}, Enabled: {Enabled}, ExecuteOn: [{ExecuteOn}]", 
-                            rule.Id, rule.Name, rule.Priority, rule.Enabled, string.Join(", ", rule.ExecuteOn));
+                        
                         foreach (var condition in rule.ConditionGroup.Conditions)
                         {
-                            _logger.LogInformation(">>>>>>>>>>>>  CONDITION: {TriggerField} {Operator} {Value} (Current Value: {CurrentValue})", 
-                                condition.TriggerField, condition.Operator, condition.Value, 
-                                Data.TryGetValue(condition.TriggerField, out var currentVal) ? currentVal : "NOT_SET");
+                            
                         }
                     }
 
@@ -997,13 +1124,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
                     ConditionalState = await _conditionalLogicOrchestrator.ApplyConditionalLogicAsync(Template, Data, context);
                     
-                    _logger.LogInformation(">>>>>>>>>>>>CONDITIONAL LOGIC RESULT:");
-                    _logger.LogInformation(">>>>>>>>>>>>  FieldVisibility: {FieldVisibility}", 
-                        string.Join(", ", ConditionalState.FieldVisibility.Select(kv => $"{kv.Key}={kv.Value}")));
-                    _logger.LogInformation(">>>>>>>>>>>>  SkippedPages: {SkippedPages}", 
-                        string.Join(", ", ConditionalState.SkippedPages));
-                    _logger.LogInformation(">>>>>>>>>>>>  Actions Executed: {ActionCount}", 
-                        ConditionalState.EvaluationResult?.Actions.Count ?? 0);
+                    
                     
                     // Apply field values from conditional logic
                     if (ConditionalState.FieldValues.Any())
@@ -1012,18 +1133,17 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         {
                             Data[kvp.Key] = kvp.Value;
                         }
-                        _logger.LogInformation(">>>>>>>>>>>>  Applied FieldValues: {FieldValues}", 
-                            string.Join(", ", ConditionalState.FieldValues.Select(kv => $"{kv.Key}={kv.Value}")));
+                        
                     }
                 }
                 else
                 {
-                    _logger.LogInformation(">>>>>>>>>>>>CONDITIONAL LOGIC: No rules found in template");
+                    
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, ">>>>>>>>>>>>CONDITIONAL LOGIC ERROR: {Message}", ex.Message);
+                _logger.LogError(ex, "CONDITIONAL LOGIC ERROR: {Message}", ex.Message);
             }
         }
 
@@ -1203,15 +1323,15 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         /// <returns>True if the field should be hidden</returns>
         public bool IsFieldHidden(string fieldId)
         {
-            _logger.LogInformation(">>>>>>>>>>>>FIELD VISIBILITY CHECK: Checking field '{FieldId}'", fieldId);
+
             
             if (ConditionalState == null)
             {
-                _logger.LogInformation(">>>>>>>>>>>>FIELD VISIBILITY: ConditionalState is null for field '{FieldId}' - checking if field has conditional logic", fieldId);
+
                 // If no conditional state but field has conditional logic rules, hide it by default
                 if (Template?.ConditionalLogic != null && HasFieldConditionalLogic(fieldId))
                 {
-                    _logger.LogInformation(">>>>>>>>>>>>FIELD VISIBILITY: Field '{FieldId}' has conditional logic but no state - hiding by default", fieldId);
+
                     return true;
                 }
                 return false;
@@ -1219,19 +1339,18 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
             if (ConditionalState.FieldVisibility.TryGetValue(fieldId, out var isVisible))
             {
-                _logger.LogInformation(">>>>>>>>>>>>FIELD VISIBILITY: Field '{FieldId}' found with visibility={IsVisible}, returning hidden={IsHidden}", 
-                    fieldId, isVisible, !isVisible);
+
                 return !isVisible;
             }
             
             // Check if field has conditional logic rules - if so, hide by default until conditions are met
             if (Template?.ConditionalLogic != null && HasFieldConditionalLogic(fieldId))
             {
-                _logger.LogInformation(">>>>>>>>>>>>FIELD VISIBILITY: Field '{FieldId}' has conditional logic but not evaluated - hiding by default", fieldId);
+
                 return true;
             }
             
-            _logger.LogInformation(">>>>>>>>>>>>FIELD VISIBILITY: Field '{FieldId}' not found and no conditional logic - defaulting to visible", fieldId);
+
             return false;
         }
 
@@ -1259,15 +1378,15 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         /// <returns>True if the page should be hidden</returns>
         public bool IsPageHidden(string pageId)
         {
-            _logger.LogInformation(">>>>>>>>>>>>PAGE VISIBILITY CHECK: Checking page '{PageId}'", pageId);
+
             
             if (ConditionalState == null)
             {
-                _logger.LogInformation(">>>>>>>>>>>>PAGE VISIBILITY: ConditionalState is null for page '{PageId}' - checking if page has conditional logic", pageId);
+
                 // If no conditional state but page has conditional logic rules, hide it by default
                 if (Template?.ConditionalLogic != null && HasPageConditionalLogic(pageId))
                 {
-                    _logger.LogInformation(">>>>>>>>>>>>PAGE VISIBILITY: Page '{PageId}' has conditional logic but no state - hiding by default", pageId);
+
                     return true;
                 }
                 return false;
@@ -1276,14 +1395,14 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             // Check if page is in skipped list
             if (ConditionalState.SkippedPages.Contains(pageId))
             {
-                _logger.LogInformation(">>>>>>>>>>>>PAGE VISIBILITY: Page '{PageId}' is in SkippedPages list - hidden", pageId);
+
                 return true;
             }
 
             // Check if page is hidden by visibility rules
             if (ConditionalState.PageVisibility.TryGetValue(pageId, out var isVisible) && !isVisible)
             {
-                _logger.LogInformation(">>>>>>>>>>>>PAGE VISIBILITY: Page '{PageId}' found with visibility={IsVisible} - hidden", pageId, isVisible);
+
                 return true;
             }
             
@@ -1301,7 +1420,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 
                 if (hasShowRuleMet)
                 {
-                    _logger.LogInformation(">>>>>>>>>>>>PAGE VISIBILITY: Page '{PageId}' has show rule that is met - visible", pageId);
+
                     return false; // Show the page
                 }
                 
@@ -1316,15 +1435,15 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 
                 if (hasHideRuleMet)
                 {
-                    _logger.LogInformation(">>>>>>>>>>>>PAGE VISIBILITY: Page '{PageId}' has hide/skip rule that is met - hidden", pageId);
+
                     return true; // Hide the page
                 }
                 
-                _logger.LogInformation(">>>>>>>>>>>>PAGE VISIBILITY: Page '{PageId}' has conditional logic but no rules are met - hiding by default", pageId);
+
                 return true; // Hide by default if page has conditional logic but no rules match
             }
             
-            _logger.LogInformation(">>>>>>>>>>>>PAGE VISIBILITY: Page '{PageId}' not found and no conditional logic - defaulting to visible", pageId);
+
             return false;
         }
 
@@ -1361,7 +1480,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             {
                 if (EvaluateRuleConditions(rule))
                 {
-                    _logger.LogInformation(">>>>>>>>>>>>CONDITIONAL TRIGGER: Rule '{RuleId}' conditions are met", rule.Id);
+
                     return true;
                 }
             }
@@ -1386,16 +1505,16 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 
                 if (!hasShowPageAction) continue;
                 
-                _logger.LogInformation(">>>>>>>>>>>>CONDITIONAL SHOW CHECK: Checking rule '{RuleId}' for show page actions", rule.Id);
+
                 
                 if (EvaluateRuleConditions(rule))
                 {
-                    _logger.LogInformation(">>>>>>>>>>>>CONDITIONAL SHOW CHECK: Rule '{RuleId}' with show page action is met", rule.Id);
+
                     return true;
                 }
             }
             
-            _logger.LogInformation(">>>>>>>>>>>>CONDITIONAL SHOW CHECK: No rules with show page actions are met");
+
             return false;
         }
 
@@ -1477,6 +1596,543 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 return false; // Default to visible on error
             }
         }
+
+        #region Upload File Handlers
+
+        public async Task<IActionResult> OnPostUploadFileAsync()
+        {
+
+            
+            // Ensure Template is not null (required for RenderForm)
+            if (Template == null)
+            {
+                Template = new FormTemplate
+                {
+                    TemplateId = "dummy",
+                    TemplateName = "dummy",
+                    Description = "dummy",
+                    TaskGroups = new List<TaskGroup>()
+                };
+            }
+            
+            // Align POST context with GET so CurrentTask/Data are available
+            try
+            {
+                await CommonFormEngineInitializationAsync();
+
+            }
+            catch (Exception ex)
+            {
+
+            }
+            
+            // Extract form data
+            var applicationId = Request.Form["ApplicationId"].ToString();
+            var fieldId = Request.Form["FieldId"].ToString();
+            var returnUrl = Request.Form["ReturnUrl"].ToString();
+            var uploadName = Request.Form["UploadName"].ToString();
+            var uploadDescription = Request.Form["UploadDescription"].ToString();
+            
+
+
+
+
+            
+            // Clear validation errors for FlowId/InstanceId if not in collection flow
+            if (!IsCollectionFlow)
+            {
+                ModelState.Remove("FlowId");
+                ModelState.Remove("InstanceId");
+
+            }
+            
+            // Parse application ID
+            if (!Guid.TryParse(applicationId, out var appId))
+            {
+
+                return NotFound();
+            }
+            
+            // Get uploaded file
+            var file = Request.Form.Files["UploadFile"];
+            // Read any existing file IDs posted by the view to preserve list
+            var existingFileIds = Request.Form["ExistingFileIds"].ToArray();
+
+            
+            // === EXACT REPLICA OF ORIGINAL ERROR HANDLING ===
+            if (file == null || file.Length == 0)
+            {
+
+                
+                ErrorMessage = "Please select a file to upload.";
+                ModelState.AddModelError("UploadFile", ErrorMessage);
+                
+
+
+
+
+                
+
+
+                
+                // CRITICAL: Save errors to FormErrorStore like original implementation
+                // Note: API errors will be handled by ExternalApiExceptionFilter with FormErrorStore
+
+                
+                // Load existing files (CRITICAL - exactly like original)
+
+                Files = await GetFilesForFieldAsync(appId, fieldId);
+
+                
+                // Check if we have return URL
+                if (!string.IsNullOrEmpty(returnUrl))
+                {
+
+                    return Redirect(returnUrl);
+                }
+                
+
+
+
+
+                return Page();
+            }
+            
+            // Continue with successful upload - let filter handle API errors
+
+
+
+            
+            using var stream = file.OpenReadStream();
+            var fileParam = new FileParameter(stream, file.FileName, file.ContentType);
+            
+
+            try
+            {
+                await fileUploadService.UploadFileAsync(appId, file.FileName, uploadDescription, fileParam);
+
+                
+                // SUCCESS PATH: Only execute this code if API call succeeds
+
+                
+                // Get and update files
+                var currentFieldFiles = (await GetFilesForFieldAsync(appId, fieldId)).ToList();
+                // Ensure we include files the UI already had (if backend lookup missed due to context)
+                if (existingFileIds != null && existingFileIds.Length > 0)
+                {
+                    try
+                    {
+                        var allDbFilesForApp = await fileUploadService.GetFilesForApplicationAsync(appId);
+                        var byId = new HashSet<string>(currentFieldFiles.Select(x => x.Id.ToString()));
+                        foreach (var idStr in existingFileIds)
+                        {
+                            if (Guid.TryParse(idStr, out var guid) && !byId.Contains(guid.ToString()))
+                            {
+                                var match = allDbFilesForApp.FirstOrDefault(x => x.Id == guid);
+                                if (match != null)
+                                {
+                                    currentFieldFiles.Add(match);
+                                    byId.Add(guid.ToString());
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+
+                    }
+                }
+                var allDbFiles = await fileUploadService.GetFilesForApplicationAsync(appId);
+                var newlyUploadedFile = allDbFiles
+                    .Where(f => !currentFieldFiles.Any(cf => cf.Id == f.Id))
+                    .OrderByDescending(f => f.UploadedOn)
+                    .FirstOrDefault();
+                
+                if (newlyUploadedFile != null)
+                {
+                    currentFieldFiles.Add(newlyUploadedFile);
+                }
+                
+                UpdateSessionFileList(appId, fieldId, currentFieldFiles);
+                await SaveUploadedFilesToResponseAsync(appId, fieldId, currentFieldFiles);
+                
+                // Set success message
+                SuccessMessage = $"Your file '{file.FileName}' uploaded.";
+
+                
+                // Send notification
+                var addRequest = new AddNotificationRequest
+                {
+                    Message = SuccessMessage,
+                    Category = "file-upload",
+                    Context = fieldId + "FileUpload",
+                    Type = NotificationType.Success,
+                    AutoDismiss = false,
+                    AutoDismissSeconds = 5
+                };
+                await _notificationsClient.CreateNotificationAsync(addRequest);
+
+                
+                // Redirect back if we have return URL
+                if (!string.IsNullOrEmpty(returnUrl))
+                {
+
+                    return Redirect(returnUrl);
+                }
+                
+
+                return Page();
+            }
+            catch (Exception ex)
+            {
+
+
+
+                // Don't handle the exception here - let the ExternalApiExceptionFilter handle it
+                // This ensures that API errors get proper ModelState treatment
+                throw;
+            }
+        }
+
+        public async Task<IActionResult> OnPostDownloadFileAsync()
+        {
+            // Simple fix: Ensure Template is not null to prevent NullReferenceException
+            if (Template == null)
+            {
+                Template = new FormTemplate 
+                { 
+                    TemplateId = "dummy", 
+                    TemplateName = "dummy", 
+                    Description = "dummy", 
+                    TaskGroups = new List<TaskGroup>() 
+                }; // Create empty template to prevent null reference
+
+            }
+            
+            var applicationId = Request.Form["ApplicationId"].ToString();
+            var fileIdStr = Request.Form["FileId"].ToString();
+            
+            if (!Guid.TryParse(applicationId, out var appId))
+            {
+                return NotFound();
+            }
+            if (!Guid.TryParse(fileIdStr, out var fileId))
+            {
+                return NotFound();
+            }
+
+            var fileResponse = await fileUploadService.DownloadFileAsync(fileId, appId);
+
+            // Extract content type
+            var contentType = fileResponse.Headers.TryGetValue("Content-Type", out var ct)
+                ? ct.FirstOrDefault()
+                : "application/octet-stream";
+
+            string fileName = "downloadedfile";
+            if (fileResponse.Headers.TryGetValue("Content-Disposition", out var cd))
+            {
+                var disposition = cd.FirstOrDefault();
+                if (!string.IsNullOrEmpty(disposition))
+                {
+                    var fileNameMatch = System.Text.RegularExpressions.Regex.Match(
+                        disposition,
+                        @"filename\*=UTF-8''(?<fileName>.+)|filename=""?(?<fileName>[^\"";]+)""?"
+                    );
+                    if (fileNameMatch.Success)
+                        fileName = System.Net.WebUtility.UrlDecode(fileNameMatch.Groups["fileName"].Value);
+                }
+            }
+
+            return File(fileResponse.Stream, contentType, fileName);
+        }
+
+        public async Task<IActionResult> OnPostDeleteFileAsync()
+        {
+
+            
+            // Simple fix: Ensure Template is not null to prevent NullReferenceException
+            if (Template == null)
+            {
+                Template = new FormTemplate 
+                { 
+                    TemplateId = "dummy", 
+                    TemplateName = "dummy", 
+                    Description = "dummy", 
+                    TaskGroups = new List<TaskGroup>() 
+                }; // Create empty template to prevent null reference
+
+            }
+            
+            // CRITICAL: Setup notification request for delete operations
+            var fieldId = Request.Form["FieldId"].ToString();
+            var addRequest = new AddNotificationRequest
+            {
+                Message = string.Empty, // set later when known
+                Category = "file-upload",
+                Context = fieldId + "FileDeletion",
+                Type = NotificationType.Success
+            };
+            
+            var applicationId = Request.Form["ApplicationId"].ToString();
+            var returnUrl = Request.Form["ReturnUrl"].ToString();
+            var fileIdStr = Request.Form["FileId"].ToString();
+            
+            if (!Guid.TryParse(applicationId, out var appId))
+                return NotFound();
+                
+            if (!Guid.TryParse(fileIdStr, out var fileId))
+            {
+                ModelState.AddModelError("FileId", "Invalid file ID.");
+                
+                // If we have a return URL, redirect back with error
+                if (!string.IsNullOrEmpty(returnUrl))
+                {
+                    return Redirect(returnUrl);
+                }
+                
+                return Page();
+            }
+
+            await fileUploadService.DeleteFileAsync(fileId, appId);
+
+            
+            // CRITICAL: Set success message for delete operation
+            SuccessMessage = "File deleted.";
+
+
+            // Get current files for this field and remove the deleted one
+            var currentFieldFiles = (await GetFilesForFieldAsync(appId, fieldId)).ToList();
+            currentFieldFiles.RemoveAll(f => f.Id == fileId);
+            
+
+            
+            UpdateSessionFileList(appId, fieldId, currentFieldFiles);
+            await SaveUploadedFilesToResponseAsync(appId, fieldId, currentFieldFiles);
+            
+            // If we have a return URL (from partial form), redirect back
+            if (!string.IsNullOrEmpty(returnUrl))
+            {
+                // CRITICAL: Send notification for successful delete
+                addRequest.Message = SuccessMessage;
+                await _notificationsClient.CreateNotificationAsync(addRequest);
+
+                
+                return Redirect(returnUrl);
+            }
+
+            return Page();
+        }
+
+        private async Task<IReadOnlyList<UploadDto>> GetFilesForFieldAsync(Guid appId, string fieldId)
+        {
+            if (string.IsNullOrEmpty(fieldId))
+            {
+                return new List<UploadDto>().AsReadOnly();
+            }
+
+
+
+
+            if (IsCollectionFlow)
+            {
+
+
+                // CRITICAL FIX: Scan accumulated collection items to find this instance's item,
+                // then read the inner field value (matching 'fieldId') like GET does.
+                try
+                {
+                    var accumulatedData = applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
+
+
+                    foreach (var kvp in accumulatedData)
+                    {
+                        var collectionJson = kvp.Value?.ToString();
+                        if (string.IsNullOrWhiteSpace(collectionJson))
+                        {
+                            continue;
+                        }
+
+                        try
+                        {
+                            var items = JsonSerializer.Deserialize<List<Dictionary<string, object>>>(collectionJson) ?? new();
+                            var existingItem = items.FirstOrDefault(item => item.TryGetValue("id", out var idVal) && idVal?.ToString() == InstanceId);
+                            if (existingItem != null)
+                            {
+
+                                if (existingItem.TryGetValue(fieldId, out var innerValue) && innerValue != null)
+                                {
+                                    // Handle JsonElement array
+                                    if (innerValue is JsonElement innerElem)
+                                    {
+                                        if (innerElem.ValueKind == JsonValueKind.Array)
+                                        {
+                                            try
+                                            {
+                                                var files = JsonSerializer.Deserialize<List<UploadDto>>(innerElem.GetRawText()) ?? new List<UploadDto>();
+
+                                                return files.AsReadOnly();
+                                            }
+                                            catch (JsonException ex)
+                                            {
+
+                                            }
+                                        }
+                                    }
+                                    // Handle string JSON
+                                    else if (innerValue is string innerJson && !string.IsNullOrWhiteSpace(innerJson))
+                                    {
+                                        try
+                                        {
+                                            var files = JsonSerializer.Deserialize<List<UploadDto>>(innerJson) ?? new List<UploadDto>();
+
+                                            return files.AsReadOnly();
+                                        }
+                                        catch (JsonException ex)
+                                        {
+
+                                        }
+                                    }
+                                    // Handle direct list
+                                    else if (innerValue is List<UploadDto> uploadList)
+                                    {
+
+                                        return uploadList.AsReadOnly();
+                                    }
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            // Ignore parse errors for non-collection fields
+
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+
+                }
+
+                // FALLBACK: Check session flow progress
+
+                var progressData = LoadFlowProgress(FlowId, InstanceId);
+
+
+                if (progressData.TryGetValue(fieldId, out var progressValue))
+                {
+                    var sessionFilesJson = progressValue?.ToString();
+
+
+                    if (!string.IsNullOrWhiteSpace(sessionFilesJson))
+                    {
+                        try
+                        {
+                            var files = JsonSerializer.Deserialize<List<UploadDto>>(sessionFilesJson);
+
+                            return (files ?? new List<UploadDto>()).AsReadOnly();
+                        }
+                        catch (JsonException ex)
+                        {
+
+                        }
+                    }
+                }
+            }
+            else
+            {
+                // For regular forms, get files from session
+                var sessionKey = $"UploadedFiles_{appId}_{fieldId}";
+                var sessionFilesJson = HttpContext.Session.GetString(sessionKey);
+
+
+                if (!string.IsNullOrWhiteSpace(sessionFilesJson))
+                {
+                    try
+                    {
+                        var files = JsonSerializer.Deserialize<List<UploadDto>>(sessionFilesJson) ?? new List<UploadDto>();
+
+                        return files.AsReadOnly();
+                    }
+                    catch (Exception ex)
+                    {
+
+                    }
+                }
+            }
+
+
+            return new List<UploadDto>().AsReadOnly();
+        }
+
+        private void UpdateSessionFileList(Guid appId, string fieldId, IReadOnlyList<UploadDto> files)
+        {
+
+
+            foreach (var file in files)
+            {
+
+            }
+            
+            if (IsCollectionFlow)
+            {
+                // For collection flows, store in flow progress system
+                var progressKey = GetFlowProgressSessionKey(FlowId, InstanceId);
+
+
+                
+                // Debug: List all session keys before calling LoadFlowProgress
+                var sessionKeysBefore = HttpContext.Session.Keys.ToList();
+
+                
+                // CRITICAL FIX: Use same method as page load for consistency
+                var existingProgress = LoadFlowProgress(FlowId, InstanceId);
+
+                
+                // CRITICAL FIX: The 'files' parameter contains ALL files (existing + new), so just save it directly
+                // No need to merge because GetFilesForFieldAsync already combined existing and new files
+                var serializedFiles = JsonSerializer.Serialize(files);
+
+                existingProgress[fieldId] = serializedFiles;
+                
+                // Force session to commit immediately
+                var progressJson = JsonSerializer.Serialize(existingProgress);
+                HttpContext.Session.SetString(progressKey, progressJson);
+                
+
+                
+                // Flow progress saved successfully
+
+            }
+            else
+            {
+                // For regular forms, use the original session key
+                var key = $"UploadedFiles_{appId}_{fieldId}";
+
+                HttpContext.Session.SetString(key, JsonSerializer.Serialize(files));
+            }
+        }
+
+        private async Task SaveUploadedFilesToResponseAsync(Guid appId, string fieldId, IReadOnlyList<UploadDto> files)
+        {
+            if (string.IsNullOrEmpty(fieldId))
+            {
+                return;
+            }
+
+            if (IsCollectionFlow)
+            {
+                // For collection flows, files are saved via flow progress system
+                // This happens in UpdateSessionFileList, no need to save to main application response here
+                return;
+            }
+
+            var json = JsonSerializer.Serialize(files);
+            var data = new Dictionary<string, object> { { fieldId, json } };
+
+            await applicationResponseService.SaveApplicationResponseAsync(appId, data, HttpContext.Session);
+        }
+
+        #endregion
 
     }
 }

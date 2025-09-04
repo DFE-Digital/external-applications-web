@@ -86,6 +86,7 @@
                      @foreach (var col in (flow.SummaryColumns ?? new List<DfE.ExternalApplications.Domain.Models.FlowSummaryColumn>()).Where(c => !renderModel.IsFieldHiddenForItem(c.Field, item)))
                     {
                         var value = item.TryGetValue(col.Field, out var v) ? v?.ToString() : string.Empty;
+
                         // Find which page contains this field within this flow
                         var targetPage = flow.Pages?.FirstOrDefault(p => p.Fields.Any(f => f.FieldId == col.Field));
                         var pageId = targetPage?.PageId ?? flow.Pages?.FirstOrDefault()?.PageId ?? "";
@@ -97,7 +98,107 @@
                             <dd class="govuk-summary-list__value">
                                 @if (!string.IsNullOrEmpty(value))
                                 {
-                                    @value
+                                    // Temporarily add this item's field data to FormData for formatting
+                                    var originalValue = renderModel.FormData.TryGetValue(col.Field, out var orig) ? orig : null;
+                                    renderModel.FormData[col.Field] = value;
+                                    var formattedValues = renderModel.GetFormattedFieldValues(col.Field);
+                                    // Restore original value
+                                    if (originalValue != null)
+                                        renderModel.FormData[col.Field] = originalValue;
+                                    else
+                                        renderModel.FormData.Remove(col.Field);
+                                    
+                                    // Check if this is an upload field by looking at the raw value
+                                    var isUploadField = !string.IsNullOrEmpty(value) && value.StartsWith("[") && value.Contains("\"id\"");
+                                    
+                                    @if (formattedValues.Count == 0)
+                                    {
+                                        <span class="govuk-hint">Not answered</span>
+                                    }
+                                    else if (formattedValues.Count == 1)
+                                    {
+                                        @if (isUploadField)
+                                        {
+                                            // For upload fields, render as download link
+                                            try
+                                            {
+                                                var uploadFiles = System.Text.Json.JsonSerializer.Deserialize<List<DfE.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>>(value);
+                                                if (uploadFiles != null && uploadFiles.Any())
+                                                {
+                                                    var file = uploadFiles.First();
+                                                    <form method="post" asp-page="/FormEngine/RenderForm" asp-route-referenceNumber="@renderModel.ReferenceNumber" asp-route-taskId="@renderModel.TaskId" asp-route-pageId="@(pageId)" asp-page-handler="DownloadFile" style="display:inline">
+                                                        <input type="hidden" name="FileId" value="@file.Id" />
+                                                        <input type="hidden" name="ApplicationId" value="@renderModel.ApplicationId" />
+                                                        <button type="submit" class="govuk-link" style="border: none; background: none; padding: 0; color: #1d70b8; text-decoration: underline; cursor: pointer;">
+                                                            @file.OriginalFileName
+                                                        </button>
+                                                    </form>
+                                                }
+                                                else
+                                                {
+                                                    @Html.Raw(formattedValues.First())
+                                                }
+                                            }
+                                            catch
+                                            {
+                                                @Html.Raw(formattedValues.First())
+                                            }
+                                        }
+                                        else
+                                        {
+                                            @Html.Raw(formattedValues.First())
+                                        }
+                                    }
+                                    else
+                                    {
+                                        @if (isUploadField)
+                                        {
+                                            // For upload fields with multiple files, render each as download link
+                                            try
+                                            {
+                                                var uploadFiles = System.Text.Json.JsonSerializer.Deserialize<List<DfE.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>>(value);
+                                                if (uploadFiles != null && uploadFiles.Any())
+                                                {
+                                                    @foreach (var file in uploadFiles)
+                                                    {
+                                                        <div>
+                                                            <form method="post" asp-page="/FormEngine/RenderForm" asp-route-referenceNumber="@renderModel.ReferenceNumber" asp-route-taskId="@renderModel.TaskId" asp-route-pageId="@(pageId)" asp-page-handler="DownloadFile" style="display:inline">
+                                                                <input type="hidden" name="FileId" value="@file.Id" />
+                                                                <input type="hidden" name="ApplicationId" value="@renderModel.ApplicationId" />
+                                                                <button type="submit" class="govuk-link" style="border: none; background: none; padding: 0; color: #1d70b8; text-decoration: underline; cursor: pointer;">
+                                                                    @file.OriginalFileName
+                                                                </button>
+                                                            </form>
+                                                        </div>
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    <!-- Multiple values - display as a list -->
+                                                    @foreach (var formattedValue in formattedValues)
+                                                    {
+                                                        <div>@Html.Raw(formattedValue)</div>
+                                                    }
+                                                }
+                                            }
+                                            catch
+                                            {
+                                                <!-- Multiple values - display as a list -->
+                                                @foreach (var formattedValue in formattedValues)
+                                                {
+                                                    <div>@Html.Raw(formattedValue)</div>
+                                                }
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <!-- Multiple values - display as a list -->
+                                            @foreach (var formattedValue in formattedValues)
+                                            {
+                                                <div>@Html.Raw(formattedValue)</div>
+                                            }
+                                        }
+                                    }
                                 }
                                 else
                                 {
@@ -158,7 +259,107 @@
                                     <dd class="govuk-summary-list__value">
                                         @if (!string.IsNullOrEmpty(value))
                                         {
-                                            @value
+                                            // Temporarily add this item's field data to FormData for formatting
+                                            var originalValue = renderModel.FormData.TryGetValue(col.Field, out var orig) ? orig : null;
+                                            renderModel.FormData[col.Field] = value;
+                                            var formattedValues = renderModel.GetFormattedFieldValues(col.Field);
+                                            // Restore original value
+                                            if (originalValue != null)
+                                                renderModel.FormData[col.Field] = originalValue;
+                                            else
+                                                renderModel.FormData.Remove(col.Field);
+                                            
+                                            // Check if this is an upload field by looking at the raw value
+                                            var isUploadField = !string.IsNullOrEmpty(value) && value.StartsWith("[") && value.Contains("\"id\"");
+                                            
+                                            @if (formattedValues.Count == 0)
+                                            {
+                                                <span class="govuk-hint">Not answered</span>
+                                            }
+                                            else if (formattedValues.Count == 1)
+                                            {
+                                                @if (isUploadField)
+                                                {
+                                                    // For upload fields, render as download link
+                                                    try
+                                                    {
+                                                        var uploadFiles = System.Text.Json.JsonSerializer.Deserialize<List<DfE.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>>(value);
+                                                        if (uploadFiles != null && uploadFiles.Any())
+                                                        {
+                                                            var file = uploadFiles.First();
+                                                            <form method="post" asp-page="/FormEngine/RenderForm" asp-route-referenceNumber="@renderModel.ReferenceNumber" asp-route-taskId="@renderModel.TaskId" asp-route-pageId="@(pageId)" asp-page-handler="DownloadFile" style="display:inline">
+                                                                <input type="hidden" name="FileId" value="@file.Id" />
+                                                                <input type="hidden" name="ApplicationId" value="@renderModel.ApplicationId" />
+                                                                <button type="submit" class="govuk-link" style="border: none; background: none; padding: 0; color: #1d70b8; text-decoration: underline; cursor: pointer;">
+                                                                    @file.OriginalFileName
+                                                                </button>
+                                                            </form>
+                                                        }
+                                                        else
+                                                        {
+                                                            @Html.Raw(formattedValues.First())
+                                                        }
+                                                    }
+                                                    catch
+                                                    {
+                                                        @Html.Raw(formattedValues.First())
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    @Html.Raw(formattedValues.First())
+                                                }
+                                            }
+                                            else
+                                            {
+                                                @if (isUploadField)
+                                                {
+                                                    // For upload fields with multiple files, render each as download link
+                                                    try
+                                                    {
+                                                        var uploadFiles = System.Text.Json.JsonSerializer.Deserialize<List<DfE.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>>(value);
+                                                        if (uploadFiles != null && uploadFiles.Any())
+                                                        {
+                                                            @foreach (var file in uploadFiles)
+                                                            {
+                                                                <div>
+                                                                    <form method="post" asp-page="/FormEngine/RenderForm" asp-route-referenceNumber="@renderModel.ReferenceNumber" asp-route-taskId="@renderModel.TaskId" asp-route-pageId="@(pageId)" asp-page-handler="DownloadFile" style="display:inline">
+                                                                        <input type="hidden" name="FileId" value="@file.Id" />
+                                                                        <input type="hidden" name="ApplicationId" value="@renderModel.ApplicationId" />
+                                                                        <button type="submit" class="govuk-link" style="border: none; background: none; padding: 0; color: #1d70b8; text-decoration: underline; cursor: pointer;">
+                                                                            @file.OriginalFileName
+                                                                        </button>
+                                                                    </form>
+                                                                </div>
+                                                            }
+                                                        }
+                                                        else
+                                                        {
+                                                            <!-- Multiple values - display as a list -->
+                                                            @foreach (var formattedValue in formattedValues)
+                                                            {
+                                                                <div>@Html.Raw(formattedValue)</div>
+                                                            }
+                                                        }
+                                                    }
+                                                    catch
+                                                    {
+                                                        <!-- Multiple values - display as a list -->
+                                                        @foreach (var formattedValue in formattedValues)
+                                                        {
+                                                            <div>@Html.Raw(formattedValue)</div>
+                                                        }
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    <!-- Multiple values - display as a list -->
+                                                    @foreach (var formattedValue in formattedValues)
+                                                    {
+                                                        <div>@Html.Raw(formattedValue)</div>
+                                                    }
+                                                }
+                                            }
                                         }
                                         else
                                         {

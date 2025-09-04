@@ -48,6 +48,9 @@ namespace DfE.ExternalApplications.Infrastructure.Services
         {
             var fieldValue = GetFieldValue(fieldId, formData);
             
+            // DEBUG: Log formatting attempts
+
+            
             if (string.IsNullOrEmpty(fieldValue))
             {
                 return string.Empty;
@@ -58,8 +61,10 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             {
                 if (LooksLikeUploadData(fieldValue))
                 {
+
                     return FormatUploadValue(fieldValue);
                 }
+
 
                 return FormatAutocompleteValue(fieldValue);
             }
@@ -71,6 +76,9 @@ namespace DfE.ExternalApplications.Infrastructure.Services
         {
             var fieldValue = GetFieldValue(fieldId, formData);
             
+            // DEBUG: Log formatting attempts for list version
+
+            
             if (string.IsNullOrEmpty(fieldValue))
             {
                 return new List<string>();
@@ -80,8 +88,10 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             {
                 if (LooksLikeUploadData(fieldValue))
                 {
+
                     return FormatUploadValuesList(fieldValue);
                 }
+
 
                 return FormatAutocompleteValuesList(fieldValue);
             }

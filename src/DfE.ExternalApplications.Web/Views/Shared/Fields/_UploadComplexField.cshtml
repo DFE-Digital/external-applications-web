@@ -40,8 +40,44 @@
     var taskId = ViewData["taskId"]?.ToString();
     var pageId = ViewData["pageId"]?.ToString();
 
-    // Create summary page URL for the Continue button
-    var summaryUrl = $"/applications/{referenceNumber}/{taskId}";
+    // Check if we're in a collection flow context
+    bool isCollectionFlow = false;
+    string flowId = "";
+    string instanceId = "";
+    string flowPageId = "";
+    string actualPageId = pageId;
+    string actualReturnUrl = currentUrl;
+    
+    if (!string.IsNullOrEmpty(pageId) && pageId.StartsWith("flow/", StringComparison.OrdinalIgnoreCase))
+    {
+        // Parse collection flow route: flow/{flowId}/{instanceId}/{flowPageId?}
+        var parts = pageId.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 3 && parts[0].Equals("flow", StringComparison.OrdinalIgnoreCase))
+        {
+            isCollectionFlow = true;
+            flowId = parts[1];
+            instanceId = parts[2];
+            flowPageId = parts.Length > 3 ? parts[3] : "";
+            
+            // For collection flows, use the inner page ID for upload handler
+            actualPageId = flowPageId;
+            
+            // The return URL should be the full collection flow URL
+            actualReturnUrl = $"/applications/{referenceNumber}/{taskId}/{pageId}";
+        }
+    }
+
+    // Create proper Continue button URL
+    var continueUrl = $"/applications/{referenceNumber}/{taskId}";
+    string continueButtonText = "Continue";
+    
+    if (isCollectionFlow)
+    {
+        // For collection flows, we need to determine if this is the last page or if there's a next page
+        // This should trigger the normal form submission flow which will handle navigation properly
+        continueUrl = actualReturnUrl; // This will POST back to the collection flow, which handles next page logic
+        continueButtonText = "Continue";
+    }
 }
 @* Rehydrate ModelState from the error store and render govuk summary *@
 @{
@@ -64,12 +100,23 @@
 
         <p class="govuk-body">Give the file a clear, descriptive name. Files up to 10MB are accepted.</p>
 
-        <form method="post" asp-page="/FormEngine/UploadFile" asp-route-referenceNumber="@referenceNumber" asp-route-taskId="@taskId" asp-route-pageId="@pageId" asp-page-handler="UploadFile" enctype="multipart/form-data">
+        <form method="post" asp-page="/FormEngine/RenderForm" asp-route-referenceNumber="@referenceNumber" asp-route-taskId="@taskId" asp-route-pageId="@actualPageId" asp-page-handler="UploadFile" enctype="multipart/form-data">
             <input type="hidden" name="ApplicationId" value="@applicationId" />
             <input type="hidden" name="FieldId" value="@fieldId" />
-            <input type="hidden" name="ReturnUrl" value="@currentUrl" />
+            <input type="hidden" name="ReturnUrl" value="@actualReturnUrl" />
             <input type="hidden" name="UploadName" value="FileName" />
             <input type="hidden" name="UploadDescription" value="FileDescription" />
+            @* Preserve existing files across upload by sending their IDs *@
+            @foreach (var f in files)
+            {
+                <input type="hidden" name="ExistingFileIds" value="@f.Id" />
+            }
+            @* Pass collection flow context if needed *@
+            @if (isCollectionFlow)
+            {
+                <input type="hidden" name="FlowId" value="@flowId" />
+                <input type="hidden" name="InstanceId" value="@instanceId" />
+            }
 
             <div class="govuk-form-group @(ViewData.ModelState.Any(x => x.Value.Errors.Count > 0) ? "govuk-form-group--error" : "")">
                 <label class="govuk-label" for="upload-file-@fieldId">
@@ -112,9 +159,14 @@
                     {
                         <tr class="govuk-table__row">
                             <td class="govuk-table__cell">
-                                <form method="post" asp-page="/FormEngine/UploadFile" asp-route-referenceNumber="@referenceNumber" asp-route-taskId="@taskId" asp-route-pageId="@pageId" asp-page-handler="DownloadFile" style="display:inline">
+                                <form method="post" asp-page="/FormEngine/RenderForm" asp-route-referenceNumber="@referenceNumber" asp-route-taskId="@taskId" asp-route-pageId="@actualPageId" asp-page-handler="DownloadFile" style="display:inline">
                                     <input type="hidden" name="FileId" value="@file.Id" />
                                     <input type="hidden" name="ApplicationId" value="@applicationId" />
+                                    @if (isCollectionFlow)
+                                    {
+                                        <input type="hidden" name="FlowId" value="@flowId" />
+                                        <input type="hidden" name="InstanceId" value="@instanceId" />
+                                    }
                                     <button type="submit" class="govuk-link" style="border: none; background: none; padding: 0; color: #1d70b8; text-decoration: underline; cursor: pointer;">
                                         @file.OriginalFileName
                                     </button>
@@ -123,11 +175,16 @@
                             <td class="govuk-table__cell">@FormatFileSize(file.FileSize)</td>
                             <td class="govuk-table__cell">@(System.IO.Path.GetExtension(file.OriginalFileName)?.TrimStart('.').ToUpperInvariant() ?? "Unknown")</td>
                             <td class="govuk-table__cell">
-                                <form method="post" asp-page="/FormEngine/UploadFile" asp-route-referenceNumber="@referenceNumber" asp-route-taskId="@taskId" asp-route-pageId="@pageId" asp-page-handler="DeleteFile" style="display:inline">
+                                <form method="post" asp-page="/FormEngine/RenderForm" asp-route-referenceNumber="@referenceNumber" asp-route-taskId="@taskId" asp-route-pageId="@actualPageId" asp-page-handler="DeleteFile" style="display:inline">
                                     <input type="hidden" name="FileId" value="@file.Id" />
                                     <input type="hidden" name="FieldId" value="@fieldId" />
                                     <input type="hidden" name="ApplicationId" value="@applicationId" />
-                                    <input type="hidden" name="ReturnUrl" value="@currentUrl" />
+                                    <input type="hidden" name="ReturnUrl" value="@actualReturnUrl" />
+                                    @if (isCollectionFlow)
+                                    {
+                                        <input type="hidden" name="FlowId" value="@flowId" />
+                                        <input type="hidden" name="InstanceId" value="@instanceId" />
+                                    }
                                     <button type="submit" class="govuk-button govuk-button--warning govuk-button--small"
                                             data-module="govuk-button"
                                             onclick="return confirm('Are you sure you want to delete this file?');">
@@ -147,7 +204,27 @@
                 }
             </tbody>
         </table>
-        <a href="@summaryUrl" role="button" draggable="false" class="govuk-button" data-module="govuk-button">Continue</a>
+
+        
+        @if (isCollectionFlow)
+        {
+            <!-- For collection flows, submit form to trigger flow progression -->
+            <form method="post" asp-page="/FormEngine/RenderForm" asp-route-referenceNumber="@referenceNumber" asp-route-taskId="@taskId" asp-route-pageId="@pageId" asp-page-handler="Page">
+                <!-- Don't include large JSON data - rely on session storage instead -->
+                <input type="hidden" name="Data[@fieldId]" value="UPLOAD_FIELD_SESSION_DATA" />
+                <!-- Include collection flow context to ensure proper navigation -->
+                <input type="hidden" name="FlowId" value="@flowId" />
+                <input type="hidden" name="InstanceId" value="@instanceId" />
+                <input type="hidden" name="FlowPageId" value="@flowPageId" />
+                <input type="hidden" name="IsCollectionFlow" value="true" />
+                <button type="submit" class="govuk-button" data-module="govuk-button">@continueButtonText</button>
+            </form>
+        }
+        else
+        {
+            <!-- For regular forms, redirect to summary -->
+            <a href="@continueUrl" role="button" draggable="false" class="govuk-button" data-module="govuk-button">@continueButtonText</a>
+        }
     </div>
 </div>
 
