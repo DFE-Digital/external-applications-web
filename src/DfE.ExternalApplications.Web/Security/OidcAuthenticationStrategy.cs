@@ -61,14 +61,14 @@ public class OidcAuthenticationStrategy(ILogger<OidcAuthenticationStrategy> logg
             
             var timeUntilExpiry = tokenInfo.ExpiryTime.Value - DateTime.UtcNow;
             var minutesRemaining = timeUntilExpiry.TotalMinutes;
-            
-            // Allow refresh if token is in the 5-10 minute window
-            // - More than 10 minutes: no refresh needed
-            // - 5-10 minutes: allow refresh to get fresh token  
-            // - Less than 5 minutes: force logout (handled by TokenInfo.IsExpired)
-            if (minutesRemaining > 5 && minutesRemaining <= 10)
+
+            // Allow refresh when remaining time is within the configured lead window
+            var settings = context.RequestServices.GetService(typeof(Microsoft.Extensions.Options.IOptions<TokenRefreshSettings>)) as Microsoft.Extensions.Options.IOptions<TokenRefreshSettings>;
+            var lead = settings?.Value.RefreshLeadTimeMinutes ?? 10;
+            var forceLogoutAt = settings?.Value.ForceLogoutAtMinutesRemaining ?? 5;
+
+            if (minutesRemaining > forceLogoutAt && minutesRemaining <= lead)
             {
-                // Note: Actual OIDC refresh implementation needed in RefreshExternalIdpTokenAsync
                 return true; 
             }
             

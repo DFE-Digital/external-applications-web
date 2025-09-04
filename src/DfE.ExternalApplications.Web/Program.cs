@@ -19,6 +19,7 @@ using GovUK.Dfe.ExternalApplications.Api.Client.Extensions;
 using GovUK.Dfe.ExternalApplications.Api.Client.Security;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
@@ -90,6 +91,8 @@ builder.Services.AddResponseCompression(options =>
     options.Providers.Add<GzipCompressionProvider>();
 });
 
+builder.Services.Configure<TokenRefreshSettings>(configuration.GetSection("TokenRefresh"));
+
 // Configure authentication based on test mode
 if (isTestAuthEnabled)
 {
@@ -155,6 +158,10 @@ builder.Services.AddSingleton<IActionContextAccessor, ActionContextAccessor>();
 builder.Services.AddScoped<IHtmlHelper, HtmlHelper>();
 builder.Services.AddWebLayerServices();
 builder.Services.AddScoped<IApplicationResponseService, ApplicationResponseService>();
+
+// Persist cookie tickets server-side so AuthenticationProperties (tokens) don't bloat the browser cookie
+builder.Services.AddSingleton<ITicketStore, DistributedCacheTicketStore>();
+builder.Services.AddSingleton<IPostConfigureOptions<CookieAuthenticationOptions>, ConfigureCookieTicketStore>();
 
 // New refactored services for Clean Architecture
 builder.Services.AddScoped<IFieldFormattingService, FieldFormattingService>();

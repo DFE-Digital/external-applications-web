@@ -1,15 +1,12 @@
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
+using DfE.CoreLibs.Security.Configurations;
+using DfE.CoreLibs.Security.Interfaces;
+using DfE.ExternalApplications.Web.Authentication;
+using GovUK.Dfe.ExternalApplications.Api.Client.Security;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using DfE.CoreLibs.Security.Interfaces;
-using DfE.CoreLibs.Security.Configurations;
-using DfE.ExternalApplications.Web.Authentication;
-using DfE.ExternalApplications.Web.Services;
-using GovUK.Dfe.ExternalApplications.Api.Client.Security;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 
 namespace DfE.ExternalApplications.Web.Security;
 
@@ -78,22 +75,17 @@ public class TestAuthenticationStrategy(
             
             var timeUntilExpiry = tokenInfo.ExpiryTime.Value - DateTime.UtcNow;
             var minutesRemaining = timeUntilExpiry.TotalMinutes;
-            
-            // Allow refresh if token is in the 5-10 minute window
-            // - More than 10 minutes: no refresh needed
-            // - 5-10 minutes: allow refresh to get fresh token  
-            // - Less than 5 minutes: force logout (handled by TokenInfo.IsExpired)
-            if (minutesRemaining > 5 && minutesRemaining <= 10)
+
+            // Allow refresh when remaining time is within the configured lead window
+            var settings = context.RequestServices.GetService(typeof(Microsoft.Extensions.Options.IOptions<TokenRefreshSettings>)) as Microsoft.Extensions.Options.IOptions<TokenRefreshSettings>;
+            var lead = settings?.Value.RefreshLeadTimeMinutes ?? 10;
+            var forceLogoutAt = settings?.Value.ForceLogoutAtMinutesRemaining ?? 5;
+
+            if (minutesRemaining > forceLogoutAt && minutesRemaining <= lead)
             {
                 return true;
             }
             
-            if (minutesRemaining <= 5)
-            {
-            }
-            else
-            {
-            }
             
             return false;
         }
@@ -171,7 +163,7 @@ public class TestAuthenticationStrategy(
 
     /// <summary>
     /// Update authentication context with new token
-    /// Ensures both session storage (primary) and authentication properties are updated
+    /// For TestAuth we keep tokens ONLY in session to avoid large cookies; do not store tokens in auth properties.
     /// </summary>
     private async Task UpdateAuthenticationTokenAsync(HttpContext context, string newToken)
     {
@@ -184,16 +176,15 @@ public class TestAuthenticationStrategy(
             var authResult = await context.AuthenticateAsync();
             if (authResult.Succeeded && authResult.Properties != null)
             {
-                // Update authentication properties tokens as well for consistency
                 var tokens = new[]
                 {
                     new AuthenticationToken { Name = "id_token", Value = newToken },
                     new AuthenticationToken { Name = "access_token", Value = newToken }
                 };
                 authResult.Properties.StoreTokens(tokens);
-                
-                // Re-sign in with updated token and properties
-                await context.SignInAsync(authResult.Principal, authResult.Properties);
+
+                // Re-sign in with updated properties (cookie remains small due to server-side ticket store)
+                await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, authResult.Principal, authResult.Properties);
             }
             else
             {
