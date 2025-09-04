@@ -11,11 +11,9 @@
                 <strong id="app-timeout-count">@Model.DisplayTime</strong>.
             </p>
 
-            <noscript>
                 <div class="app-timeout-progress">
                     <div class="app-timeout-progress__bar" style="animation-duration:@(Model.AutoRedirectSeconds)s;"></div>
                 </div>
-            </noscript>
 
             <form method="post" action="/session/stay-signed-in">
                 @Html.AntiForgeryToken()
