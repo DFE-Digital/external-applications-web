@@ -4,11 +4,13 @@ using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
+using DfE.ExternalApplications.Web.Interfaces;
 
 namespace DfE.ExternalApplications.Web.Filters
 {
     public class ExternalApiPageExceptionFilter : IAsyncPageFilter
     {
+        
         public Task OnPageHandlerSelectionAsync(PageHandlerSelectedContext context)
             => Task.CompletedTask;
 
@@ -16,32 +18,86 @@ namespace DfE.ExternalApplications.Web.Filters
             PageHandlerExecutingContext context,
             PageHandlerExecutionDelegate next)
         {
+            
+            // DETECT UPLOAD REQUESTS BEFORE EXECUTION
+            var uploadInfo = DetectUploadRequest(context);
+            if (uploadInfo.isUpload)
+            {
+                
+                context.HttpContext.Items["UploadRequestInfo"] = uploadInfo;
+            }
+            
             var executedContext = await next();
+
+            
 
             if (executedContext.Exception is ExternalApplicationsException<ExceptionResponse> ex
                 && !executedContext.ExceptionHandled)
             {
+                
+                
                 var r = ex.Result;
                 var page = context.HandlerInstance as PageModel
                            ?? throw new InvalidOperationException("Page filter only for Razor Pages");
+                           
+                
 
                 // 1) Validation: attempt to map structured validation errors into ModelState
                 if (r.StatusCode is 400 or 422)
                 {
+                    
                     if (TryAddModelStateErrorsFromContext(page, r))
                     {
+                        
                         executedContext.Result = new PageResult();
                         executedContext.ExceptionHandled = true;
+                        
                         return;
                     }
                 }
 
                 if (r.StatusCode == 400 || r.StatusCode == 409)
                 {
+                    
                     AddNonFieldError(page, ex.Result.Message);
 
+                    // SPECIAL HANDLING FOR UPLOAD REQUESTS: Use stored upload info
+                    
+                    var storedUploadInfo = context.HttpContext.Items.TryGetValue("UploadRequestInfo", out var storedInfo) 
+                        ? ((bool isUpload, string fieldId))storedInfo 
+                        : (false, string.Empty);
+                    
+                    if (storedUploadInfo.Item1)
+                    {
+                        
+                        try 
+                        {
+                            var formErrorStore = context.HttpContext.RequestServices.GetService<DfE.ExternalApplications.Web.Interfaces.IFormErrorStore>();
+                            if (formErrorStore != null)
+                            {
+                                formErrorStore.Save(storedUploadInfo.Item2, page.ModelState);
+                                
+                                // Get the return URL from the request
+                                var returnUrl = context.HttpContext.Request.Form["ReturnUrl"].ToString();
+                                if (!string.IsNullOrEmpty(returnUrl))
+                                {
+                                    
+                                    executedContext.Result = new Microsoft.AspNetCore.Mvc.RedirectResult(returnUrl);
+                                    executedContext.ExceptionHandled = true;
+                                    return;
+                                }
+                            }
+                        }
+                        catch (Exception)
+                        {
+                            
+                        }
+                    }
+
+                    
                     executedContext.Result = new PageResult();
                     executedContext.ExceptionHandled = true;
+                    
                     return;
                 }
 
@@ -58,8 +114,7 @@ namespace DfE.ExternalApplications.Web.Filters
                 {
                     var logger = context.HttpContext.RequestServices.GetService<ILogger<ExternalApiPageExceptionFilter>>();
                     var userId = context.HttpContext.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "Anonymous";
-                    logger?.LogWarning(">>>>>>>>>> Authentication >>> ExternalApiPageExceptionFilter: 401 Unauthorized error for user {UserId} at {Path}. Redirecting to forbidden page.", 
-                        userId, context.HttpContext.Request.Path);
+
                     
                     page.TempData["ApiErrorId"] = r.ErrorId;
                     executedContext.Result = new RedirectToPageResult("/Error/Forbidden");
@@ -79,17 +134,13 @@ namespace DfE.ExternalApplications.Web.Filters
                         r.Message?.Contains("expired", StringComparison.OrdinalIgnoreCase) == true ||
                         r.Message?.Contains("unauthorized", StringComparison.OrdinalIgnoreCase) == true)
                     {
-                        logger?.LogWarning(">>>>>>>>>> Authentication >>> ExternalApiPageExceptionFilter: 403 Forbidden with token-related error for user {UserId} at {Path}. " +
-                                          "Error message: {ErrorMessage}. User claims: {UserClaims}. Redirecting to logout.", 
-                            userId, context.HttpContext.Request.Path, r.Message, userClaims);
+
                         
                         executedContext.Result = new RedirectToPageResult("/Logout", new { reason = "token_expired" });
                     }
                     else
                     {
-                        logger?.LogWarning(">>>>>>>>>> Authentication >>> ExternalApiPageExceptionFilter: 403 Forbidden error for user {UserId} at {Path}. " +
-                                          "User claims: {UserClaims}. Redirecting to forbidden page.", 
-                            userId, context.HttpContext.Request.Path, userClaims);
+                        
                         
                         executedContext.Result = new RedirectToPageResult("/Error/Forbidden");
                     }
@@ -102,6 +153,7 @@ namespace DfE.ExternalApplications.Web.Filters
                 executedContext.Result = new RedirectToPageResult("/Error/General");
                 executedContext.ExceptionHandled = true;
             }
+            
         }
 
         private static void AddNonFieldError(PageModel page, string message)
@@ -158,6 +210,34 @@ namespace DfE.ExternalApplications.Web.Filters
             }
 
             return false;
+        }
+        
+        private static (bool isUpload, string fieldId) DetectUploadRequest(PageHandlerExecutingContext context)
+        {
+            // Check if this is an upload handler
+            var handlerName = context.HandlerMethod?.Name;
+            
+            // Handle both possible handler name formats
+            var isUploadHandler = handlerName == "OnPostUploadFileAsync" || handlerName == "UploadFile";
+            if (!isUploadHandler)
+            {
+                
+                return (false, string.Empty);
+            }
+            
+            
+            
+            // Try to get FieldId from form data
+            if (context.HttpContext.Request.HasFormContentType)
+            {
+                var fieldId = context.HttpContext.Request.Form["FieldId"].ToString();
+                if (!string.IsNullOrEmpty(fieldId))
+                {
+                    return (true, fieldId);
+                }
+            }
+            
+            return (false, string.Empty);
         }
     }
 }
