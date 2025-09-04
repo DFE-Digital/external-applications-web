@@ -12,6 +12,12 @@
 
     string typeOfFirstField = Model.CurrentPage.Fields[0].Type;
     bool labelledByHeader = (Model.CurrentPage.Fields.Count == 1) && typeOfFirstField != "complexField";
+    bool hasAutocompleteField = Model.CurrentPage.Fields.Any(f =>
+        f.Type == "complexField" &&
+        f.ComplexField != null &&
+        ComplexFieldConfigurationService
+            .GetConfiguration(f.ComplexField.Id)
+            .FieldType.Equals("autocomplete", StringComparison.OrdinalIgnoreCase));
 }
 
 <form method="post" id="form_@Model.CurrentPageId"
@@ -74,7 +80,7 @@
                 }
             }
 
-            @if (!hasUploadField)
+            @if (!hasUploadField && !hasAutocompleteField)
             {
                 // Check if we're in a sub-flow and if this is the last page
                 bool isLastPageInFlow = false;

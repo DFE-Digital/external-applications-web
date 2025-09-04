@@ -171,12 +171,18 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                 {
                     case string s:
                         result[key] = s;
+                        TryAugmentFromJsonString(s, result);
                         break;
                     case string[] arr:
                         result[key] = arr;
                         break;
                     case JsonElement je:
-                        result[key] = ConvertJsonElement(je);
+                        var converted = ConvertJsonElement(je);
+                        result[key] = converted;
+                        if (converted is string cs)
+                        {
+                            TryAugmentFromJsonString(cs, result);
+                        }
                         break;
                     default:
                         result[key] = value?.ToString() ?? string.Empty;
@@ -212,6 +218,53 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                     return string.Empty;
                 default:
                     return je.ToString();
+            }
+        }
+
+        /// <summary>
+        /// If the provided string contains a JSON object with well-known fields (name, ukprn, companiesHouseNumber),
+        /// augment the flattened form data with those keys for easier confirmation display.
+        /// Adds common key variants (e.g., trustname/trustName, companiesHousenumber/companiesHouseNumber).
+        /// </summary>
+        private static void TryAugmentFromJsonString(string value, Dictionary<string, object> sink)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return;
+            value = value.Trim();
+            if (!(value.StartsWith("{") && value.EndsWith("}"))) return;
+
+            try
+            {
+                using var doc = JsonDocument.Parse(value);
+                if (doc.RootElement.ValueKind != JsonValueKind.Object) return;
+                var root = doc.RootElement;
+
+                string? name = null;
+                string? ukprn = null;
+                string? chNo = null;
+
+                if (root.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String)
+                    name = n.GetString();
+                if (root.TryGetProperty("ukprn", out var u) && (u.ValueKind == JsonValueKind.String || u.ValueKind == JsonValueKind.Number))
+                    ukprn = u.ToString();
+                if (root.TryGetProperty("companiesHouseNumber", out var c) && c.ValueKind == JsonValueKind.String)
+                    chNo = c.GetString();
+
+                // Only add if not already present
+                void AddIfMissing(string key, string? val)
+                {
+                    if (string.IsNullOrWhiteSpace(val)) return;
+                    if (!sink.ContainsKey(key)) sink[key] = val;
+                }
+
+                AddIfMissing("trustName", name);
+                AddIfMissing("trustname", name);
+                AddIfMissing("ukprn", ukprn);
+                AddIfMissing("companiesHouseNumber", chNo);
+                AddIfMissing("companiesHousenumber", chNo); // tolerate common misspelling
+            }
+            catch
+            {
+                // ignore parsing errors; nothing to augment
             }
         }
 
