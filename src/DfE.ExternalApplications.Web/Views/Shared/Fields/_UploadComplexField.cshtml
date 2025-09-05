@@ -1,4 +1,5 @@
 @using DfE.ExternalApplications.Web.Services
+@using DfE.ExternalApplications.Web.Extensions
 @using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response
 @inject IHttpContextAccessor httpContext;
 @inject DfE.ExternalApplications.Web.Interfaces.IFormErrorStore FormErrorStore
@@ -185,11 +186,12 @@
                                         <input type="hidden" name="FlowId" value="@flowId" />
                                         <input type="hidden" name="InstanceId" value="@instanceId" />
                                     }
-                                    <button type="submit" class="govuk-button govuk-button--warning govuk-button--small"
-                                            data-module="govuk-button"
-                                            onclick="return confirm('Are you sure you want to delete this file?');">
-                                        Delete
-                                    </button>
+                                    <input type="hidden" name="fileName" value="@file.OriginalFileName" />
+                                    @Html.RenderWarningConfirmationButton(
+                                        buttonText: "Delete",
+                                        handler: "DeleteFile",
+                                        displayFields: "fileName",
+                                        buttonId: $"delete-upload-@file.Id")
                                 </form>
                             </td>
                         </tr>
