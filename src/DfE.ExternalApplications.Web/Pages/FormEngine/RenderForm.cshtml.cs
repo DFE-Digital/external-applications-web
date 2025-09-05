@@ -550,6 +550,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 
                                 foreach (var kv in Data)
                                 {
+                                    // Do not overwrite existing upload data with placeholder token
+                                    if (kv.Value?.ToString() == "UPLOAD_FIELD_SESSION_DATA" && accumulated.ContainsKey(kv.Key))
+                                    {
+                                        continue;
+                                    }
                                     accumulated[kv.Key] = kv.Value;
                                 }
                 
@@ -955,6 +960,13 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 // Update only the fields that have values in itemData (current page data)
                 foreach (var kvp in itemData)
                 {
+                    // If the incoming value is the upload placeholder, do not overwrite an existing upload JSON
+                    if (kvp.Value?.ToString() == "UPLOAD_FIELD_SESSION_DATA" &&
+                        item.TryGetValue(kvp.Key, out var existingVal) &&
+                        existingVal != null && existingVal.ToString()!.StartsWith("[") && existingVal.ToString()!.Contains("\"id\""))
+                    {
+                        continue;
+                    }
                     item[kvp.Key] = kvp.Value;
                 }
             }
@@ -969,6 +981,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         var key = field.FieldId;
                         if (itemData.TryGetValue(key, out var value))
                         {
+                            // Skip placeholder writes for uploads; real value will be in itemData when available
+                            if (value?.ToString() == "UPLOAD_FIELD_SESSION_DATA")
+                            {
+                                continue;
+                            }
                             item[key] = value;
                         }
                     }
@@ -1239,10 +1256,14 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         // Editing existing item: load its data into Data dictionary for form rendering
                         foreach (var kvp in existingItem)
                         {
-                            if (kvp.Key != "id") // Skip the ID field
+                            if (kvp.Key == "id") continue; // Skip the ID field
+                            // Preserve upload data if present in saved item
+                            if (kvp.Value != null && kvp.Value.ToString()?.StartsWith("[") == true && kvp.Value.ToString()!.Contains("\"id\""))
                             {
                                 Data[kvp.Key] = kvp.Value;
+                                continue;
                             }
+                            Data[kvp.Key] = kvp.Value;
                         }
 
                     }
