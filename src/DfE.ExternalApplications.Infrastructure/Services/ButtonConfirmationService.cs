@@ -302,11 +302,21 @@ namespace DfE.ExternalApplications.Infrastructure.Services
         /// <returns>A secure token string</returns>
         private static string GenerateSecureToken()
         {
+            // Use hex encoding to avoid WAF triggers (e.g., "--" SQL comment sequences)
             var bytes = RandomNumberGenerator.GetBytes(32);
-            return Convert.ToBase64String(bytes)
-                .Replace("+", "-")
-                .Replace("/", "_")
-                .Replace("=", "");
+            var c = new char[bytes.Length * 2];
+            int i = 0;
+            foreach (var b in bytes)
+            {
+                c[i++] = GetHexNibble(b >> 4);
+                c[i++] = GetHexNibble(b & 0xF);
+            }
+            return new string(c);
+        }
+
+        private static char GetHexNibble(int value)
+        {
+            return (char)(value < 10 ? ('0' + value) : ('a' + (value - 10)));
         }
     }
 }
