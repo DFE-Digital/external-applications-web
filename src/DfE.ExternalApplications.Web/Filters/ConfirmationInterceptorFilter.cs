@@ -59,13 +59,16 @@ namespace DfE.ExternalApplications.Web.Filters
                 confirmationInfo.Handler, string.Join(",", confirmationInfo.DisplayFields));
 
             // Create confirmation request
+            var (title, message) = ReadCustomMeta(form, confirmationInfo.Handler);
+
             var confirmationRequest = new ConfirmationRequest
             {
                 OriginalPagePath = context.HttpContext.Request.Path,
                 OriginalHandler = confirmationInfo.Handler,
                 OriginalFormData = ExtractFormData(form),
                 DisplayFields = confirmationInfo.DisplayFields,
-                ReturnUrl = context.HttpContext.Request.GetDisplayUrl()
+                ReturnUrl = context.HttpContext.Request.GetDisplayUrl(),
+                Title = title
             };
 
             // Store confirmation context and redirect
@@ -136,13 +139,16 @@ namespace DfE.ExternalApplications.Web.Filters
             _logger.LogInformation("[Pages] Intercepting form submission for confirmation - Handler: {Handler}, DisplayFields: {DisplayFields}",
                 confirmationInfo.Handler, string.Join(",", confirmationInfo.DisplayFields));
 
+            var (title2, message2) = ReadCustomMeta(form, confirmationInfo.Handler);
+
             var confirmationRequest = new ConfirmationRequest
             {
                 OriginalPagePath = context.HttpContext.Request.Path,
                 OriginalHandler = confirmationInfo.Handler,
                 OriginalFormData = ExtractFormData(form),
                 DisplayFields = confirmationInfo.DisplayFields,
-                ReturnUrl = context.HttpContext.Request.GetDisplayUrl()
+                ReturnUrl = context.HttpContext.Request.GetDisplayUrl(),
+                Title = title2,
             };
 
             try
@@ -236,6 +242,24 @@ namespace DfE.ExternalApplications.Web.Filters
 
             _logger.LogDebug("Extracted {Count} form fields for confirmation", formData.Count);
             return formData;
+        }
+
+        private static (string? Title, string? Message) ReadCustomMeta(IFormCollection form, string handler)
+        {
+            try
+            {
+                var titleKey = $"confirmation-title-{handler}";
+                var messageKey = $"confirmation-taskName-{handler}";
+                string? title = form.ContainsKey(titleKey) ? form[titleKey].ToString() : null;
+                string? message = form.ContainsKey(messageKey) ? form[messageKey].ToString() : null;
+                title = string.IsNullOrWhiteSpace(title) ? null : title;
+                message = string.IsNullOrWhiteSpace(message) ? null : message;
+                return (title, message);
+            }
+            catch
+            {
+                return (null, null);
+            }
         }
     }
 

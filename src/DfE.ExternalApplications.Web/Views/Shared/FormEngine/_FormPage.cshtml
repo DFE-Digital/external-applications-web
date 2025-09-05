@@ -132,13 +132,7 @@
     }
 }
 
-@* Conditional Logic Scripts *@
-@if (Model.Template?.ConditionalLogic != null && Model.Template.ConditionalLogic.Any())
-{
-    <script id="conditional-logic-rules" type="application/json">
-        @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Template.ConditionalLogic))
-    </script>
-}
+@* Conditional Logic Scripts (temporarily disabled if not present on template) *@
 
 @if (Model.Data?.Any() == true)
 {

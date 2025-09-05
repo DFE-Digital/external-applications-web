@@ -10,10 +10,7 @@ namespace DfE.ExternalApplications.Domain.Models
         /// </summary>
         public string Title { get; set; } = "Confirm your action";
 
-        /// <summary>
-        /// The message to display to the user
-        /// </summary>
-        public string Message { get; set; } = "Please review the following information:";
+        // Message removed per latest requirements
 
         /// <summary>
         /// The formatted data to display to the user

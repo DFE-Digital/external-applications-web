@@ -38,6 +38,12 @@ namespace DfE.ExternalApplications.Domain.Models
         public string[] DisplayFields { get; set; } = Array.Empty<string>();
 
         /// <summary>
+        /// Optional custom title/heading to show on the confirmation page
+        /// </summary>
+        [JsonPropertyName("title")]
+        public string? Title { get; set; }
+
+        /// <summary>
         /// The URL to return to if the user cancels
         /// </summary>
         [JsonPropertyName("returnUrl")]

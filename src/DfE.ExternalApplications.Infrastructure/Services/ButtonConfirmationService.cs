@@ -126,8 +126,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
 
             return new ConfirmationDisplayModel
             {
-                Title = "Confirm your action",
-                Message = "Please review the following information:",
+                Title = string.IsNullOrWhiteSpace(context.Request.Title) ? "Confirm your action" : context.Request.Title!,
                 DisplayData = displayData,
                 ReturnUrl = context.Request.ReturnUrl,
                 ConfirmationToken = token,

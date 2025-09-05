@@ -204,7 +204,8 @@ else
                     buttonText: "Save and continue",
                     handler: "Page",
                     displayFields: "trustname,ukprn,companiesHousenumber",
-                    buttonId: "autocomplete-confirm-button")
+                    buttonId: "autocomplete-confirm-button",
+                    title: $"Is this the right {@Model.Field.Label.Value.ToLower()}?")
             </div>
         </div>
     </div>
