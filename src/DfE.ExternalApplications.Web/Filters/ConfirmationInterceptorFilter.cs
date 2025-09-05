@@ -74,7 +74,7 @@ namespace DfE.ExternalApplications.Web.Filters
                 OriginalHandler = confirmationInfo.Handler,
                 OriginalFormData = ExtractFormData(form),
                 DisplayFields = confirmationInfo.DisplayFields,
-                ReturnUrl = context.HttpContext.Request.GetDisplayUrl(),
+                ReturnUrl = $"{context.HttpContext.Request.Path}{context.HttpContext.Request.QueryString}",
                 Title = title
             };
 
@@ -154,7 +154,7 @@ namespace DfE.ExternalApplications.Web.Filters
                 OriginalHandler = confirmationInfo.Handler,
                 OriginalFormData = ExtractFormData(form),
                 DisplayFields = confirmationInfo.DisplayFields,
-                ReturnUrl = context.HttpContext.Request.GetDisplayUrl(),
+                ReturnUrl = $"{context.HttpContext.Request.Path}{context.HttpContext.Request.QueryString}",
                 Title = title2,
             };
 

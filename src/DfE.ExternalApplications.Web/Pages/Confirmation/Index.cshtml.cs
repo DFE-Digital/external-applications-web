@@ -93,8 +93,15 @@ namespace DfE.ExternalApplications.Web.Pages.Confirmation
 
             if (!isConfirmed)
             {
-                _logger.LogInformation("User cancelled confirmation; redirecting to {ReturnUrl}", context.Request.ReturnUrl);
-                return Redirect(context.Request.ReturnUrl);
+                var back = context.Request.ReturnUrl ?? "/";
+                if (Uri.TryCreate(back, UriKind.Absolute, out var abs))
+                {
+                    back = abs.PathAndQuery;
+                }
+
+                _confirmationService.ClearConfirmation(token);
+                _logger.LogInformation("User cancelled confirmation; local redirect to {ReturnUrl}", back);
+                return LocalRedirect(back);
             }
 
             return ExecuteOriginalAction(context);
