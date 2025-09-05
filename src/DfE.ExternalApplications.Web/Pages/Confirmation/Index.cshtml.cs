@@ -113,18 +113,17 @@ namespace DfE.ExternalApplications.Web.Pages.Confirmation
                 var originalHandler = context.Request.OriginalHandler;
                 var formData = context.Request.OriginalFormData;
 
-                // Store the confirmed form data in TempData so the target page can access it
+                // Store the confirmed form data in TempData so the target page can access it if needed
                 TempData["ConfirmedFormData"] = JsonSerializer.Serialize(formData);
                 TempData["ConfirmedHandler"] = originalHandler;
 
                 // Clear the confirmation as it's been used
                 _confirmationService.ClearConfirmation(ConfirmationToken);
 
-                // Redirect to the original page with a special flag indicating this is a confirmed action
+                // Preserve the POST and body so the original handler executes as intended
                 var redirectUrl = $"{originalPath}?confirmed=true&handler={originalHandler}";
-                
-                _logger.LogInformation("Redirecting to execute original action: {RedirectUrl}", redirectUrl);
-                return Redirect(redirectUrl);
+                _logger.LogInformation("Redirecting (preserve method) to execute original action: {RedirectUrl}", redirectUrl);
+                return new RedirectResult(redirectUrl, permanent: false, preserveMethod: true);
             }
             catch (Exception ex)
             {
