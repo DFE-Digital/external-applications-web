@@ -1,3 +1,5 @@
+@using DfE.ExternalApplications.Web.Extensions
+@using GovUk.Frontend.AspNetCore.TagHelpers
 @model Tuple<DfE.ExternalApplications.Web.Pages.FormEngine.RenderFormModel, DfE.ExternalApplications.Domain.Models.MultiCollectionFlowConfiguration>
 @{
     var renderModel = Model.Item1;
@@ -50,9 +52,12 @@
                                     <input type="hidden" name="flowId" value="@flow.FlowId" />
                                     <input type="hidden" name="fieldId" value="@flow.FieldId" />
                                     <input type="hidden" name="itemId" value="@(item.TryGetValue("id", out var itemIdValue) ? itemIdValue?.ToString() : "")" />
-                                    <button type="submit" class="govuk-link" style="border: none; background: none; padding: 0; text-decoration: underline; cursor: pointer;">
-                                        Remove<span class="govuk-visually-hidden"> @memberTitle</span>
-                                    </button>
+                                    <input type="hidden" name="itemTitle" value="@memberTitle" />
+                                    @Html.RenderLinkConfirmationButton(
+                                        buttonText: "Remove",
+                                        handler: "RemoveCollectionItem",
+                                        displayFields: "itemTitle",
+                                        buttonId: $"remove-flow-item-@memberNumber")
                                 </form>
                             </dd>
                         </div>
@@ -74,9 +79,12 @@
                                     <input type="hidden" name="flowId" value="@flow.FlowId" />
                                     <input type="hidden" name="fieldId" value="@flow.FieldId" />
                                     <input type="hidden" name="itemId" value="@(item.TryGetValue("id", out var itemIdValue2) ? itemIdValue2?.ToString() : "")" />
-                                    <button type="submit" class="govuk-link" style="border: none; background: none; padding: 0; text-decoration: underline; cursor: pointer;">
-                                        Remove<span class="govuk-visually-hidden"> @memberTitle</span>
-                                    </button>
+                                    <input type="hidden" name="itemTitle" value="@memberTitle" />
+                                    @Html.RenderLinkConfirmationButton(
+                                        buttonText: "Remove",
+                                        handler: "RemoveCollectionItem",
+                                        displayFields: "itemTitle",
+                                        buttonId: $"remove-flow-item-@memberNumber")
                                 </form>
                             </dd>
                         </div>
@@ -236,9 +244,12 @@
                                     <input type="hidden" name="flowId" value="@flow.FlowId" />
                                     <input type="hidden" name="fieldId" value="@flow.FieldId" />
                                     <input type="hidden" name="itemId" value="@(item.TryGetValue("id", out var itemIdValue) ? itemIdValue?.ToString() : "")" />
-                                    <button type="submit" class="govuk-link" style="border: none; background: none; padding: 0; text-decoration: underline; cursor: pointer;">
-                                        Remove<span class="govuk-visually-hidden"> @memberTitle</span>
-                                    </button>
+                                    <input type="hidden" name="itemTitle" value="@memberTitle" />
+                                    @Html.RenderLinkConfirmationButton(
+                                        buttonText: "Remove",
+                                        handler: "RemoveCollectionItem",
+                                        displayFields: "itemTitle",
+                                        buttonId: $"remove-flow-item-@memberNumber")
                                 </form>
                             </li>
                         </ul>
