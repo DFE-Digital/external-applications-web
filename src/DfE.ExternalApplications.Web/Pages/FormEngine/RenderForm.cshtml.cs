@@ -382,20 +382,36 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 if (match.Success)
                 {
                     var fieldId = match.Groups[1].Value;
+                    // Normalise autocomplete ids like Data_trustsSearch to trustsSearch
+                    var normalisedFieldId = fieldId.StartsWith("Data_", StringComparison.Ordinal) ? fieldId.Substring(5) : fieldId;
                     var formValue = Request.Form[key];
 
                     // Convert StringValues to a simple string or array based on count
                     if (formValue.Count == 1)
                     {
-                        Data[fieldId] = formValue.ToString();
+                        var val = formValue.ToString();
+                        Data[fieldId] = val;
+                        if (!string.Equals(fieldId, normalisedFieldId, StringComparison.Ordinal))
+                        {
+                            Data[normalisedFieldId] = val;
+                        }
                     }
                     else if (formValue.Count > 1)
                     {
-                        Data[fieldId] = formValue.ToArray();
+                        var arr = formValue.ToArray();
+                        Data[fieldId] = arr;
+                        if (!string.Equals(fieldId, normalisedFieldId, StringComparison.Ordinal))
+                        {
+                            Data[normalisedFieldId] = arr;
+                        }
                     }
                     else
                     {
                         Data[fieldId] = string.Empty;
+                        if (!string.Equals(fieldId, normalisedFieldId, StringComparison.Ordinal))
+                        {
+                            Data[normalisedFieldId] = string.Empty;
+                        }
                     }
                 }
             }
