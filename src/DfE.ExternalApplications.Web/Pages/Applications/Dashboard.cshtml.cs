@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using SystemTask = System.Threading.Tasks.Task;
+using Microsoft.Extensions.Configuration;
 
 namespace DfE.ExternalApplications.Web.Pages.Applications
 {
@@ -116,12 +117,19 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
 
         public async Task<IActionResult> OnPostCreateApplicationAsync()
         {
-            var templateId = HttpContext.Session.GetString("TemplateId") ?? string.Empty;
+            var templateGuid = ResolveTemplateId();
+            if (!templateGuid.HasValue)
+            {
+                HasError = true;
+                ErrorMessage = "Template is not configured. Please refresh the page.";
+                logger.LogWarning("TemplateId not available when creating application");
+                return Page();
+            }
 
             var response = await applicationsClient.CreateApplicationAsync(new CreateApplicationRequest
             {
                 InitialResponseBody = "{}",
-                TemplateId = new Guid(templateId)
+                TemplateId = templateGuid.Value
             });
 
             HttpContext.Session.SetString("ApplicationId", response.ApplicationId.ToString());
@@ -140,9 +148,16 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
 
         private async SystemTask LoadApplicationsAsync()
         {
-            var templateId = HttpContext.Session.GetString("TemplateId") ?? string.Empty;
+            var templateGuid = ResolveTemplateId();
+            if (!templateGuid.HasValue)
+            {
+                // Try again on next request; show empty state instead of erroring
+                logger.LogWarning("TemplateId not available when loading applications; rendering empty dashboard");
+                Applications = Array.Empty<ApplicationWithCalculatedStatus>();
+                return;
+            }
 
-            var applications = await applicationsClient.GetMyApplicationsAsync(templateId: new Guid(templateId));
+            var applications = await applicationsClient.GetMyApplicationsAsync(templateId: templateGuid.Value);
 
             // Calculate status for each application
             var applicationTasks = applications.Select(async app => new ApplicationWithCalculatedStatus
@@ -156,6 +171,34 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
             Applications = applicationsWithStatus
                 .OrderByDescending(a => a.DateCreated)
                 .ToList();
+        }
+
+        private Guid? ResolveTemplateId()
+        {
+            try
+            {
+                var templateId = HttpContext.Session.GetString("TemplateId");
+                if (Guid.TryParse(templateId, out var guid))
+                {
+                    return guid;
+                }
+
+                // Fallback to configuration
+                var configuration = HttpContext.RequestServices.GetService(typeof(IConfiguration)) as IConfiguration;
+                var configured = configuration?["Template:Id"];
+                if (Guid.TryParse(configured, out var cfgGuid))
+                {
+                    // Persist into session for subsequent requests
+                    HttpContext.Session.SetString("TemplateId", cfgGuid.ToString());
+                    return cfgGuid;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to resolve TemplateId");
+            }
+
+            return null;
         }
 
         private SystemTask LoadUserDetailsAsync()

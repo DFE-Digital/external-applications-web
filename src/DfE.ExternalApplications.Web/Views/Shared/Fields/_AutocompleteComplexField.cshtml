@@ -2,6 +2,7 @@
 @using System.Text.Json;
 @using DfE.ExternalApplications.Application.Interfaces;
 @using DfE.ExternalApplications.Domain.Models;
+@using DfE.ExternalApplications.Web.Extensions;
 @inject IComplexFieldConfigurationService ComplexFieldConfigurationService
 @model DfE.ExternalApplications.Web.Services.FieldViewModel
 
@@ -180,7 +181,7 @@ else
             
             <!-- Selected items container -->
             <div id="@selectedItemsId" class="complex-field-selected-items">
-                @if (currentValues.Any())
+                @if (configuration.AllowMultiple && currentValues.Any())
                 {
                     foreach (var value in currentValues)
                     {
@@ -197,6 +198,14 @@ else
                         </div>
                     }
                 }
+            </div>
+            <div class="govuk-button-group">
+                @Html.RenderPrimaryConfirmationButton(
+                    buttonText: "Save and continue",
+                    handler: "Page",
+                    displayFields: "trustname,ukprn,companiesHousenumber",
+                    buttonId: "autocomplete-confirm-button",
+                    title: $"Is this the right item?")
             </div>
         </div>
     </div>
@@ -250,6 +259,22 @@ else
         font-weight: 400;
         margin-top: 2px;
         line-height: 1.2;
+    }
+
+    /* Ensure suggestion text becomes white when option is highlighted/selected */
+    .autocomplete__option--focused .complex-field-suggestion-name,
+    .autocomplete__option--selected .complex-field-suggestion-name,
+    .autocomplete__option--focused .complex-field-suggestion-identifiers,
+    .autocomplete__option--selected .complex-field-suggestion-identifiers {
+        color: #ffffff;
+    }
+
+    /* Ensure nested suggestion text stays white on hover/focus */
+    .autocomplete__option:hover .complex-field-suggestion-name,
+    .autocomplete__option:hover .complex-field-suggestion-identifiers,
+    .autocomplete__option:focus .complex-field-suggestion-name,
+    .autocomplete__option:focus .complex-field-suggestion-identifiers {
+        color: #ffffff;
     }
     
     /* Accessible autocomplete styling overrides */
@@ -338,6 +363,7 @@ else
         position: absolute;
         right: 0;
         top: 0;
+        display: none; /* hide grey predictive hint text behind the input */
     }
 </style>
 
@@ -401,6 +427,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const minLength = parseInt(complexFieldContainer.dataset.minLength) || 3;
         const placeholder = complexFieldContainer.dataset.placeholder;
         const maxSelections = parseInt(complexFieldContainer.dataset.maxSelections) || 0;
+        let lastConfirmedText = '';
+        let suppressMenuUntilUserInput = false;
         
         console.log('Initializing autocomplete complex field for container element:', complexFieldContainer);
         console.log('Complex Field ID:', complexFieldId);
@@ -443,16 +471,19 @@ document.addEventListener('DOMContentLoaded', function() {
                         },
                         suggestion: function(result) {
                             console.log('suggestion template called with:', result);
-                            if (typeof result === 'object' && result !== null && result.name) {
-                                var html = '<div class="complex-field-suggestion">';
-                                html += '<div class="complex-field-suggestion-name">' + escapeHtml(result.name) + '</div>';
-                                
-                                if (result.ukprn) {
-                                    html += '<div class="complex-field-suggestion-identifiers">UKPRN: ' + escapeHtml(result.ukprn) + '</div>';
-                                }
-                                
-                                html += '</div>';
-                                return html;
+                            if (typeof result === 'object' && result !== null) {
+                                var name = result.name ? escapeHtml(result.name) : '';
+                                var ukprn = (result.ukprn !== undefined && result.ukprn !== null) ? escapeHtml(result.ukprn.toString()) : '';
+                                var ch = '';
+                                if (result.companiesHouseNumber) ch = result.companiesHouseNumber;
+                                else if (result.companiesHousenumber) ch = result.companiesHousenumber;
+                                else if (result.companies_house_number) ch = result.companies_house_number;
+                                ch = ch ? escapeHtml(ch.toString()) : '';
+
+                                var parts = [name];
+                                if (ukprn) parts.push('UKPRN: ' + ukprn);
+                                if (ch) parts.push('Companies house number: ' + ch);
+                                return '<div class="complex-field-suggestion">' + parts.join(' - ') + '</div>';
                             }
                             return result ? escapeHtml(result.toString()) : '';
                         }
@@ -465,6 +496,15 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (!query || query.length < minLength) {
                             console.log('Query too short, returning empty results');
                             populateResults([]);
+                            try {
+                                var menuEl = container.querySelector('.autocomplete__menu');
+                                var inputEl = container.querySelector('.autocomplete__input');
+                                if (menuEl) {
+                                    menuEl.classList.remove('autocomplete__menu--visible');
+                                    menuEl.style.display = 'none';
+                                }
+                                if (inputEl) inputEl.setAttribute('aria-expanded', 'false');
+                            } catch {}
                             return;
                         }
                         
@@ -505,56 +545,71 @@ document.addEventListener('DOMContentLoaded', function() {
                         console.log('Option confirmed:', option);
                         console.log('Option type:', typeof option);
                         console.log('Option details:', JSON.stringify(option));
-                        
-                        if (option) {
-                            var isValidString = typeof option === 'string' && option.trim() !== '';
-                            var isValidObject = typeof option === 'object' && option !== null && option.name;
-                            
-                            console.log('Is valid string:', isValidString);
-                            console.log('Is valid object:', isValidObject);
-                            
-                            if (isValidString || isValidObject) {
-                                console.log('Adding selected item...');
-                                addSelectedItem(option);
-                                
-                                // Clear the input after selection using multiple approaches
-                                const autocompleteInput = container.querySelector('.autocomplete__input');
-                                if (autocompleteInput) {
-                                    console.log('Clearing autocomplete input with multiple methods');
-                                    
-                                    // Method 1: Direct value assignment
-                                    autocompleteInput.value = '';
-                                    
-                                    // Method 2: Set React-compatible value using property descriptor
-                                    try {
-                                        const valueSetter = Object.getOwnPropertyDescriptor(autocompleteInput, 'value')?.set ||
-                                                          Object.getOwnPropertyDescriptor(Object.getPrototypeOf(autocompleteInput), 'value')?.set;
-                                        if (valueSetter) {
-                                            valueSetter.call(autocompleteInput, '');
-                                        }
-                                    } catch (e) {
-                                        console.log('React-style value setting failed:', e);
-                                    }
-                                    
-                                    // Method 3: Trigger input events to notify any listeners
-                                    autocompleteInput.dispatchEvent(new Event('input', { bubbles: true }));
-                                    autocompleteInput.dispatchEvent(new Event('change', { bubbles: true }));
-                                    
-                                    // Method 4: Use setTimeout to ensure clearing happens after any library updates
-                                    setTimeout(function() {
-                                        autocompleteInput.value = '';
-                                        autocompleteInput.dispatchEvent(new Event('input', { bubbles: true }));
-                                        console.log('Input cleared with timeout method');
-                                    }, 10);
-                                    
-                                } else {
-                                    console.warn('Autocomplete input not found for clearing');
-                                }
-                            } else {
-                                console.log('Option validation failed');
-                            }
-                        } else {
+
+                        if (!option) {
                             console.log('No option provided to onConfirm');
+                            return;
+                        }
+
+                        var isValidString = typeof option === 'string' && option.trim() !== '';
+                        var isValidObject = typeof option === 'object' && option !== null && option.name;
+
+                        if (!isValidString && !isValidObject) {
+                            console.log('Option validation failed');
+                            return;
+                        }
+
+                        const autocompleteInput = container.querySelector('.autocomplete__input');
+                        const menuEl = container.querySelector('.autocomplete__menu');
+
+                        if (!allowMultiple) {
+                            // Single-select: populate input with label and update hidden input only
+                            var labelText = isValidObject ? (option.name || option.toString()) : option.toString();
+
+                            if (typeof option === 'object' && option !== null) {
+                                hiddenInput.value = JSON.stringify(option);
+                            } else {
+                                hiddenInput.value = option.toString();
+                            }
+
+                            if (autocompleteInput) {
+                                try {
+                                    const valueSetter = Object.getOwnPropertyDescriptor(autocompleteInput, 'value')?.set ||
+                                        Object.getOwnPropertyDescriptor(Object.getPrototypeOf(autocompleteInput), 'value')?.set;
+                                    if (valueSetter) valueSetter.call(autocompleteInput, labelText);
+                                    else autocompleteInput.value = labelText;
+                                } catch { autocompleteInput.value = labelText; }
+                            }
+
+                            // Remember confirmed text and hide the menu until user types again (real input)
+                            lastConfirmedText = labelText;
+                            suppressMenuUntilUserInput = true;
+                            if (menuEl) menuEl.classList.remove('autocomplete__menu--visible');
+                            if (autocompleteInput) autocompleteInput.setAttribute('aria-expanded', 'false');
+
+                            // Ensure no below-the-input rendering for single-select
+                            selectedItemsContainer.innerHTML = '';
+                            return;
+                        }
+
+                        // Multi-select: keep existing behavior of rendering selected items below and clearing input
+                        addSelectedItem(option);
+
+                        if (autocompleteInput) {
+                            // Clear for next entry
+                            try {
+                                const valueSetter = Object.getOwnPropertyDescriptor(autocompleteInput, 'value')?.set ||
+                                    Object.getOwnPropertyDescriptor(Object.getPrototypeOf(autocompleteInput), 'value')?.set;
+                                if (valueSetter) valueSetter.call(autocompleteInput, '');
+                                else autocompleteInput.value = '';
+                                // Do not dispatch synthetic input/change to avoid reopening the menu
+                            } catch { autocompleteInput.value = ''; }
+                            setTimeout(function() {
+                                autocompleteInput.value = '';
+                            }, 10);
+                            if (menuEl) menuEl.classList.remove('autocomplete__menu--visible');
+                            autocompleteInput.setAttribute('aria-expanded', 'false');
+                            suppressMenuUntilUserInput = true;
                         }
                     }
                 });
@@ -608,6 +663,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Apply GovUK styling to the created input after a short delay
                 setTimeout(function() {
                     const autocompleteInput = container.querySelector('.autocomplete__input');
+                    const menuEl = container.querySelector('.autocomplete__menu');
                     if (autocompleteInput) {
                         // Set the correct ID to match the label's 'for' attribute
                         autocompleteInput.id = fieldId + '-complex-field';
@@ -617,6 +673,57 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                         console.log('Applied GovUK styling to autocomplete complex field input');
                         console.log('Set input ID to:', autocompleteInput.id);
+
+                        // Pre-populate input for single-select if a value already exists
+                        if (!allowMultiple && hiddenInput.value) {
+                            try {
+                                let v = hiddenInput.value;
+                                let labelText = '';
+                                try {
+                                    const parsed = JSON.parse(v);
+                                    labelText = parsed && parsed.name ? parsed.name : v.toString();
+                                } catch { labelText = v.toString(); }
+                                const valueSetter = Object.getOwnPropertyDescriptor(autocompleteInput, 'value')?.set ||
+                                    Object.getOwnPropertyDescriptor(Object.getPrototypeOf(autocompleteInput), 'value')?.set;
+                                if (valueSetter) valueSetter.call(autocompleteInput, labelText);
+                                else autocompleteInput.value = labelText;
+                                lastConfirmedText = labelText;
+                            } catch {}
+                        }
+
+                        // Hide dropdown until user types enough characters or changes input after a selection
+                        const hideMenu = () => {
+                                if (menuEl) menuEl.classList.remove('autocomplete__menu--visible');
+                                if (menuEl) menuEl.style.display = 'none';
+                                autocompleteInput.setAttribute('aria-expanded', 'false');
+                            };
+
+                        const maybeUpdateMenuVisibility = (e) => {
+                            const val = autocompleteInput.value || '';
+                            // If suppressed (just selected), keep hidden until real user input changes it
+                            if (suppressMenuUntilUserInput) {
+                                if (!e || !e.isTrusted || val === lastConfirmedText) {
+                                    hideMenu();
+                                    return;
+                                }
+                                // User typed something different; lift suppression
+                                suppressMenuUntilUserInput = false;
+                            }
+
+                            if (val.length < minLength || (lastConfirmedText && val === lastConfirmedText)) {
+                                hideMenu();
+                            } else {
+                                // Allow menu to show on genuine typing
+                                if (menuEl) menuEl.style.display = '';
+                            }
+                        };
+
+                        autocompleteInput.addEventListener('focus', (e) => maybeUpdateMenuVisibility(e));
+                        autocompleteInput.addEventListener('input', (e) => maybeUpdateMenuVisibility(e));
+                        // Enforce initial state
+                        hideMenu();
+                        // Ensure hidden at init
+                        if (menuEl) menuEl.style.display = 'none';
                     }
                 }, 100);
                 

@@ -1,3 +1,7 @@
+@using DfE.ExternalApplications.Web.Extensions
+@using GovUk.Frontend.AspNetCore.TagHelpers
+@using System.Text.Json
+@inject DfE.ExternalApplications.Application.Interfaces.IComplexFieldConfigurationService ComplexFieldConfigurationService
 @model Tuple<DfE.ExternalApplications.Web.Pages.FormEngine.RenderFormModel, DfE.ExternalApplications.Domain.Models.MultiCollectionFlowConfiguration>
 @{
     var renderModel = Model.Item1;
@@ -50,9 +54,13 @@
                                     <input type="hidden" name="flowId" value="@flow.FlowId" />
                                     <input type="hidden" name="fieldId" value="@flow.FieldId" />
                                     <input type="hidden" name="itemId" value="@(item.TryGetValue("id", out var itemIdValue) ? itemIdValue?.ToString() : "")" />
-                                    <button type="submit" class="govuk-link" style="border: none; background: none; padding: 0; text-decoration: underline; cursor: pointer;">
-                                        Remove<span class="govuk-visually-hidden"> @memberTitle</span>
-                                    </button>
+                                    <input type="hidden" name="itemTitle" value="@memberTitle" />
+                                    @Html.RenderLinkConfirmationButton(
+                                        buttonText: "Remove",
+                                        handler: "RemoveCollectionItem",
+                                        displayFields: "itemTitle",
+                                        title:"Please confirm removal of the following item",
+                                        buttonId: $"remove-flow-item-@memberNumber")
                                 </form>
                             </dd>
                         </div>
@@ -74,9 +82,13 @@
                                     <input type="hidden" name="flowId" value="@flow.FlowId" />
                                     <input type="hidden" name="fieldId" value="@flow.FieldId" />
                                     <input type="hidden" name="itemId" value="@(item.TryGetValue("id", out var itemIdValue2) ? itemIdValue2?.ToString() : "")" />
-                                    <button type="submit" class="govuk-link" style="border: none; background: none; padding: 0; text-decoration: underline; cursor: pointer;">
-                                        Remove<span class="govuk-visually-hidden"> @memberTitle</span>
-                                    </button>
+                                    <input type="hidden" name="itemTitle" value="@memberTitle" />
+                                    @Html.RenderLinkConfirmationButton(
+                                        buttonText: "Remove",
+                                        handler: "RemoveCollectionItem",
+                                        displayFields: "itemTitle",
+                                        title:"Please confirm removal of the following item",
+                                        buttonId: $"remove-flow-item-@memberNumber")
                                 </form>
                             </dd>
                         </div>
@@ -85,11 +97,24 @@
                                           @* Item fields *@
                      @foreach (var col in (flow.SummaryColumns ?? new List<DfE.ExternalApplications.Domain.Models.FlowSummaryColumn>()).Where(c => !renderModel.IsFieldHiddenForItem(c.Field, item)))
                     {
-                        var value = item.TryGetValue(col.Field, out var v) ? v?.ToString() : string.Empty;
+                        var valueObj = item.TryGetValue(col.Field, out var v) ? v : null;
+                        var value = valueObj is string sv ? sv :
+                                    valueObj is System.Text.Json.JsonElement je ? je.ToString() :
+                                    (valueObj != null ? System.Text.Json.JsonSerializer.Serialize(valueObj) : string.Empty);
 
                         // Find which page contains this field within this flow
                         var targetPage = flow.Pages?.FirstOrDefault(p => p.Fields.Any(f => f.FieldId == col.Field));
                         var pageId = targetPage?.PageId ?? flow.Pages?.FirstOrDefault()?.PageId ?? "";
+                        // Detect field type for special rendering (upload vs autocomplete)
+                        var fieldConfig = targetPage?.Fields.FirstOrDefault(f => f.FieldId == col.Field);
+                        var isAutocompleteField = false;
+                        var isUploadFieldByConfig = false;
+                        if (fieldConfig != null && fieldConfig.Type == "complexField" && fieldConfig.ComplexField != null)
+                        {
+                            var cfg = ComplexFieldConfigurationService.GetConfiguration(fieldConfig.ComplexField.Id);
+                            isAutocompleteField = string.Equals(cfg.FieldType, "autocomplete", StringComparison.OrdinalIgnoreCase);
+                            isUploadFieldByConfig = string.Equals(cfg.FieldType, "upload", StringComparison.OrdinalIgnoreCase);
+                        }
                         
                         <div class="govuk-summary-list__row">
                             <dt class="govuk-summary-list__key">
@@ -108,8 +133,17 @@
                                     else
                                         renderModel.FormData.Remove(col.Field);
                                     
-                                    // Check if this is an upload field by looking at the raw value
-                                    var isUploadField = !string.IsNullOrEmpty(value) && value.StartsWith("[") && value.Contains("\"id\"");
+                                    // Determine if this is an upload field
+                                    var isUploadField = isUploadFieldByConfig || (!string.IsNullOrEmpty(value) && value.StartsWith("[") && value.Contains("\"id\""));
+                                    // If autocomplete field and current value is empty, try to infer from item values
+                                    if (isAutocompleteField && string.IsNullOrEmpty(value))
+                                    {
+                                        var inferred = TryFindAutocompleteJsonInItem(item);
+                                        if (!string.IsNullOrEmpty(inferred))
+                                        {
+                                            value = inferred;
+                                        }
+                                    }
                                     
                                     @if (formattedValues.Count == 0)
                                     {
@@ -143,6 +177,11 @@
                                             {
                                                 @Html.Raw(formattedValues.First())
                                             }
+                                        }
+                                        else if (isAutocompleteField)
+                                        {
+                                            var html = RenderAutocompleteSummary(value);
+                                            @Html.Raw(html)
                                         }
                                         else
                                         {
@@ -236,9 +275,13 @@
                                     <input type="hidden" name="flowId" value="@flow.FlowId" />
                                     <input type="hidden" name="fieldId" value="@flow.FieldId" />
                                     <input type="hidden" name="itemId" value="@(item.TryGetValue("id", out var itemIdValue) ? itemIdValue?.ToString() : "")" />
-                                    <button type="submit" class="govuk-link" style="border: none; background: none; padding: 0; text-decoration: underline; cursor: pointer;">
-                                        Remove<span class="govuk-visually-hidden"> @memberTitle</span>
-                                    </button>
+                                    <input type="hidden" name="itemTitle" value="@memberTitle" />
+                                    @Html.RenderLinkConfirmationButton(
+                                        buttonText: "Remove",
+                                        handler: "RemoveCollectionItem",
+                                        displayFields: "itemTitle",
+                                        title:"Please confirm removal of the following item",
+                                        buttonId: $"remove-flow-item-@memberNumber")
                                 </form>
                             </li>
                         </ul>
@@ -247,10 +290,32 @@
                           <dl class="govuk-summary-list">
                              @foreach (var col in (flow.SummaryColumns ?? new List<DfE.ExternalApplications.Domain.Models.FlowSummaryColumn>()).Where(c => !renderModel.IsFieldHiddenForItem(c.Field, item)))
                             {
-                                var value = item.TryGetValue(col.Field, out var v) ? v?.ToString() : string.Empty;
+                                var valueObj = item.TryGetValue(col.Field, out var v) ? v : null;
+                                var value = valueObj is string sv ? sv :
+                                            valueObj is System.Text.Json.JsonElement je ? je.ToString() :
+                                            (valueObj != null ? System.Text.Json.JsonSerializer.Serialize(valueObj) : string.Empty);
                                 // Find which page contains this field within this flow
                                 var targetPage = flow.Pages?.FirstOrDefault(p => p.Fields.Any(f => f.FieldId == col.Field));
                                 var pageId = targetPage?.PageId ?? flow.Pages?.FirstOrDefault()?.PageId ?? "";
+                                // Detect field type for special rendering (upload vs autocomplete)
+                                var fieldConfig = targetPage?.Fields.FirstOrDefault(f => f.FieldId == col.Field);
+                                var isAutocompleteField = false;
+                                var isUploadFieldByConfig = false;
+                                if (fieldConfig != null && fieldConfig.Type == "complexField" && fieldConfig.ComplexField != null)
+                                {
+                                    var cfg = ComplexFieldConfigurationService.GetConfiguration(fieldConfig.ComplexField.Id);
+                                    isAutocompleteField = string.Equals(cfg.FieldType, "autocomplete", StringComparison.OrdinalIgnoreCase);
+                                    isUploadFieldByConfig = string.Equals(cfg.FieldType, "upload", StringComparison.OrdinalIgnoreCase);
+                                }
+                                // If autocomplete field and current value is empty, try to infer from item values
+                                if (isAutocompleteField && string.IsNullOrEmpty(value))
+                                {
+                                    var inferred = TryFindAutocompleteJsonInItem(item);
+                                    if (!string.IsNullOrEmpty(inferred))
+                                    {
+                                        value = inferred;
+                                    }
+                                }
                                 
                                 <div class="govuk-summary-list__row">
                                     <dt class="govuk-summary-list__key">
@@ -269,8 +334,9 @@
                                             else
                                                 renderModel.FormData.Remove(col.Field);
                                             
-                                            // Check if this is an upload field by looking at the raw value
-                                            var isUploadField = !string.IsNullOrEmpty(value) && value.StartsWith("[") && value.Contains("\"id\"");
+                                            // Determine if this is an upload field
+                                            var isUploadField = isUploadFieldByConfig || (!string.IsNullOrEmpty(value) && value.StartsWith("[") && value.Contains("\"id\""));
+                                            
                                             
                                             @if (formattedValues.Count == 0)
                                             {
@@ -304,6 +370,11 @@
                                                     {
                                                         @Html.Raw(formattedValues.First())
                                                     }
+                                                }
+                                                else if (isAutocompleteField)
+                                                {
+                                                    var html = RenderAutocompleteSummary(value);
+                                                    @Html.Raw(html)
                                                 }
                                                 else
                                                 {
@@ -390,3 +461,59 @@
         <a class="govuk-button" href="/applications/@renderModel.ReferenceNumber/@renderModel.TaskId/flow/@flow.FlowId/@Guid.NewGuid()">@flow.AddButtonLabel</a>
     </div>
 </div>
+@functions{
+    // Builds HTML matching confirmation page formatting for a single autocomplete selection
+    private static string RenderAutocompleteSummary(string rawValue)
+    {
+        if (string.IsNullOrWhiteSpace(rawValue)) return string.Empty;
+        try
+        {
+            using var doc = JsonDocument.Parse(rawValue);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return System.Net.WebUtility.HtmlEncode(rawValue);
+            }
+
+            var root = doc.RootElement;
+            string name = root.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() ?? string.Empty : string.Empty;
+            string ukprn = root.TryGetProperty("ukprn", out var u) ? u.ToString() : string.Empty;
+            string ch = root.TryGetProperty("companiesHouseNumber", out var c) && c.ValueKind == JsonValueKind.String ? c.GetString() ?? string.Empty : string.Empty;
+            if (string.IsNullOrWhiteSpace(ch) && root.TryGetProperty("companiesHousenumber", out var c2)) ch = c2.ToString();
+
+            var sb = new System.Text.StringBuilder();
+            if (!string.IsNullOrWhiteSpace(name)) sb.Append($"<strong class=\"govuk-!-font-weight-bold\">{System.Net.WebUtility.HtmlEncode(name)}</strong>");
+            if (!string.IsNullOrWhiteSpace(ukprn)) sb.Append($"<br/>UKPRN: {System.Net.WebUtility.HtmlEncode(ukprn)}");
+            if (!string.IsNullOrWhiteSpace(ch)) sb.Append($"<br/>Companies house number: {System.Net.WebUtility.HtmlEncode(ch)}");
+            return sb.ToString();
+        }
+        catch
+        {
+            return System.Net.WebUtility.HtmlEncode(rawValue);
+        }
+    }
+
+    // Heuristic: find a likely autocomplete JSON object in the item's values
+    private static string TryFindAutocompleteJsonInItem(Dictionary<string, object> item)
+    {
+        foreach (var kv in item)
+        {
+            var s = kv.Value?.ToString();
+            if (string.IsNullOrWhiteSpace(s)) continue;
+            try
+            {
+                using var doc = JsonDocument.Parse(s);
+                if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                {
+                    if (doc.RootElement.TryGetProperty("name", out _) ||
+                        doc.RootElement.TryGetProperty("ukprn", out _) ||
+                        doc.RootElement.TryGetProperty("companiesHouseNumber", out _))
+                    {
+                        return s;
+                    }
+                }
+            }
+            catch { }
+        }
+        return string.Empty;
+    }
+}

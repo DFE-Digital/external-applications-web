@@ -5,6 +5,7 @@ using DfE.ExternalApplications.Domain.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using System.Text.Json;
 
 namespace DfE.ExternalApplications.Web.Pages.Applications;
 
@@ -114,6 +115,81 @@ public class ContributorsModel(
         {
             logger.LogError(ex, "Error removing contributor {ContributorId} from application reference {ReferenceNumber}", 
                 contributorId, ReferenceNumber);
+            HasError = true;
+            ErrorMessage = "There was a problem removing the contributor. Please try again.";
+            return await OnGetAsync();
+        }
+    }
+
+    /// <summary>
+    /// Handles confirmed removal coming back from the confirmation page via GET
+    /// </summary>
+    public async Task<IActionResult> OnGetRemoveContributorAsync()
+    {
+        // Only proceed if this is a confirmed action
+        if (!Request.Query.ContainsKey("confirmed") || Request.Query["confirmed"] != "true")
+        {
+            return await OnGetAsync();
+        }
+
+        try
+        {
+            // Restore confirmed form data from TempData
+            var confirmedDataJson = TempData["ConfirmedFormData"]?.ToString();
+            if (string.IsNullOrEmpty(confirmedDataJson))
+            {
+                return await OnGetAsync();
+            }
+
+            Guid contributorId = Guid.Empty;
+
+            try
+            {
+                var dict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(confirmedDataJson);
+                if (dict != null && dict.TryGetValue("contributorId", out var je))
+                {
+                    var idStr = je.ValueKind == JsonValueKind.String ? je.GetString() : je.ToString();
+                    if (!string.IsNullOrWhiteSpace(idStr))
+                    {
+                        Guid.TryParse(idStr, out contributorId);
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore and fall back to empty id
+            }
+
+            if (contributorId == Guid.Empty)
+            {
+                // Unable to determine contributor, just reload
+                return await OnGetAsync();
+            }
+
+            if (!ApplicationId.HasValue)
+            {
+                var (applicationId, _) = await applicationStateService.EnsureApplicationIdAsync(ReferenceNumber, HttpContext.Session);
+                ApplicationId = applicationId;
+            }
+
+            if (!ApplicationId.HasValue)
+            {
+                logger.LogWarning("No application ID found for reference number {ReferenceNumber} when confirming removal", ReferenceNumber);
+                HasError = true;
+                ErrorMessage = "Application not found. Please try again.";
+                return await OnGetAsync();
+            }
+
+            await contributorService.RemoveContributorAsync(ApplicationId.Value, contributorId);
+
+            logger.LogInformation("Successfully removed contributor {ContributorId} from application {ApplicationId} via confirmation", 
+                contributorId, ApplicationId.Value);
+
+            return RedirectToPage("/Applications/Contributors", new { referenceNumber = ReferenceNumber });
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error removing contributor via confirmed GET for application reference {ReferenceNumber}", ReferenceNumber);
             HasError = true;
             ErrorMessage = "There was a problem removing the contributor. Please try again.";
             return await OnGetAsync();

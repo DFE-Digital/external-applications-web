@@ -1,5 +1,6 @@
 @model DfE.ExternalApplications.Web.Pages.FormEngine.RenderFormModel
 @inject Application.Interfaces.IComplexFieldConfigurationService ComplexFieldConfigurationService
+@using System.Text.Json
 
 <govuk-back-link href="/applications/@Model.ReferenceNumber">Back to application task list</govuk-back-link>
 
@@ -52,7 +53,7 @@
                 // Show main field header with change link
                 <div class="govuk-summary-list__row" id="field-@fieldIdHyphenated" data-testid="field-@fieldIdHyphenated">
                     <dt class="govuk-summary-list__key">
-                        @field.Label.Value
+                        Selected @field.Label.Value
                     </dt>
                     <dd class="govuk-summary-list__value">
                         @if (formattedValues.Count == 0)
@@ -96,11 +97,19 @@
                                     @Html.Raw(formattedValues.FirstOrDefault())
                                 }
                             }
+                            else if (isAutocompleteField)
+                            {
+                                var html = RenderAutocompleteSummary(fieldValue);
+                                @Html.Raw(html)
+                            }
                             else
                             {
                                 @Html.Raw(formattedValues.FirstOrDefault())
                             }
+                          
                         }
+
+                        
                     </dd>
                     <dd class="govuk-summary-list__actions">
                         @if (Model.IsApplicationEditable())
@@ -247,6 +256,37 @@
             }
         }
     }
+@functions{
+    // Builds HTML matching confirmation page formatting for a single autocomplete selection
+    private static string RenderAutocompleteSummary(string rawValue)
+    {
+        if (string.IsNullOrWhiteSpace(rawValue)) return string.Empty;
+        try
+        {
+            using var doc = JsonDocument.Parse(rawValue);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return System.Net.WebUtility.HtmlEncode(rawValue);
+            }
+
+            var root = doc.RootElement;
+            string name = root.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() ?? string.Empty : string.Empty;
+            string ukprn = root.TryGetProperty("ukprn", out var u) ? u.ToString() : string.Empty;
+            string ch = root.TryGetProperty("companiesHouseNumber", out var c) && c.ValueKind == JsonValueKind.String ? c.GetString() ?? string.Empty : string.Empty;
+            if (string.IsNullOrWhiteSpace(ch) && root.TryGetProperty("companiesHousenumber", out var c2)) ch = c2.ToString();
+
+            var sb = new System.Text.StringBuilder();
+            if (!string.IsNullOrWhiteSpace(name)) sb.Append($"<strong class=\"govuk-!-font-weight-bold\">{System.Net.WebUtility.HtmlEncode(name)}</strong>");
+            if (!string.IsNullOrWhiteSpace(ukprn)) sb.Append($"<br/>UKPRN: {System.Net.WebUtility.HtmlEncode(ukprn)}");
+            if (!string.IsNullOrWhiteSpace(ch)) sb.Append($"<br/>Companies house number: {System.Net.WebUtility.HtmlEncode(ch)}");
+            return sb.ToString();
+        }
+        catch
+        {
+            return System.Net.WebUtility.HtmlEncode(rawValue);
+        }
+    }
+}
 </dl>
 
 @if (Model.IsApplicationEditable())
