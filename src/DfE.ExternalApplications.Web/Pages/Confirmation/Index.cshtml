@@ -32,7 +32,7 @@
             </div>
         }
         
-        <form method="post" action="@Model.DisplayModel.OriginalActionUrl" id="confirmation-form">
+        <form method="post" id="confirmation-form">
             @Html.AntiForgeryToken()
             <input type="hidden" asp-for="ConfirmationToken" />
             @* Repost original form fields when confirming *@
@@ -51,9 +51,13 @@
                 }
             }
             
-            <div class="govuk-form-group">
+            <div class="govuk-form-group @(ViewData.ModelState.ContainsKey("Confirmed") ? "govuk-form-group--error" : string.Empty)">
                 <fieldset class="govuk-fieldset">
                     <legend class="govuk-visually-hidden">Choose Yes or No</legend>
+                    @if (ViewData.ModelState.ContainsKey("Confirmed"))
+                    {
+                        <govuk-error-message> @ViewData.ModelState["Confirmed"].Errors.FirstOrDefault()?.ErrorMessage </govuk-error-message>
+                    }
                     <div class="govuk-radios" data-module="govuk-radios">
                         <div class="govuk-radios__item">
                             <input class="govuk-radios__input" id="confirmed-yes" name="Confirmed" type="radio" value="true">
@@ -78,14 +82,8 @@
         <script>
             (function(){
                 const form = document.getElementById('confirmation-form');
-                const yes = document.getElementById('confirmed-yes');
                 const no = document.getElementById('confirmed-no');
                 form?.addEventListener('submit', function(e){
-                    if (!(yes?.checked || no?.checked)){
-                        e.preventDefault();
-                        alert('Please choose Yes or No to continue.');
-                        return;
-                    }
                     if (no?.checked){
                         e.preventDefault();
                         window.location.href = '@Model.DisplayModel.ReturnUrl';

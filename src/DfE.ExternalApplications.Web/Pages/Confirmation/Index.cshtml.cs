@@ -70,11 +70,6 @@ namespace DfE.ExternalApplications.Web.Pages.Confirmation
         /// </summary>
         public IActionResult OnPost()
         {
-            if (!ModelState.IsValid)
-            {
-                return Page();
-            }
-
             var token = ConfirmationToken;
             var context = _confirmationService.GetConfirmation(token);
             if (context == null)
@@ -83,8 +78,17 @@ namespace DfE.ExternalApplications.Web.Pages.Confirmation
                 return RedirectToPage("/Error/General");
             }
 
-            // Determine outcome from radio
+            // Determine outcome from radio - require explicit selection
             var confirmedValue = Request.Form["Confirmed"].ToString();
+            if (string.IsNullOrEmpty(confirmedValue))
+            {
+                // Rebuild display model and show server-side validation error
+                DisplayModel = _confirmationService.PrepareDisplayModel(token) ?? new ConfirmationDisplayModel();
+                ConfirmationToken = token;
+                ModelState.AddModelError("Confirmed", "Select yes if you want to continue");
+                return Page();
+            }
+
             var isConfirmed = string.Equals(confirmedValue, "true", StringComparison.OrdinalIgnoreCase);
 
             if (!isConfirmed)
