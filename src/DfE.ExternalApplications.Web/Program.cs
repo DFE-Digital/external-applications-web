@@ -19,6 +19,7 @@ using GovUK.Dfe.ExternalApplications.Api.Client.Extensions;
 using GovUK.Dfe.ExternalApplications.Api.Client.Security;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
@@ -50,6 +51,13 @@ if (isTestAuthEnabled && testAuthOptions != null)
 }
 
 // Add services to the container.
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+{
+    // Increase form value length limit to handle large JSON data in hidden fields
+    options.ValueLengthLimit = 1048576; // 1MB limit for form values
+    options.ValueCountLimit = 1000; // Allow more form values
+});
+
 builder.Services.AddRazorPages(options =>
 {
     options.Conventions.ConfigureFilter(new ExternalApiPageExceptionFilter());
@@ -91,6 +99,8 @@ builder.Services.AddResponseCompression(options =>
     options.Providers.Add<BrotliCompressionProvider>();
     options.Providers.Add<GzipCompressionProvider>();
 });
+
+builder.Services.Configure<TokenRefreshSettings>(configuration.GetSection("TokenRefresh"));
 
 // Configure authentication based on test mode
 if (isTestAuthEnabled)
@@ -157,6 +167,10 @@ builder.Services.AddSingleton<IActionContextAccessor, ActionContextAccessor>();
 builder.Services.AddScoped<IHtmlHelper, HtmlHelper>();
 builder.Services.AddWebLayerServices();
 builder.Services.AddScoped<IApplicationResponseService, ApplicationResponseService>();
+
+// Persist cookie tickets server-side so AuthenticationProperties (tokens) don't bloat the browser cookie
+builder.Services.AddSingleton<ITicketStore, DistributedCacheTicketStore>();
+builder.Services.AddSingleton<IPostConfigureOptions<CookieAuthenticationOptions>, ConfigureCookieTicketStore>();
 
 // New refactored services for Clean Architecture
 builder.Services.AddScoped<IFieldFormattingService, FieldFormattingService>();

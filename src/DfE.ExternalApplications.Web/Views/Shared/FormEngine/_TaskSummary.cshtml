@@ -21,11 +21,11 @@
             if (field.Type == "complexField")
             {
                 var complexFieldType = field.ComplexField != null ? ComplexFieldConfigurationService.GetConfiguration(field.ComplexField.Id).FieldType : "null";
-                System.Diagnostics.Debug.WriteLine($">>>>>>>>>>>>TASK SUMMARY COMPLEX FIELD: {field.FieldId}, HasValue: {hasValue}, FieldValue: {fieldValue}, ComplexFieldId: {field.ComplexField?.Id}, ComplexFieldType: {complexFieldType}");
+
             }
             
             // DEBUG: Log all field checks
-            System.Diagnostics.Debug.WriteLine($">>>>>>>>>>>>TASK SUMMARY FIELD: {field.FieldId}, Type: {field.Type}, Hidden: {Model.IsFieldHidden(field.FieldId)}");
+
 
             // Show complex fields if they have value OR if they're upload fields that should be visible
             bool shouldShowComplexField = hasValue || 
@@ -44,6 +44,10 @@
                     (field.Type == "complexField" && field.ComplexField != null && 
                      ComplexFieldConfigurationService.GetConfiguration(field.ComplexField.Id).FieldType.Equals("autocomplete", StringComparison.OrdinalIgnoreCase));
 
+                // Check if this is an upload field
+                var isUploadField = field.Type == "complexField" && field.ComplexField != null && 
+                    ComplexFieldConfigurationService.GetConfiguration(field.ComplexField.Id).FieldType.Equals("upload", StringComparison.OrdinalIgnoreCase);
+
                 var itemLabelHyphenated = itemLabel.Replace(" ", "-").ToLower();
 
                 // Show main field header with change link
@@ -58,7 +62,42 @@
                         }
                         else if (!allowMultiple)
                         {
-                            if (isAutocompleteField)
+                            @if (isUploadField)
+                            {
+                                // For upload fields, render as download link
+                                var uploadData = Model.GetFieldValue(field.FieldId);
+                                if (!string.IsNullOrEmpty(uploadData) && uploadData.StartsWith("[") && uploadData.Contains("\"id\""))
+                                {
+                                    try
+                                    {
+                                        var uploadFiles = System.Text.Json.JsonSerializer.Deserialize<List<DfE.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>>(uploadData);
+                                        if (uploadFiles != null && uploadFiles.Any())
+                                        {
+                                            var file = uploadFiles.First();
+                                            <form method="post" asp-page="/FormEngine/RenderForm" asp-route-referenceNumber="@Model.ReferenceNumber" asp-route-taskId="@Model.TaskId" asp-route-pageId="@(page.PageId)" asp-page-handler="DownloadFile" style="display:inline">
+                                                <input type="hidden" name="FileId" value="@file.Id" />
+                                                <input type="hidden" name="ApplicationId" value="@Model.ApplicationId" />
+                                                <button type="submit" class="govuk-link" style="border: none; background: none; padding: 0; color: #1d70b8; text-decoration: underline; cursor: pointer;">
+                                                    @file.OriginalFileName
+                                                </button>
+                                            </form>
+                                        }
+                                        else
+                                        {
+                                            @Html.Raw(formattedValues.FirstOrDefault())
+                                        }
+                                    }
+                                    catch
+                                    {
+                                        @Html.Raw(formattedValues.FirstOrDefault())
+                                    }
+                                }
+                                else
+                                {
+                                    @Html.Raw(formattedValues.FirstOrDefault())
+                                }
+                            }
+                            else if (isAutocompleteField)
                             {
                                 var html = RenderAutocompleteSummary(fieldValue);
                                 @Html.Raw(html)
@@ -67,7 +106,10 @@
                             {
                                 @Html.Raw(formattedValues.FirstOrDefault())
                             }
+                          
                         }
+
+                        
                     </dd>
                     <dd class="govuk-summary-list__actions">
                         @if (Model.IsApplicationEditable())
@@ -79,28 +121,97 @@
                     </dd>
                 </div>
 
-                // Show individual items if multiple selection is enabled
+                @* Show individual items if multiple selection is enabled *@
                 @if (allowMultiple && formattedValues.Count > 0)
                 {
-                    @foreach (var (value, index) in formattedValues.Select((v, i) => (v, i)))
+                    @if (isUploadField)
                     {
-                        var itemId = $"{fieldIdHyphenated}-item-{index}";
-                        <div class="govuk-summary-list__row" id="@itemId" data-testid="@itemId">
-                            <dt class="govuk-summary-list__key">
-                                @itemLabel @(index + 1)
-                            </dt>
-                            <dd class="govuk-summary-list__value">
-                                @Html.Raw(value)
-                            </dd>
-                            <dd class="govuk-summary-list__actions">
-                                @if (Model.IsApplicationEditable())
+                        @* For upload fields with multiple files, render each as download link *@
+                        var uploadData = Model.GetFieldValue(field.FieldId);
+                        if (!string.IsNullOrEmpty(uploadData) && uploadData.StartsWith("[") && uploadData.Contains("\"id\""))
+                        {
+                            try
+                            {
+                                var uploadFiles = System.Text.Json.JsonSerializer.Deserialize<List<DfE.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>>(uploadData);
+                                if (uploadFiles != null && uploadFiles.Any())
                                 {
-                                    <a class="govuk-link" href="@changeUrl?removeItem=@index" id="@itemId-remove-link" data-testid="@itemId-remove-link">
-                                        Remove<span class="govuk-visually-hidden"> @itemLabel @(index + 1)</span>
-                                    </a>
+                                    @foreach (var (file, index) in uploadFiles.Select((f, i) => (f, i)))
+                                    {
+                                        var itemId = $"{fieldIdHyphenated}-item-{index}";
+                                        <div class="govuk-summary-list__row" id="@itemId" data-testid="@itemId">
+                                            <dt class="govuk-summary-list__key">
+                                                @itemLabel @(index + 1)
+                                            </dt>
+                                            <dd class="govuk-summary-list__value">
+                                                <form method="post" asp-page="/FormEngine/RenderForm" asp-route-referenceNumber="@Model.ReferenceNumber" asp-route-taskId="@Model.TaskId" asp-route-pageId="@(page.PageId)" asp-page-handler="DownloadFile" style="display:inline">
+                                                    <input type="hidden" name="FileId" value="@file.Id" />
+                                                    <input type="hidden" name="ApplicationId" value="@Model.ApplicationId" />
+                                                    <button type="submit" class="govuk-link" style="border: none; background: none; padding: 0; color: #1d70b8; text-decoration: underline; cursor: pointer;">
+                                                        @file.OriginalFileName
+                                                    </button>
+                                                </form>
+                                            </dd>
+                                            <dd class="govuk-summary-list__actions">
+                                                @if (Model.IsApplicationEditable())
+                                                {
+                                                    <a class="govuk-link" href="@changeUrl?removeItem=@index" id="@itemId-remove-link" data-testid="@itemId-remove-link">
+                                                        Remove<span class="govuk-visually-hidden"> @itemLabel @(index + 1)</span>
+                                                    </a>
+                                                }
+                                            </dd>
+                                        </div>
+                                    }
                                 }
-                            </dd>
-                        </div>
+                            }
+                            catch
+                            {
+                                @* Fallback to original behavior if parsing fails *@
+                                @foreach (var (value, index) in formattedValues.Select((v, i) => (v, i)))
+                                {
+                                    var itemId = $"{fieldIdHyphenated}-item-{index}";
+                                    <div class="govuk-summary-list__row" id="@itemId" data-testid="@itemId">
+                                        <dt class="govuk-summary-list__key">
+                                            @itemLabel @(index + 1)
+                                        </dt>
+                                        <dd class="govuk-summary-list__value">
+                                            @Html.Raw(value)
+                                        </dd>
+                                        <dd class="govuk-summary-list__actions">
+                                            @if (Model.IsApplicationEditable())
+                                            {
+                                                <a class="govuk-link" href="@changeUrl?removeItem=@index" id="@itemId-remove-link" data-testid="@itemId-remove-link">
+                                                    Remove<span class="govuk-visually-hidden"> @itemLabel @(index + 1)</span>
+                                                </a>
+                                            }
+                                        </dd>
+                                    </div>
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        @* For non-upload fields, use original behavior *@
+                        @foreach (var (value, index) in formattedValues.Select((v, i) => (v, i)))
+                        {
+                            var itemId = $"{fieldIdHyphenated}-item-{index}";
+                            <div class="govuk-summary-list__row" id="@itemId" data-testid="@itemId">
+                                <dt class="govuk-summary-list__key">
+                                    @itemLabel @(index + 1)
+                                </dt>
+                                <dd class="govuk-summary-list__value">
+                                    @Html.Raw(value)
+                                </dd>
+                                <dd class="govuk-summary-list__actions">
+                                    @if (Model.IsApplicationEditable())
+                                    {
+                                        <a class="govuk-link" href="@changeUrl?removeItem=@index" id="@itemId-remove-link" data-testid="@itemId-remove-link">
+                                            Remove<span class="govuk-visually-hidden"> @itemLabel @(index + 1)</span>
+                                        </a>
+                                    }
+                                </dd>
+                            </div>
+                        }
                     }
                 }
             }
