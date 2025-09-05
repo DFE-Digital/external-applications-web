@@ -40,7 +40,7 @@ namespace DfE.ExternalApplications.Web.Filters
                 return;
 
             // Skip if this is already a confirmed action coming back from confirmation page
-            if (context.HttpContext.Request.Query.ContainsKey("confirmed") && 
+            if (context.HttpContext.Request.Query.ContainsKey("confirmed") &&
                 context.HttpContext.Request.Query["confirmed"] == "true")
             {
                 _logger.LogInformation("Skipping confirmation interception - this is a confirmed action");
@@ -48,6 +48,13 @@ namespace DfE.ExternalApplications.Web.Filters
             }
 
             var request = context.HttpContext.Request;
+
+            if (request.ContentType == null)
+                return;
+
+            if (request?.Form == null)
+                return;
+
             var form = request.Form;
 
             // Check if any button in the form requires confirmation
@@ -76,7 +83,7 @@ namespace DfE.ExternalApplications.Web.Filters
             {
                 var token = _confirmationService.CreateConfirmation(confirmationRequest);
                 context.Result = new RedirectToPageResult("/Confirmation/Index", new { token });
-                
+
                 _logger.LogInformation("Redirecting to confirmation page with token {Token}", token);
             }
             catch (Exception ex)
@@ -174,7 +181,7 @@ namespace DfE.ExternalApplications.Web.Filters
         {
             // Look for the handler that was clicked
             string? clickedHandler = null;
-            
+
             // Check for handler field (standard Razor Pages pattern)
             if (form.ContainsKey("handler") && form["handler"].Count > 0)
             {
@@ -190,8 +197,8 @@ namespace DfE.ExternalApplications.Web.Filters
 
             if (form.ContainsKey(confirmationCheckKey) && form[confirmationCheckKey] == "true")
             {
-                var displayFieldsValue = form.ContainsKey(displayFieldsKey) 
-                    ? form[displayFieldsKey].ToString() 
+                var displayFieldsValue = form.ContainsKey(displayFieldsKey)
+                    ? form[displayFieldsKey].ToString()
                     : string.Empty;
 
                 var displayFields = string.IsNullOrEmpty(displayFieldsValue)

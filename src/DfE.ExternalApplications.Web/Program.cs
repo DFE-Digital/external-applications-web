@@ -80,7 +80,7 @@ builder.Services.AddControllers(options =>
     options.Filters.Add<ExternalApiMvcExceptionFilter>();
     
     // Add confirmation interceptor filter globally
-    options.Filters.Add<DfE.ExternalApplications.Web.Filters.ConfirmationInterceptorFilter>();
+    //options.Filters.Add<DfE.ExternalApplications.Web.Filters.ConfirmationInterceptorFilter>();
 });
 
 builder.Services.AddHttpContextAccessor();
