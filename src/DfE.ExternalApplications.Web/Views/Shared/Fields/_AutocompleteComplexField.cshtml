@@ -154,7 +154,7 @@ else
             
             <!-- Container for autocomplete - library will create input here -->
             <div id="@inputId-container" 
-                 class="complex-field-search-container"
+                 class="complex-field-search-container govuk-!-margin-bottom-15"
                  data-complex-field-id="@complexFieldId"
                  data-min-length="@configuration.MinLength"
                  data-allow-multiple="@configuration.AllowMultiple.ToString().ToLower()"
@@ -179,35 +179,17 @@ else
                 </div>
             }
             
-            <!-- Selected items container -->
-            <div id="@selectedItemsId" class="complex-field-selected-items">
-                @if (configuration.AllowMultiple && currentValues.Any())
-                {
-                    foreach (var value in currentValues)
-                    {
-                        var displayValue = FormatDisplayValue(value);
-                        var valueJson = JsonSerializer.Serialize(value);
-                        
-                        <div class="complex-field-selected-inset govuk-inset-text" data-value="@valueJson">
-                            <p class="govuk-body">@displayValue</p>
-                            <button type="button" class="govuk-button govuk-button--secondary govuk-button--small remove-selected-item" 
-                                    data-field-id="@Model.Id" 
-                                    data-value="@valueJson">
-                                Remove
-                            </button>
-                        </div>
-                    }
-                }
-            </div>
-            <div class="govuk-button-group">
-                @Html.RenderPrimaryConfirmationButton(
-                    buttonText: "Save and continue",
-                    handler: "Page",
-                    displayFields: "trustname,ukprn,companiesHousenumber",
-                    buttonId: "autocomplete-confirm-button",
-                    title: $"Is this the right item?")
-            </div>
+            <!-- Selected items container (hidden per requirement) -->
         </div>
+    </div>
+
+    <div class="govuk-button-group">
+        @Html.RenderPrimaryConfirmationButton(
+                buttonText: "Search",
+                handler: "Page",
+                displayFields: "trustname,ukprn,companiesHousenumber",
+                buttonId: "autocomplete-confirm-button",
+                title: $"Is this the right item?")
     </div>
 }
 
@@ -572,6 +554,9 @@ document.addEventListener('DOMContentLoaded', function() {
                                 hiddenInput.value = option.toString();
                             }
 
+                            // Ensure hidden input name is normalized for server processing
+                            try { hiddenInput.name = `Data[${actualFieldId}]`; } catch {}
+
                             if (autocompleteInput) {
                                 try {
                                     const valueSetter = Object.getOwnPropertyDescriptor(autocompleteInput, 'value')?.set ||
@@ -592,25 +577,35 @@ document.addEventListener('DOMContentLoaded', function() {
                             return;
                         }
 
-                        // Multi-select: keep existing behavior of rendering selected items below and clearing input
-                        addSelectedItem(option);
+                        // Multi-select: behave like single-select (fill input, set hidden value, no below-input list)
+                        var multiLabelText = isValidObject ? (option.name || option.toString()) : option.toString();
+
+                        if (typeof option === 'object' && option !== null) {
+                            hiddenInput.value = JSON.stringify(option);
+                        } else {
+                            hiddenInput.value = option.toString();
+                        }
+
+                        // Ensure hidden input name is normalized for server processing
+                        try { hiddenInput.name = `Data[${actualFieldId}]`; } catch {}
 
                         if (autocompleteInput) {
-                            // Clear for next entry
                             try {
                                 const valueSetter = Object.getOwnPropertyDescriptor(autocompleteInput, 'value')?.set ||
                                     Object.getOwnPropertyDescriptor(Object.getPrototypeOf(autocompleteInput), 'value')?.set;
-                                if (valueSetter) valueSetter.call(autocompleteInput, '');
-                                else autocompleteInput.value = '';
-                                // Do not dispatch synthetic input/change to avoid reopening the menu
-                            } catch { autocompleteInput.value = ''; }
-                            setTimeout(function() {
-                                autocompleteInput.value = '';
-                            }, 10);
-                            if (menuEl) menuEl.classList.remove('autocomplete__menu--visible');
-                            autocompleteInput.setAttribute('aria-expanded', 'false');
-                            suppressMenuUntilUserInput = true;
+                                if (valueSetter) valueSetter.call(autocompleteInput, multiLabelText);
+                                else autocompleteInput.value = multiLabelText;
+                            } catch { autocompleteInput.value = multiLabelText; }
                         }
+
+                        lastConfirmedText = multiLabelText;
+                        suppressMenuUntilUserInput = true;
+                        if (menuEl) menuEl.classList.remove('autocomplete__menu--visible');
+                        if (autocompleteInput) autocompleteInput.setAttribute('aria-expanded', 'false');
+
+                        // Ensure nothing is rendered below input
+                        selectedItemsContainer.innerHTML = '';
+                        return;
                     }
                 });
                 

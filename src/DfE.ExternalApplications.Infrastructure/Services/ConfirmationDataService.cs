@@ -74,6 +74,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             {
                 { "trustName", "Trust Name" },
                 { "ukprn", "UKPRN" },
+                { "urn", "URN" },
                 { "companiesHouseNumber", "Companies House Number" },
                 { "contributorEmail", "Email Address" },
                 { "contributorName", "Full Name" },
