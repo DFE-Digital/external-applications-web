@@ -509,11 +509,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                     mergedData[kvp.Key] = kvp.Value;
                                 }
                                 
-                                _logger.LogInformation("[SUB-FLOW DEBUG] Re-evaluating conditional logic with {Count} merged data entries", mergedData.Count);
-                                foreach (var entry in mergedData.Where(x => x.Key.Contains("outgoingTrusts")).Take(3))
-                                {
-                                    _logger.LogInformation("[SUB-FLOW DEBUG] - Key data: {Key} = {Value}", entry.Key, entry.Value?.ToString()?.Substring(0, Math.Min(50, entry.Value?.ToString()?.Length ?? 0)));
-                                }
                                 
                                 var navContext = new ConditionalLogicContext
                                 {
@@ -526,8 +521,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                 // Re-compute conditional state with complete data
                                 var updatedConditionalState = await _conditionalLogicOrchestrator.ApplyConditionalLogicAsync(Template, mergedData, navContext);
                                 
-                                _logger.LogInformation("[SUB-FLOW DEBUG] Updated ConditionalState.SkippedPages: [{SkippedPages}]", string.Join(", ", updatedConditionalState.SkippedPages));
-                                _logger.LogInformation("[SUB-FLOW DEBUG] Available flow pages: [{FlowPages}]", string.Join(", ", flowPages.Select(p => p.PageId)));
                                 
                                 // Look for the next visible page after current page using updated state
                                 for (int i = index + 1; i < flowPages.Count; i++)
@@ -538,23 +531,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                     var isHidden = updatedConditionalState.PageVisibility.TryGetValue(candidatePage.PageId, out var isVisible) && !isVisible;
                                     var isSkipped = updatedConditionalState.SkippedPages.Contains(candidatePage.PageId);
                                     
-                                    _logger.LogInformation("[SUB-FLOW DEBUG] Checking page {PageId}: isHidden={IsHidden}, isSkipped={IsSkipped}, visibility={Visibility}", 
-                                        candidatePage.PageId, isHidden, isSkipped, isVisible);
-                                    _logger.LogInformation("[SUB-FLOW DEBUG] - PageVisibility.TryGetValue result: hasKey={HasKey}, value={Value}", 
-                                        updatedConditionalState.PageVisibility.ContainsKey(candidatePage.PageId), isVisible);
-                                    _logger.LogInformation("[SUB-FLOW DEBUG] - SkippedPages.Contains result: {Contains}", 
-                                        updatedConditionalState.SkippedPages.Contains(candidatePage.PageId));
                                     
                                     if (!isHidden && !isSkipped)
                                     {
                                         nextPageId = candidatePage.PageId;
-                                        _logger.LogInformation("[SUB-FLOW DEBUG] Selected next page {NextPageId}", nextPageId);
                                         break;
-                                    }
-                                    else
-                                    {
-                                        _logger.LogInformation("[SUB-FLOW DEBUG] Skipping page {PageId} - reason: isHidden={IsHidden}, isSkipped={IsSkipped}", 
-                                            candidatePage.PageId, isHidden, isSkipped);
                                     }
                                 }
                             }
@@ -564,22 +545,18 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                 nextPageId = flowPages[index + 1].PageId;
                             }
                             
-                            _logger.LogInformation("[SUB-FLOW DEBUG] Final navigation decision: nextPageId={NextPageId}", nextPageId ?? "null");
                             
                             if (!string.IsNullOrEmpty(nextPageId))
                             {
-                                _logger.LogInformation("[SUB-FLOW DEBUG] Navigating to next page: {NextPageId}", nextPageId);
                                 var nextUrl = _formNavigationService.GetSubFlowPageUrl(CurrentTask.TaskId, ReferenceNumber, flowId, instanceId, nextPageId);
                                 return Redirect(nextUrl);
                             }
                             
-                            _logger.LogInformation("[SUB-FLOW DEBUG] No next page found - should complete flow and save data");
                             // If no valid next page found, treat as last page and complete the flow
                             // Fall through to flow completion logic below
                         }
                         
                         // Flow completion logic - execute when no next page is found
-                        _logger.LogInformation("[SUB-FLOW DEBUG] Flow is complete! Saving data and redirecting to task summary");
                         // Flow complete: append item to collection and go back to collection summary
                         if (!string.IsNullOrEmpty(flowFieldId))
                         {
@@ -628,9 +605,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                             // Clear the in-progress cache for this instance
                             ClearFlowProgress(flowId, instanceId);
                         }
-                        _logger.LogInformation("[SUB-FLOW DEBUG] Flow completion details: CurrentTask.TaskId={TaskId}, ReferenceNumber={ReferenceNumber}", CurrentTask.TaskId, ReferenceNumber);
                         var backToSummary = _formNavigationService.GetCollectionFlowSummaryUrl(CurrentTask.TaskId, ReferenceNumber);
-                        _logger.LogInformation("[SUB-FLOW DEBUG] Flow complete - redirecting to task summary: {BackToSummaryUrl}", backToSummary);
                         return Redirect(backToSummary);
                     }
                 }
