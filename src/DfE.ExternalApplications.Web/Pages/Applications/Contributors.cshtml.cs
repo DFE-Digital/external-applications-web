@@ -1,5 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
-using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using DfE.ExternalApplications.Application.Interfaces;
 using DfE.ExternalApplications.Domain.Models;
 using Microsoft.AspNetCore.Authorization;

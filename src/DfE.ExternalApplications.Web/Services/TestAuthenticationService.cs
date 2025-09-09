@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.Options;
-using DfE.CoreLibs.Security.Interfaces;
-using DfE.CoreLibs.Security.Configurations;
+using GovUK.Dfe.CoreLibs.Security.Interfaces;
+using GovUK.Dfe.CoreLibs.Security.Configurations;
 using System.Security.Claims;
 using System.Diagnostics.CodeAnalysis;
 

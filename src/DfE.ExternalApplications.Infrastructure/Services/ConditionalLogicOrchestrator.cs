@@ -19,6 +19,7 @@ public class ConditionalLogicOrchestrator(
 
         try
         {
+            
             if (template.ConditionalLogic == null || !template.ConditionalLogic.Any())
             {
                 // No conditional logic defined, return default state
@@ -26,9 +27,11 @@ public class ConditionalLogicOrchestrator(
                 return state;
             }
 
+
             // Evaluate all conditional logic rules
             var result = conditionalLogicEngine.EvaluateRules(template.ConditionalLogic, formData, context);
             state.EvaluationResult = result;
+
 
             // Initialize with default state
             InitializeDefaultState(template, state);
@@ -162,11 +165,15 @@ public class ConditionalLogicOrchestrator(
     {
         try
         {
+            
+
             var state = await ApplyConditionalLogicAsync(template, formData, context);
+
 
             // Find the current page and get the next one in sequence
             var allPages = GetAllPages(template);
             var currentPageIndex = allPages.FindIndex(p => p.PageId == currentPageId);
+
 
             if (currentPageIndex == -1 || currentPageIndex >= allPages.Count - 1)
             {
@@ -186,6 +193,14 @@ public class ConditionalLogicOrchestrator(
 
                 // Check if this page is visible
                 if (state.PageVisibility.TryGetValue(nextPage.PageId, out var isVisible) && !isVisible)
+                {
+                    continue;
+                }
+
+                // NEW: Check if all fields on the next page are hidden by conditional logic
+                var nextPageFields = GetFieldsForPage(template, nextPage.PageId);
+                
+                if (nextPageFields.Any() && nextPageFields.All(f => state.FieldVisibility.TryGetValue(f.FieldId, out var fieldIsVisible) && !fieldIsVisible))
                 {
                     continue;
                 }
@@ -366,6 +381,7 @@ public class ConditionalLogicOrchestrator(
 
     private void ApplySkipAction(AffectedElement element, FormConditionalState state)
     {
+            
         if (element.ElementType.ToLowerInvariant() == ConditionalLogicConstants.ElementTypes.Page)
         {
             state.SkippedPages.Add(element.ElementId);
@@ -532,6 +548,34 @@ public class ConditionalLogicOrchestrator(
                                 {
                                     fields.AddRange(page.Fields);
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return fields;
+    }
+
+    private List<Field> GetFieldsForPage(FormTemplate template, string pageId)
+    {
+        var fields = new List<Field>();
+
+        if (template.TaskGroups != null)
+        {
+            foreach (var group in template.TaskGroups)
+            {
+                if (group.Tasks != null)
+                {
+                    foreach (var task in group.Tasks)
+                    {
+                        if (task.Pages != null)
+                        {
+                            var page = task.Pages.FirstOrDefault(p => p.PageId == pageId);
+                            if (page?.Fields != null)
+                            {
+                                fields.AddRange(page.Fields);
                             }
                         }
                     }

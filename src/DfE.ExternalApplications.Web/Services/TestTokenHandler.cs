@@ -1,4 +1,4 @@
-using DfE.CoreLibs.Security.Configurations;
+using GovUK.Dfe.CoreLibs.Security.Configurations;
 using Microsoft.Extensions.Options;
 using System.Diagnostics.CodeAnalysis;
 

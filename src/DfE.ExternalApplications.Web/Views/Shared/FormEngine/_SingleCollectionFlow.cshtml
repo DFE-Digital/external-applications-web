@@ -156,7 +156,7 @@
                                             // For upload fields, render as download link
                                             try
                                             {
-                                                var uploadFiles = System.Text.Json.JsonSerializer.Deserialize<List<DfE.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>>(value);
+                                                var uploadFiles = System.Text.Json.JsonSerializer.Deserialize<List<GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>>(value);
                                                 if (uploadFiles != null && uploadFiles.Any())
                                                 {
                                                     var file = uploadFiles.First();
@@ -195,7 +195,7 @@
                                             // For upload fields with multiple files, render each as download link
                                             try
                                             {
-                                                var uploadFiles = System.Text.Json.JsonSerializer.Deserialize<List<DfE.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>>(value);
+                                                var uploadFiles = System.Text.Json.JsonSerializer.Deserialize<List<GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>>(value);
                                                 if (uploadFiles != null && uploadFiles.Any())
                                                 {
                                                     @foreach (var file in uploadFiles)
@@ -349,7 +349,7 @@
                                                     // For upload fields, render as download link
                                                     try
                                                     {
-                                                        var uploadFiles = System.Text.Json.JsonSerializer.Deserialize<List<DfE.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>>(value);
+                                                        var uploadFiles = System.Text.Json.JsonSerializer.Deserialize<List<GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>>(value);
                                                         if (uploadFiles != null && uploadFiles.Any())
                                                         {
                                                             var file = uploadFiles.First();
@@ -388,7 +388,7 @@
                                                     // For upload fields with multiple files, render each as download link
                                                     try
                                                     {
-                                                        var uploadFiles = System.Text.Json.JsonSerializer.Deserialize<List<DfE.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>>(value);
+                                                        var uploadFiles = System.Text.Json.JsonSerializer.Deserialize<List<GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>>(value);
                                                         if (uploadFiles != null && uploadFiles.Any())
                                                         {
                                                             @foreach (var file in uploadFiles)

@@ -133,7 +133,7 @@
                         {
                             try
                             {
-                                var uploadFiles = System.Text.Json.JsonSerializer.Deserialize<List<DfE.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>>(uploadData);
+                                var uploadFiles = System.Text.Json.JsonSerializer.Deserialize<List<GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>>(uploadData);
                                 if (uploadFiles != null && uploadFiles.Any())
                                 {
                                     @foreach (var (file, index) in uploadFiles.Select((f, i) => (f, i)))

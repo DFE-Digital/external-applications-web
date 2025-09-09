@@ -5,7 +5,7 @@ using Microsoft.Extensions.Options;
 using DfE.ExternalApplications.Web.Services;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
-using DfE.CoreLibs.Security.Configurations;
+using GovUK.Dfe.CoreLibs.Security.Configurations;
 
 namespace DfE.ExternalApplications.Web.Pages;
 

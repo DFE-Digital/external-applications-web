@@ -1,8 +1,8 @@
-using DfE.CoreLibs.Security;
-using DfE.CoreLibs.Security.Authorization;
-using DfE.CoreLibs.Security.Configurations;
-using DfE.CoreLibs.Security.Interfaces;
-using DfE.CoreLibs.Security.OpenIdConnect;
+using GovUK.Dfe.CoreLibs.Security;
+using GovUK.Dfe.CoreLibs.Security.Authorization;
+using GovUK.Dfe.CoreLibs.Security.Configurations;
+using GovUK.Dfe.CoreLibs.Security.Interfaces;
+using GovUK.Dfe.CoreLibs.Security.OpenIdConnect;
 using DfE.ExternalApplications.Application.Interfaces;
 using DfE.ExternalApplications.Infrastructure.Parsers;
 using DfE.ExternalApplications.Infrastructure.Providers;
@@ -41,7 +41,7 @@ var isTestAuthEnabled = testAuthOptions?.Enabled ?? false;
 // Configure token settings for test authentication
 if (isTestAuthEnabled && testAuthOptions != null)
 {
-    builder.Services.Configure<DfE.CoreLibs.Security.Configurations.TokenSettings>(options =>
+    builder.Services.Configure<GovUK.Dfe.CoreLibs.Security.Configurations.TokenSettings>(options =>
     {
         options.SecretKey = testAuthOptions.JwtSigningKey;
         options.Issuer = testAuthOptions.JwtIssuer;

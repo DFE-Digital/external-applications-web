@@ -3,7 +3,7 @@ using System.Security.Claims;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using System.Diagnostics.CodeAnalysis;
 using DfE.ExternalApplications.Domain.Models;
-using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using Task = System.Threading.Tasks.Task;
 
 namespace DfE.ExternalApplications.Web.Middleware;
