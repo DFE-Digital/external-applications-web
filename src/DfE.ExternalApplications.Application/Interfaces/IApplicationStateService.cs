@@ -1,5 +1,5 @@
 using DfE.ExternalApplications.Domain.Models;
-using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using Microsoft.AspNetCore.Http;
 using Task = System.Threading.Tasks.Task;
 

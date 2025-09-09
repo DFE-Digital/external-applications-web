@@ -1,6 +1,6 @@
 using DfE.ExternalApplications.Application.Interfaces;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
-using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;

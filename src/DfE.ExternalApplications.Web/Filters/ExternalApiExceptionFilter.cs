@@ -1,4 +1,4 @@
-﻿using DfE.CoreLibs.Http.Models;
+﻿using GovUK.Dfe.CoreLibs.Http.Models;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.RazorPages;

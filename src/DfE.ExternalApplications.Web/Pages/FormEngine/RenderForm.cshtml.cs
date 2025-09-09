@@ -9,9 +9,9 @@ using System.Text.RegularExpressions;
 using Task = System.Threading.Tasks.Task;
 using DfE.ExternalApplications.Infrastructure.Services;
 using System.Text.Json;
-using DfE.CoreLibs.Contracts.ExternalApplications.Models.Response;
-using DfE.CoreLibs.Contracts.ExternalApplications.Models.Request;
-using DfE.CoreLibs.Contracts.ExternalApplications.Enums;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using DfE.ExternalApplications.Web.Interfaces;
 
 namespace DfE.ExternalApplications.Web.Pages.FormEngine

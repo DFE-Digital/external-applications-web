@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
-using DfE.CoreLibs.Security.Configurations;
+using GovUK.Dfe.CoreLibs.Security.Configurations;
 using DfE.ExternalApplications.Web.Services;
 using System.Diagnostics.CodeAnalysis;
 

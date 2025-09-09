@@ -7,10 +7,10 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Text;
 using System.Text.Json;
 using System.ComponentModel.DataAnnotations;
-using DfE.CoreLibs.Contracts.ExternalApplications.Models.Request;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using Task = System.Threading.Tasks.Task;
-using DfE.CoreLibs.Caching.Interfaces;
-using DfE.CoreLibs.Caching.Helpers;
+using GovUK.Dfe.CoreLibs.Caching.Interfaces;
+using GovUK.Dfe.CoreLibs.Caching.Helpers;
 
 namespace DfE.ExternalApplications.Web.Pages.Admin;
 

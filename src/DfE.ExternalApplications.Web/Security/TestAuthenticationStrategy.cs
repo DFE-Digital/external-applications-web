@@ -1,5 +1,5 @@
-using DfE.CoreLibs.Security.Configurations;
-using DfE.CoreLibs.Security.Interfaces;
+using GovUK.Dfe.CoreLibs.Security.Configurations;
+using GovUK.Dfe.CoreLibs.Security.Interfaces;
 using DfE.ExternalApplications.Web.Authentication;
 using GovUK.Dfe.ExternalApplications.Api.Client.Security;
 using Microsoft.AspNetCore.Authentication;
