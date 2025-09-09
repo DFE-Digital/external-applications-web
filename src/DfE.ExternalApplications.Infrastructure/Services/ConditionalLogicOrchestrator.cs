@@ -19,21 +19,39 @@ public class ConditionalLogicOrchestrator(
 
         try
         {
+            logger.LogInformation("[CONDITIONAL DEBUG] ApplyConditionalLogicAsync called for template {TemplateId}", template.TemplateId);
+            
             if (template.ConditionalLogic == null || !template.ConditionalLogic.Any())
             {
+                logger.LogInformation("[CONDITIONAL DEBUG] No conditional logic defined, returning default state");
                 // No conditional logic defined, return default state
                 InitializeDefaultState(template, state);
                 return state;
             }
 
+            logger.LogInformation("[CONDITIONAL DEBUG] Evaluating {RuleCount} conditional logic rules", template.ConditionalLogic.Count);
+
             // Evaluate all conditional logic rules
             var result = conditionalLogicEngine.EvaluateRules(template.ConditionalLogic, formData, context);
             state.EvaluationResult = result;
+
+            logger.LogInformation("[CONDITIONAL DEBUG] Conditional logic evaluation result:");
+            logger.LogInformation("[CONDITIONAL DEBUG] - EvaluatedRules count: {Count}", result.EvaluatedRules.Count);
+            logger.LogInformation("[CONDITIONAL DEBUG] - Actions count: {Count}", result.Actions.Count);
+            
+            foreach (var rule in result.EvaluatedRules.Take(5)) // Log first 5 rules
+            {
+                logger.LogInformation("[CONDITIONAL DEBUG] - Rule: {RuleId}", rule);
+            }
 
             // Initialize with default state
             InitializeDefaultState(template, state);
 
             // Apply actions from conditional logic
+            foreach (var action in result.Actions)
+            {
+                logger.LogInformation("[CONDITIONAL DEBUG] - Applying action from rule {RuleId} on element {ElementId}", action.RuleId, action.Element.ElementId);
+            }
             await ApplyActionsAsync(result.Actions, state, template, formData);
 
             logger.LogDebug("Applied conditional logic for template '{TemplateId}', {RuleCount} rules evaluated",
@@ -162,14 +180,40 @@ public class ConditionalLogicOrchestrator(
     {
         try
         {
+            logger.LogInformation("[CONDITIONAL DEBUG] GetNextPageAsync called - currentPageId: {CurrentPageId}, contextTaskId: {TaskId}", currentPageId, context?.CurrentTaskId ?? "null");
+            
+            // Log form data for debugging
+            logger.LogInformation("[CONDITIONAL DEBUG] Form data contains {Count} entries:", formData.Count);
+            foreach (var kv in formData.Take(10)) // Log first 10 entries
+            {
+                logger.LogInformation("[CONDITIONAL DEBUG] FormData[{Key}] = {Value}", kv.Key, kv.Value?.ToString() ?? "null");
+            }
+
             var state = await ApplyConditionalLogicAsync(template, formData, context);
+
+            logger.LogInformation("[CONDITIONAL DEBUG] Conditional state after applying logic:");
+            logger.LogInformation("[CONDITIONAL DEBUG] - SkippedPages: {SkippedPages}", string.Join(", ", state.SkippedPages));
+            logger.LogInformation("[CONDITIONAL DEBUG] - PageVisibility count: {Count}", state.PageVisibility.Count);
+            foreach (var pv in state.PageVisibility)
+            {
+                logger.LogInformation("[CONDITIONAL DEBUG] - PageVisibility[{PageId}] = {IsVisible}", pv.Key, pv.Value);
+            }
+            logger.LogInformation("[CONDITIONAL DEBUG] - FieldVisibility count: {Count}", state.FieldVisibility.Count);
+            foreach (var fv in state.FieldVisibility)
+            {
+                logger.LogInformation("[CONDITIONAL DEBUG] - FieldVisibility[{FieldId}] = {IsVisible}", fv.Key, fv.Value);
+            }
 
             // Find the current page and get the next one in sequence
             var allPages = GetAllPages(template);
             var currentPageIndex = allPages.FindIndex(p => p.PageId == currentPageId);
 
+            logger.LogInformation("[CONDITIONAL DEBUG] All pages in order: {Pages}", string.Join(", ", allPages.Select(p => p.PageId)));
+            logger.LogInformation("[CONDITIONAL DEBUG] Current page index: {Index}", currentPageIndex);
+
             if (currentPageIndex == -1 || currentPageIndex >= allPages.Count - 1)
             {
+                logger.LogInformation("[CONDITIONAL DEBUG] Current page not found or is last page, returning null");
                 return null; // Last page or page not found
             }
 
@@ -177,22 +221,38 @@ public class ConditionalLogicOrchestrator(
             for (int i = currentPageIndex + 1; i < allPages.Count; i++)
             {
                 var nextPage = allPages[i];
+                logger.LogInformation("[CONDITIONAL DEBUG] Checking page {Index}: {PageId}", i, nextPage.PageId);
                 
                 // Check if this page should be skipped
                 if (state.SkippedPages.Contains(nextPage.PageId))
                 {
+                    logger.LogInformation("[CONDITIONAL DEBUG] - Page {PageId} is in SkippedPages, continuing", nextPage.PageId);
                     continue;
                 }
 
                 // Check if this page is visible
                 if (state.PageVisibility.TryGetValue(nextPage.PageId, out var isVisible) && !isVisible)
                 {
+                    logger.LogInformation("[CONDITIONAL DEBUG] - Page {PageId} has visibility=false, continuing", nextPage.PageId);
                     continue;
                 }
 
+                // NEW: Check if all fields on the next page are hidden by conditional logic
+                var nextPageFields = GetFieldsForPage(template, nextPage.PageId);
+                logger.LogInformation("[CONDITIONAL DEBUG] - Page {PageId} has {FieldCount} fields: {Fields}", 
+                    nextPage.PageId, nextPageFields.Count, string.Join(", ", nextPageFields.Select(f => f.FieldId)));
+                
+                if (nextPageFields.Any() && nextPageFields.All(f => state.FieldVisibility.TryGetValue(f.FieldId, out var fieldIsVisible) && !fieldIsVisible))
+                {
+                    logger.LogInformation("[CONDITIONAL DEBUG] - Skipping page '{PageId}' because all its fields are hidden by conditional logic", nextPage.PageId);
+                    continue;
+                }
+
+                logger.LogInformation("[CONDITIONAL DEBUG] - Selected next page: {PageId}", nextPage.PageId);
                 return nextPage.PageId;
             }
 
+            logger.LogInformation("[CONDITIONAL DEBUG] No more pages found, returning null");
             return null; // No more visible pages
         }
         catch (Exception ex)
@@ -366,9 +426,19 @@ public class ConditionalLogicOrchestrator(
 
     private void ApplySkipAction(AffectedElement element, FormConditionalState state)
     {
+        logger.LogInformation("[CONDITIONAL DEBUG] ApplySkipAction called - ElementType: {ElementType}, ElementId: {ElementId}", 
+            element.ElementType, element.ElementId);
+            
         if (element.ElementType.ToLowerInvariant() == ConditionalLogicConstants.ElementTypes.Page)
         {
             state.SkippedPages.Add(element.ElementId);
+            logger.LogInformation("[CONDITIONAL DEBUG] Added page {PageId} to SkippedPages. Total skipped pages: {Count}", 
+                element.ElementId, state.SkippedPages.Count);
+        }
+        else
+        {
+            logger.LogInformation("[CONDITIONAL DEBUG] Element {ElementId} is not a page (type: {ElementType}), not adding to SkippedPages", 
+                element.ElementId, element.ElementType);
         }
     }
 
@@ -532,6 +602,34 @@ public class ConditionalLogicOrchestrator(
                                 {
                                     fields.AddRange(page.Fields);
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return fields;
+    }
+
+    private List<Field> GetFieldsForPage(FormTemplate template, string pageId)
+    {
+        var fields = new List<Field>();
+
+        if (template.TaskGroups != null)
+        {
+            foreach (var group in template.TaskGroups)
+            {
+                if (group.Tasks != null)
+                {
+                    foreach (var task in group.Tasks)
+                    {
+                        if (task.Pages != null)
+                        {
+                            var page = task.Pages.FirstOrDefault(p => p.PageId == pageId);
+                            if (page?.Fields != null)
+                            {
+                                fields.AddRange(page.Fields);
                             }
                         }
                     }
