@@ -502,22 +502,39 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                             {
                                 _logger.LogDebug("Sub-flow navigation: checking conditional logic for pages. Current page: {CurrentPageId}, Flow: {FlowId}", CurrentPage.PageId, flowId);
                                 
-                                // Look for the next visible page after current page
+                                // CRITICAL FIX: Re-evaluate conditional logic with complete flow data for navigation
+                                var mergedData = LoadFlowProgress(FlowId, InstanceId);
+                                foreach (var kvp in Data)
+                                {
+                                    mergedData[kvp.Key] = kvp.Value;
+                                }
+                                
+                                
+                                var navContext = new ConditionalLogicContext
+                                {
+                                    CurrentPageId = CurrentPageId,
+                                    CurrentTaskId = TaskId,
+                                    IsClientSide = false,
+                                    Trigger = "change"
+                                };
+                                
+                                // Re-compute conditional state with complete data
+                                var updatedConditionalState = await _conditionalLogicOrchestrator.ApplyConditionalLogicAsync(Template, mergedData, navContext);
+                                
+                                
+                                // Look for the next visible page after current page using updated state
                                 for (int i = index + 1; i < flowPages.Count; i++)
                                 {
                                     var candidatePage = flowPages[i];
                                     
-                                    // Check if this page should be skipped due to conditional logic
-                                    var isHidden = ConditionalState.PageVisibility.TryGetValue(candidatePage.PageId, out var isVisible) && !isVisible;
-                                    var isSkipped = ConditionalState.SkippedPages.Contains(candidatePage.PageId);
+                                    // Check if this page should be skipped due to conditional logic using updated state
+                                    var isHidden = updatedConditionalState.PageVisibility.TryGetValue(candidatePage.PageId, out var isVisible) && !isVisible;
+                                    var isSkipped = updatedConditionalState.SkippedPages.Contains(candidatePage.PageId);
                                     
-                                    _logger.LogDebug("Sub-flow navigation: checking page {PageId}, isHidden: {IsHidden}, isSkipped: {IsSkipped}, visibility: {Visibility}", 
-                                        candidatePage.PageId, isHidden, isSkipped, isVisible);
                                     
                                     if (!isHidden && !isSkipped)
                                     {
                                         nextPageId = candidatePage.PageId;
-                                        _logger.LogDebug("Sub-flow navigation: selected next page {NextPageId}", nextPageId);
                                         break;
                                     }
                                 }
@@ -528,80 +545,68 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                 nextPageId = flowPages[index + 1].PageId;
                             }
                             
+                            
                             if (!string.IsNullOrEmpty(nextPageId))
                             {
-                            var nextUrl = _formNavigationService.GetSubFlowPageUrl(CurrentTask.TaskId, ReferenceNumber, flowId, instanceId, nextPageId);
-                            return Redirect(nextUrl);
+                                var nextUrl = _formNavigationService.GetSubFlowPageUrl(CurrentTask.TaskId, ReferenceNumber, flowId, instanceId, nextPageId);
+                                return Redirect(nextUrl);
                             }
+                            
                             // If no valid next page found, treat as last page and complete the flow
+                            // Fall through to flow completion logic below
                         }
-                        else
+                        
+                        // Flow completion logic - execute when no next page is found
+                        // Flow complete: append item to collection and go back to collection summary
+                        if (!string.IsNullOrEmpty(flowFieldId))
                         {
-                            // Flow complete: append item to collection and go back to collection summary
-                            if (!string.IsNullOrEmpty(flowFieldId))
+                            // Determine if this is a new item or an update
+                            bool isNewItem = !IsExistingCollectionItem(flowFieldId, instanceId);
+                            
+                            // Merge accumulated progress with final page data
+                            var accumulated = LoadFlowProgress(flowId, instanceId);
+            
+                            foreach (var kv in Data)
                             {
-                                // Determine if this is a new item or an update
-                                bool isNewItem = !IsExistingCollectionItem(flowFieldId, instanceId);
-                                
-                                // Merge accumulated progress with final page data
-                                var accumulated = LoadFlowProgress(flowId, instanceId);
-
-
-                
-                                foreach (var kv in Data)
+                                // Do not overwrite existing upload data with placeholder token
+                                if (kv.Value?.ToString() == "UPLOAD_FIELD_SESSION_DATA" && accumulated.ContainsKey(kv.Key))
                                 {
-                                    // Do not overwrite existing upload data with placeholder token
-                                    if (kv.Value?.ToString() == "UPLOAD_FIELD_SESSION_DATA" && accumulated.ContainsKey(kv.Key))
-                                    {
-                                        continue;
-                                    }
-                                    accumulated[kv.Key] = kv.Value;
+                                    continue;
                                 }
-                
-
-                foreach (var kv in accumulated)
-                {
-                    var valueStr = kv.Value?.ToString();
-                    var preview = valueStr?.Length > 100 ? valueStr.Substring(0, 100) + "..." : valueStr;
-
-                    if (kv.Key.Contains("upload", StringComparison.OrdinalIgnoreCase))
-                    {
-
-                    }
-                                }
-
-                                AppendCollectionItemToSession(flowPages, flowFieldId, instanceId, accumulated);
-                                
-                                // Generate success message
-                                var flow = CurrentTask.Summary?.Flows?.FirstOrDefault(f => f.FlowId == flowId);
-                                if (flow != null)
-                                {
-                                    // Use the accumulated data (all fields from the item)
-                                    if (isNewItem)
-                                    {
-                                        SuccessMessage = GenerateSuccessMessage(flow.AddItemMessage, "add", accumulated, flow.Title);
-                                    }
-                                    else
-                                    {
-                                        SuccessMessage = GenerateSuccessMessage(flow.UpdateItemMessage, "update", accumulated, flow.Title);
-                                    }
-                                }
-                                
-                                if (ApplicationId.HasValue)
-                                {
-                                    // Trigger save for the collection field
-                                    var acc = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
-                                    if (acc.TryGetValue(flowFieldId, out var collectionValue))
-                                    {
-                                        await _applicationResponseService.SaveApplicationResponseAsync(ApplicationId.Value, new Dictionary<string, object> { [flowFieldId] = collectionValue }, HttpContext.Session);
-                                    }
-                                }
-                                // Clear the in-progress cache for this instance
-                                ClearFlowProgress(flowId, instanceId);
+                                accumulated[kv.Key] = kv.Value;
                             }
-                            var backToSummary = _formNavigationService.GetCollectionFlowSummaryUrl(CurrentTask.TaskId, ReferenceNumber);
-                            return Redirect(backToSummary);
+
+                            AppendCollectionItemToSession(flowPages, flowFieldId, instanceId, accumulated);
+                            
+                            // Generate success message
+                            var flow = CurrentTask.Summary?.Flows?.FirstOrDefault(f => f.FlowId == flowId);
+                            if (flow != null)
+                            {
+                                // Use the accumulated data (all fields from the item)
+                                if (isNewItem)
+                                {
+                                    SuccessMessage = GenerateSuccessMessage(flow.AddItemMessage, "add", accumulated, flow.Title);
+                                }
+                                else
+                                {
+                                    SuccessMessage = GenerateSuccessMessage(flow.UpdateItemMessage, "update", accumulated, flow.Title);
+                                }
+                            }
+                            
+                            if (ApplicationId.HasValue)
+                            {
+                                // Trigger save for the collection field
+                                var acc = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
+                                if (acc.TryGetValue(flowFieldId, out var collectionValue))
+                                {
+                                    await _applicationResponseService.SaveApplicationResponseAsync(ApplicationId.Value, new Dictionary<string, object> { [flowFieldId] = collectionValue }, HttpContext.Session);
+                                }
+                            }
+                            // Clear the in-progress cache for this instance
+                            ClearFlowProgress(flowId, instanceId);
                         }
+                        var backToSummary = _formNavigationService.GetCollectionFlowSummaryUrl(CurrentTask.TaskId, ReferenceNumber);
+                        return Redirect(backToSummary);
                     }
                 }
                 else
@@ -618,23 +623,30 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         
                         if (ConditionalState != null && Template != null)
                         {
-                            // FIXED: Check if conditional rules specifically show/reveal new pages, not just any trigger
-                            hasConditionalTrigger = HasConditionalLogicShowingPages();
+                        // FIXED: Check if conditional rules specifically show/reveal new pages, not just any trigger
+                        hasConditionalTrigger = HasConditionalLogicShowingPages();
 
-                            
-                            if (hasConditionalTrigger)
+                        _logger.LogInformation("[FLOW DEBUG] ReturnToSummaryPage=true path - hasConditionalTrigger: {HasTrigger}, currentPageId: {PageId}", hasConditionalTrigger, CurrentPage.PageId);
+                        
+                        if (hasConditionalTrigger)
+                        {
+                            _logger.LogInformation("[FLOW DEBUG] Data before calling GetNextPageAsync:");
+                            foreach (var kv in Data.Take(10))
                             {
-                                var context = new ConditionalLogicContext
-                                {
-                                    CurrentPageId = CurrentPageId,
-                                    CurrentTaskId = TaskId,
-                                    IsClientSide = false,
-                                    Trigger = "change"
-                                };
-                                
-                                conditionalNextPageId = await _conditionalLogicOrchestrator.GetNextPageAsync(Template, Data, CurrentPage.PageId, context);
-
+                                _logger.LogInformation("[FLOW DEBUG] Data[{Key}] = {Value}", kv.Key, kv.Value?.ToString() ?? "null");
                             }
+
+                            var context = new ConditionalLogicContext
+                            {
+                                CurrentPageId = CurrentPageId,
+                                CurrentTaskId = TaskId,
+                                IsClientSide = false,
+                                Trigger = "change"
+                            };
+                            
+                            conditionalNextPageId = await _conditionalLogicOrchestrator.GetNextPageAsync(Template, Data, CurrentPage.PageId, context);
+                            _logger.LogInformation("[FLOW DEBUG] GetNextPageAsync returned: {NextPageId}", conditionalNextPageId ?? "null");
+                        }
                         }
                         
                         // If conditional logic found a next page AND was triggered, navigate there (override returnToSummaryPage)
@@ -656,8 +668,13 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     
                     if (ConditionalState != null && Template != null)
                     {
+                        _logger.LogInformation("[FLOW DEBUG] ReturnToSummaryPage=false path - currentPageId: {PageId}", CurrentPage.PageId);
+                        _logger.LogInformation("[FLOW DEBUG] Data before calling GetNextPageAsync:");
+                        foreach (var kv in Data.Take(10))
+                        {
+                            _logger.LogInformation("[FLOW DEBUG] Data[{Key}] = {Value}", kv.Key, kv.Value?.ToString() ?? "null");
+                        }
 
-                        
                         var context = new ConditionalLogicContext
                         {
                             CurrentPageId = CurrentPageId,
@@ -667,7 +684,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         };
                         
                         nextPageId = await _conditionalLogicOrchestrator.GetNextPageAsync(Template, Data, CurrentPage.PageId, context);
-
+                        _logger.LogInformation("[FLOW DEBUG] GetNextPageAsync returned: {NextPageId}", nextPageId ?? "null");
                     }
                     
                     // If conditional logic found a next page, navigate to it
