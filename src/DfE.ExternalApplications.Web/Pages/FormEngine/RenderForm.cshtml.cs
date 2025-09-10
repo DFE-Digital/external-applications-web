@@ -87,6 +87,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 }
                 else
                 {
+                    // Restore any saved validation errors from previous POST
+                    RestoreFormErrors();
                     // Detect sub-flow route segments inside pageId via route value parsing if needed in future
                     // If application is not editable and trying to access a specific page, redirect to preview
                     if (!IsApplicationEditable() && !string.IsNullOrEmpty(CurrentPageId))
@@ -377,6 +379,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 CurrentPage = null; // No specific page for task summary
             }
 
+            _logger.LogInformation("DEBUG: Processing form data. Form keys: {FormKeys}", string.Join(", ", Request.Form.Keys));
+
             foreach (var key in Request.Form.Keys)
             {
                 var match = Regex.Match(key, @"^Data\[(.+?)\]$", RegexOptions.None, TimeSpan.FromMilliseconds(200));
@@ -388,6 +392,9 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     var normalisedFieldId = fieldId.StartsWith("Data_", StringComparison.Ordinal) ? fieldId.Substring(5) : fieldId;
                     var formValue = Request.Form[key];
 
+                    _logger.LogInformation("DEBUG: Processing form field - Key: '{Key}', FieldId: '{FieldId}', FormValue: '{FormValue}'", 
+                        key, fieldId, formValue.ToString());
+
                     // Convert StringValues to a simple string or array based on count
                     if (formValue.Count == 1)
                     {
@@ -397,6 +404,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         {
                             Data[normalisedFieldId] = val;
                         }
+                        _logger.LogInformation("DEBUG: Added to Data - FieldId: '{FieldId}', Value: '{Value}'", fieldId, val);
                     }
                     else if (formValue.Count > 1)
                     {
@@ -443,21 +451,71 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
             await ApplyConditionalLogicAsync("change");
 
+            _logger.LogInformation("DEBUG: About to validate page. CurrentPageId='{CurrentPageId}', CurrentPage.PageId='{PageId}', Data fields: {DataFields}", 
+                CurrentPageId, CurrentPage?.PageId, Data.Keys.Count > 0 ? string.Join(", ", Data.Keys) : "none");
+
             if (CurrentPage != null)
             {
-                ValidateCurrentPage(CurrentPage, Data);
+                _logger.LogInformation("DEBUG: Calling ValidateCurrentPage for page '{PageId}' with {FieldCount} fields", CurrentPage.PageId, CurrentPage.Fields?.Count ?? 0);
+                
+                // Log each field and its value for debugging
+                foreach (var field in CurrentPage.Fields ?? new List<Domain.Models.Field>())
+                {
+                    var fieldValue = Data.TryGetValue(field.FieldId, out var val) ? val?.ToString() ?? "null" : "not found";
+                    _logger.LogInformation("DEBUG: Field '{FieldId}' = '{Value}', HasValidations: {HasValidations}, ValidationCount: {ValidationCount}", 
+                        field.FieldId, fieldValue, field.Validations != null, field.Validations?.Count ?? 0);
+                    
+                    if (field.Validations != null)
+                    {
+                        foreach (var validation in field.Validations)
+                        {
+                            _logger.LogInformation("DEBUG: Validation rule - Type: '{Type}', Rule: '{Rule}', Message: '{Message}'", 
+                                validation.Type, validation.Rule, validation.Message);
+                        }
+                    }
+                }
+                
+                var validationResult = ValidateCurrentPage(CurrentPage, Data);
+                _logger.LogInformation("DEBUG: ValidateCurrentPage returned: {ValidationResult}", validationResult);
             }
+            else
+            {
+                _logger.LogWarning("DEBUG: CurrentPage is null, skipping validation");
+            }
+
+            var modelStateErrors = ModelState.Where(e => e.Value?.Errors.Count > 0).ToList();
+            _logger.LogInformation("DEBUG: ModelState.IsValid = {IsValid}, Error count: {ErrorCount}", ModelState.IsValid, modelStateErrors.Count);
+
+            if (modelStateErrors.Any())
+            {
+                foreach (var error in modelStateErrors)
+                {
+                    _logger.LogInformation("DEBUG: ModelState error - Key: '{Key}', Errors: [{Errors}]", 
+                        error.Key, string.Join("; ", error.Value?.Errors.Select(e => e.ErrorMessage) ?? new string[0]));
+                }
+            }
+
             if (!ModelState.IsValid)
             {
                 _logger.LogWarning("ModelState invalid on POST Page: {Errors}", string.Join("; ", ModelState.Where(e => e.Value?.Errors.Count > 0).Select(k => $"{k.Key}:{string.Join('|', k.Value!.Errors.Select(er => er.ErrorMessage))}")));
+                
+                // Save ModelState errors to session so they persist after redirect
+                var contextKey = GetFormErrorContextKey();
+                _formErrorStore.Save(contextKey, ModelState);
+                _logger.LogInformation("DEBUG: Saved ModelState errors to FormErrorStore with key: {ContextKey}", contextKey);
+                
                 // If we're inside a sub-flow, redirect back to the same URL to avoid state mis-binding
                 if (TryParseFlowRoute(CurrentPageId, out _, out _, out _))
                 {
                     var selfUrl = $"/applications/{ReferenceNumber}/{TaskId}/{CurrentPageId}";
+                    _logger.LogInformation("DEBUG: Redirecting to: {SelfUrl}", selfUrl);
                     return Redirect(selfUrl);
                 }
+                _logger.LogInformation("DEBUG: Returning Page() due to validation errors");
                 return Page();
             }
+
+            _logger.LogInformation("DEBUG: Validation passed, continuing with form processing...");
 
             // When AllowMultiple is true for an autocomplete complex field, append new selection
             // to any existing array value instead of replacing it
@@ -2332,6 +2390,54 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             var data = new Dictionary<string, object> { { fieldId, json } };
 
             await applicationResponseService.SaveApplicationResponseAsync(appId, data, HttpContext.Session);
+        }
+
+        #endregion
+
+        #region Form Error Store Helper Methods
+
+        /// <summary>
+        /// Gets a unique context key for storing form errors in session
+        /// </summary>
+        /// <returns>Form error context key</returns>
+        private string GetFormErrorContextKey()
+        {
+            return $"{ReferenceNumber}_{TaskId}_{CurrentPageId}";
+        }
+
+        /// <summary>
+        /// Restores previously saved form errors from session and applies them to ModelState
+        /// </summary>
+        private void RestoreFormErrors()
+        {
+            try
+            {
+                var contextKey = GetFormErrorContextKey();
+                var (fieldErrors, generalError) = _formErrorStore.Load(contextKey, clearAfterRead: true);
+                
+                if (fieldErrors.Any())
+                {
+                    foreach (var kvp in fieldErrors)
+                    {
+                        foreach (var error in kvp.Value)
+                        {
+                            ModelState.AddModelError(kvp.Key, error);
+                        }
+                    }
+                    _logger.LogInformation("DEBUG: Restored {ErrorCount} field errors from FormErrorStore with key: {ContextKey}", 
+                        fieldErrors.Sum(x => x.Value.Count), contextKey);
+                }
+                
+                if (!string.IsNullOrEmpty(generalError))
+                {
+                    ModelState.AddModelError("", generalError);
+                    _logger.LogInformation("DEBUG: Restored general error from FormErrorStore: {GeneralError}", generalError);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to restore form errors from session");
+            }
         }
 
         #endregion
