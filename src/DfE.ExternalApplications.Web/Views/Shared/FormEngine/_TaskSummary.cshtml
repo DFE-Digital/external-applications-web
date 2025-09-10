@@ -1,6 +1,7 @@
 @model DfE.ExternalApplications.Web.Pages.FormEngine.RenderFormModel
 @inject Application.Interfaces.IComplexFieldConfigurationService ComplexFieldConfigurationService
 @using System.Text.Json
+@using DfE.ExternalApplications.Web.Extensions
 
 <govuk-back-link href="/applications/@Model.ReferenceNumber">Back to application task list</govuk-back-link>
 
@@ -50,76 +51,79 @@
 
                 var itemLabelHyphenated = itemLabel.Replace(" ", "-").ToLower();
 
-                // Show main field header with change link
-                <div class="govuk-summary-list__row" id="field-@fieldIdHyphenated" data-testid="field-@fieldIdHyphenated">
-                    <dt class="govuk-summary-list__key">
-                        Selected @field.Label.Value
-                    </dt>
-                    <dd class="govuk-summary-list__value">
-                        @if (formattedValues.Count == 0)
-                        {
-                            <span class="govuk-hint">Not answered</span>
-                        }
-                        else if (!allowMultiple)
-                        {
-                            @if (isUploadField)
+@*                 @if (!allowMultiple) 
+                { *@
+                    // Show main field header with change link for single-select only
+                    <div class="govuk-summary-list__row" id="field-@fieldIdHyphenated" data-testid="field-@fieldIdHyphenated">
+                        <dt class="govuk-summary-list__key">
+                            Selected @field.Label.Value
+                        </dt>
+                        <dd class="govuk-summary-list__value">
+                            @if (formattedValues.Count == 0)
                             {
-                                // For upload fields, render as download link
-                                var uploadData = Model.GetFieldValue(field.FieldId);
-                                if (!string.IsNullOrEmpty(uploadData) && uploadData.StartsWith("[") && uploadData.Contains("\"id\""))
+                                <span class="govuk-hint">Not answered</span>
+                            }
+                            else
+                            {
+                                @if (isUploadField)
                                 {
-                                    try
+                                    // For upload fields, render as download link
+                                    var uploadData = Model.GetFieldValue(field.FieldId);
+                                    if (!string.IsNullOrEmpty(uploadData) && uploadData.StartsWith("[") && uploadData.Contains("\"id\""))
                                     {
-                                        var uploadFiles = System.Text.Json.JsonSerializer.Deserialize<List<GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>>(uploadData);
-                                        if (uploadFiles != null && uploadFiles.Any())
+                                        try
                                         {
-                                            var file = uploadFiles.First();
-                                            <form method="post" asp-page="/FormEngine/RenderForm" asp-route-referenceNumber="@Model.ReferenceNumber" asp-route-taskId="@Model.TaskId" asp-route-pageId="@(page.PageId)" asp-page-handler="DownloadFile" style="display:inline">
-                                                <input type="hidden" name="FileId" value="@file.Id" />
-                                                <input type="hidden" name="ApplicationId" value="@Model.ApplicationId" />
-                                                <button type="submit" class="govuk-link" style="border: none; background: none; padding: 0; color: #1d70b8; text-decoration: underline; cursor: pointer;">
-                                                    @file.OriginalFileName
-                                                </button>
-                                            </form>
+                                            var uploadFiles = System.Text.Json.JsonSerializer.Deserialize<List<GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>>(uploadData);
+                                        @*  if (uploadFiles != null && uploadFiles.Any())
+                                            {
+                                                var file = uploadFiles.First();
+                                                <form method="post" asp-page="/FormEngine/RenderForm" asp-route-referenceNumber="@Model.ReferenceNumber" asp-route-taskId="@Model.TaskId" asp-route-pageId="@(page.PageId)" asp-page-handler="DownloadFile" style="display:inline">
+                                                    <input type="hidden" name="FileId" value="@file.Id" />
+                                                    <input type="hidden" name="ApplicationId" value="@Model.ApplicationId" />
+                                                    <button type="submit" class="govuk-link" style="border: none; background: none; padding: 0; color: #1d70b8; text-decoration: underline; cursor: pointer;">
+                                                        @file.OriginalFileName
+                                                    </button>
+                                                </form>
+                                            }
+                                            else
+                                            { *@
+                                        if (uploadFiles == null || !uploadFiles.Any())
+                                        {
+                                            @Html.Raw(formattedValues.FirstOrDefault())
                                         }
-                                        else
+                                        @* } *@
+                                        }
+                                        catch
                                         {
                                             @Html.Raw(formattedValues.FirstOrDefault())
                                         }
                                     }
-                                    catch
+                                    else
                                     {
                                         @Html.Raw(formattedValues.FirstOrDefault())
                                     }
+                                }
+                                else if (isAutocompleteField)
+                                {
+                                    var html = RenderAutocompleteSummary(fieldValue);
+                                    @Html.Raw(html)
                                 }
                                 else
                                 {
                                     @Html.Raw(formattedValues.FirstOrDefault())
                                 }
                             }
-                            else if (isAutocompleteField)
+                        </dd>
+                        <dd class="govuk-summary-list__actions">
+                            @if (Model.IsApplicationEditable())
                             {
-                                var html = RenderAutocompleteSummary(fieldValue);
-                                @Html.Raw(html)
+                                <a class="govuk-link" href="@changeUrl" id="field-@fieldIdHyphenated-change-link" data-testid="field-@fieldIdHyphenated-change-link">
+                                    Change<span class="govuk-visually-hidden"> @field.Label.Value</span>
+                                </a>
                             }
-                            else
-                            {
-                                @Html.Raw(formattedValues.FirstOrDefault())
-                            }
-                          
-                        }
-
-                        
-                    </dd>
-                    <dd class="govuk-summary-list__actions">
-                        @if (Model.IsApplicationEditable())
-                        {
-                            <a class="govuk-link" href="@changeUrl" id="field-@fieldIdHyphenated-change-link" data-testid="field-@fieldIdHyphenated-change-link">
-                                Change<span class="govuk-visually-hidden"> @field.Label.Value</span>
-                            </a>
-                        }
-                    </dd>
-                </div>
+                        </dd>
+                    </div>
+                @* } *@
 
                 @* Show individual items if multiple selection is enabled *@
                 @if (allowMultiple && formattedValues.Count > 0)
@@ -154,8 +158,8 @@
                                             <dd class="govuk-summary-list__actions">
                                                 @if (Model.IsApplicationEditable())
                                                 {
-                                                    <a class="govuk-link" href="@changeUrl?removeItem=@index" id="@itemId-remove-link" data-testid="@itemId-remove-link">
-                                                        Remove<span class="govuk-visually-hidden"> @itemLabel @(index + 1)</span>
+                                                    <a class="govuk-link" href="@changeUrl" id="field-@fieldIdHyphenated-change-link" data-testid="field-@fieldIdHyphenated-remove-link">
+                                                        Remove<span class="govuk-visually-hidden"> @field.Label.Value</span>
                                                     </a>
                                                 }
                                             </dd>
@@ -179,9 +183,21 @@
                                         <dd class="govuk-summary-list__actions">
                                             @if (Model.IsApplicationEditable())
                                             {
-                                                <a class="govuk-link" href="@changeUrl?removeItem=@index" id="@itemId-remove-link" data-testid="@itemId-remove-link">
-                                                    Remove<span class="govuk-visually-hidden"> @itemLabel @(index + 1)</span>
-                                                </a>
+                                                <form method="post" style="display:inline" asp-page="/FormEngine/RemoveFieldItem" asp-page-handler="RemoveFieldItem">
+                                                    <input type="hidden" name="Data[__noop]" value="" />
+                                                    <input type="hidden" name="referenceNumber" value="@Model.ReferenceNumber" />
+                                                    <input type="hidden" name="taskId" value="@Model.TaskId" />
+                                                    <input type="hidden" name="fieldId" value="@field.FieldId" />
+                                                    <input type="hidden" name="index" value="@index" />
+                                                    <input type="hidden" name="itemTitle" value="@itemLabel @(index + 1)" />
+                                                    <input type="hidden" name="confirmation-action-RemoveFieldItem" value="/FormEngine/RemoveFieldItem" />
+                                                    @Html.RenderSecondaryConfirmationButton(
+                                                        buttonText: "Remove",
+                                                        handler: "RemoveFieldItem",
+                                                        displayFields: "itemTitle",
+                                                        title: "Please confirm removal of the following item",
+                                                        buttonId: $"remove-field-item-@itemId")
+                                                </form>
                                             }
                                         </dd>
                                     </div>
@@ -191,7 +207,37 @@
                     }
                     else
                     {
-                        @* For non-upload fields, use original behavior *@
+                        @* For non-upload fields, render each value and provide a confirmation-backed remove post *@
+                        // Build display fields dynamically based on likely autocomplete keys
+                        var displayFieldsForRemove = "itemTitle";
+                        try
+                        {
+                            foreach (var (valueRaw, idx) in formattedValues.Select((v, i) => (v, i)))
+                            {
+                                var tmp = valueRaw ?? string.Empty;
+                                var keys = new List<string>();
+                                // Heuristic: based on known keys used elsewhere
+                                if (!string.IsNullOrEmpty(tmp) && tmp.TrimStart().StartsWith("{"))
+                                {
+                                    using var jd = System.Text.Json.JsonDocument.Parse(tmp);
+                                    var root = jd.RootElement;
+                                    if (root.TryGetProperty("name", out _)) keys.Add("name");
+                                    if (root.TryGetProperty("ukprn", out _)) keys.Add("ukprn");
+                                    if (root.TryGetProperty("urn", out _)) keys.Add("urn");
+                                    if (root.TryGetProperty("companiesHouseNumber", out _)) keys.Add("companiesHouseNumber");
+                                    if (root.TryGetProperty("companiesHousenumber", out _)) keys.Add("companiesHouseNumber");
+                                    if (root.TryGetProperty("companies_house_number", out _)) keys.Add("companiesHouseNumber");
+                                }
+                                if (keys.Count > 0)
+                                {
+                                    // Include itemTitle first for confirmation context
+                                    displayFieldsForRemove = string.Join(',', new [] { "itemTitle" }.Concat(keys.Distinct()));
+                                    break;
+                                }
+                            }
+                        }
+                        catch { }
+
                         @foreach (var (value, index) in formattedValues.Select((v, i) => (v, i)))
                         {
                             var itemId = $"{fieldIdHyphenated}-item-{index}";
@@ -205,14 +251,89 @@
                                 <dd class="govuk-summary-list__actions">
                                     @if (Model.IsApplicationEditable())
                                     {
-                                        <a class="govuk-link" href="@changeUrl?removeItem=@index" id="@itemId-remove-link" data-testid="@itemId-remove-link">
-                                            Remove<span class="govuk-visually-hidden"> @itemLabel @(index + 1)</span>
-                                        </a>
+                                        <form method="post" style="display:inline" asp-page="/FormEngine/RemoveFieldItem" asp-page-handler="RemoveFieldItem">
+                                            <input type="hidden" name="Data[__noop]" value="" />
+                                            <input type="hidden" name="referenceNumber" value="@Model.ReferenceNumber" />
+                                            <input type="hidden" name="taskId" value="@Model.TaskId" />
+                                            <input type="hidden" name="fieldId" value="@field.FieldId" />
+                                            <input type="hidden" name="index" value="@index" />
+                                            <input type="hidden" name="itemTitle" value="@itemLabel @(index + 1)" />
+                                            <input type="hidden" name="confirmation-action-RemoveFieldItem" value="/FormEngine/RemoveFieldItem" />
+                                            <input type="hidden" name="confirmation-return-RemoveFieldItem" value="/applications/@Model.ReferenceNumber/@Model.TaskId" />
+                                            <input type="hidden" name="confirmation-action-RemoveFieldItem" value="/FormEngine/RemoveFieldItem" />
+                                            <input type="hidden" name="confirmation-return-RemoveFieldItem" value="/applications/@Model.ReferenceNumber/@Model.TaskId" />
+                                            <input type="hidden" name="confirmation-action-RemoveFieldItem" value="/FormEngine/RemoveFieldItem" />
+                                            <input type="hidden" name="confirmation-return-RemoveFieldItem" value="/applications/@Model.ReferenceNumber/@Model.TaskId" />
+                                            @{
+                                                // var displayFieldsForRemove = "itemTitle";
+                                                string nameVal = string.Empty;
+                                                string ukprnVal = string.Empty;
+                                                string urnVal = string.Empty;
+                                                string chVal = string.Empty;
+                                                try
+                                                {
+                                                    var raw = fieldValue;
+                                                    if (!string.IsNullOrWhiteSpace(raw))
+                                                    {
+                                                        using var doc = System.Text.Json.JsonDocument.Parse(raw);
+                                                        System.Text.Json.JsonElement elem;
+                                                        if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array && index < doc.RootElement.GetArrayLength())
+                                                        {
+                                                            elem = doc.RootElement[index];
+                                                        }
+                                                        else if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object)
+                                                        {
+                                                            elem = doc.RootElement;
+                                                        }
+                                                        else { elem = default; }
+
+                                                        if (elem.ValueKind == System.Text.Json.JsonValueKind.Object)
+                                                        {
+                                                            if (elem.TryGetProperty("name", out var n)) nameVal = n.ToString();
+                                                            if (elem.TryGetProperty("ukprn", out var u)) ukprnVal = u.ToString();
+                                                            if (elem.TryGetProperty("urn", out var urnE)) urnVal = urnE.ToString();
+                                                            if (elem.TryGetProperty("companiesHouseNumber", out var ch)) chVal = ch.ToString();
+                                                            if (string.IsNullOrWhiteSpace(chVal) && elem.TryGetProperty("companiesHousenumber", out var ch2)) chVal = ch2.ToString();
+                                                            if (string.IsNullOrWhiteSpace(chVal) && elem.TryGetProperty("companies_house_number", out var ch3)) chVal = ch3.ToString();
+                                                        }
+                                                    }
+
+                                                    var keys = new List<string>();
+                                                    if (!string.IsNullOrWhiteSpace(nameVal)) keys.Add("name");
+                                                    if (!string.IsNullOrWhiteSpace(ukprnVal)) keys.Add("ukprn");
+                                                    if (!string.IsNullOrWhiteSpace(urnVal)) keys.Add("urn");
+                                                    if (!string.IsNullOrWhiteSpace(chVal)) keys.Add("companiesHouseNumber");
+                                                    if (keys.Count > 0)
+                                                    {
+                                                        displayFieldsForRemove = string.Join(',', new [] { "itemTitle" }.Concat(keys));
+                                                    }
+                                                }
+                                                catch { }
+                                            }
+                                            @if (!string.IsNullOrWhiteSpace(nameVal)) { <input type="hidden" name="name" value="@nameVal" /> }
+                                            @if (!string.IsNullOrWhiteSpace(ukprnVal)) { <input type="hidden" name="ukprn" value="@ukprnVal" /> }
+                                            @if (!string.IsNullOrWhiteSpace(urnVal)) { <input type="hidden" name="urn" value="@urnVal" /> }
+                                            @if (!string.IsNullOrWhiteSpace(chVal)) { <input type="hidden" name="companiesHouseNumber" value="@chVal" /> }
+                                            @Html.RenderSecondaryConfirmationButton(
+                                                buttonText: "Remove",
+                                                handler: "RemoveFieldItem",
+                                                displayFields: displayFieldsForRemove,
+                                                title: "Please confirm removal of the following item",
+                                                buttonId: $"remove-field-item-@itemId")
+                                        </form>
                                     }
                                 </dd>
                             </div>
                         }
                     }
+                }
+
+                @* Add another button for multi-select autocomplete, routes back to the page *@
+                @if (allowMultiple && isAutocompleteField && Model.IsApplicationEditable())
+                {
+                    <div class="govuk-!-margin-top-2 govuk-!-margin-bottom-4">
+                        <a class="govuk-button govuk-button--secondary" href="@changeUrl">Add @field.Label.Value</a>
+                    </div>
                 }
             }
             else

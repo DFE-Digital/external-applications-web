@@ -68,13 +68,40 @@ namespace DfE.ExternalApplications.Web.Filters
             // Create confirmation request
             var (title, message) = ReadCustomMeta(form, confirmationInfo.Handler);
 
+            // Allow overriding the action path via hidden meta field
+            var overrideActionKey = $"confirmation-action-{confirmationInfo.Handler}";
+            var originalPath = context.HttpContext.Request.Path;
+            if (form.ContainsKey(overrideActionKey))
+            {
+                var values = form[overrideActionKey];
+                var desired = values.Count > 0 ? values[0] : string.Empty;
+                if (!string.IsNullOrWhiteSpace(desired))
+                {
+                    // Guard against accidental CSV joining from multiple inputs
+                    originalPath = desired.Split(',')[0].Trim();
+                }
+            }
+
+            // Allow overriding the return URL (where to go on cancel/back)
+            var overrideReturnKey = $"confirmation-return-{confirmationInfo.Handler}";
+            var returnUrl = $"{context.HttpContext.Request.Path}{context.HttpContext.Request.QueryString}";
+            if (form.ContainsKey(overrideReturnKey))
+            {
+                var values = form[overrideReturnKey];
+                var desiredReturn = values.Count > 0 ? values[0] : string.Empty;
+                if (!string.IsNullOrWhiteSpace(desiredReturn))
+                {
+                    returnUrl = desiredReturn.Split(',')[0].Trim();
+                }
+            }
+
             var confirmationRequest = new ConfirmationRequest
             {
-                OriginalPagePath = context.HttpContext.Request.Path,
+                OriginalPagePath = originalPath,
                 OriginalHandler = confirmationInfo.Handler,
                 OriginalFormData = ExtractFormData(form),
                 DisplayFields = confirmationInfo.DisplayFields,
-                ReturnUrl = $"{context.HttpContext.Request.Path}{context.HttpContext.Request.QueryString}",
+                ReturnUrl = returnUrl,
                 Title = title
             };
 
@@ -148,13 +175,39 @@ namespace DfE.ExternalApplications.Web.Filters
 
             var (title2, message2) = ReadCustomMeta(form, confirmationInfo.Handler);
 
+            // Allow overriding the action path via hidden meta field
+            var overrideActionKey2 = $"confirmation-action-{confirmationInfo.Handler}";
+            var originalPath2 = context.HttpContext.Request.Path;
+            if (form.ContainsKey(overrideActionKey2))
+            {
+                var values = form[overrideActionKey2];
+                var desired = values.Count > 0 ? values[0] : string.Empty;
+                if (!string.IsNullOrWhiteSpace(desired))
+                {
+                    originalPath2 = desired.Split(',')[0].Trim();
+                }
+            }
+
+            // Allow overriding the return URL (where to go on cancel/back)
+            var overrideReturnKey2 = $"confirmation-return-{confirmationInfo.Handler}";
+            var returnUrl2 = $"{context.HttpContext.Request.Path}{context.HttpContext.Request.QueryString}";
+            if (form.ContainsKey(overrideReturnKey2))
+            {
+                var values = form[overrideReturnKey2];
+                var desiredReturn2 = values.Count > 0 ? values[0] : string.Empty;
+                if (!string.IsNullOrWhiteSpace(desiredReturn2))
+                {
+                    returnUrl2 = desiredReturn2.Split(',')[0].Trim();
+                }
+            }
+
             var confirmationRequest = new ConfirmationRequest
             {
-                OriginalPagePath = context.HttpContext.Request.Path,
+                OriginalPagePath = originalPath2,
                 OriginalHandler = confirmationInfo.Handler,
                 OriginalFormData = ExtractFormData(form),
                 DisplayFields = confirmationInfo.DisplayFields,
-                ReturnUrl = $"{context.HttpContext.Request.Path}{context.HttpContext.Request.QueryString}",
+                ReturnUrl = returnUrl2,
                 Title = title2,
             };
 

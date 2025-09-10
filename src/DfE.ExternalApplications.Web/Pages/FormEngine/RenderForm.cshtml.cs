@@ -34,6 +34,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         IConditionalLogicOrchestrator conditionalLogicOrchestrator,
         INotificationsClient notificationsClient,
         IFormErrorStore formErrorStore,
+        IComplexFieldConfigurationService complexFieldConfigurationService,
         ILogger<RenderFormModel> logger)
         : BaseFormEngineModel(renderer, applicationResponseService, fieldFormattingService, templateManagementService,
             applicationStateService, formStateManager, formNavigationService, formDataManager, formValidationOrchestrator, formConfigurationService, logger)
@@ -42,6 +43,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         private readonly IConditionalLogicOrchestrator _conditionalLogicOrchestrator = conditionalLogicOrchestrator;
         private readonly INotificationsClient _notificationsClient = notificationsClient;
         private readonly IFormErrorStore _formErrorStore = formErrorStore;
+        private readonly IComplexFieldConfigurationService _complexFieldConfigurationService = complexFieldConfigurationService;
 
         [BindProperty] public Dictionary<string, object> Data { get; set; } = new();
 
@@ -457,6 +459,120 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 return Page();
             }
 
+            // When AllowMultiple is true for an autocomplete complex field, append new selection
+            // to any existing array value instead of replacing it
+            if (CurrentPage != null)
+            {
+                try
+                {
+                    foreach (var field in CurrentPage.Fields.Where(f => f.Type == "complexField" && f.ComplexField != null))
+                    {
+                        var cfg = _complexFieldConfigurationService.GetConfiguration(field.ComplexField.Id);
+                        if (!string.Equals(cfg.FieldType, "autocomplete", StringComparison.OrdinalIgnoreCase) || !cfg.AllowMultiple)
+                        {
+                            continue;
+                        }
+
+                        var key = field.FieldId;
+                        if (!Data.TryGetValue(key, out var newValObj))
+                        {
+                            continue;
+                        }
+
+                        var newVal = newValObj?.ToString();
+                        if (string.IsNullOrWhiteSpace(newVal))
+                        {
+                            continue;
+                        }
+
+                        // Load existing selections from accumulated session
+                        var acc = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
+                        var list = new List<object>();
+                        if (acc.TryGetValue(key, out var existing) && !string.IsNullOrWhiteSpace(existing?.ToString()))
+                        {
+                            var existingText = existing!.ToString()!;
+                            var addedExisting = false;
+                            // Try parse as array of objects
+                            try
+                            {
+                                var parsedArray = JsonSerializer.Deserialize<List<object>>(existingText);
+                                if (parsedArray != null)
+                                {
+                                    list = parsedArray;
+                                    addedExisting = true;
+                                }
+                            }
+                            catch { }
+
+                            // If not an array, try parse as single object and add it as first element
+                            if (!addedExisting)
+                            {
+                                try
+                                {
+                                    using var doc = JsonDocument.Parse(existingText);
+                                    if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                                    {
+                                        list.Add(doc.RootElement.Clone());
+                                        addedExisting = true;
+                                    }
+                                }
+                                catch { }
+                            }
+
+                            // If still not added and it's a non-empty string, include as string element
+                            if (!addedExisting && !string.IsNullOrWhiteSpace(existingText))
+                            {
+                                list.Add(existingText);
+                            }
+                        }
+
+                        // Avoid duplicates by comparing JSON string
+                        bool exists = false;
+                        try
+                        {
+                            var newJson = newVal;
+                            exists = list.Any(x => (x?.ToString() ?? "") == newJson);
+                        }
+                        catch { }
+
+                        if (!exists)
+                        {
+                            try
+                            {
+                                using var newDoc = JsonDocument.Parse(newVal);
+                                if (newDoc.RootElement.ValueKind == JsonValueKind.Object || newDoc.RootElement.ValueKind == JsonValueKind.Array)
+                                {
+                                    list.Add(newDoc.RootElement.Clone());
+                                }
+                                else if (newDoc.RootElement.ValueKind == JsonValueKind.String)
+                                {
+                                    list.Add(newDoc.RootElement.GetString() ?? string.Empty);
+                                }
+                                else
+                                {
+                                    list.Add(newDoc.RootElement.ToString());
+                                }
+                            }
+                            catch
+                            {
+                                // If not JSON, store as string value
+                                list.Add(newVal);
+                            }
+                        }
+
+                        var updatedJson = JsonSerializer.Serialize(list);
+                        // Update both normalized and Data_ forms to be safe
+                        Data[key] = updatedJson;
+                        Data[$"Data_{key}"] = updatedJson;
+                        _applicationResponseService.AccumulateFormData(new Dictionary<string, object> { [key] = updatedJson }, HttpContext.Session);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to merge multi-select autocomplete values");
+                }
+            }
+
             // Save the current page data to the API (skip for sub-flows as they accumulate data differently)
             bool isSubFlow = TryParseFlowRoute(CurrentPageId, out _, out _, out _);
             if (ApplicationId.HasValue && Data.Any() && !isSubFlow)
@@ -757,6 +873,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 return new JsonResult(new List<object>());
             }
         }
+
+        // Removed: superseded by RemoveFieldItem page handler
 
         public async Task<IActionResult> OnPostRemoveCollectionItemAsync(string fieldId, string itemId, string? flowId = null)
         {

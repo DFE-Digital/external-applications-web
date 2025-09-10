@@ -36,6 +36,18 @@ namespace DfE.ExternalApplications.Web.Extensions
                 html.Append($" id=\"{buttonId}\"");
             }
 
+            // Add any additional attributes (e.g. style)
+            if (additionalAttributes != null)
+            {
+                var attributes = HtmlHelper.AnonymousObjectToHtmlAttributes(additionalAttributes);
+                foreach (var attribute in attributes)
+                {
+                    var attributeName = attribute.Key;
+                    var attributeValue = System.Net.WebUtility.HtmlEncode(attribute.Value?.ToString());
+                    html.Append($" {attributeName}=\"{attributeValue}\"");
+                }
+            }
+
             // Additional attributes placeholder
             html.Append(">");
             html.Append(buttonText);
@@ -128,6 +140,10 @@ namespace DfE.ExternalApplications.Web.Extensions
                 displayFields: displayFields,
                 buttonType: "submit",
                 buttonId: buttonId,
+                additionalAttributes: new
+                {
+                    style = "background: none; border: 0; padding: 0; font: inherit; cursor: pointer; font-family: GDS Transport, arial, sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-decoration: underline; text-decoration-thickness: max(1px, .0625rem); text-underline-offset: .1578em; color: #1d70b8;"
+                },
                 title: title);
         }
     }
