@@ -216,6 +216,8 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseResponseCompression();
+
 app.UseStaticFiles();
 app.UseStaticFiles(new StaticFileOptions
 {
@@ -227,7 +229,6 @@ app.UseStaticFiles(new StaticFileOptions
 });
 
 app.UseRouting();
-app.UseResponseCompression();
 
 app.UseSession();
 app.UseHostTemplateResolution();
