@@ -51,8 +51,8 @@
 
                 var itemLabelHyphenated = itemLabel.Replace(" ", "-").ToLower();
 
-                @if (!allowMultiple)
-                {
+@*                 @if (!allowMultiple) 
+                { *@
                     // Show main field header with change link for single-select only
                     <div class="govuk-summary-list__row" id="field-@fieldIdHyphenated" data-testid="field-@fieldIdHyphenated">
                         <dt class="govuk-summary-list__key">
@@ -73,8 +73,8 @@
                                     {
                                         try
                                         {
-                                            var uploadFiles = System.Text.Json.JsonSerializer.Deserialize<List<DfE.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>>(uploadData);
-                                            if (uploadFiles != null && uploadFiles.Any())
+                                            var uploadFiles = System.Text.Json.JsonSerializer.Deserialize<List<GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>>(uploadData);
+                                        @*  if (uploadFiles != null && uploadFiles.Any())
                                             {
                                                 var file = uploadFiles.First();
                                                 <form method="post" asp-page="/FormEngine/RenderForm" asp-route-referenceNumber="@Model.ReferenceNumber" asp-route-taskId="@Model.TaskId" asp-route-pageId="@(page.PageId)" asp-page-handler="DownloadFile" style="display:inline">
@@ -86,9 +86,12 @@
                                                 </form>
                                             }
                                             else
-                                            {
-                                                @Html.Raw(formattedValues.FirstOrDefault())
-                                            }
+                                            { *@
+                                        if (uploadFiles == null || !uploadFiles.Any())
+                                        {
+                                            @Html.Raw(formattedValues.FirstOrDefault())
+                                        }
+                                        @* } *@
                                         }
                                         catch
                                         {
@@ -120,7 +123,7 @@
                             }
                         </dd>
                     </div>
-                }
+                @* } *@
 
                 @* Show individual items if multiple selection is enabled *@
                 @if (allowMultiple && formattedValues.Count > 0)
@@ -155,21 +158,9 @@
                                             <dd class="govuk-summary-list__actions">
                                                 @if (Model.IsApplicationEditable())
                                                 {
-                                                    <form method="post" style="display:inline" asp-page="/FormEngine/RemoveFieldItem" asp-page-handler="RemoveFieldItem">
-                                                        <input type="hidden" name="Data[__noop]" value="" />
-                                                        <input type="hidden" name="referenceNumber" value="@Model.ReferenceNumber" />
-                                                        <input type="hidden" name="taskId" value="@Model.TaskId" />
-                                                        <input type="hidden" name="fieldId" value="@field.FieldId" />
-                                                        <input type="hidden" name="index" value="@index" />
-                                                        <input type="hidden" name="itemTitle" value="@itemLabel @(index + 1)" />
-                                                        <input type="hidden" name="confirmation-action-RemoveFieldItem" value="/FormEngine/RemoveFieldItem" />
-                                                        @Html.RenderSecondaryConfirmationButton(
-                                                            buttonText: "Remove",
-                                                            handler: "RemoveFieldItem",
-                                                            displayFields: "itemTitle",
-                                                            title: "Please confirm removal of the following item",
-                                                            buttonId: $"remove-field-item-@itemId")
-                                                    </form>
+                                                    <a class="govuk-link" href="@changeUrl" id="field-@fieldIdHyphenated-change-link" data-testid="field-@fieldIdHyphenated-remove-link">
+                                                        Remove<span class="govuk-visually-hidden"> @field.Label.Value</span>
+                                                    </a>
                                                 }
                                             </dd>
                                         </div>
@@ -274,7 +265,7 @@
                                             <input type="hidden" name="confirmation-action-RemoveFieldItem" value="/FormEngine/RemoveFieldItem" />
                                             <input type="hidden" name="confirmation-return-RemoveFieldItem" value="/applications/@Model.ReferenceNumber/@Model.TaskId" />
                                             @{
-                                                var displayFieldsForRemove = "itemTitle";
+                                                // var displayFieldsForRemove = "itemTitle";
                                                 string nameVal = string.Empty;
                                                 string ukprnVal = string.Empty;
                                                 string urnVal = string.Empty;
