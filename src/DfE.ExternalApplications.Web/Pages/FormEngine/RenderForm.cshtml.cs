@@ -377,6 +377,9 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 CurrentPage = null; // No specific page for task summary
             }
 
+            // Collect date parts for fields rendered with GOV.UK date input
+            var dateParts = new Dictionary<string, (string? Day, string? Month, string? Year)>(StringComparer.OrdinalIgnoreCase);
+
             foreach (var key in Request.Form.Keys)
             {
                 var match = Regex.Match(key, @"^Data\[(.+?)\]$", RegexOptions.None, TimeSpan.FromMilliseconds(200));
@@ -416,6 +419,37 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         }
                     }
                 }
+                else
+                {
+                    // Match date inputs like Data[fieldId].Day / Data[fieldId]-day (support both dot and hyphen)
+                    var dateMatch = Regex.Match(key, @"^Data\[(.+?)\](?:[.\-](day|month|year))$", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(200));
+                    if (dateMatch.Success)
+                    {
+                        var fieldId = dateMatch.Groups[1].Value;
+                        var part = dateMatch.Groups[2].Value.ToLowerInvariant();
+                        var formValue = Request.Form[key].ToString();
+
+                        if (!dateParts.TryGetValue(fieldId, out var parts))
+                        {
+                            parts = (null, null, null);
+                        }
+
+                        switch (part)
+                        {
+                            case "day":
+                                parts.Day = formValue;
+                                break;
+                            case "month":
+                                parts.Month = formValue;
+                                break;
+                            case "year":
+                                parts.Year = formValue;
+                                break;
+                        }
+
+                        dateParts[fieldId] = parts;
+                    }
+                }
             }
 
             // Apply conditional logic after processing form data changes
@@ -442,6 +476,34 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 }
             }
             await ApplyConditionalLogicAsync("change");
+
+            // After conditional logic, compose any collected date parts into a single ISO date string
+            if (dateParts.Count > 0)
+            {
+                foreach (var kvp in dateParts)
+                {
+                    var fieldId = kvp.Key;
+                    var parts = kvp.Value;
+                    if (int.TryParse(parts.Year, out var y) && int.TryParse(parts.Month, out var m) && int.TryParse(parts.Day, out var d))
+                    {
+                        try
+                        {
+                            var dt = new DateTime(y, m, d);
+                            var val = dt.ToString("yyyy-MM-dd");
+                            var normalisedFieldId = fieldId.StartsWith("Data_", StringComparison.Ordinal) ? fieldId.Substring(5) : fieldId;
+                            Data[fieldId] = val;
+                            if (!string.Equals(fieldId, normalisedFieldId, StringComparison.Ordinal))
+                            {
+                                Data[normalisedFieldId] = val;
+                            }
+                        }
+                        catch
+                        {
+                            // Ignore invalid date combinations (e.g., 31/02); validation will handle errors
+                        }
+                    }
+                }
+            }
 
             if (CurrentPage != null)
             {

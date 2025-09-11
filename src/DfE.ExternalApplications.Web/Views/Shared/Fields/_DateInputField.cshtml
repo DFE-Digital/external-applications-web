@@ -4,12 +4,12 @@
     var isRequired = Model.Field.Required ?? true;
     var validationAttributes = new HtmlString(Model.ValidationAttributes);
     var labelClasses = Model.Field.Label.IsVisible ? "" : "govuk-visually-hidden";
-    DateTime value = DateTime.TryParse(Model.CurrentValue, out DateTime val) ? val : new DateTime();
+    DateTime? parsedDate = DateTime.TryParse(Model.CurrentValue, out DateTime dt) ? dt : (DateTime?)null;
 }
 
 <govuk-date-input id="@Model.Id"
              name-prefix="Data[@Model.Field.FieldId]"
-                value="@Model.CurrentValue">
+                value="@parsedDate">
 @if (Model.ErrorMessage != String.Empty)
     {
         <govuk-date-input-error-message>
