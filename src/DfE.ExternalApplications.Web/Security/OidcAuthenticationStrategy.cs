@@ -1,10 +1,10 @@
+using GovUK.Dfe.CoreLibs.Security.TokenRefresh.Interfaces;
+using GovUK.Dfe.ExternalApplications.Api.Client.Security;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.OpenIdConnect;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging;
-using GovUK.Dfe.ExternalApplications.Api.Client.Security;
 
 namespace DfE.ExternalApplications.Web.Security;
 
@@ -12,13 +12,14 @@ namespace DfE.ExternalApplications.Web.Security;
 /// Authentication strategy for OIDC-based authentication
 /// Handles DfE Sign-In and other OIDC providers
 /// </summary>
-public class OidcAuthenticationStrategy(ILogger<OidcAuthenticationStrategy> logger) : IAuthenticationSchemeStrategy
+public class OidcAuthenticationStrategy(ILogger<OidcAuthenticationStrategy> logger, ITokenRefreshService tokenRefreshService) : IAuthenticationSchemeStrategy
 {
     /// <summary>
     /// Matches the OIDC authentication scheme name from Program.cs configuration
     /// Note: This matches OpenIdConnectDefaults.AuthenticationScheme ("OpenIdConnect")
     /// </summary>
     public string SchemeName => OpenIdConnectDefaults.AuthenticationScheme; // "OpenIdConnect"
+
 
     public async Task<TokenInfo> GetExternalIdpTokenAsync(HttpContext context)
     {
@@ -58,7 +59,7 @@ public class OidcAuthenticationStrategy(ILogger<OidcAuthenticationStrategy> logg
             {
                 return false;
             }
-            
+
             var timeUntilExpiry = tokenInfo.ExpiryTime.Value - DateTime.UtcNow;
             var minutesRemaining = timeUntilExpiry.TotalMinutes;
 
@@ -97,17 +98,16 @@ public class OidcAuthenticationStrategy(ILogger<OidcAuthenticationStrategy> logg
                 return false;
             }
 
-            // For OIDC, we typically need to use the refresh token to get new tokens
-            // This would involve calling the token endpoint of the OIDC provider
-            
-            // TODO: Implement actual OIDC token refresh logic
-            // This would involve:
-            // 1. Call the OIDC provider's token endpoint with refresh_token
-            // 2. Get new id_token and access_token
-            // 3. Update the authentication properties
-            // 4. Re-sign in the user with new tokens
-            
-            return false;
+            var refreshedToken = await tokenRefreshService.RefreshTokenAsync(refreshToken, CancellationToken.None);
+
+            if (!refreshedToken.IsSuccess)
+            {
+                return false;
+            }
+
+            await UpdateAuthenticationTokenAsync(context, refreshedToken.Token!.IdToken!, refreshedToken.Token.RefreshToken!);
+
+            return true;
         }
         catch (Exception ex)
         {
@@ -125,5 +125,52 @@ public class OidcAuthenticationStrategy(ILogger<OidcAuthenticationStrategy> logg
                     ?? context.User?.Identity?.Name;
         
         return userId;
+    }
+
+    /// <summary>
+    /// Update authentication context with new token
+    /// For OIDC we need to update the authentication properties and set proper expiry times
+    /// </summary>
+    private async Task UpdateAuthenticationTokenAsync(HttpContext context, string newToken, string refreshToken)
+    {
+        try
+        {
+            // Get current authentication result
+            var authResult = await context.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            if (authResult.Succeeded && authResult.Properties != null)
+            {
+                // Parse the new token to get its expiry time
+                var handler = new JwtSecurityTokenHandler();
+                var jsonToken = handler.ReadJwtToken(newToken);
+                var expiresAt = jsonToken.ValidTo.ToString("o", System.Globalization.CultureInfo.InvariantCulture);
+
+                // Update tokens in authentication properties
+                var tokens = new[]
+                {
+                    new AuthenticationToken { Name = "id_token", Value = newToken },
+                    new AuthenticationToken { Name = "access_token", Value = newToken },
+                    new AuthenticationToken { Name = "refresh_token", Value = refreshToken },
+                    new AuthenticationToken { Name = "expires_at", Value = expiresAt }
+                };
+                authResult.Properties.StoreTokens(tokens);
+
+                // Update the cookie expiry to match the new token expiry
+                authResult.Properties.ExpiresUtc = jsonToken.ValidTo;
+
+                // Re-sign in with updated properties to refresh the authentication cookie
+                await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, authResult.Principal, authResult.Properties);
+                
+                logger.LogDebug("Successfully updated OIDC authentication tokens. New token expires at: {ExpiryTime}", jsonToken.ValidTo);
+            }
+            else
+            {
+                logger.LogWarning("Failed to update OIDC authentication tokens: Authentication result was not successful or properties were null");
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error updating OIDC authentication tokens");
+            throw;
+        }
     }
 }
