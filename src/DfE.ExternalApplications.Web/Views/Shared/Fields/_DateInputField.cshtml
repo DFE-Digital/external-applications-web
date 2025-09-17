@@ -4,17 +4,37 @@
     var isRequired = Model.Field.Required ?? true;
     var validationAttributes = new HtmlString(Model.ValidationAttributes);
     var labelClasses = Model.Field.Label.IsVisible ? "" : "govuk-visually-hidden";
-    DateTime? parsedDate = DateTime.TryParse(Model.CurrentValue, out DateTime dt) ? dt : (DateTime?)null;
+	DateTime? parsedDate = DateTime.TryParse(Model.CurrentValue, out DateTime dt) ? dt : (DateTime?)null;
+	var request = ViewContext?.HttpContext?.Request;
+	var hasForm = request?.HasFormContentType == true && string.Equals(request.Method, "POST", StringComparison.OrdinalIgnoreCase);
+	var postedDay = hasForm ? request!.Form[$"Data[{Model.Field.FieldId}].day"].ToString() : string.Empty;
+	var postedMonth = hasForm ? request!.Form[$"Data[{Model.Field.FieldId}].month"].ToString() : string.Empty;
+	var postedYear = hasForm ? request!.Form[$"Data[{Model.Field.FieldId}].year"].ToString() : string.Empty;
+	var hasPostedParts = hasForm && (!string.IsNullOrWhiteSpace(postedDay) || !string.IsNullOrWhiteSpace(postedMonth) || !string.IsNullOrWhiteSpace(postedYear));
 }
 
-<govuk-date-input id="@Model.Id"
-             name-prefix="Data[@Model.Field.FieldId]"
-                value="@parsedDate">
-@if (Model.ErrorMessage != String.Empty)
-    {
-        <govuk-date-input-error-message>
-        @Model.ErrorMessage
-        </govuk-date-input-error-message>
-
-    }
-</govuk-date-input>
+@if (hasPostedParts)
+{
+    <govuk-date-input id="@Model.Id" name-prefix="Data[@Model.Field.FieldId]">
+        @if (Model.ErrorMessage != String.Empty)
+        {
+            <govuk-date-input-error-message>
+                @Model.ErrorMessage
+            </govuk-date-input-error-message>
+        }
+        <govuk-date-input-day value="@postedDay"></govuk-date-input-day>
+        <govuk-date-input-month value="@postedMonth"></govuk-date-input-month>
+        <govuk-date-input-year value="@postedYear"></govuk-date-input-year>
+    </govuk-date-input>
+}
+else
+{
+    <govuk-date-input id="@Model.Id" name-prefix="Data[@Model.Field.FieldId]" value="@parsedDate">
+        @if (Model.ErrorMessage != String.Empty)
+        {
+            <govuk-date-input-error-message>
+                @Model.ErrorMessage
+            </govuk-date-input-error-message>
+        }
+    </govuk-date-input>
+}

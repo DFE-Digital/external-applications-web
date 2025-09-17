@@ -3,6 +3,8 @@ using DfE.ExternalApplications.Domain.Models;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
+using System.Globalization;
 using Task = DfE.ExternalApplications.Domain.Models.Task;
 
 namespace DfE.ExternalApplications.Infrastructure.Services
@@ -13,10 +15,12 @@ namespace DfE.ExternalApplications.Infrastructure.Services
     public class FormValidationOrchestrator : IFormValidationOrchestrator
     {
         private readonly ILogger<FormValidationOrchestrator> _logger;
+        private readonly IConditionalLogicEngine _conditionalLogicEngine;
 
-        public FormValidationOrchestrator(ILogger<FormValidationOrchestrator> logger)
+        public FormValidationOrchestrator(ILogger<FormValidationOrchestrator> logger, IConditionalLogicEngine conditionalLogicEngine)
         {
             _logger = logger;
+            _conditionalLogicEngine = conditionalLogicEngine;
         }
 
         /// <summary>
@@ -40,7 +44,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                 data.TryGetValue(key, out var rawValue);
                 var value = rawValue?.ToString() ?? string.Empty;
 
-                if (!ValidateField(field, value, modelState, key))
+                if (!ValidateField(field, value, data, modelState, key))
                 {
                     isValid = false;
                 }
@@ -114,54 +118,274 @@ namespace DfE.ExternalApplications.Infrastructure.Services
         /// <returns>True if validation passes</returns>
         public bool ValidateField(Field field, object value, ModelStateDictionary modelState, string fieldKey)
         {
-            if (field?.Validations == null)
+            // Call the overloaded method with null data for backward compatibility
+            return ValidateField(field, value, null, modelState, fieldKey);
+        }
+
+        /// <summary>
+        /// Validates a single field with full form data context for conditional validation
+        /// </summary>
+        /// <param name="field">The field to validate</param>
+        /// <param name="value">The field value</param>
+        /// <param name="formData">The complete form data for conditional evaluation</param>
+        /// <param name="modelState">The model state to add errors to</param>
+        /// <param name="fieldKey">The field key for model state</param>
+        /// <returns>True if validation passes</returns>
+        public bool ValidateField(Field field, object value, Dictionary<string, object>? formData, ModelStateDictionary modelState, string fieldKey)
+        {
+            var stringValue = value?.ToString() ?? string.Empty;
+            var isValid = true;
+
+            // Special handling for complex fields (upload, autocomplete, etc.)
+            if (field.Type == "complexField" && field.ComplexField != null)
+            {
+                return ValidateComplexField(field, value, formData, modelState, fieldKey);
+            }
+
+            // Automatic date validation even when no explicit rules are provided
+            if (string.Equals(field.Type, "date", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!string.IsNullOrWhiteSpace(stringValue))
+                {
+                    if (!DateTime.TryParseExact(stringValue, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
+                    {
+                        modelState.AddModelError(fieldKey, "Enter a valid date");
+                        isValid = false;
+                    }
+                }
+            }
+
+            if (field?.Validations != null)
+            {
+                foreach (var rule in field.Validations)
+                {
+                    // Check if this is a conditional validation rule
+                    if (rule.Condition != null)
+                    {
+                        if (formData == null)
+                        {
+                            _logger.LogWarning("Conditional validation rule found for field '{FieldId}' but no form data provided for evaluation. Skipping rule.", field.FieldId);
+                            continue;
+                        }
+
+                        try
+                        {
+                            // Evaluate the condition using the conditional logic engine
+                            bool conditionMet = _conditionalLogicEngine.EvaluateCondition(rule.Condition, formData);
+                            
+                            if (!conditionMet)
+                            {
+                                // Condition not met, skip this validation rule
+                                continue;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Error evaluating conditional validation rule for field '{FieldId}'. Skipping rule.", field.FieldId);
+                            continue;
+                        }
+                    }
+
+                    switch (rule.Type)
+                    {
+                        case "required":
+                            if (string.IsNullOrWhiteSpace(stringValue))
+                            {
+                                modelState.AddModelError(fieldKey, rule.Message);
+                                isValid = false;
+                            }
+                            break;
+                        case "regex":
+                            var pattern = rule.Rule?.ToString();
+                            if (!string.IsNullOrWhiteSpace(stringValue) && !string.IsNullOrEmpty(pattern))
+                            {
+                                var regexMatch = Regex.IsMatch(stringValue, pattern, RegexOptions.None, TimeSpan.FromMilliseconds(200));
+                                if (!regexMatch)
+                                {
+                                    modelState.AddModelError(fieldKey, rule.Message);
+                                    isValid = false;
+                                }
+                            }
+                            break;
+                        case "maxLength":
+                            var maxLengthStr = rule.Rule?.ToString();
+                            if (!string.IsNullOrEmpty(maxLengthStr) && int.TryParse(maxLengthStr, out var maxLength))
+                            {
+                                if (stringValue.Length > maxLength)
+                                {
+                                    modelState.AddModelError(fieldKey, rule.Message);
+                                    isValid = false;
+                                }
+                            }
+                            break;
+                        default:
+                            _logger.LogWarning("Unknown validation rule type: {RuleType} for field '{FieldKey}'", rule.Type, fieldKey);
+                            break;
+                    }
+                }
+            }
+
+            return isValid;
+        }
+
+        #region Complex Field Validation
+
+        /// <summary>
+        /// Validates a complex field (upload, autocomplete, etc.)
+        /// </summary>
+        /// <param name="field">The complex field to validate</param>
+        /// <param name="value">The field value</param>
+        /// <param name="formData">The complete form data for conditional evaluation</param>
+        /// <param name="modelState">The model state to add errors to</param>
+        /// <param name="fieldKey">The field key for model state</param>
+        /// <returns>True if validation passes</returns>
+        private bool ValidateComplexField(Field field, object? value, Dictionary<string, object>? formData, ModelStateDictionary modelState, string fieldKey)
+        {
+            if (field.Validations == null)
             {
                 return true;
             }
 
             var stringValue = value?.ToString() ?? string.Empty;
             var isValid = true;
+            
+            // Determine if this is an upload field
+            bool isUploadField = field.ComplexField!.Id.Contains("Upload", StringComparison.OrdinalIgnoreCase);
 
             foreach (var rule in field.Validations)
             {
-                // Conditional application
+                // Check if this is a conditional validation rule
                 if (rule.Condition != null)
                 {
-                    // This would need access to the full data dictionary to check conditions
-                    // For now, we'll skip conditional validation in this context
-                    continue;
+                    if (formData == null)
+                    {
+                        _logger.LogWarning("Conditional validation rule found for complex field '{FieldId}' but no form data provided for evaluation. Skipping rule.", field.FieldId);
+                        continue;
+                    }
+
+                    try
+                    {
+                        var conditionResult = _conditionalLogicEngine.EvaluateCondition(rule.Condition, formData);
+                        
+                        if (!conditionResult)
+                        {
+                            continue;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error evaluating conditional validation rule for complex field '{FieldId}'. Skipping rule.", field.FieldId);
+                        continue;
+                    }
                 }
 
-                switch (rule.Type)
+                switch (rule.Type.ToLowerInvariant())
                 {
                     case "required":
-                        if (string.IsNullOrWhiteSpace(stringValue))
+                        if (isUploadField)
                         {
-                            modelState.AddModelError(fieldKey, rule.Message);
-                            isValid = false;
+                            // For upload fields, check if files are uploaded
+                            bool hasFiles = HasUploadedFiles(stringValue);
+                            if (!hasFiles)
+                            {
+                                // Use a more appropriate error message for upload fields if the template message is clearly wrong
+                                var errorMessage = rule.Message;
+                                if (errorMessage.Contains("phone", StringComparison.OrdinalIgnoreCase) || 
+                                    errorMessage.Contains("name", StringComparison.OrdinalIgnoreCase) ||
+                                    errorMessage.Contains("text", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    errorMessage = "Please upload a file.";
+                                }
+                                
+                                modelState.AddModelError(fieldKey, errorMessage);
+                                isValid = false;
+                            }
+                        }
+                        else
+                        {
+                            // For other complex fields (autocomplete), check if value is empty
+                            if (string.IsNullOrWhiteSpace(stringValue))
+                            {
+                                modelState.AddModelError(fieldKey, rule.Message);
+                                isValid = false;
+                            }
                         }
                         break;
                     case "regex":
-                        if (!Regex.IsMatch(stringValue, rule.Rule.ToString(), RegexOptions.None, TimeSpan.FromMilliseconds(200)) && !string.IsNullOrWhiteSpace(stringValue))
+                        // Regex validation doesn't apply to upload fields, skip for uploads
+                        if (!isUploadField && !string.IsNullOrWhiteSpace(stringValue))
                         {
-                            modelState.AddModelError(fieldKey, rule.Message);
-                            isValid = false;
+                            var pattern = rule.Rule?.ToString();
+                            if (!string.IsNullOrEmpty(pattern) && !Regex.IsMatch(stringValue, pattern, RegexOptions.None, TimeSpan.FromMilliseconds(200)))
+                            {
+                                modelState.AddModelError(fieldKey, rule.Message);
+                                isValid = false;
+                            }
                         }
                         break;
-                    case "maxLength":
-                        if (stringValue.Length > int.Parse(rule.Rule.ToString()))
+                    case "maxlength":
+                        // MaxLength validation doesn't apply to upload fields, skip for uploads
+                        if (!isUploadField)
                         {
-                            modelState.AddModelError(fieldKey, rule.Message);
-                            isValid = false;
+                            if (int.TryParse(rule.Rule?.ToString(), out var maxLength))
+                            {
+                                if (stringValue.Length > maxLength)
+                                {
+                                    modelState.AddModelError(fieldKey, rule.Message);
+                                    isValid = false;
+                                }
+                            }
+                            else
+                            {
+                                _logger.LogWarning("Complex field maxLength validation rule has invalid rule value for field '{FieldId}': {Rule}", field.FieldId, rule.Rule);
+                            }
                         }
                         break;
                     default:
-                        _logger.LogWarning("Unknown validation rule type: {RuleType}", rule.Type);
+                        _logger.LogWarning("Unknown complex field validation rule type '{Type}' for field '{FieldId}'", rule.Type, field.FieldId);
                         break;
                 }
             }
 
             return isValid;
         }
+
+        /// <summary>
+        /// Checks if an upload field has uploaded files
+        /// </summary>
+        /// <param name="value">The field value (JSON array or string)</param>
+        /// <returns>True if files are uploaded</returns>
+        private bool HasUploadedFiles(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            // Handle special session data placeholder - this indicates NO files uploaded yet
+            if (value == "UPLOAD_FIELD_SESSION_DATA")
+            {
+                return false;
+            }
+
+            // Try to parse as JSON array
+            try
+            {
+                if (value.StartsWith("[") && value.EndsWith("]"))
+                {
+                    var files = System.Text.Json.JsonSerializer.Deserialize<List<object>>(value);
+                    return files != null && files.Count > 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to parse upload field value as JSON for field value: {Value}", value);
+            }
+
+            // If not JSON or parsing failed, treat non-empty as having files (except for known placeholders)
+            return !string.IsNullOrWhiteSpace(value);
+        }
+
+        #endregion
     }
 }

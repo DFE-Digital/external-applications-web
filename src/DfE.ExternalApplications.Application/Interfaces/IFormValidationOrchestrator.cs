@@ -43,5 +43,16 @@ namespace DfE.ExternalApplications.Application.Interfaces
         /// <param name="fieldKey">The field key for model state</param>
         /// <returns>True if validation passes</returns>
         bool ValidateField(Domain.Models.Field field, object value, ModelStateDictionary modelState, string fieldKey);
+        
+        /// <summary>
+        /// Validates a single field with full form data context for conditional validation
+        /// </summary>
+        /// <param name="field">The field to validate</param>
+        /// <param name="value">The field value</param>
+        /// <param name="formData">The complete form data for conditional evaluation</param>
+        /// <param name="modelState">The model state to add errors to</param>
+        /// <param name="fieldKey">The field key for model state</param>
+        /// <returns>True if validation passes</returns>
+        bool ValidateField(Domain.Models.Field field, object value, Dictionary<string, object>? formData, ModelStateDictionary modelState, string fieldKey);
     }
 }
