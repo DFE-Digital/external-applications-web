@@ -381,6 +381,9 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
             _logger.LogInformation("DEBUG: Processing form data. Form keys: {FormKeys}", string.Join(", ", Request.Form.Keys));
 
+            // Collect date parts for fields rendered with GOV.UK date input
+            var dateParts = new Dictionary<string, (string? Day, string? Month, string? Year)>(StringComparer.OrdinalIgnoreCase);
+
             foreach (var key in Request.Form.Keys)
             {
                 var match = Regex.Match(key, @"^Data\[(.+?)\]$", RegexOptions.None, TimeSpan.FromMilliseconds(200));
@@ -424,6 +427,37 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         }
                     }
                 }
+                else
+                {
+                    // Match date inputs like Data[fieldId].Day / Data[fieldId]-day (support both dot and hyphen)
+                    var dateMatch = Regex.Match(key, @"^Data\[(.+?)\](?:[.\-](day|month|year))$", RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(200));
+                    if (dateMatch.Success)
+                    {
+                        var fieldId = dateMatch.Groups[1].Value;
+                        var part = dateMatch.Groups[2].Value.ToLowerInvariant();
+                        var formValue = Request.Form[key].ToString();
+
+                        if (!dateParts.TryGetValue(fieldId, out var parts))
+                        {
+                            parts = (null, null, null);
+                        }
+
+                        switch (part)
+                        {
+                            case "day":
+                                parts.Day = formValue;
+                                break;
+                            case "month":
+                                parts.Month = formValue;
+                                break;
+                            case "year":
+                                parts.Year = formValue;
+                                break;
+                        }
+
+                        dateParts[fieldId] = parts;
+                    }
+                }
             }
 
             // Apply conditional logic after processing form data changes
@@ -450,6 +484,50 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 }
             }
             await ApplyConditionalLogicAsync("change");
+
+            // Compose collected date parts into a single ISO date string so summaries recognise an answer
+            if (dateParts.Count > 0)
+            {
+                foreach (var kvp in dateParts)
+                {
+                    var fieldId = kvp.Key;
+                    var parts = kvp.Value;
+                    var anyEntered = !string.IsNullOrWhiteSpace(parts.Day) || !string.IsNullOrWhiteSpace(parts.Month) || !string.IsNullOrWhiteSpace(parts.Year);
+
+                    if (!anyEntered)
+                    {
+                        continue;
+                    }
+
+                    if (int.TryParse(parts.Year, out var y) && int.TryParse(parts.Month, out var m) && int.TryParse(parts.Day, out var d))
+                    {
+                        try
+                        {
+                            var dt = new DateTime(y, m, d);
+                            var iso = dt.ToString("yyyy-MM-dd");
+                            var normalisedFieldId = fieldId.StartsWith("Data_", StringComparison.Ordinal) ? fieldId.Substring(5) : fieldId;
+                            Data[fieldId] = iso;
+                            if (!string.Equals(fieldId, normalisedFieldId, StringComparison.Ordinal)) Data[normalisedFieldId] = iso;
+                        }
+                        catch
+                        {
+                            // Invalid date combo: set a joined value so validator can produce a message and retain the parts
+                            var joined = $"{parts.Year}-{parts.Month}-{parts.Day}";
+                            var normalisedFieldId = fieldId.StartsWith("Data_", StringComparison.Ordinal) ? fieldId.Substring(5) : fieldId;
+                            Data[fieldId] = joined;
+                            if (!string.Equals(fieldId, normalisedFieldId, StringComparison.Ordinal)) Data[normalisedFieldId] = joined;
+                        }
+                    }
+                    else
+                    {
+                        // Partial or non-numeric: set a joined value so validator can produce a message
+                        var joined = $"{parts.Year}-{parts.Month}-{parts.Day}";
+                        var normalisedFieldId = fieldId.StartsWith("Data_", StringComparison.Ordinal) ? fieldId.Substring(5) : fieldId;
+                        Data[fieldId] = joined;
+                        if (!string.Equals(fieldId, normalisedFieldId, StringComparison.Ordinal)) Data[normalisedFieldId] = joined;
+                    }
+                }
+            }
 
             _logger.LogInformation("DEBUG: About to validate page. CurrentPageId='{CurrentPageId}', CurrentPage.PageId='{PageId}', Data fields: {DataFields}", 
                 CurrentPageId, CurrentPage?.PageId, Data.Keys.Count > 0 ? string.Join(", ", Data.Keys) : "none");

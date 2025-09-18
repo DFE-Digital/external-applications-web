@@ -52,7 +52,7 @@ namespace DfE.ExternalApplications.Web.Extensions
             services.AddScoped<IFormStateManager, FormStateManager>();
             services.AddScoped<IFormNavigationService, FormNavigationService>();
             services.AddScoped<IFormDataManager, FormDataManager>();
-            services.AddScoped<IFormValidationOrchestrator, FormValidationOrchestrator>();
+            services.AddScoped<IFormValidationOrchestrator, DfE.ExternalApplications.Infrastructure.Services.FormValidationOrchestrator>();
             services.AddScoped<IFormConfigurationService, FormConfigurationService>();
             
             // Confirmation Services

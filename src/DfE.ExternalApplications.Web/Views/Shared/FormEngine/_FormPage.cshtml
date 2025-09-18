@@ -32,14 +32,6 @@
     <div class="govuk-grid-row">
         <div class="govuk-grid-column-two-thirds">
 
-            <legend class="govuk-fieldset__legend govuk-fieldset__legend--l">
-
-                <h1 class="govuk-fieldset__heading" id="page-title">
-                    <span class="govuk-caption-l">@Model.CurrentTask.TaskName</span>
-                    @Model.CurrentPage.Title
-                </h1>
-            </legend>
-
             <govuk-error-summary>
                 @{
                     var ModelStateWithFieldProps = from m in ViewData.ModelState
@@ -58,6 +50,14 @@
                     }
                 }
             </govuk-error-summary>
+
+            <legend class="govuk-fieldset__legend govuk-fieldset__legend--l">
+
+                <h1 class="govuk-fieldset__heading" id="page-title">
+                    <span class="govuk-caption-l">@Model.CurrentTask.TaskName</span>
+                    @Model.CurrentPage.Title
+                </h1>
+            </legend>
 
             @foreach (var field in Model.CurrentPage.Fields.OrderBy(f => f.Order).Where(f => !Model.IsFieldHidden(f.FieldId)))
             {
