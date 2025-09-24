@@ -25,6 +25,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.ResponseCompression;
 using System.Diagnostics.CodeAnalysis;
+using GovUK.Dfe.CoreLibs.Security.TokenRefresh.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -141,6 +142,8 @@ builder.Services
         });
 
 builder.Services.AddScoped<ICustomClaimProvider, PermissionsClaimProvider>();
+
+builder.Services.AddTokenRefreshWithOidc(configuration, "DfESignIn", "TokenRefresh");
 
 // Add HttpClient for API calls
 builder.Services.AddHttpClient();
