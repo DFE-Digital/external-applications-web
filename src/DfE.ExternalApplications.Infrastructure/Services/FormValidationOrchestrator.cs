@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using System.Globalization;
+using System.ComponentModel.DataAnnotations;
 using Task = DfE.ExternalApplications.Domain.Models.Task;
 
 namespace DfE.ExternalApplications.Infrastructure.Services
@@ -150,6 +151,20 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                     if (!DateTime.TryParseExact(stringValue, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
                     {
                         modelState.AddModelError(fieldKey, "Enter a valid date");
+                        isValid = false;
+                    }
+                }
+            }
+
+            // Automatic email validation
+            if (string.Equals(field.Type, "email", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!string.IsNullOrWhiteSpace(stringValue))
+                {
+                    var emailAttr = new EmailAddressAttribute();
+                    if (!emailAttr.IsValid(stringValue))
+                    {
+                        modelState.AddModelError(fieldKey, "Enter an email address in the correct format");
                         isValid = false;
                     }
                 }

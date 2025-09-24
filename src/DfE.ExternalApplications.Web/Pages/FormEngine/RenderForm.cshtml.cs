@@ -458,7 +458,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         dateParts[fieldId] = parts;
                     }
                 }
-            }
+              }
 
             // Apply conditional logic after processing form data changes
 
@@ -576,7 +576,23 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             if (!ModelState.IsValid)
             {
                 _logger.LogWarning("ModelState invalid on POST Page: {Errors}", string.Join("; ", ModelState.Where(e => e.Value?.Errors.Count > 0).Select(k => $"{k.Key}:{string.Join('|', k.Value!.Errors.Select(er => er.ErrorMessage))}")));
+
+                // (Reverted) Do not accumulate general invalid form data to session; sub-flow persistence below is sufficient
                 
+                // For sub-flow pages, persist latest values to flow progress prior to redirect
+                try
+                {
+                    if (TryParseFlowRoute(CurrentPageId, out var fId, out var instId, out _))
+                    {
+                        SaveFlowProgress(fId, instId, Data);
+                        _logger.LogInformation("Saved in-progress flow data for flow {FlowId}, instance {InstanceId} with {Count} fields due to validation errors.", fId, instId, Data?.Count ?? 0);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to save flow progress on validation failure.");
+                }
+
                 // Save ModelState errors to session so they persist after redirect
                 var contextKey = GetFormErrorContextKey();
                 _formErrorStore.Save(contextKey, ModelState);
