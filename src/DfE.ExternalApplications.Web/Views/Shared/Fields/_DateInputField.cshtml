@@ -11,9 +11,24 @@
 	var postedMonth = hasForm ? request!.Form[$"Data[{Model.Field.FieldId}].month"].ToString() : string.Empty;
 	var postedYear = hasForm ? request!.Form[$"Data[{Model.Field.FieldId}].year"].ToString() : string.Empty;
 	var hasPostedParts = hasForm && (!string.IsNullOrWhiteSpace(postedDay) || !string.IsNullOrWhiteSpace(postedMonth) || !string.IsNullOrWhiteSpace(postedYear));
+
+	// When reloading after redirect (GET), recover parts from stored joined value (e.g., "YYYY-M-D")
+	string persistedDay = string.Empty, persistedMonth = string.Empty, persistedYear = string.Empty;
+	var hasPersistedParts = false;
+	if (!hasPostedParts && parsedDate == null && !string.IsNullOrWhiteSpace(Model.CurrentValue) && Model.CurrentValue.Contains('-'))
+	{
+		var bits = Model.CurrentValue.Split('-', StringSplitOptions.TrimEntries);
+		if (bits.Length == 3)
+		{
+			persistedYear = bits[0];
+			persistedMonth = bits[1];
+			persistedDay = bits[2];
+			hasPersistedParts = !string.IsNullOrWhiteSpace(persistedDay) || !string.IsNullOrWhiteSpace(persistedMonth) || !string.IsNullOrWhiteSpace(persistedYear);
+		}
+	}
 }
 
-@if (hasPostedParts)
+@if (hasPostedParts || hasPersistedParts)
 {
     <govuk-date-input id="@Model.Id" name-prefix="Data[@Model.Field.FieldId]">
         @if (Model.ErrorMessage != String.Empty)
@@ -22,9 +37,9 @@
                 @Model.ErrorMessage
             </govuk-date-input-error-message>
         }
-        <govuk-date-input-day value="@postedDay"></govuk-date-input-day>
-        <govuk-date-input-month value="@postedMonth"></govuk-date-input-month>
-        <govuk-date-input-year value="@postedYear"></govuk-date-input-year>
+        <govuk-date-input-day value="@(hasPostedParts ? postedDay : persistedDay)"></govuk-date-input-day>
+        <govuk-date-input-month value="@(hasPostedParts ? postedMonth : persistedMonth)"></govuk-date-input-month>
+        <govuk-date-input-year value="@(hasPostedParts ? postedYear : persistedYear)"></govuk-date-input-year>
     </govuk-date-input>
 }
 else
