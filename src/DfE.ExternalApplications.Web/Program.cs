@@ -94,12 +94,12 @@ builder.Services.Configure<Microsoft.AspNetCore.Mvc.MvcOptions>(options =>
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession();
 builder.Services.AddMemoryCache();
-builder.Services.AddResponseCompression(options =>
-{
-    options.EnableForHttps = true;
-    options.Providers.Add<BrotliCompressionProvider>();
-    options.Providers.Add<GzipCompressionProvider>();
-});
+//builder.Services.AddResponseCompression(options =>
+//{
+//    options.EnableForHttps = true;
+//    options.Providers.Add<BrotliCompressionProvider>();
+//    options.Providers.Add<GzipCompressionProvider>();
+//});
 
 builder.Services.Configure<TokenRefreshSettings>(configuration.GetSection("TokenRefresh"));
 
