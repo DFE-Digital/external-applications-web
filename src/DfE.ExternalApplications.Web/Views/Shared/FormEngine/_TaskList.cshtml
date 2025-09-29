@@ -75,7 +75,7 @@
         </div>
     </div>
 
-    @if (currentUserEmail == leadApplicantEmail)
+    @if (string.Equals(currentUserEmail?.Trim(), leadApplicantEmail?.Trim(), StringComparison.InvariantCultureIgnoreCase))
     {
         <div class="govuk-grid-column-one-third">
             <div class="govuk-!-margin-top-6">
