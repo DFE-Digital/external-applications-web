@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
+using System.Globalization;
+using System.ComponentModel.DataAnnotations;
 using Task = DfE.ExternalApplications.Domain.Models.Task;
 
 namespace DfE.ExternalApplications.Infrastructure.Services
@@ -132,11 +134,6 @@ namespace DfE.ExternalApplications.Infrastructure.Services
         /// <returns>True if validation passes</returns>
         public bool ValidateField(Field field, object value, Dictionary<string, object>? formData, ModelStateDictionary modelState, string fieldKey)
         {
-            if (field?.Validations == null)
-            {
-                return true;
-            }
-
             var stringValue = value?.ToString() ?? string.Empty;
             var isValid = true;
 
@@ -146,70 +143,100 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                 return ValidateComplexField(field, value, formData, modelState, fieldKey);
             }
 
-            foreach (var rule in field.Validations)
+            // Automatic date validation even when no explicit rules are provided
+            if (string.Equals(field.Type, "date", StringComparison.OrdinalIgnoreCase))
             {
-                // Check if this is a conditional validation rule
-                if (rule.Condition != null)
+                if (!string.IsNullOrWhiteSpace(stringValue))
                 {
-                    if (formData == null)
+                    if (!DateTime.TryParseExact(stringValue, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
                     {
-                        _logger.LogWarning("Conditional validation rule found for field '{FieldId}' but no form data provided for evaluation. Skipping rule.", field.FieldId);
-                        continue;
+                        modelState.AddModelError(fieldKey, "Enter a valid date");
+                        isValid = false;
                     }
+                }
+            }
 
-                    try
+            // Automatic email validation
+            if (string.Equals(field.Type, "email", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!string.IsNullOrWhiteSpace(stringValue))
+                {
+                    var emailAttr = new EmailAddressAttribute();
+                    if (!emailAttr.IsValid(stringValue))
                     {
-                        // Evaluate the condition using the conditional logic engine
-                        bool conditionMet = _conditionalLogicEngine.EvaluateCondition(rule.Condition, formData);
-                        
-                        if (!conditionMet)
+                        modelState.AddModelError(fieldKey, "Enter an email address in the correct format");
+                        isValid = false;
+                    }
+                }
+            }
+
+            if (field?.Validations != null)
+            {
+                foreach (var rule in field.Validations)
+                {
+                    // Check if this is a conditional validation rule
+                    if (rule.Condition != null)
+                    {
+                        if (formData == null)
                         {
-                            // Condition not met, skip this validation rule
+                            _logger.LogWarning("Conditional validation rule found for field '{FieldId}' but no form data provided for evaluation. Skipping rule.", field.FieldId);
+                            continue;
+                        }
+
+                        try
+                        {
+                            // Evaluate the condition using the conditional logic engine
+                            bool conditionMet = _conditionalLogicEngine.EvaluateCondition(rule.Condition, formData);
+                            
+                            if (!conditionMet)
+                            {
+                                // Condition not met, skip this validation rule
+                                continue;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Error evaluating conditional validation rule for field '{FieldId}'. Skipping rule.", field.FieldId);
                             continue;
                         }
                     }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Error evaluating conditional validation rule for field '{FieldId}'. Skipping rule.", field.FieldId);
-                        continue;
-                    }
-                }
 
-                switch (rule.Type)
-                {
-                    case "required":
-                        if (string.IsNullOrWhiteSpace(stringValue))
-                        {
-                            modelState.AddModelError(fieldKey, rule.Message);
-                            isValid = false;
-                        }
-                        break;
-                    case "regex":
-                        var pattern = rule.Rule?.ToString();
-                        if (!string.IsNullOrWhiteSpace(stringValue) && !string.IsNullOrEmpty(pattern))
-                        {
-                            var regexMatch = Regex.IsMatch(stringValue, pattern, RegexOptions.None, TimeSpan.FromMilliseconds(200));
-                            if (!regexMatch)
+                    switch (rule.Type)
+                    {
+                        case "required":
+                            if (string.IsNullOrWhiteSpace(stringValue))
                             {
                                 modelState.AddModelError(fieldKey, rule.Message);
                                 isValid = false;
                             }
-                        }
-                        break;
-                    case "maxLength":
-                        var maxLengthStr = rule.Rule?.ToString();
-                        if (!string.IsNullOrEmpty(maxLengthStr) && int.TryParse(maxLengthStr, out var maxLength))
-                        {
-                            if (stringValue.Length > maxLength)
+                            break;
+                        case "regex":
+                            var pattern = rule.Rule?.ToString();
+                            if (!string.IsNullOrWhiteSpace(stringValue) && !string.IsNullOrEmpty(pattern))
                             {
-                                modelState.AddModelError(fieldKey, rule.Message);
-                                isValid = false;
+                                var regexMatch = Regex.IsMatch(stringValue, pattern, RegexOptions.None, TimeSpan.FromMilliseconds(200));
+                                if (!regexMatch)
+                                {
+                                    modelState.AddModelError(fieldKey, rule.Message);
+                                    isValid = false;
+                                }
                             }
-                        }
-                        break;
-                    default:
-                        _logger.LogWarning("Unknown validation rule type: {RuleType} for field '{FieldKey}'", rule.Type, fieldKey);
-                        break;
+                            break;
+                        case "maxLength":
+                            var maxLengthStr = rule.Rule?.ToString();
+                            if (!string.IsNullOrEmpty(maxLengthStr) && int.TryParse(maxLengthStr, out var maxLength))
+                            {
+                                if (stringValue.Length > maxLength)
+                                {
+                                    modelState.AddModelError(fieldKey, rule.Message);
+                                    isValid = false;
+                                }
+                            }
+                            break;
+                        default:
+                            _logger.LogWarning("Unknown validation rule type: {RuleType} for field '{FieldKey}'", rule.Type, fieldKey);
+                            break;
+                    }
                 }
             }
 

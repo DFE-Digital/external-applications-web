@@ -26,6 +26,7 @@ using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.ResponseCompression;
 using System.Diagnostics.CodeAnalysis;
 using GovUK.Dfe.CoreLibs.Security.TokenRefresh.Extensions;
+using System.IO.Compression;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -94,12 +95,19 @@ builder.Services.Configure<Microsoft.AspNetCore.Mvc.MvcOptions>(options =>
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession();
 builder.Services.AddMemoryCache();
-//builder.Services.AddResponseCompression(options =>
-//{
-//    options.EnableForHttps = true;
-//    options.Providers.Add<BrotliCompressionProvider>();
-//    options.Providers.Add<GzipCompressionProvider>();
-//});
+
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.Providers.Add<GzipCompressionProvider>();
+    options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(
+        new[] { "text/html", "text/css", "application/javascript", "text/javascript" });
+});
+
+builder.Services.Configure<GzipCompressionProviderOptions>(options =>
+{
+    options.Level = CompressionLevel.Fastest; // Use faster but less compression
+});
 
 builder.Services.Configure<TokenRefreshSettings>(configuration.GetSection("TokenRefresh"));
 

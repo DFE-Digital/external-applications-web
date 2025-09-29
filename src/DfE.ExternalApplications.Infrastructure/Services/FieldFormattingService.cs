@@ -1,5 +1,6 @@
 using DfE.ExternalApplications.Application.Interfaces;
 using DfE.ExternalApplications.Domain.Models;
+using System.Globalization;
 using System.Text.Json;
 
 namespace DfE.ExternalApplications.Infrastructure.Services
@@ -69,6 +70,13 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                 return FormatAutocompleteValue(fieldValue);
             }
 
+            // Try to format common primitive types (e.g., dates)
+            var dateFormatted = TryFormatDate(fieldValue);
+            if (!string.IsNullOrEmpty(dateFormatted))
+            {
+                return dateFormatted;
+            }
+
             return fieldValue;
         }
 
@@ -94,6 +102,13 @@ namespace DfE.ExternalApplications.Infrastructure.Services
 
 
                 return FormatAutocompleteValuesList(fieldValue);
+            }
+
+            // Handle single primitive values (e.g., a single date)
+            var dateFormatted = TryFormatDate(fieldValue);
+            if (!string.IsNullOrEmpty(dateFormatted))
+            {
+                return new List<string> { dateFormatted };
             }
 
             return new List<string> { fieldValue };
@@ -176,6 +191,17 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             }
 
             return value;
+        }
+
+        private string TryFormatDate(string value)
+        {
+            // Expect ISO date saved as yyyy-MM-dd
+            if (DateTime.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt))
+            {
+                // Return e.g. 15 March 2025
+                return dt.ToString("d MMMM yyyy", CultureInfo.InvariantCulture);
+            }
+            return string.Empty;
         }
 
         private List<string> FormatAutocompleteValuesList(string value)

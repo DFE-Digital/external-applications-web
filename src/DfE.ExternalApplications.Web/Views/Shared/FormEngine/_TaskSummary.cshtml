@@ -14,6 +14,7 @@
         {
             var fieldValue = Model.GetFieldValue(field.FieldId);
             var hasValue = Model.HasFieldValue(field.FieldId);
+            var formattedFieldValue = Model.GetFormattedFieldValue(field.FieldId);
             var changeUrl = $"/applications/{Model.ReferenceNumber}/{Model.TaskId}/{page.PageId}";
 
             var fieldIdHyphenated = field.FieldId.Replace(" ", "-").ToLower();
@@ -357,7 +358,8 @@
                             }
                             else
                             {
-                                @Html.Raw(fieldValue.Replace("\r\n", "<br/>").Replace("\r", "<br/>").Replace("\n", "<br/>"))
+                                var displayVal = string.IsNullOrEmpty(formattedFieldValue) ? fieldValue : formattedFieldValue;
+                                @Html.Raw(displayVal.Replace("\r\n", "<br/>").Replace("\r", "<br/>").Replace("\n", "<br/>"))
                             }
                         }
                         else

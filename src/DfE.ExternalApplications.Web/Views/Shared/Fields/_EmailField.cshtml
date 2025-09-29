@@ -1,0 +1,27 @@
+@using Microsoft.AspNetCore.Html;
+@model DfE.ExternalApplications.Web.Services.FieldViewModel
+@{
+	var isRequired = Model.Field.Required ?? true;
+	var validationAttributes = new HtmlString(Model.ValidationAttributes);
+	var labelClasses = Model.Field.Label.IsVisible ? "" : "govuk-visually-hidden";
+}
+
+
+<govuk-input id="@Model.Id"
+			 type="email"
+			 name="Data[@Model.Field.FieldId]"
+			 value="@Model.CurrentValue"
+			 data-field-id="@Model.Field.FieldId">
+			<govuk-input-label class="@labelClasses">
+				@Model.Field.Label.Value
+			</govuk-input-label>
+			<govuk-input-hint>
+				@Model.Field.Tooltip
+			</govuk-input-hint>
+			@if (Model.ErrorMessage != String.Empty)
+			{
+				<govuk-input-error-message>@Model.ErrorMessage</govuk-input-error-message>
+			}
+</govuk-input>
+
+

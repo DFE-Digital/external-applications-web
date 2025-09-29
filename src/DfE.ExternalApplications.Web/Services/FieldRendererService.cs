@@ -60,6 +60,7 @@ namespace DfE.ExternalApplications.Web.Services
             var partialName = field.Type switch
             {
                 "text" => "Fields/_TextField",
+                "email" => "Fields/_EmailField",
                 "select" => "Fields/_SelectField",
                 "text-area" => "Fields/_TextAreaField",
                 "radios" => "Fields/_RadiosField",
