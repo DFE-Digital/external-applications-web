@@ -193,6 +193,9 @@ builder.Services.AddScoped<IFileUploadService, FileUploadService>();
 builder.Services.AddScoped<IConditionalLogicEngine, ConditionalLogicEngine>();
 builder.Services.AddScoped<IConditionalLogicOrchestrator, ConditionalLogicOrchestrator>();
 
+// Derived Collection Flow Services
+builder.Services.AddScoped<IDerivedCollectionFlowService, DerivedCollectionFlowService>();
+
 builder.Services.AddScoped<IAutocompleteService, AutocompleteService>();
 builder.Services.AddScoped<IComplexFieldConfigurationService, ComplexFieldConfigurationService>();
 builder.Services.AddScoped<IComplexFieldRendererFactory, ComplexFieldRendererFactory>();

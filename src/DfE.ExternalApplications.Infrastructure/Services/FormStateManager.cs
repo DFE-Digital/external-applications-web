@@ -75,6 +75,11 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             return task?.Summary?.Mode?.Equals("multiCollectionFlow", StringComparison.OrdinalIgnoreCase) == true;
         }
 
+        public bool ShouldShowDerivedCollectionFlowSummary(Domain.Models.Task task)
+        {
+            return task?.Summary?.Mode?.Equals("derivedCollectionFlow", StringComparison.OrdinalIgnoreCase) == true;
+        }
+
         public bool IsInSubFlow(string flowId, string pageId)
         {
             return !string.IsNullOrEmpty(pageId) && pageId.StartsWith($"flow/{flowId}", StringComparison.OrdinalIgnoreCase);

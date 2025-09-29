@@ -35,6 +35,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         INotificationsClient notificationsClient,
         IFormErrorStore formErrorStore,
         IComplexFieldConfigurationService complexFieldConfigurationService,
+        IDerivedCollectionFlowService derivedCollectionFlowService,
         ILogger<RenderFormModel> logger)
         : BaseFormEngineModel(renderer, applicationResponseService, fieldFormattingService, templateManagementService,
             applicationStateService, formStateManager, formNavigationService, formDataManager, formValidationOrchestrator, formConfigurationService, logger)
@@ -44,6 +45,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         private readonly INotificationsClient _notificationsClient = notificationsClient;
         private readonly IFormErrorStore _formErrorStore = formErrorStore;
         private readonly IComplexFieldConfigurationService _complexFieldConfigurationService = complexFieldConfigurationService;
+        private readonly IDerivedCollectionFlowService _derivedCollectionFlowService = derivedCollectionFlowService;
 
         [BindProperty] public Dictionary<string, object> Data { get; set; } = new();
 
@@ -54,8 +56,16 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         [BindProperty] public new string? InstanceId { get; set; }
         [BindProperty] public string? FlowPageId { get; set; }
         
+        // Derived collection flow properties
+        [BindProperty] public string? DerivedFlowId { get; set; }
+        [BindProperty] public string? DerivedItemId { get; set; }
+        [BindProperty] public string? DerivedPageId { get; set; }
+        
         // Calculate IsCollectionFlow automatically based on FlowId and InstanceId presence
         private bool IsCollectionFlow => !string.IsNullOrEmpty(FlowId) && !string.IsNullOrEmpty(InstanceId);
+        
+        // Calculate IsDerivedFlow automatically based on DerivedFlowId and DerivedItemId presence
+        private bool IsDerivedFlow => !string.IsNullOrEmpty(DerivedFlowId) && !string.IsNullOrEmpty(DerivedItemId);
 
         // Success message for collection operations
         [TempData] public string? SuccessMessage { get; set; }
@@ -135,6 +145,34 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                             }
                         }
                         }
+                        else if (TryParseDerivedFlowRoute(CurrentPageId, out var derivedFlowId, out var derivedItemId, out var derivedPageId))
+                        {
+                            // Derived flow: initialize task and resolve page from derived flow configuration
+                            var (group, task) = InitializeCurrentTask(TaskId);
+                            CurrentGroup = group;
+                            CurrentTask = task;
+
+                            // Set derived flow properties
+                            DerivedFlowId = derivedFlowId;
+                            DerivedItemId = derivedItemId;
+                            DerivedPageId = derivedPageId;
+
+                            // Find the derived flow configuration
+                            var derivedConfig = GetDerivedFlowConfiguration(task, derivedFlowId);
+                            if (derivedConfig != null)
+                            {
+                                // Get the page to render (default to first page if no specific page)
+                                var page = string.IsNullOrEmpty(derivedPageId) ? derivedConfig.Pages.FirstOrDefault() : derivedConfig.Pages.FirstOrDefault(p => p.PageId == derivedPageId);
+                                if (page != null)
+                                {
+                                    CurrentPage = page;
+                                    CurrentFormState = FormState.FormPage;
+                                    
+                                    // Load pre-filled data for this derived item
+                                    LoadDerivedItemData(derivedConfig, derivedItemId);
+                                }
+                            }
+                        }
                         else
                         {
                             var (group, task, page) = InitializeCurrentPage(CurrentPageId);
@@ -154,6 +192,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         if (_formStateManager.ShouldShowCollectionFlowSummary(CurrentTask))
                         {
                             CurrentFormState = FormState.TaskSummary; // view chooses partial
+                        }
+                        // If task requests derivedCollectionFlow summary, switch state accordingly
+                        else if (_formStateManager.ShouldShowDerivedCollectionFlowSummary(CurrentTask))
+                        {
+                            CurrentFormState = FormState.DerivedCollectionFlowSummary;
                         }
                     }
                 }
@@ -877,6 +920,35 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         return Redirect(backToSummary);
                     }
                 }
+                // Handle derived collection flow form submissions
+                else if (TryParseDerivedFlowRoute(CurrentPageId, out var derivedFlowId, out var derivedItemId, out var derivedPageId))
+                {
+                    var derivedConfig = GetDerivedFlowConfiguration(CurrentTask, derivedFlowId);
+                    if (derivedConfig != null)
+                    {
+                        // Save the declaration data and mark as signed
+                        _derivedCollectionFlowService.SaveItemDeclaration(
+                            derivedConfig.FieldId, 
+                            derivedItemId, 
+                            Data, 
+                            "Signed", 
+                            FormData);
+
+                        // Save to API
+                        if (ApplicationId.HasValue)
+                        {
+                            await _applicationResponseService.SaveApplicationResponseAsync(ApplicationId.Value, FormData, HttpContext.Session);
+                        }
+
+                        // Generate success message
+                        var trustName = Data.TryGetValue(derivedConfig.ItemTitleBinding, out var name) ? name?.ToString() : derivedItemId;
+                        SuccessMessage = derivedConfig.SignedMessage?.Replace("{trustName}", trustName) 
+                            ?? $"Declaration for {trustName} has been signed";
+
+                        // Redirect back to derived collection summary
+                        return Redirect($"/applications/{ReferenceNumber}/{TaskId}");
+                    }
+                }
                 else
                 {
                     // First check if returnToSummaryPage is true and should be respected
@@ -1149,6 +1221,26 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         }
 
         /// <summary>
+        /// Parses derived collection flow routes like: {flowId}/derived/{itemId}/{pageId?}
+        /// </summary>
+        private static bool TryParseDerivedFlowRoute(string pageId, out string derivedFlowId, out string derivedItemId, out string derivedPageId)
+        {
+            derivedFlowId = derivedItemId = derivedPageId = string.Empty;
+            if (string.IsNullOrEmpty(pageId)) return false;
+            
+            // Expected: {flowId}/derived/{itemId}/{pageId?}
+            var parts = pageId.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length >= 3 && parts[1].Equals("derived", StringComparison.OrdinalIgnoreCase))
+            {
+                derivedFlowId = parts[0];
+                derivedItemId = parts[2];
+                derivedPageId = parts.Length > 3 ? parts[3] : string.Empty;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
         /// Gets the pages for a specific flow in multi-collection flow mode
         /// </summary>
         private List<Domain.Models.Page>? GetFlowPages(Domain.Models.Task? task, string flowId)
@@ -1164,6 +1256,54 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         {
             var flow = task?.Summary?.Flows?.FirstOrDefault(f => f.FlowId == flowId);
             return flow?.FieldId;
+        }
+
+        /// <summary>
+        /// Gets the configuration for a specific derived flow
+        /// </summary>
+        private DerivedCollectionFlowConfiguration? GetDerivedFlowConfiguration(Domain.Models.Task? task, string derivedFlowId)
+        {
+            var derivedFlow = task?.Summary?.DerivedFlows?.FirstOrDefault(f => f.FlowId == derivedFlowId);
+            return derivedFlow;
+        }
+
+        /// <summary>
+        /// Loads pre-filled data for a derived collection item
+        /// </summary>
+        private void LoadDerivedItemData(DerivedCollectionFlowConfiguration config, string itemId)
+        {
+            try
+            {
+                // First, load any existing declaration data for this item
+                var existingData = _derivedCollectionFlowService.GetItemDeclarationData(config.FieldId, itemId, FormData);
+                foreach (var kvp in existingData)
+                {
+                    Data[kvp.Key] = kvp.Value;
+                }
+
+                // Then, generate and load pre-filled data from the source
+                var derivedItems = _derivedCollectionFlowService.GenerateItemsFromSourceField(config.SourceFieldId, FormData, config);
+                var currentItem = derivedItems.FirstOrDefault(item => item.Id == itemId);
+                
+                if (currentItem != null)
+                {
+                    // Pre-fill with source data (but don't overwrite existing declaration data)
+                    foreach (var kvp in currentItem.PrefilledData)
+                    {
+                        if (!Data.ContainsKey(kvp.Key)) // Only set if not already populated from existing data
+                        {
+                            Data[kvp.Key] = kvp.Value;
+                        }
+                    }
+                    
+                    _logger.LogInformation("Loaded derived item data for item {ItemId} in flow {FlowId} with {Count} fields", 
+                        itemId, config.FlowId, currentItem.PrefilledData.Count);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to load derived item data for item {ItemId} in flow {FlowId}", itemId, config.FlowId);
+            }
         }
 
         /// <summary>

@@ -281,6 +281,13 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             {
                 taskFieldIds.AddRange(task.Summary.Flows.Select(f => f.FieldId));
             }
+            
+            // For derived collection flow tasks, also check derived field IDs
+            if (task.Summary?.Mode?.Equals("derivedCollectionFlow", StringComparison.OrdinalIgnoreCase) == true &&
+                task.Summary.DerivedFlows != null)
+            {
+                taskFieldIds.AddRange(task.Summary.DerivedFlows.Select(f => f.FieldId));
+            }
                 
             var hasAnyFieldCompleted = taskFieldIds.Any(fieldId => 
                 formData.ContainsKey(fieldId) && 

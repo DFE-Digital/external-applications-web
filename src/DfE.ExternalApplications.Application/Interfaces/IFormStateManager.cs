@@ -38,6 +38,7 @@ namespace DfE.ExternalApplications.Application.Interfaces
 
         // Sub-flow support
         bool ShouldShowCollectionFlowSummary(Domain.Models.Task task);
+        bool ShouldShowDerivedCollectionFlowSummary(Domain.Models.Task task);
         bool IsInSubFlow(string flowId, string pageId);
     }
 
@@ -70,6 +71,11 @@ namespace DfE.ExternalApplications.Application.Interfaces
         /// Shows a collection-flow based custom summary
         /// </summary>
         CollectionFlowSummary,
+
+        /// <summary>
+        /// Shows a derived collection-flow based summary
+        /// </summary>
+        DerivedCollectionFlowSummary,
 
         /// <summary>
         /// Shows a page within a sub-flow (linear mini-form)

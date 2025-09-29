@@ -1,0 +1,66 @@
+@model RenderFormModel
+@{
+    var task = Model.CurrentTask;
+    var summary = task?.Summary;
+}
+
+@if (!string.IsNullOrEmpty(Model.SuccessMessage))
+{
+    <div class="govuk-notification-banner govuk-notification-banner--success" role="alert" aria-labelledby="govuk-notification-banner-title" data-module="govuk-notification-banner">
+        <div class="govuk-notification-banner__header">
+            <h2 class="govuk-notification-banner__title" id="govuk-notification-banner-title">
+                Success
+            </h2>
+        </div>
+        <div class="govuk-notification-banner__content">
+            <p class="govuk-notification-banner__heading">
+                @Model.SuccessMessage
+            </p>
+        </div>
+    </div>
+}
+
+<div class="govuk-grid-row">
+    <div class="govuk-grid-column-two-thirds">
+        <govuk-back-link href="/applications/@Model.ReferenceNumber">Back to application task list</govuk-back-link>
+
+        <!-- Custom page title and description -->
+        <h1 class="govuk-heading-l">@(summary?.Title ?? task?.TaskName)</h1>
+        
+        @if (!string.IsNullOrEmpty(summary?.Description))
+        {
+            <p class="govuk-body">@summary.Description</p>
+        }
+
+        @if (summary?.DerivedFlows != null && summary.DerivedFlows.Any())
+        {
+            @foreach (var derivedFlow in summary.DerivedFlows.OrderBy(f => f.SectionOrder))
+            {
+                @await Html.PartialAsync("~/Views/Shared/FormEngine/_SingleDerivedFlow.cshtml", 
+                    new Tuple<RenderFormModel, DerivedCollectionFlowConfiguration>(Model, derivedFlow))
+            }
+        }
+        else
+        {
+            <p class="govuk-body">No derived flows configured for this task.</p>
+        }
+
+        @if (Model.IsApplicationEditable())
+        {
+            <form method="post">
+                <div class="govuk-checkboxes__item">
+                    <input class="govuk-checkboxes__input" 
+                           id="IsTaskCompleted" 
+                           name="IsTaskCompleted" 
+                           type="checkbox" 
+                           value="true"
+                           @(Model.IsTaskCompleted ? "checked" : "")>
+                    <label class="govuk-label govuk-checkboxes__label" for="IsTaskCompleted">
+                        Mark this section as complete, it's ready for review
+                    </label>
+                </div>
+                <button type="submit" class="govuk-button govuk-!-margin-top-4">Continue</button>
+            </form>
+        }
+    </div>
+</div>
