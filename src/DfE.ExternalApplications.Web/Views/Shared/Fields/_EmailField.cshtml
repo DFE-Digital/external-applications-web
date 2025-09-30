@@ -1,3 +1,5 @@
+@using DfE.ExternalApplications.Web.Utilities
+@using GovUk.Frontend.AspNetCore.TagHelpers
 @using Microsoft.AspNetCore.Html;
 @model DfE.ExternalApplications.Web.Services.FieldViewModel
 @{
@@ -15,10 +17,14 @@
 			<govuk-input-label class="@labelClasses">
 				@Model.Field.Label.Value
 			</govuk-input-label>
-			<govuk-input-hint>
-				@Model.Field.Tooltip
-			</govuk-input-hint>
-			@if (Model.ErrorMessage != String.Empty)
+            @{
+                var (hintHtml, hintClass) = MarkdownSafe.RenderHintWithClass(Model.Field.Tooltip);
+            }
+            <govuk-input-hint class="@hintClass">
+                @Html.Raw(hintHtml)
+	        </govuk-input-hint>
+            
+            @if (Model.ErrorMessage != String.Empty)
 			{
 				<govuk-input-error-message>@Model.ErrorMessage</govuk-input-error-message>
 			}

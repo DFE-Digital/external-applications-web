@@ -1,4 +1,5 @@
 ﻿@using Microsoft.AspNetCore.Html;
+@using DfE.ExternalApplications.Web.Utilities;
 @model DfE.ExternalApplications.Web.Services.FieldViewModel
 @{
     var maxLengthRule = Model.Field.Validations?.Where(v => v.Type == "maxLength").FirstOrDefault()?.Rule.ToString();
@@ -7,7 +8,13 @@
 }
 <govuk-character-count id="@Model.Id" name="Data[@Model.Field.FieldId]" max-length="@maxLengthValue">
     <govuk-character-count-label class="@labelClasses" asp-for="@Model.Field.FieldId">@Model.Field.Label</govuk-character-count-label>
-    <govuk-character-count-hint>@Model.Field.Tooltip</govuk-character-count-hint>
+    @{
+        var (hintHtml, hintClass) = MarkdownSafe.RenderHintWithClass(Model.Field.Tooltip);
+    }
+    <govuk-character-count-hint class="@hintClass">
+        @Html.Raw(hintHtml)
+    </govuk-character-count-hint>
+
     @if (Model.ErrorMessage != String.Empty)
     {
         <govuk-character-count-error-message>@Model.ErrorMessage

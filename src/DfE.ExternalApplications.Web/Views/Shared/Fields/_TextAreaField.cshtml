@@ -1,4 +1,5 @@
-﻿@using Microsoft.AspNetCore.Html;
+﻿@using DfE.ExternalApplications.Web.Utilities
+@using Microsoft.AspNetCore.Html;
 @model DfE.ExternalApplications.Web.Services.FieldViewModel
 @{
     var isRequired = Model.Field.Required ?? true;
@@ -13,7 +14,13 @@
              value="@Model.CurrentValue"
              data-field-id="@Model.Field.FieldId">
     <govuk-textarea-label class="@labelClasses">@Model.Field.Label.Value</govuk-textarea-label>
-    <govuk-textarea-hint>@Model.Field.Tooltip</govuk-textarea-hint>
+    @{
+        var (hintHtml, hintClass) = MarkdownSafe.RenderHintWithClass(Model.Field.Tooltip);
+    }
+    <govuk-textarea-hint class="@hintClass">
+        @Html.Raw(hintHtml)
+    </govuk-textarea-hint>
+
     @if (Model.ErrorMessage != String.Empty)
     {
         <govuk-textarea-error-message>@Model.ErrorMessage
@@ -21,4 +28,3 @@
     }
     <govuk-textarea-value>@Model.CurrentValue</govuk-textarea-value>
 </govuk-textarea>
-
