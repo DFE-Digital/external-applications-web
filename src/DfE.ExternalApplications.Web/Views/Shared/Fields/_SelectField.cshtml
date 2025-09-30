@@ -1,4 +1,6 @@
-﻿@using Microsoft.AspNetCore.Html;
+﻿@using DfE.ExternalApplications.Web.Utilities
+@using GovUk.Frontend.AspNetCore.TagHelpers
+@using Microsoft.AspNetCore.Html;
 
 @model DfE.ExternalApplications.Web.Services.FieldViewModel
 
@@ -17,7 +19,12 @@
     label-class="@labelClasses"
     data-field-id="@Model.Field.FieldId">
         <govuk-select-label>@Model.Field.Label.Value</govuk-select-label>
-        <govuk-select-hint>@Model.Field.Tooltip</govuk-select-hint>
+        @{
+            var (hintHtml, hintClass) = MarkdownSafe.RenderHintWithClass(Model.Field.Tooltip);
+        }
+        <govuk-select-hint class="@hintClass">
+            @Html.Raw(hintHtml)
+        </govuk-select-hint>
         @if (Model.ErrorMessage != String.Empty)
         {
             <govuk-select-error-message>@Model.ErrorMessage</govuk-select-error-message>

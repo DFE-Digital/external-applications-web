@@ -3,6 +3,8 @@
 @using DfE.ExternalApplications.Application.Interfaces;
 @using DfE.ExternalApplications.Domain.Models;
 @using DfE.ExternalApplications.Web.Extensions;
+@using DfE.ExternalApplications.Web.Utilities
+@using GovUk.Frontend.AspNetCore.TagHelpers
 @inject IComplexFieldConfigurationService ComplexFieldConfigurationService
 @model DfE.ExternalApplications.Web.Services.FieldViewModel
 
@@ -130,9 +132,15 @@ else
             </label>
         }
         
+        @{
+            var full = MarkdownSafe.ToSafeHtml(Model.Field.Tooltip);
+            var isSingle = MarkdownSafe.IsSingleParagraphFromHtml(full);
+            var content = isSingle ? MarkdownSafe.ToSafeHtmlInline(Model.Field.Tooltip) : full;
+        }
+
         @if (!string.IsNullOrEmpty(Model.Field.Tooltip))
         {
-            <div class="govuk-hint">@Model.Field.Tooltip</div>
+            <div class="govuk-hint" style="@(isSingle ? null : "color: var(--govuk-text-colour);")">@Html.Raw(content))</div>
         }
         
         @if (!string.IsNullOrEmpty(Model.ErrorMessage))

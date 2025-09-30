@@ -1,4 +1,6 @@
-﻿@using Microsoft.AspNetCore.Html;
+﻿@using DfE.ExternalApplications.Web.Utilities
+@using GovUk.Frontend.AspNetCore.TagHelpers
+@using Microsoft.AspNetCore.Html;
 @model DfE.ExternalApplications.Web.Services.FieldViewModel
 @{
     var isRequired = Model.Field.Required ?? true;
@@ -13,8 +15,11 @@
             @legendValue
         </govuk-radios-fieldset-legend>
 
-        <govuk-radios-hint>
-            @Model.Field.Tooltip
+        @{
+            var (hintHtml, hintClass) = MarkdownSafe.RenderHintWithClass(Model.Field.Tooltip);
+        }
+        <govuk-radios-hint class="@hintClass">
+            @Html.Raw(hintHtml)
         </govuk-radios-hint>
 
         @if (Model.ErrorMessage != String.Empty)

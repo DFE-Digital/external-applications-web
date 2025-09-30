@@ -1,6 +1,7 @@
 @using DfE.ExternalApplications.Web.Extensions
 @using GovUk.Frontend.AspNetCore.TagHelpers
 @using System.Text.Json
+@using DfE.ExternalApplications.Web.Utilities
 @inject DfE.ExternalApplications.Application.Interfaces.IComplexFieldConfigurationService ComplexFieldConfigurationService
 @model Tuple<DfE.ExternalApplications.Web.Pages.FormEngine.RenderFormModel, DfE.ExternalApplications.Domain.Models.MultiCollectionFlowConfiguration>
 @{
@@ -19,9 +20,13 @@
 <div class="govuk-!-margin-bottom-8">
     <h2 class="govuk-heading-m">@flow.Title</h2>
     
+    @{
+        var (hintHtml, hintClass) = MarkdownSafe.RenderHintWithClass(flow.Description);
+    }
+
     @if (!string.IsNullOrEmpty(flow.Description))
     {
-        <p class="govuk-body">@flow.Description</p>
+        <p class="govuk-body">@Html.Raw(hintHtml)</p>
     }
 
     @if (items.Any())
