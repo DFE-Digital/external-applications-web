@@ -19,16 +19,22 @@ namespace DfE.ExternalApplications.Infrastructure.Services
         {
             var items = new List<DerivedCollectionItem>();
             
+            logger.LogInformation("DerivedCollectionFlow: Looking for sourceFieldId '{SourceFieldId}' in form data", sourceFieldId);
+            logger.LogInformation("DerivedCollectionFlow: Available form data keys: {Keys}", string.Join(", ", formData.Keys));
+            
             if (!formData.TryGetValue(sourceFieldId, out var sourceValue))
             {
-                logger.LogDebug("Source field '{SourceFieldId}' not found in form data", sourceFieldId);
+                logger.LogWarning("DerivedCollectionFlow: Source field '{SourceFieldId}' not found in form data", sourceFieldId);
                 return items;
             }
                 
             var sourceJson = sourceValue?.ToString() ?? "";
+            logger.LogInformation("DerivedCollectionFlow: Source value type: {ValueType}, Value: {Value}", 
+                sourceValue?.GetType().Name ?? "null", sourceValue);
+                
             if (string.IsNullOrWhiteSpace(sourceJson))
             {
-                logger.LogDebug("Source field '{SourceFieldId}' is empty", sourceFieldId);
+                logger.LogWarning("DerivedCollectionFlow: Source field '{SourceFieldId}' is empty", sourceFieldId);
                 return items;
             }
             
@@ -118,10 +124,14 @@ namespace DfE.ExternalApplications.Infrastructure.Services
         {
             var items = new List<DerivedCollectionItem>();
             
+            logger.LogInformation("DerivedCollectionFlow: Processing autocomplete source JSON: {SourceJson}", sourceJson);
+            
             try
             {
                 // Try to parse as array of objects first: [{"name":"Trust A","id":"123"}, {...}]
                 var autocompleteItems = JsonSerializer.Deserialize<List<Dictionary<string, object>>>(sourceJson);
+                
+                logger.LogInformation("DerivedCollectionFlow: Parsed {Count} autocomplete items", autocompleteItems?.Count ?? 0);
                 
                 if (autocompleteItems != null)
                 {
@@ -178,26 +188,66 @@ namespace DfE.ExternalApplications.Infrastructure.Services
         
         private List<DerivedCollectionItem> ProcessCollectionSource(string sourceJson, DerivedCollectionFlowConfiguration config)
         {
+            logger.LogInformation("DerivedCollectionFlow: Processing collection source JSON: {SourceJson}", sourceJson);
+            
             try
             {
                 // Handle existing collection flow items
                 var collectionItems = JsonSerializer.Deserialize<List<Dictionary<string, object>>>(sourceJson);
                 
+                logger.LogInformation("DerivedCollectionFlow: Parsed {Count} collection items", collectionItems?.Count ?? 0);
+                
                 if (collectionItems != null)
                 {
-                    return collectionItems.Select(item =>
+                    return collectionItems.SelectMany(item =>
                     {
-                        var displayName = GetDisplayName(item, config.ItemTitleBinding);
-                        var itemId = item.TryGetValue("id", out var id) ? id?.ToString() : GenerateItemId(displayName);
+                        logger.LogInformation("DerivedCollectionFlow: Processing collection item: {Item}", JsonSerializer.Serialize(item));
                         
-                        return new DerivedCollectionItem
+                        // Collection items may contain nested field data
+                        // Look for the actual autocomplete data within each collection item
+                        var derivedItems = new List<DerivedCollectionItem>();
+                        
+                        foreach (var kvp in item)
                         {
-                            Id = itemId ?? GenerateItemId(displayName),
-                            DisplayName = displayName,
-                            Status = "Not signed yet",
-                            PrefilledData = CreatePrefilledData(item, config),
-                            SourceData = item
-                        };
+                            // Skip metadata fields
+                            if (kvp.Key == "id" || kvp.Key == "_metadata") continue;
+                            
+                            // Try to extract autocomplete data from the field value
+                            if (kvp.Value != null)
+                            {
+                                var fieldValue = kvp.Value.ToString();
+                                if (!string.IsNullOrEmpty(fieldValue) && fieldValue.StartsWith("{"))
+                                {
+                                    try
+                                    {
+                                        // Parse the nested autocomplete object
+                                        var autocompleteData = JsonSerializer.Deserialize<Dictionary<string, object>>(fieldValue);
+                                        if (autocompleteData != null)
+                                        {
+                                            var displayName = GetDisplayName(autocompleteData, config.ItemTitleBinding);
+                                            logger.LogInformation("DerivedCollectionFlow: Extracted display name '{DisplayName}' from nested data using binding '{Binding}'", displayName, config.ItemTitleBinding);
+                                            
+                                            var itemId = autocompleteData.TryGetValue("id", out var id) ? id?.ToString() : GenerateItemId(displayName);
+                                            
+                                            derivedItems.Add(new DerivedCollectionItem
+                                            {
+                                                Id = itemId ?? GenerateItemId(displayName),
+                                                DisplayName = displayName,
+                                                Status = "Not signed yet",
+                                                PrefilledData = CreatePrefilledData(autocompleteData, config),
+                                                SourceData = autocompleteData
+                                            });
+                                        }
+                                    }
+                                    catch (JsonException ex)
+                                    {
+                                        logger.LogWarning(ex, "Failed to parse nested autocomplete data: {FieldValue}", fieldValue);
+                                    }
+                                }
+                            }
+                        }
+                        
+                        return derivedItems;
                     }).ToList();
                 }
             }
