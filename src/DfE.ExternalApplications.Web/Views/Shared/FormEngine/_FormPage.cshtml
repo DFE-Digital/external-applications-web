@@ -1,3 +1,6 @@
+@using DfE.ExternalApplications.Web.Utilities
+@using GovUk.Frontend.AspNetCore.TagHelpers
+@using Microsoft.AspNetCore.Mvc.TagHelpers
 @model DfE.ExternalApplications.Web.Pages.FormEngine.RenderFormModel
 @inject DfE.ExternalApplications.Web.Services.IFieldRendererService FieldRenderer
 @inject DfE.ExternalApplications.Application.Interfaces.IComplexFieldConfigurationService ComplexFieldConfigurationService
@@ -61,7 +64,9 @@
             
             @if (!string.IsNullOrEmpty(Model.CurrentPage.Description))
             {
-                <p class="govuk-body">@Model.CurrentPage.Description</p>
+                var (hintHtml, hintClass) = MarkdownSafe.RenderHintWithClass(Model.CurrentPage.Description);
+
+                <div class="govuk-body">@Html.Raw(hintHtml)</div>
             }
 
             @foreach (var field in Model.CurrentPage.Fields.OrderBy(f => f.Order).Where(f => !Model.IsFieldHidden(f.FieldId)))

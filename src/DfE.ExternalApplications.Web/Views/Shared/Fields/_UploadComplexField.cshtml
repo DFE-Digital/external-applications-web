@@ -102,7 +102,7 @@
 
         @if (!string.IsNullOrEmpty(Model.Field.Tooltip))
         {
-            <p class="govuk-body">@Html.Raw(hintHtml)</p>
+            <div class="govuk-body">@Html.Raw(hintHtml)</div>
         }
 
         <p class="govuk-body">Give the file a clear, descriptive name. Files up to 10MB are accepted.</p>

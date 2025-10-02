@@ -35,8 +35,7 @@
         {
             var (hintHtml, hintClass) = MarkdownSafe.RenderHintWithClass(summary.Description);
 
-            <p class="govuk-body">@Html.Raw(hintHtml)</p>
-
+            <div class="govuk-body">@Html.Raw(hintHtml)</div>
         }
        
 
