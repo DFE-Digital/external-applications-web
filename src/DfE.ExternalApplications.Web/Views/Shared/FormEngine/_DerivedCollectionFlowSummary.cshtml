@@ -1,4 +1,7 @@
 @using DfE.ExternalApplications.Domain.Models
+@using DfE.ExternalApplications.Web.Utilities
+@using GovUk.Frontend.AspNetCore.TagHelpers
+@using Microsoft.AspNetCore.Mvc.TagHelpers
 @model RenderFormModel
 @{
     var task = Model.CurrentTask;
@@ -30,8 +33,12 @@
         
         @if (!string.IsNullOrEmpty(summary?.Description))
         {
-            <p class="govuk-body">@summary.Description</p>
+            var (hintHtml, hintClass) = MarkdownSafe.RenderHintWithClass(summary.Description);
+
+            <p class="govuk-body">@Html.Raw(hintHtml)</p>
+
         }
+       
 
         @if (summary?.DerivedFlows != null && summary.DerivedFlows.Any())
         {
