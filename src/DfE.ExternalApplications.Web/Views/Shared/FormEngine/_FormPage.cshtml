@@ -58,6 +58,11 @@
                     @Model.CurrentPage.Title
                 </h1>
             </legend>
+            
+            @if (!string.IsNullOrEmpty(Model.CurrentPage.Description))
+            {
+                <p class="govuk-body">@Model.CurrentPage.Description</p>
+            }
 
             @foreach (var field in Model.CurrentPage.Fields.OrderBy(f => f.Order).Where(f => !Model.IsFieldHidden(f.FieldId)))
             {

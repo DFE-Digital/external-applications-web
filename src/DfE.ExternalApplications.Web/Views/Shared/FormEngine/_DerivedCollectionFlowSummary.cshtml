@@ -48,7 +48,9 @@
 
         @if (Model.IsApplicationEditable())
         {
-            <form method="post">
+            <form method="post" action="/applications/@Model.ReferenceNumber/@Model.TaskId?handler=Page">
+                @Html.AntiForgeryToken()
+                <input type="hidden" asp-for="TaskId" />
                 <div class="govuk-checkboxes__item">
                     <input class="govuk-checkboxes__input" 
                            id="IsTaskCompleted" 
@@ -60,7 +62,7 @@
                         Mark this section as complete, it's ready for review
                     </label>
                 </div>
-                <button type="submit" class="govuk-button govuk-!-margin-top-4">Continue</button>
+                <button type="submit" class="govuk-button govuk-!-margin-top-4">Save and continue</button>
             </form>
         }
     </div>

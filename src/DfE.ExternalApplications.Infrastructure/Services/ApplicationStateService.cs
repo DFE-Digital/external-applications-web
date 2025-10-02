@@ -282,16 +282,29 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                 taskFieldIds.AddRange(task.Summary.Flows.Select(f => f.FieldId));
             }
             
-            // For derived collection flow tasks, also check derived field IDs
+            // For derived collection flow tasks, also check derived field IDs (including derived item-specific keys)
             if (task.Summary?.Mode?.Equals("derivedCollectionFlow", StringComparison.OrdinalIgnoreCase) == true &&
                 task.Summary.DerivedFlows != null)
             {
                 taskFieldIds.AddRange(task.Summary.DerivedFlows.Select(f => f.FieldId));
             }
-                
-            var hasAnyFieldCompleted = taskFieldIds.Any(fieldId => 
-                formData.ContainsKey(fieldId) && 
-                !string.IsNullOrWhiteSpace(formData[fieldId]?.ToString()));
+
+            // Detect any evidence of data for this task
+            var hasAnyFieldCompleted = taskFieldIds.Any(fieldId =>
+            {
+                // Exact field key present with non-empty value
+                if (formData.TryGetValue(fieldId, out var directValue) && !string.IsNullOrWhiteSpace(directValue?.ToString()))
+                {
+                    return true;
+                }
+
+                // For derived flows, item keys are usually like: {fieldId}_status_{itemId} or {fieldId}_data_{itemId}
+                // Treat presence of any such non-empty key as progress
+                var prefix = fieldId + "_";
+                var anyPrefixed = formData.Any(kvp => kvp.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                    && !string.IsNullOrWhiteSpace(kvp.Value?.ToString()));
+                return anyPrefixed;
+            });
             
             if (hasAnyFieldCompleted)
             {

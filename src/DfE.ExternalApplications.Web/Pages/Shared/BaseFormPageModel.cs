@@ -216,11 +216,65 @@ namespace DfE.ExternalApplications.Web.Pages.Shared
         /// </summary>
         protected async Task CommonInitializationAsync()
         {
-            TemplateId = HttpContext.Session.GetString("TemplateId") ?? string.Empty;
-            await EnsureApplicationIdAsync();
-            await LoadTemplateAsync();
-            LoadFormDataFromSession();
-            LoadApplicationStatus();
+            _logger.LogInformation("CommonInitializationAsync START - ReferenceNumber: {ReferenceNumber}", ReferenceNumber);
+            
+            try
+            {
+                TemplateId = HttpContext.Session.GetString("TemplateId") ?? string.Empty;
+                _logger.LogInformation("CommonInitializationAsync - TemplateId from session: {TemplateId}", TemplateId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "CommonInitializationAsync - Error getting TemplateId from session");
+                throw;
+            }
+            
+            try
+            {
+                await EnsureApplicationIdAsync();
+                _logger.LogInformation("CommonInitializationAsync - ApplicationId ensured: {ApplicationId}", ApplicationId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "CommonInitializationAsync - Error ensuring ApplicationId");
+                throw;
+            }
+            
+            try
+            {
+                await LoadTemplateAsync();
+                _logger.LogInformation("CommonInitializationAsync - Template loaded: {TemplateIsNull}, TemplateId: {TemplateId}", 
+                    Template == null, Template?.TemplateId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "CommonInitializationAsync - Error loading template");
+                throw;
+            }
+            
+            try
+            {
+                LoadFormDataFromSession();
+                _logger.LogInformation("CommonInitializationAsync - FormData loaded: {FormDataCount} entries", FormData?.Count ?? 0);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "CommonInitializationAsync - Error loading form data from session");
+                throw;
+            }
+            
+            try
+            {
+                LoadApplicationStatus();
+                _logger.LogInformation("CommonInitializationAsync - ApplicationStatus loaded: {ApplicationStatus}", ApplicationStatus);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "CommonInitializationAsync - Error loading application status");
+                throw;
+            }
+            
+            _logger.LogInformation("CommonInitializationAsync COMPLETE");
         }
 
         #endregion

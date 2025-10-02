@@ -81,7 +81,37 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         public async Task OnGetAsync()
         {
-                await CommonFormEngineInitializationAsync();
+                _logger.LogInformation("OnGetAsync START - ReferenceNumber: {ReferenceNumber}, TaskId: {TaskId}, CurrentPageId: {CurrentPageId}", 
+                    ReferenceNumber, TaskId, CurrentPageId);
+                
+                try
+                {
+                    await CommonFormEngineInitializationAsync();
+                    _logger.LogInformation("OnGetAsync - CommonFormEngineInitializationAsync completed successfully");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "OnGetAsync - Error in CommonFormEngineInitializationAsync for ReferenceNumber: {ReferenceNumber}", ReferenceNumber);
+                    throw;
+                }
+
+                // Ensure Template is not null to prevent NullReferenceException
+                if (Template == null)
+                {
+                    _logger.LogError("OnGetAsync - Template is null after CommonFormEngineInitializationAsync for ReferenceNumber: {ReferenceNumber}", ReferenceNumber);
+                    Template = new FormTemplate
+                    {
+                        TemplateId = "dummy",
+                        TemplateName = "dummy",
+                        Description = "dummy",
+                        TaskGroups = new List<TaskGroup>()
+                    };
+                }
+                else
+                {
+                    _logger.LogInformation("OnGetAsync - Template loaded successfully. TemplateId: {TemplateId}, TaskGroups count: {TaskGroupsCount}", 
+                        Template.TemplateId, Template.TaskGroups?.Count ?? 0);
+                }
 
                 // Check if this is a preview request
                 if (Request.Query.ContainsKey("preview"))
@@ -219,12 +249,17 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 await ApplyConditionalLogicAsync();
                 }
 
-                // Initialize task completion status if we're showing a task summary
-                if (CurrentFormState == FormState.TaskSummary && CurrentTask != null)
+                // Initialize task completion status for summaries (standard or derived)
+                if (CurrentTask != null)
                 {
-                    var taskStatus = GetTaskStatusFromSession(CurrentTask.TaskId);
-                    IsTaskCompleted = taskStatus == Domain.Models.TaskStatus.Completed;
-            }
+                    var isSummary = CurrentFormState == FormState.TaskSummary 
+                        || _formStateManager.ShouldShowDerivedCollectionFlowSummary(CurrentTask);
+                    if (isSummary)
+                    {
+                        var taskStatus = GetTaskStatusFromSession(CurrentTask.TaskId);
+                        IsTaskCompleted = taskStatus == Domain.Models.TaskStatus.Completed;
+                    }
+                }
         }
 
         public async Task<IActionResult> OnPostTaskSummaryAsync()
@@ -338,6 +373,17 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         public async Task<IActionResult> OnPostPageAsync()
         {
+            _logger.LogInformation("POST: OnPostPageAsync called - ReferenceNumber='{ReferenceNumber}', TaskId='{TaskId}', CurrentPageId='{CurrentPageId}'", 
+                ReferenceNumber, TaskId, CurrentPageId);
+            _logger.LogInformation("POST: Request URL: {Url}", $"{Request.Scheme}://{Request.Host}{Request.Path}{Request.QueryString}");
+            _logger.LogInformation("POST: Form data keys: {Keys}", string.Join(", ", Request.Form.Keys));
+            
+            // This handler is also used by task summary pages which do not post a pageId.
+            // Non-nullable reference types are implicitly required in MVC, so clear any implicit
+            // model state error for missing pageId to avoid short-circuiting to Page().
+            ModelState.Remove(nameof(CurrentPageId));
+            ModelState.Remove("pageId");
+            
             // Check if this is a confirmed action coming back from confirmation page
             if (Request.Query.ContainsKey("confirmed") && Request.Query["confirmed"] == "true")
             {
@@ -413,6 +459,15 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             CurrentTask = task;
             CurrentPage = page;
                 }
+            }
+            else if (!string.IsNullOrEmpty(TaskId))
+            {
+                // No pageId posted (e.g., task summary/derived summary). Initialize the task context.
+                var (group, task) = InitializeCurrentTask(TaskId);
+                CurrentGroup = group;
+                CurrentTask = task;
+                CurrentPage = null;
+                _logger.LogInformation("POST: Initialized CurrentTask '{TaskId}' for summary POST (no pageId)", CurrentTask?.TaskId);
             }
             else if (!string.IsNullOrEmpty(TaskId))
             {
@@ -920,12 +975,39 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         return Redirect(backToSummary);
                     }
                 }
+                
+                _logger.LogInformation("POST: Checking if CurrentPageId '{CurrentPageId}' is a derived flow route", CurrentPageId);
+                
                 // Handle derived collection flow form submissions
-                else if (TryParseDerivedFlowRoute(CurrentPageId, out var derivedFlowId, out var derivedItemId, out var derivedPageId))
+                if (TryParseDerivedFlowRoute(CurrentPageId, out var derivedFlowId, out var derivedItemId, out var derivedPageId))
                 {
-                    var derivedConfig = GetDerivedFlowConfiguration(CurrentTask, derivedFlowId);
+                    _logger.LogInformation("POST: Detected derived flow route - flowId='{FlowId}', itemId='{ItemId}', pageId='{PageId}'", 
+                        derivedFlowId, derivedItemId, derivedPageId);
+                }
+                else
+                {
+                    _logger.LogInformation("POST: CurrentPageId '{CurrentPageId}' is NOT a derived flow route", CurrentPageId);
+                }
+                
+                if (TryParseDerivedFlowRoute(CurrentPageId, out derivedFlowId, out derivedItemId, out derivedPageId))
+                {
+                    _logger.LogInformation("DerivedFlow POST: Processing derived flow submission for flowId='{FlowId}', itemId='{ItemId}', pageId='{PageId}'", 
+                        derivedFlowId, derivedItemId, derivedPageId);
+                    _logger.LogInformation("DerivedFlow POST: Current form data keys: {Keys}", string.Join(", ", Data.Keys));
+                    _logger.LogInformation("DerivedFlow POST: Form data values: {Data}", System.Text.Json.JsonSerializer.Serialize(Data));
+                    
+                    // For derived flows, we need to ensure we're looking at the correct task
+                    // The CurrentTask might be wrong during POST, so let's get the task by TaskId
+                    var correctTask = Template?.TaskGroups?.SelectMany(g => g.Tasks)?.FirstOrDefault(t => t.TaskId == TaskId);
+                    _logger.LogInformation("DerivedFlow POST: Using task '{TaskId}' instead of CurrentTask '{CurrentTaskId}'", 
+                        TaskId, CurrentTask?.TaskId);
+                    
+                    var derivedConfig = GetDerivedFlowConfiguration(correctTask, derivedFlowId);
                     if (derivedConfig != null)
                     {
+                        _logger.LogInformation("DerivedFlow POST: Found derived config for flowId='{FlowId}', fieldId='{FieldId}'", 
+                            derivedFlowId, derivedConfig.FieldId);
+                        
                         // Save the declaration data and mark as signed
                         _derivedCollectionFlowService.SaveItemDeclaration(
                             derivedConfig.FieldId, 
@@ -934,19 +1016,104 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                             "Signed", 
                             FormData);
 
+                        _logger.LogInformation("DerivedFlow POST: Saved declaration data for item '{ItemId}'", derivedItemId);
+
                         // Save to API
                         if (ApplicationId.HasValue)
                         {
+                            _logger.LogInformation("DerivedFlow POST: Saving to API with ApplicationId='{ApplicationId}'", ApplicationId.Value);
                             await _applicationResponseService.SaveApplicationResponseAsync(ApplicationId.Value, FormData, HttpContext.Session);
+                            _logger.LogInformation("DerivedFlow POST: Successfully saved to API");
+                        }
+                        else
+                        {
+                            _logger.LogWarning("DerivedFlow POST: No ApplicationId found, skipping API save");
                         }
 
                         // Generate success message
                         var trustName = Data.TryGetValue(derivedConfig.ItemTitleBinding, out var name) ? name?.ToString() : derivedItemId;
-                        SuccessMessage = derivedConfig.SignedMessage?.Replace("{trustName}", trustName) 
+                        SuccessMessage = derivedConfig.SignedMessage?.Replace("{name}", trustName) 
                             ?? $"Declaration for {trustName} has been signed";
+                        
+                        _logger.LogInformation("DerivedFlow POST: Generated success message: '{Message}'", SuccessMessage);
 
                         // Redirect back to derived collection summary
-                        return Redirect($"/applications/{ReferenceNumber}/{TaskId}");
+                        var redirectUrl = $"/applications/{ReferenceNumber}/{TaskId}";
+                        _logger.LogInformation("DerivedFlow POST: Redirecting to: '{RedirectUrl}'", redirectUrl);
+                        return Redirect(redirectUrl);
+                    }
+                    else
+                    {
+                        _logger.LogError("DerivedFlow POST: Could not find derived config for flowId='{FlowId}'", derivedFlowId);
+                    }
+                }
+                else if (_formStateManager.ShouldShowDerivedCollectionFlowSummary(CurrentTask))
+                {
+                    // Handle POST from derived collection flow summary page (Continue button)
+                    _logger.LogInformation("POST: Processing derived collection flow summary submission - ReferenceNumber: {ReferenceNumber}, TaskId: {TaskId}", 
+                        ReferenceNumber, TaskId);
+                    _logger.LogInformation("POST: Current Template is null: {TemplateIsNull}, ApplicationId: {ApplicationId}", 
+                        Template == null, ApplicationId);
+                    _logger.LogInformation("POST: Derived summary - Form value IsTaskCompleted present: {Present}, value: '{Value}' | Bound property: {Bound}",
+                        Request.Form.ContainsKey("IsTaskCompleted"), Request.Form["IsTaskCompleted"].ToString(), IsTaskCompleted);
+                    
+                    // Handle task completion checkbox and redirect to task list
+                    var completedValue = Request.Form["IsTaskCompleted"].ToString();
+                    var isCompleted = !string.IsNullOrEmpty(completedValue) &&
+                        (string.Equals(completedValue, "true", StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(completedValue, "on", StringComparison.OrdinalIgnoreCase));
+                    _logger.LogInformation("POST: Derived summary - Computed isCompleted = {IsCompleted}", isCompleted);
+
+                    if (isCompleted)
+                    {
+                        _logger.LogInformation("POST: Marking derived collection flow task as completed and redirecting to task list");
+                        
+                        try
+                        {
+                            // Persist a flag so API has an audit of completion action
+                            await _applicationResponseService.SaveApplicationResponseAsync(ApplicationId.Value, new Dictionary<string, object>
+                            {
+                                [$"{TaskId}_completed"] = true
+                            }, HttpContext.Session);
+                            
+                            // Also set the task status to Completed (matches TaskSummary behaviour)
+                            if (CurrentTask != null)
+                            {
+                                await _applicationStateService.SaveTaskStatusAsync(
+                                    ApplicationId.Value,
+                                    CurrentTask.TaskId,
+                                    Domain.Models.TaskStatus.Completed,
+                                    HttpContext.Session);
+                                _logger.LogInformation("POST: Task status marked as Completed for task '{TaskId}'", CurrentTask.TaskId);
+                            }
+
+                            _logger.LogInformation("POST: Task completion data saved successfully");
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "POST: Error saving task completion status");
+                        }
+                        
+                        // Use RedirectToPage to ensure proper page model initialization
+                        _logger.LogInformation("POST: About to redirect to task list using RedirectToPage with ReferenceNumber: {ReferenceNumber}", ReferenceNumber);
+                        return RedirectToPage("/FormEngine/RenderForm", new { referenceNumber = ReferenceNumber });
+                    }
+                    else
+                    {
+                        _logger.LogInformation("POST: Task not marked as completed (unchecked). Recomputing status and saving to session/API.");
+
+                        // If unchecked: set task status based on calculated state (in progress if any data exists, else not started)
+                        if (CurrentTask != null && ApplicationId.HasValue)
+                        {
+                            var hasAnyData = _applicationStateService.CalculateTaskStatus(CurrentTask.TaskId, Template, FormData, ApplicationId, HttpContext.Session, ApplicationStatus) 
+                                != Domain.Models.TaskStatus.NotStarted;
+                            var newStatus = hasAnyData ? Domain.Models.TaskStatus.InProgress : Domain.Models.TaskStatus.NotStarted;
+                            await _applicationStateService.SaveTaskStatusAsync(ApplicationId.Value, CurrentTask.TaskId, newStatus, HttpContext.Session);
+                            _logger.LogInformation("POST: Task status updated to {Status} for task '{TaskId}'", newStatus, CurrentTask.TaskId);
+                        }
+                        _logger.LogInformation("POST: About to redirect to task list using RedirectToPage with ReferenceNumber: {ReferenceNumber}", ReferenceNumber);
+                        // Use RedirectToPage to ensure proper page model initialization
+                        return RedirectToPage("/FormEngine/RenderForm", new { referenceNumber = ReferenceNumber });
                     }
                 }
                 else
@@ -1061,11 +1228,57 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
             else if (CurrentTask != null)
             {
-                // Fallback: redirect to task summary or collection summary depending on config
+                // Fallback: redirect to the appropriate summary/list depending on config
                 if (_formStateManager.ShouldShowCollectionFlowSummary(CurrentTask))
                 {
                     var url = _formNavigationService.GetCollectionFlowSummaryUrl(CurrentTask.TaskId, ReferenceNumber);
                     return Redirect(url);
+                }
+                if (_formStateManager.ShouldShowDerivedCollectionFlowSummary(CurrentTask))
+                {
+                    // If the derived summary form included the completion checkbox, update status
+                    var completedValue = Request.Form["IsTaskCompleted"].ToString();
+                    var isCompleted = !string.IsNullOrEmpty(completedValue) &&
+                        (string.Equals(completedValue, "true", StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(completedValue, "on", StringComparison.OrdinalIgnoreCase));
+                    _logger.LogInformation("POST (fallback): Derived summary - Computed isCompleted = {IsCompleted}", isCompleted);
+
+                    if (ApplicationId.HasValue)
+                    {
+                        try
+                        {
+                            if (isCompleted)
+                            {
+                                await _applicationStateService.SaveTaskStatusAsync(
+                                    ApplicationId.Value,
+                                    CurrentTask.TaskId,
+                                    Domain.Models.TaskStatus.Completed,
+                                    HttpContext.Session);
+                                _logger.LogInformation("POST (fallback): Task status marked as Completed for task '{TaskId}'", CurrentTask.TaskId);
+                            }
+                            else
+                            {
+                                // Unchecked: compute InProgress if any data exists for this task, else NotStarted
+                                var hasAnyData = _applicationStateService.CalculateTaskStatus(CurrentTask.TaskId, Template, FormData, ApplicationId, HttpContext.Session, ApplicationStatus)
+                                    != Domain.Models.TaskStatus.NotStarted;
+                                var newStatus = hasAnyData ? Domain.Models.TaskStatus.InProgress : Domain.Models.TaskStatus.NotStarted;
+                                await _applicationStateService.SaveTaskStatusAsync(
+                                    ApplicationId.Value,
+                                    CurrentTask.TaskId,
+                                    newStatus,
+                                    HttpContext.Session);
+                                _logger.LogInformation("POST (fallback): Task status updated to {Status} for task '{TaskId}'", newStatus, CurrentTask.TaskId);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "POST (fallback): Failed to save status for task '{TaskId}'", CurrentTask.TaskId);
+                        }
+                    }
+
+                    var taskListUrl = _formNavigationService.GetTaskListUrl(ReferenceNumber);
+                    _logger.LogInformation("POST: Derived summary POST - redirecting to task list: {Url}", taskListUrl);
+                    return Redirect(taskListUrl);
                 }
                 var summaryUrl = $"/applications/{ReferenceNumber}/{CurrentTask.TaskId}";
                 return Redirect(summaryUrl);
@@ -1263,7 +1476,20 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         /// </summary>
         private DerivedCollectionFlowConfiguration? GetDerivedFlowConfiguration(Domain.Models.Task? task, string derivedFlowId)
         {
+            _logger.LogInformation("GetDerivedFlowConfiguration: Looking for flowId='{FlowId}' in task '{TaskId}'", derivedFlowId, task?.TaskId);
+            _logger.LogInformation("GetDerivedFlowConfiguration: Task summary mode: '{Mode}'", task?.Summary?.Mode);
+            _logger.LogInformation("GetDerivedFlowConfiguration: DerivedFlows count: {Count}", task?.Summary?.DerivedFlows?.Count ?? 0);
+            
+            if (task?.Summary?.DerivedFlows != null)
+            {
+                foreach (var flow in task.Summary.DerivedFlows)
+                {
+                    _logger.LogInformation("GetDerivedFlowConfiguration: Available flow - FlowId='{FlowId}', FieldId='{FieldId}'", flow.FlowId, flow.FieldId);
+                }
+            }
+            
             var derivedFlow = task?.Summary?.DerivedFlows?.FirstOrDefault(f => f.FlowId == derivedFlowId);
+            _logger.LogInformation("GetDerivedFlowConfiguration: Found config: {Found}", derivedFlow != null);
             return derivedFlow;
         }
 
@@ -1298,6 +1524,18 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     
                     _logger.LogInformation("Loaded derived item data for item {ItemId} in flow {FlowId} with {Count} fields", 
                         itemId, config.FlowId, currentItem.PrefilledData.Count);
+                }
+                
+                // Ensure all field labels are visible for derived flow forms
+                if (CurrentPage != null)
+                {
+                    foreach (var field in CurrentPage.Fields)
+                    {
+                        if (field.Label != null)
+                        {
+                            field.Label.IsVisible = true;
+                        }
+                    }
                 }
             }
             catch (Exception ex)
