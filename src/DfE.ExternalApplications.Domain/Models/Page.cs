@@ -27,4 +27,7 @@ public class Page
 
     [JsonPropertyName("returnToSummaryPage")]
     public bool ReturnToSummaryPage { get; set; } = true; // Default to true for backward compatibility
+
+    [JsonPropertyName("saveButtonLabel")]
+    public string? SaveButtonLabel { get; set; }
 }

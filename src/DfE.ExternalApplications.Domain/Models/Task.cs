@@ -37,11 +37,18 @@ public class Task
 
 public class TaskSummaryConfiguration
 {
-    // "standard" or "multiCollectionFlow"
+    // "standard", "multiCollectionFlow", or "derivedCollectionFlow"
     [JsonPropertyName("mode")] public string Mode { get; set; } = "standard";
+
+    // Custom page title and description for derived collection flows
+    [JsonPropertyName("title")] public string? Title { get; set; }
+    [JsonPropertyName("description")] public string? Description { get; set; }
 
     // For multi-collection flow mode
     [JsonPropertyName("flows")] public List<MultiCollectionFlowConfiguration>? Flows { get; set; }
+    
+    // For derived collection flow mode
+    [JsonPropertyName("derivedFlows")] public List<DerivedCollectionFlowConfiguration>? DerivedFlows { get; set; }
 }
 
 /// <summary>
@@ -72,4 +79,35 @@ public class MultiCollectionFlowConfiguration
     [JsonPropertyName("deleteItemMessage")] public string? DeleteItemMessage { get; set; }
     [JsonPropertyName("tableType")] public string TableType { get; set; } = "card"; // "card" or "list"
     [JsonPropertyName("pages")] public List<Page> Pages { get; set; } = new();
+}
+
+/// <summary>
+/// Configuration for derived collection flows that generate forms based on other field values
+/// </summary>
+public class DerivedCollectionFlowConfiguration
+{
+    [JsonPropertyName("flowId")] public string FlowId { get; set; } = string.Empty;
+    [JsonPropertyName("title")] public string Title { get; set; } = string.Empty;
+    [JsonPropertyName("description")] public string? Description { get; set; }
+    [JsonPropertyName("sourceFieldId")] public string SourceFieldId { get; set; } = string.Empty;
+    [JsonPropertyName("sourceType")] public string SourceType { get; set; } = "autocomplete";
+    [JsonPropertyName("fieldId")] public string FieldId { get; set; } = string.Empty;
+    [JsonPropertyName("itemTitleBinding")] public string ItemTitleBinding { get; set; } = "name";
+    [JsonPropertyName("sectionOrder")] public int SectionOrder { get; set; } = 1;
+    [JsonPropertyName("signedMessage")] public string? SignedMessage { get; set; }
+    [JsonPropertyName("statusField")] public string StatusField { get; set; } = "status";
+    [JsonPropertyName("emptyStateMessage")] public string? EmptyStateMessage { get; set; }
+    [JsonPropertyName("pages")] public List<Page> Pages { get; set; } = new();
+}
+
+/// <summary>
+/// Represents a single item in a derived collection flow
+/// </summary>
+public class DerivedCollectionItem
+{
+    public string Id { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public string Status { get; set; } = "Not signed yet";
+    public Dictionary<string, object> PrefilledData { get; set; } = new();
+    public Dictionary<string, object>? SourceData { get; set; }
 }

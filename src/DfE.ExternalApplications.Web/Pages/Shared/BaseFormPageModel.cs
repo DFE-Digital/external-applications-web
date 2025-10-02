@@ -216,11 +216,64 @@ namespace DfE.ExternalApplications.Web.Pages.Shared
         /// </summary>
         protected async Task CommonInitializationAsync()
         {
-            TemplateId = HttpContext.Session.GetString("TemplateId") ?? string.Empty;
-            await EnsureApplicationIdAsync();
-            await LoadTemplateAsync();
-            LoadFormDataFromSession();
-            LoadApplicationStatus();
+            
+            
+            try
+            {
+                TemplateId = HttpContext.Session.GetString("TemplateId") ?? string.Empty;
+                
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "CommonInitializationAsync - Error getting TemplateId from session");
+                throw;
+            }
+            
+            try
+            {
+                await EnsureApplicationIdAsync();
+                
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "CommonInitializationAsync - Error ensuring ApplicationId");
+                throw;
+            }
+            
+            try
+            {
+                await LoadTemplateAsync();
+                
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "CommonInitializationAsync - Error loading template");
+                throw;
+            }
+            
+            try
+            {
+                LoadFormDataFromSession();
+                
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "CommonInitializationAsync - Error loading form data from session");
+                throw;
+            }
+            
+            try
+            {
+                LoadApplicationStatus();
+                
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "CommonInitializationAsync - Error loading application status");
+                throw;
+            }
+            
+            
         }
 
         #endregion

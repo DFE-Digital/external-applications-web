@@ -138,8 +138,31 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         /// <returns>A task representing the asynchronous operation</returns>
         protected async Task CommonFormEngineInitializationAsync()
         {
-            await CommonInitializationAsync();
-            CurrentFormState = GetCurrentFormState();
+            
+            
+            try
+            {
+                await CommonInitializationAsync();
+                
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "CommonFormEngineInitializationAsync - Error in CommonInitializationAsync");
+                throw;
+            }
+            
+            try
+            {
+                CurrentFormState = GetCurrentFormState();
+                
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "CommonFormEngineInitializationAsync - Error getting current form state");
+                throw;
+            }
+            
+            
         }
 
         /// <summary>

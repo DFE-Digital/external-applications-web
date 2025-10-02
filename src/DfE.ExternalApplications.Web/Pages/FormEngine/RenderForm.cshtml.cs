@@ -35,6 +35,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         INotificationsClient notificationsClient,
         IFormErrorStore formErrorStore,
         IComplexFieldConfigurationService complexFieldConfigurationService,
+        IDerivedCollectionFlowService derivedCollectionFlowService,
         ILogger<RenderFormModel> logger)
         : BaseFormEngineModel(renderer, applicationResponseService, fieldFormattingService, templateManagementService,
             applicationStateService, formStateManager, formNavigationService, formDataManager, formValidationOrchestrator, formConfigurationService, logger)
@@ -44,6 +45,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         private readonly INotificationsClient _notificationsClient = notificationsClient;
         private readonly IFormErrorStore _formErrorStore = formErrorStore;
         private readonly IComplexFieldConfigurationService _complexFieldConfigurationService = complexFieldConfigurationService;
+        private readonly IDerivedCollectionFlowService _derivedCollectionFlowService = derivedCollectionFlowService;
 
         [BindProperty] public Dictionary<string, object> Data { get; set; } = new();
 
@@ -54,8 +56,16 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         [BindProperty] public new string? InstanceId { get; set; }
         [BindProperty] public string? FlowPageId { get; set; }
         
+        // Derived collection flow properties
+        [BindProperty] public string? DerivedFlowId { get; set; }
+        [BindProperty] public string? DerivedItemId { get; set; }
+        [BindProperty] public string? DerivedPageId { get; set; }
+        
         // Calculate IsCollectionFlow automatically based on FlowId and InstanceId presence
         private bool IsCollectionFlow => !string.IsNullOrEmpty(FlowId) && !string.IsNullOrEmpty(InstanceId);
+        
+        // Calculate IsDerivedFlow automatically based on DerivedFlowId and DerivedItemId presence
+        private bool IsDerivedFlow => !string.IsNullOrEmpty(DerivedFlowId) && !string.IsNullOrEmpty(DerivedItemId);
 
         // Success message for collection operations
         [TempData] public string? SuccessMessage { get; set; }
@@ -71,7 +81,35 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         public async Task OnGetAsync()
         {
-                await CommonFormEngineInitializationAsync();
+                
+                
+                try
+                {
+                    await CommonFormEngineInitializationAsync();
+                    
+                }
+                catch (Exception ex)
+                {
+                _logger.LogError(ex, "Error in CommonFormEngineInitializationAsync for ReferenceNumber: {ReferenceNumber}", ReferenceNumber);
+                    throw;
+                }
+
+                // Ensure Template is not null to prevent NullReferenceException
+                if (Template == null)
+                {
+                    _logger.LogError("Template is null after CommonFormEngineInitializationAsync for ReferenceNumber: {ReferenceNumber}", ReferenceNumber);
+                    Template = new FormTemplate
+                    {
+                        TemplateId = "dummy",
+                        TemplateName = "dummy",
+                        Description = "dummy",
+                        TaskGroups = new List<TaskGroup>()
+                    };
+                }
+                else
+                {
+                    
+                }
 
                 // Check if this is a preview request
                 if (Request.Query.ContainsKey("preview"))
@@ -135,6 +173,49 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                             }
                         }
                         }
+                        else if (TryParseDerivedFlowRoute(CurrentPageId, out var derivedFlowId, out var derivedItemId, out var derivedPageId))
+                        {
+                            // Derived flow: initialize task and resolve page from derived flow configuration
+                            var (group, task) = InitializeCurrentTask(TaskId);
+                            CurrentGroup = group;
+                            CurrentTask = task;
+
+                            // Set derived flow properties
+                            DerivedFlowId = derivedFlowId;
+                            DerivedItemId = derivedItemId;
+                            DerivedPageId = derivedPageId;
+
+                            // Find the derived flow configuration
+                            var derivedConfig = GetDerivedFlowConfiguration(task, derivedFlowId);
+                            if (derivedConfig != null)
+                            {
+                                // Get the page to render (default to first page if no specific page)
+                                var page = string.IsNullOrEmpty(derivedPageId) ? derivedConfig.Pages.FirstOrDefault() : derivedConfig.Pages.FirstOrDefault(p => p.PageId == derivedPageId);
+                                if (page != null)
+                                {
+                                    CurrentPage = page;
+                                    CurrentFormState = FormState.FormPage;
+                                    
+                                    // Load pre-filled data for this derived item
+                                    LoadDerivedItemData(derivedConfig, derivedItemId);
+
+                                    // Replace placeholders in page metadata with the item's display name
+                                    var displayName = GetDerivedItemDisplayName(derivedConfig, derivedItemId);
+                                    if (!string.IsNullOrEmpty(CurrentPage.Title))
+                                    {
+                                        CurrentPage.Title = CurrentPage.Title
+                                            .Replace("{displayName}", displayName)
+                                            .Replace("{name}", displayName);
+                                    }
+                                    if (!string.IsNullOrEmpty(CurrentPage.Description))
+                                    {
+                                        CurrentPage.Description = CurrentPage.Description
+                                            .Replace("{displayName}", displayName)
+                                            .Replace("{name}", displayName);
+                                    }
+                                }
+                            }
+                        }
                         else
                         {
                             var (group, task, page) = InitializeCurrentPage(CurrentPageId);
@@ -154,6 +235,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         if (_formStateManager.ShouldShowCollectionFlowSummary(CurrentTask))
                         {
                             CurrentFormState = FormState.TaskSummary; // view chooses partial
+                        }
+                        // If task requests derivedCollectionFlow summary, switch state accordingly
+                        else if (_formStateManager.ShouldShowDerivedCollectionFlowSummary(CurrentTask))
+                        {
+                            CurrentFormState = FormState.DerivedCollectionFlowSummary;
                         }
                     }
                 }
@@ -176,12 +262,17 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 await ApplyConditionalLogicAsync();
                 }
 
-                // Initialize task completion status if we're showing a task summary
-                if (CurrentFormState == FormState.TaskSummary && CurrentTask != null)
+                // Initialize task completion status for summaries (standard or derived)
+                if (CurrentTask != null)
                 {
-                    var taskStatus = GetTaskStatusFromSession(CurrentTask.TaskId);
-                    IsTaskCompleted = taskStatus == Domain.Models.TaskStatus.Completed;
-            }
+                    var isSummary = CurrentFormState == FormState.TaskSummary 
+                        || _formStateManager.ShouldShowDerivedCollectionFlowSummary(CurrentTask);
+                    if (isSummary)
+                    {
+                        var taskStatus = GetTaskStatusFromSession(CurrentTask.TaskId);
+                        IsTaskCompleted = taskStatus == Domain.Models.TaskStatus.Completed;
+                    }
+                }
         }
 
         public async Task<IActionResult> OnPostTaskSummaryAsync()
@@ -295,6 +386,17 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         public async Task<IActionResult> OnPostPageAsync()
         {
+            _logger.LogInformation("POST: OnPostPageAsync called - ReferenceNumber='{ReferenceNumber}', TaskId='{TaskId}', CurrentPageId='{CurrentPageId}'", 
+                ReferenceNumber, TaskId, CurrentPageId);
+            _logger.LogInformation("POST: Request URL: {Url}", $"{Request.Scheme}://{Request.Host}{Request.Path}{Request.QueryString}");
+            _logger.LogInformation("POST: Form data keys: {Keys}", string.Join(", ", Request.Form.Keys));
+            
+            // This handler is also used by task summary pages which do not post a pageId.
+            // Non-nullable reference types are implicitly required in MVC, so clear any implicit
+            // model state error for missing pageId to avoid short-circuiting to Page().
+            ModelState.Remove(nameof(CurrentPageId));
+            ModelState.Remove("pageId");
+            
             // Check if this is a confirmed action coming back from confirmation page
             if (Request.Query.ContainsKey("confirmed") && Request.Query["confirmed"] == "true")
             {
@@ -346,7 +448,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             {
                 if (TryParseFlowRoute(CurrentPageId, out var flowId, out var instanceId, out var flowPageId))
                 {
-                    _logger.LogInformation("Detected sub-flow: flowId={FlowId} instance={InstanceId} flowPageId={FlowPageId}", flowId, instanceId, flowPageId);
+                    
 
                     var (group, task) = InitializeCurrentTask(TaskId);
                     CurrentGroup = group;
@@ -373,13 +475,22 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
             else if (!string.IsNullOrEmpty(TaskId))
             {
+                // No pageId posted (e.g., task summary/derived summary). Initialize the task context.
+                var (group, task) = InitializeCurrentTask(TaskId);
+                CurrentGroup = group;
+                CurrentTask = task;
+                CurrentPage = null;
+                _logger.LogInformation("POST: Initialized CurrentTask '{TaskId}' for summary POST (no pageId)", CurrentTask?.TaskId);
+            }
+            else if (!string.IsNullOrEmpty(TaskId))
+            {
                 var (group, task) = InitializeCurrentTask(TaskId);
                 CurrentGroup = group;
                 CurrentTask = task;
                 CurrentPage = null; // No specific page for task summary
             }
 
-            _logger.LogInformation("DEBUG: Processing form data. Form keys: {FormKeys}", string.Join(", ", Request.Form.Keys));
+            // Removed verbose debug logging of posted keys
 
             // Collect date parts for fields rendered with GOV.UK date input
             var dateParts = new Dictionary<string, (string? Day, string? Month, string? Year)>(StringComparer.OrdinalIgnoreCase);
@@ -529,53 +640,14 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 }
             }
 
-            _logger.LogInformation("DEBUG: About to validate page. CurrentPageId='{CurrentPageId}', CurrentPage.PageId='{PageId}', Data fields: {DataFields}", 
-                CurrentPageId, CurrentPage?.PageId, Data.Keys.Count > 0 ? string.Join(", ", Data.Keys) : "none");
-
             if (CurrentPage != null)
             {
-                _logger.LogInformation("DEBUG: Calling ValidateCurrentPage for page '{PageId}' with {FieldCount} fields", CurrentPage.PageId, CurrentPage.Fields?.Count ?? 0);
-                
-                // Log each field and its value for debugging
-                foreach (var field in CurrentPage.Fields ?? new List<Domain.Models.Field>())
-                {
-                    var fieldValue = Data.TryGetValue(field.FieldId, out var val) ? val?.ToString() ?? "null" : "not found";
-                    _logger.LogInformation("DEBUG: Field '{FieldId}' = '{Value}', HasValidations: {HasValidations}, ValidationCount: {ValidationCount}", 
-                        field.FieldId, fieldValue, field.Validations != null, field.Validations?.Count ?? 0);
-                    
-                    if (field.Validations != null)
-                    {
-                        foreach (var validation in field.Validations)
-                        {
-                            _logger.LogInformation("DEBUG: Validation rule - Type: '{Type}', Rule: '{Rule}', Message: '{Message}'", 
-                                validation.Type, validation.Rule, validation.Message);
-                        }
-                    }
-                }
-                
-                var validationResult = ValidateCurrentPage(CurrentPage, Data);
-                _logger.LogInformation("DEBUG: ValidateCurrentPage returned: {ValidationResult}", validationResult);
-            }
-            else
-            {
-                _logger.LogWarning("DEBUG: CurrentPage is null, skipping validation");
-            }
-
-            var modelStateErrors = ModelState.Where(e => e.Value?.Errors.Count > 0).ToList();
-            _logger.LogInformation("DEBUG: ModelState.IsValid = {IsValid}, Error count: {ErrorCount}", ModelState.IsValid, modelStateErrors.Count);
-
-            if (modelStateErrors.Any())
-            {
-                foreach (var error in modelStateErrors)
-                {
-                    _logger.LogInformation("DEBUG: ModelState error - Key: '{Key}', Errors: [{Errors}]", 
-                        error.Key, string.Join("; ", error.Value?.Errors.Select(e => e.ErrorMessage) ?? new string[0]));
-                }
+                ValidateCurrentPage(CurrentPage, Data);
             }
 
             if (!ModelState.IsValid)
             {
-                _logger.LogWarning("ModelState invalid on POST Page: {Errors}", string.Join("; ", ModelState.Where(e => e.Value?.Errors.Count > 0).Select(k => $"{k.Key}:{string.Join('|', k.Value!.Errors.Select(er => er.ErrorMessage))}")));
+                _logger.LogWarning("ModelState invalid on POST Page");
 
                 // (Reverted) Do not accumulate general invalid form data to session; sub-flow persistence below is sufficient
                 
@@ -605,11 +677,9 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     _logger.LogInformation("DEBUG: Redirecting to: {SelfUrl}", selfUrl);
                     return Redirect(selfUrl);
                 }
-                _logger.LogInformation("DEBUG: Returning Page() due to validation errors");
                 return Page();
             }
 
-            _logger.LogInformation("DEBUG: Validation passed, continuing with form processing...");
 
             // When AllowMultiple is true for an autocomplete complex field, append new selection
             // to any existing array value instead of replacing it
@@ -877,6 +947,140 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         return Redirect(backToSummary);
                     }
                 }
+                
+                _logger.LogInformation("POST: Checking if CurrentPageId '{CurrentPageId}' is a derived flow route", CurrentPageId);
+                
+                // Handle derived collection flow form submissions
+                if (TryParseDerivedFlowRoute(CurrentPageId, out var derivedFlowId, out var derivedItemId, out var derivedPageId))
+                {
+                    _logger.LogInformation("POST: Detected derived flow route - flowId='{FlowId}', itemId='{ItemId}', pageId='{PageId}'", 
+                        derivedFlowId, derivedItemId, derivedPageId);
+                }
+                else
+                {
+                    _logger.LogInformation("POST: CurrentPageId '{CurrentPageId}' is NOT a derived flow route", CurrentPageId);
+                }
+                
+                if (TryParseDerivedFlowRoute(CurrentPageId, out derivedFlowId, out derivedItemId, out derivedPageId))
+                {
+                    
+                    
+                    // For derived flows, we need to ensure we're looking at the correct task
+                    // The CurrentTask might be wrong during POST, so let's get the task by TaskId
+                    var correctTask = Template?.TaskGroups?.SelectMany(g => g.Tasks)?.FirstOrDefault(t => t.TaskId == TaskId);
+                    _logger.LogInformation("DerivedFlow POST: Using task '{TaskId}' instead of CurrentTask '{CurrentTaskId}'", 
+                        TaskId, CurrentTask?.TaskId);
+                    
+                    var derivedConfig = GetDerivedFlowConfiguration(correctTask, derivedFlowId);
+                    if (derivedConfig != null)
+                    {
+                    
+                        
+                        // Save the declaration data and mark as signed
+                        _derivedCollectionFlowService.SaveItemDeclaration(
+                            derivedConfig.FieldId, 
+                            derivedItemId, 
+                            Data, 
+                            "Signed", 
+                            FormData);
+
+                        
+
+                        // Save to API
+                        if (ApplicationId.HasValue)
+                        {
+                            
+                            await _applicationResponseService.SaveApplicationResponseAsync(ApplicationId.Value, FormData, HttpContext.Session);
+                            
+                        }
+                        else
+                        {
+                            _logger.LogWarning("DerivedFlow POST: No ApplicationId found, skipping API save");
+                        }
+
+                        // Generate success message
+                        var displayName = GetDerivedItemDisplayName(derivedConfig, derivedItemId);
+                        var templateMessage = derivedConfig.SignedMessage ?? "Declaration for {displayName} has been signed";
+                        SuccessMessage = templateMessage
+                            .Replace("{displayName}", displayName)
+                            .Replace("{name}", displayName);
+                        
+                        
+
+                        // Redirect back to derived collection summary
+                        var redirectUrl = $"/applications/{ReferenceNumber}/{TaskId}";
+                        
+                        return Redirect(redirectUrl);
+                    }
+                    else
+                    {
+                        _logger.LogError("DerivedFlow POST: Could not find derived config for flowId='{FlowId}'", derivedFlowId);
+                    }
+                }
+                else if (_formStateManager.ShouldShowDerivedCollectionFlowSummary(CurrentTask))
+                {
+                    // Handle POST from derived collection flow summary page (Continue button)
+                    
+                    
+                    // Handle task completion checkbox and redirect to task list
+                    var completedValue = Request.Form["IsTaskCompleted"].ToString();
+                    var isCompleted = !string.IsNullOrEmpty(completedValue) &&
+                        (string.Equals(completedValue, "true", StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(completedValue, "on", StringComparison.OrdinalIgnoreCase));
+                    
+
+                    if (isCompleted)
+                    {
+                        
+                        
+                        try
+                        {
+                            // Persist a flag so API has an audit of completion action
+                            await _applicationResponseService.SaveApplicationResponseAsync(ApplicationId.Value, new Dictionary<string, object>
+                            {
+                                [$"{TaskId}_completed"] = true
+                            }, HttpContext.Session);
+                            
+                            // Also set the task status to Completed (matches TaskSummary behaviour)
+                            if (CurrentTask != null)
+                            {
+                                await _applicationStateService.SaveTaskStatusAsync(
+                                    ApplicationId.Value,
+                                    CurrentTask.TaskId,
+                                    Domain.Models.TaskStatus.Completed,
+                                    HttpContext.Session);
+                                
+                            }
+
+                            
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "POST: Error saving task completion status");
+                        }
+                        
+                        // Use RedirectToPage to ensure proper page model initialization
+                        _logger.LogInformation("POST: About to redirect to task list using RedirectToPage with ReferenceNumber: {ReferenceNumber}", ReferenceNumber);
+                        return RedirectToPage("/FormEngine/RenderForm", new { referenceNumber = ReferenceNumber });
+                    }
+                    else
+                    {
+                        
+
+                        // If unchecked: set task status based on calculated state (in progress if any data exists, else not started)
+                        if (CurrentTask != null && ApplicationId.HasValue)
+                        {
+                            var hasAnyData = _applicationStateService.CalculateTaskStatus(CurrentTask.TaskId, Template, FormData, ApplicationId, HttpContext.Session, ApplicationStatus) 
+                                != Domain.Models.TaskStatus.NotStarted;
+                            var newStatus = hasAnyData ? Domain.Models.TaskStatus.InProgress : Domain.Models.TaskStatus.NotStarted;
+                            await _applicationStateService.SaveTaskStatusAsync(ApplicationId.Value, CurrentTask.TaskId, newStatus, HttpContext.Session);
+                            
+                        }
+                        
+                        // Use RedirectToPage to ensure proper page model initialization
+                        return RedirectToPage("/FormEngine/RenderForm", new { referenceNumber = ReferenceNumber });
+                    }
+                }
                 else
                 {
                     // First check if returnToSummaryPage is true and should be respected
@@ -989,11 +1193,57 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
             else if (CurrentTask != null)
             {
-                // Fallback: redirect to task summary or collection summary depending on config
+                // Fallback: redirect to the appropriate summary/list depending on config
                 if (_formStateManager.ShouldShowCollectionFlowSummary(CurrentTask))
                 {
                     var url = _formNavigationService.GetCollectionFlowSummaryUrl(CurrentTask.TaskId, ReferenceNumber);
                     return Redirect(url);
+                }
+                if (_formStateManager.ShouldShowDerivedCollectionFlowSummary(CurrentTask))
+                {
+                    // If the derived summary form included the completion checkbox, update status
+                    var completedValue = Request.Form["IsTaskCompleted"].ToString();
+                    var isCompleted = !string.IsNullOrEmpty(completedValue) &&
+                        (string.Equals(completedValue, "true", StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(completedValue, "on", StringComparison.OrdinalIgnoreCase));
+                    
+
+                    if (ApplicationId.HasValue)
+                    {
+                        try
+                        {
+                            if (isCompleted)
+                            {
+                                await _applicationStateService.SaveTaskStatusAsync(
+                                    ApplicationId.Value,
+                                    CurrentTask.TaskId,
+                                    Domain.Models.TaskStatus.Completed,
+                                    HttpContext.Session);
+                                
+                            }
+                            else
+                            {
+                                // Unchecked: compute InProgress if any data exists for this task, else NotStarted
+                                var hasAnyData = _applicationStateService.CalculateTaskStatus(CurrentTask.TaskId, Template, FormData, ApplicationId, HttpContext.Session, ApplicationStatus)
+                                    != Domain.Models.TaskStatus.NotStarted;
+                                var newStatus = hasAnyData ? Domain.Models.TaskStatus.InProgress : Domain.Models.TaskStatus.NotStarted;
+                                await _applicationStateService.SaveTaskStatusAsync(
+                                    ApplicationId.Value,
+                                    CurrentTask.TaskId,
+                                    newStatus,
+                                    HttpContext.Session);
+                                
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "POST (fallback): Failed to save status for task '{TaskId}'", CurrentTask.TaskId);
+                        }
+                    }
+
+                    var taskListUrl = _formNavigationService.GetTaskListUrl(ReferenceNumber);
+                    
+                    return Redirect(taskListUrl);
                 }
                 var summaryUrl = $"/applications/{ReferenceNumber}/{CurrentTask.TaskId}";
                 return Redirect(summaryUrl);
@@ -1005,11 +1255,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         public async Task<IActionResult> OnGetAutocompleteAsync(string endpoint, string query)
         {
-            _logger.LogInformation("Autocomplete search called with endpoint: {Endpoint}, query: {Query}", endpoint, query);
+            
 
             if (string.IsNullOrWhiteSpace(endpoint))
             {
-                _logger.LogWarning("Autocomplete search called without endpoint");
+                
                 return new JsonResult(new List<object>());
             }
 
@@ -1118,9 +1368,9 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
             try
             {
-                _logger.LogInformation("Calling autocompleteService.SearchAsync with complexFieldId: {ComplexFieldId}, query: {Query}", complexFieldId, query);
+                
                 var results = await autocompleteService.SearchAsync(complexFieldId, query);
-                _logger.LogInformation("Complex field search returned {Count} results for {ComplexFieldId}", results.Count, complexFieldId);
+                
                 return new JsonResult(results);
             }
             catch (Exception ex)
@@ -1149,6 +1399,26 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         }
 
         /// <summary>
+        /// Parses derived collection flow routes like: {flowId}/derived/{itemId}/{pageId?}
+        /// </summary>
+        private static bool TryParseDerivedFlowRoute(string pageId, out string derivedFlowId, out string derivedItemId, out string derivedPageId)
+        {
+            derivedFlowId = derivedItemId = derivedPageId = string.Empty;
+            if (string.IsNullOrEmpty(pageId)) return false;
+            
+            // Expected: {flowId}/derived/{itemId}/{pageId?}
+            var parts = pageId.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length >= 3 && parts[1].Equals("derived", StringComparison.OrdinalIgnoreCase))
+            {
+                derivedFlowId = parts[0];
+                derivedItemId = parts[2];
+                derivedPageId = parts.Length > 3 ? parts[3] : string.Empty;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
         /// Gets the pages for a specific flow in multi-collection flow mode
         /// </summary>
         private List<Domain.Models.Page>? GetFlowPages(Domain.Models.Task? task, string flowId)
@@ -1164,6 +1434,112 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         {
             var flow = task?.Summary?.Flows?.FirstOrDefault(f => f.FlowId == flowId);
             return flow?.FieldId;
+        }
+
+        /// <summary>
+        /// Gets the configuration for a specific derived flow
+        /// </summary>
+        private DerivedCollectionFlowConfiguration? GetDerivedFlowConfiguration(Domain.Models.Task? task, string derivedFlowId)
+        {
+            _logger.LogInformation("GetDerivedFlowConfiguration: Looking for flowId='{FlowId}' in task '{TaskId}'", derivedFlowId, task?.TaskId);
+            _logger.LogInformation("GetDerivedFlowConfiguration: Task summary mode: '{Mode}'", task?.Summary?.Mode);
+            _logger.LogInformation("GetDerivedFlowConfiguration: DerivedFlows count: {Count}", task?.Summary?.DerivedFlows?.Count ?? 0);
+            
+            if (task?.Summary?.DerivedFlows != null)
+            {
+                foreach (var flow in task.Summary.DerivedFlows)
+                {
+                    _logger.LogInformation("GetDerivedFlowConfiguration: Available flow - FlowId='{FlowId}', FieldId='{FieldId}'", flow.FlowId, flow.FieldId);
+                }
+            }
+            
+            var derivedFlow = task?.Summary?.DerivedFlows?.FirstOrDefault(f => f.FlowId == derivedFlowId);
+            _logger.LogInformation("GetDerivedFlowConfiguration: Found config: {Found}", derivedFlow != null);
+            return derivedFlow;
+        }
+
+        /// <summary>
+        /// Loads pre-filled data for a derived collection item
+        /// </summary>
+        private void LoadDerivedItemData(DerivedCollectionFlowConfiguration config, string itemId)
+        {
+            try
+            {
+                // First, load any existing declaration data for this item
+                var existingData = _derivedCollectionFlowService.GetItemDeclarationData(config.FieldId, itemId, FormData);
+                foreach (var kvp in existingData)
+                {
+                    Data[kvp.Key] = kvp.Value;
+                }
+
+                // Then, generate and load pre-filled data from the source
+                var derivedItems = _derivedCollectionFlowService.GenerateItemsFromSourceField(config.SourceFieldId, FormData, config);
+                var currentItem = derivedItems.FirstOrDefault(item => item.Id == itemId);
+                
+                if (currentItem != null)
+                {
+                    // Pre-fill with source data (but don't overwrite existing declaration data)
+                    foreach (var kvp in currentItem.PrefilledData)
+                    {
+                        if (!Data.ContainsKey(kvp.Key)) // Only set if not already populated from existing data
+                        {
+                            Data[kvp.Key] = kvp.Value;
+                        }
+                    }
+                    
+                    _logger.LogInformation("Loaded derived item data for item {ItemId} in flow {FlowId} with {Count} fields", 
+                        itemId, config.FlowId, currentItem.PrefilledData.Count);
+                }
+                
+                // Ensure all field labels are visible for derived flow forms
+                if (CurrentPage != null)
+                {
+                    foreach (var field in CurrentPage.Fields)
+                    {
+                        if (field.Label != null)
+                        {
+                            field.Label.IsVisible = true;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to load derived item data for item {ItemId} in flow {FlowId}", itemId, config.FlowId);
+            }
+        }
+
+        /// <summary>
+        /// Resolves a user-friendly display name for a derived item, using the service's generated
+        /// items and the configured binding. Falls back to the raw itemId if no data is available.
+        /// </summary>
+        private string GetDerivedItemDisplayName(DerivedCollectionFlowConfiguration config, string itemId)
+        {
+            try
+            {
+                var items = _derivedCollectionFlowService.GenerateItemsFromSourceField(config.SourceFieldId, FormData, config);
+                var match = items.FirstOrDefault(i => string.Equals(i.Id, itemId, StringComparison.OrdinalIgnoreCase));
+                if (match != null)
+                {
+                    if (!string.IsNullOrWhiteSpace(match.DisplayName))
+                    {
+                        return match.DisplayName;
+                    }
+
+                    if (match.PrefilledData != null &&
+                        match.PrefilledData.TryGetValue(config.ItemTitleBinding, out var value) &&
+                        !string.IsNullOrWhiteSpace(value?.ToString()))
+                    {
+                        return value!.ToString()!;
+                    }
+                }
+            }
+            catch
+            {
+                // ignore
+            }
+
+            return itemId;
         }
 
         /// <summary>
@@ -1361,12 +1737,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         private Dictionary<string, object> LoadFlowProgress(string flowId, string instanceId)
         {
             var key = GetFlowProgressSessionKey(flowId, instanceId);
-
-
-            
             var json = HttpContext.Session.GetString(key);
-
-            
             if (string.IsNullOrWhiteSpace(json)) 
             {
 

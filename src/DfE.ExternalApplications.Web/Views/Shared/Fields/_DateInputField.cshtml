@@ -31,6 +31,17 @@
 @if (hasPostedParts || hasPersistedParts)
 {
     <govuk-date-input id="@Model.Id" name-prefix="Data[@Model.Field.FieldId]">
+        <govuk-date-input-fieldset>
+            <govuk-date-input-fieldset-legend class="@labelClasses">
+                @Model.Field.Label.Value
+            </govuk-date-input-fieldset-legend>
+            @if (!string.IsNullOrEmpty(Model.Field.Tooltip))
+            {
+                <govuk-date-input-hint>
+                    @Model.Field.Tooltip
+                </govuk-date-input-hint>
+            }
+        </govuk-date-input-fieldset>
         @if (Model.ErrorMessage != String.Empty)
         {
             <govuk-date-input-error-message>
@@ -45,6 +56,17 @@
 else
 {
     <govuk-date-input id="@Model.Id" name-prefix="Data[@Model.Field.FieldId]" value="@parsedDate">
+        <govuk-date-input-fieldset>
+            <govuk-date-input-fieldset-legend class="@labelClasses">
+                @Model.Field.Label.Value
+            </govuk-date-input-fieldset-legend>
+            @if (!string.IsNullOrEmpty(Model.Field.Tooltip))
+            {
+                <govuk-date-input-hint>
+                    @Model.Field.Tooltip
+                </govuk-date-input-hint>
+            }
+        </govuk-date-input-fieldset>
         @if (Model.ErrorMessage != String.Empty)
         {
             <govuk-date-input-error-message>
