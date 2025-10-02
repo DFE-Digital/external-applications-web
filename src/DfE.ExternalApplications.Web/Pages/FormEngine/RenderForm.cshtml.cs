@@ -200,6 +200,21 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                     
                                     // Load pre-filled data for this derived item
                                     LoadDerivedItemData(derivedConfig, derivedItemId);
+
+                                    // Replace placeholders in page metadata with the item's display name
+                                    var displayName = GetDerivedItemDisplayName(derivedConfig, derivedItemId);
+                                    if (!string.IsNullOrEmpty(CurrentPage.Title))
+                                    {
+                                        CurrentPage.Title = CurrentPage.Title
+                                            .Replace("{displayName}", displayName)
+                                            .Replace("{name}", displayName);
+                                    }
+                                    if (!string.IsNullOrEmpty(CurrentPage.Description))
+                                    {
+                                        CurrentPage.Description = CurrentPage.Description
+                                            .Replace("{displayName}", displayName)
+                                            .Replace("{name}", displayName);
+                                    }
                                 }
                             }
                         }
@@ -1031,9 +1046,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         }
 
                         // Generate success message
-                        var trustName = Data.TryGetValue(derivedConfig.ItemTitleBinding, out var name) ? name?.ToString() : derivedItemId;
-                        SuccessMessage = derivedConfig.SignedMessage?.Replace("{name}", trustName) 
-                            ?? $"Declaration for {trustName} has been signed";
+                        var displayName = GetDerivedItemDisplayName(derivedConfig, derivedItemId);
+                        var templateMessage = derivedConfig.SignedMessage ?? "Declaration for {displayName} has been signed";
+                        SuccessMessage = templateMessage
+                            .Replace("{displayName}", displayName)
+                            .Replace("{name}", displayName);
                         
                         _logger.LogInformation("DerivedFlow POST: Generated success message: '{Message}'", SuccessMessage);
 
@@ -1542,6 +1559,39 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             {
                 _logger.LogError(ex, "Failed to load derived item data for item {ItemId} in flow {FlowId}", itemId, config.FlowId);
             }
+        }
+
+        /// <summary>
+        /// Resolves a user-friendly display name for a derived item, using the service's generated
+        /// items and the configured binding. Falls back to the raw itemId if no data is available.
+        /// </summary>
+        private string GetDerivedItemDisplayName(DerivedCollectionFlowConfiguration config, string itemId)
+        {
+            try
+            {
+                var items = _derivedCollectionFlowService.GenerateItemsFromSourceField(config.SourceFieldId, FormData, config);
+                var match = items.FirstOrDefault(i => string.Equals(i.Id, itemId, StringComparison.OrdinalIgnoreCase));
+                if (match != null)
+                {
+                    if (!string.IsNullOrWhiteSpace(match.DisplayName))
+                    {
+                        return match.DisplayName;
+                    }
+
+                    if (match.PrefilledData != null &&
+                        match.PrefilledData.TryGetValue(config.ItemTitleBinding, out var value) &&
+                        !string.IsNullOrWhiteSpace(value?.ToString()))
+                    {
+                        return value!.ToString()!;
+                    }
+                }
+            }
+            catch
+            {
+                // ignore
+            }
+
+            return itemId;
         }
 
         /// <summary>
