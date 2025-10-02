@@ -216,12 +216,12 @@ namespace DfE.ExternalApplications.Web.Pages.Shared
         /// </summary>
         protected async Task CommonInitializationAsync()
         {
-            _logger.LogInformation("CommonInitializationAsync START - ReferenceNumber: {ReferenceNumber}", ReferenceNumber);
+            
             
             try
             {
                 TemplateId = HttpContext.Session.GetString("TemplateId") ?? string.Empty;
-                _logger.LogInformation("CommonInitializationAsync - TemplateId from session: {TemplateId}", TemplateId);
+                
             }
             catch (Exception ex)
             {
@@ -232,7 +232,7 @@ namespace DfE.ExternalApplications.Web.Pages.Shared
             try
             {
                 await EnsureApplicationIdAsync();
-                _logger.LogInformation("CommonInitializationAsync - ApplicationId ensured: {ApplicationId}", ApplicationId);
+                
             }
             catch (Exception ex)
             {
@@ -243,8 +243,7 @@ namespace DfE.ExternalApplications.Web.Pages.Shared
             try
             {
                 await LoadTemplateAsync();
-                _logger.LogInformation("CommonInitializationAsync - Template loaded: {TemplateIsNull}, TemplateId: {TemplateId}", 
-                    Template == null, Template?.TemplateId);
+                
             }
             catch (Exception ex)
             {
@@ -255,7 +254,7 @@ namespace DfE.ExternalApplications.Web.Pages.Shared
             try
             {
                 LoadFormDataFromSession();
-                _logger.LogInformation("CommonInitializationAsync - FormData loaded: {FormDataCount} entries", FormData?.Count ?? 0);
+                
             }
             catch (Exception ex)
             {
@@ -266,7 +265,7 @@ namespace DfE.ExternalApplications.Web.Pages.Shared
             try
             {
                 LoadApplicationStatus();
-                _logger.LogInformation("CommonInitializationAsync - ApplicationStatus loaded: {ApplicationStatus}", ApplicationStatus);
+                
             }
             catch (Exception ex)
             {
@@ -274,7 +273,7 @@ namespace DfE.ExternalApplications.Web.Pages.Shared
                 throw;
             }
             
-            _logger.LogInformation("CommonInitializationAsync COMPLETE");
+            
         }
 
         #endregion

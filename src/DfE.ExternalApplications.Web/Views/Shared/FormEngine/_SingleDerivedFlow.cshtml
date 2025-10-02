@@ -55,7 +55,15 @@
         }
         else
         {
-            <p class="govuk-body">You need to mark the <a href="/applications/@renderModel.ReferenceNumber" class="govuk-link">@config.SourceFieldId</a> task as complete first.</p>
+            var sourceTask = renderModel.Template?.TaskGroups
+                ?.SelectMany(g => g.Tasks)
+                ?.FirstOrDefault(t => t?.Summary?.Flows?.Any(f => string.Equals(f.FieldId, config.SourceFieldId, StringComparison.OrdinalIgnoreCase)) == true);
+            var sourceTaskName = sourceTask?.TaskName ?? config.SourceFieldId;
+            var sourceTaskId = sourceTask?.TaskId;
+            var sourceTaskUrl = !string.IsNullOrEmpty(sourceTaskId)
+                ? $"/applications/{renderModel.ReferenceNumber}/{sourceTaskId}"
+                : $"/applications/{renderModel.ReferenceNumber}";
+            <p class="govuk-body">You need to mark the <a href="@sourceTaskUrl" class="govuk-link">@sourceTaskName</a> task as complete first.</p>
         }
     }
 </div>

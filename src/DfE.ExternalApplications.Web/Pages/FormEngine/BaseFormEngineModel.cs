@@ -138,13 +138,12 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         /// <returns>A task representing the asynchronous operation</returns>
         protected async Task CommonFormEngineInitializationAsync()
         {
-            logger.LogInformation("CommonFormEngineInitializationAsync START - ReferenceNumber: {ReferenceNumber}, TaskId: {TaskId}, CurrentPageId: {CurrentPageId}", 
-                ReferenceNumber, TaskId, CurrentPageId);
+            
             
             try
             {
                 await CommonInitializationAsync();
-                logger.LogInformation("CommonFormEngineInitializationAsync - CommonInitializationAsync completed");
+                
             }
             catch (Exception ex)
             {
@@ -155,7 +154,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             try
             {
                 CurrentFormState = GetCurrentFormState();
-                logger.LogInformation("CommonFormEngineInitializationAsync - CurrentFormState set to: {CurrentFormState}", CurrentFormState);
+                
             }
             catch (Exception ex)
             {
@@ -163,7 +162,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 throw;
             }
             
-            logger.LogInformation("CommonFormEngineInitializationAsync COMPLETE");
+            
         }
 
         /// <summary>
