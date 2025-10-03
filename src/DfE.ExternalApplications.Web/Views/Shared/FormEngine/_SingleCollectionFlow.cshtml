@@ -457,14 +457,20 @@
     }
     else
     {
-        <div class="govuk-inset-text" id="no-items-added-hint">
+        var noItemsHintId = flow.FlowId + "-no-items-added-hint";
+
+        <div class="govuk-inset-text" id="@noItemsHintId">
             No @(itemLabel.ToLowerInvariant())s have been added.
         </div>
     }
 
+    @{
+        var addItemButtonId = flow.FlowId + "-add-item";
+    }
+
     <div class="govuk-!-margin-bottom-4">
-        <a class="govuk-button" id="add-item" href="/applications/@renderModel.ReferenceNumber/@renderModel.TaskId/flow/@flow.FlowId/@Guid.NewGuid()">@flow.AddButtonLabel</a>
-    </div>s
+        <a class="govuk-button" id="@addItemButtonId" href="/applications/@renderModel.ReferenceNumber/@renderModel.TaskId/flow/@flow.FlowId/@Guid.NewGuid()">@flow.AddButtonLabel</a>
+    </div>
 </div>
 @functions{
     // Builds HTML matching confirmation page formatting for a single autocomplete selection
