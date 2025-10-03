@@ -11,8 +11,8 @@
 
 <govuk-radios id="@Model.Id" name="Data[@Model.Field.FieldId]" data-field-id="@Model.Field.FieldId">
     <govuk-radios-fieldset>
-        <govuk-radios-fieldset-legend>
-            @legendValue
+        <govuk-radios-fieldset-legend class="govuk-fieldset__legend govuk-fieldset__legend--m">
+            <span class="govuk-fieldset__heading">@legendValue</span>
         </govuk-radios-fieldset-legend>
 
         @{
