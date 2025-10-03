@@ -4,6 +4,7 @@
 @model DfE.ExternalApplications.Web.Pages.FormEngine.RenderFormModel
 @inject DfE.ExternalApplications.Web.Services.IFieldRendererService FieldRenderer
 @inject DfE.ExternalApplications.Application.Interfaces.IComplexFieldConfigurationService ComplexFieldConfigurationService
+@inject DfE.ExternalApplications.Application.Interfaces.IFormNavigationService Nav
 
 @{
     bool hasUploadField = Model.CurrentPage.Fields.Any(f =>
@@ -30,7 +31,7 @@
     <input type="hidden" asp-for="TaskId" />
     <input type="hidden" asp-for="FlowId" />
     <input type="hidden" asp-for="InstanceId" />
-    <govuk-back-link href="/applications/@Model.ReferenceNumber/@Model.TaskId">Back</govuk-back-link>
+    <govuk-back-link href="@Nav.GetBackLinkUrl(Model.CurrentPageId, Model.TaskId, Model.ReferenceNumber)">Back</govuk-back-link>
 
     <div class="govuk-grid-row">
         <div class="govuk-grid-column-two-thirds">

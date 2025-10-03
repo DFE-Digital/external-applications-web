@@ -55,7 +55,6 @@ window.renderOrUpdate = function (n) {
                     <p class="govuk-body">${n.message ?? ''}</p>
                 </div>
             </div>
-            <a href="#" class="notification-close-btn" aria-label="Close notification" title="Close notification">×</a>
         `;
     } else {
         wrapper.innerHTML = `
@@ -65,7 +64,6 @@ window.renderOrUpdate = function (n) {
             <div class="govuk-notification-banner__content">
                 <p class="govuk-notification-banner__heading">${n.message ?? ''}</p>
             </div>
-            <a href="#" class="notification-close-btn" aria-label="Close notification" title="Close notification">×</a>
         `;
     }
 

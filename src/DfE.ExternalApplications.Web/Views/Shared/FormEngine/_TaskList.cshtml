@@ -11,7 +11,7 @@
                         ?? Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value
                         ?? Context.User?.Identity?.Name;
 }
-
+<govuk-back-link href="/applications/dashboard">Back to dashboard</govuk-back-link>
 <div class="govuk-grid-row">
     <div class="govuk-grid-column-two-thirds">
         <h1 class="govuk-heading-xl govuk-!-margin-bottom-6">Your application</h1>

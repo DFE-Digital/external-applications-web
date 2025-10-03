@@ -1,4 +1,5 @@
 using DfE.ExternalApplications.Application.Interfaces;
+using Microsoft.AspNetCore.Http;
 
 namespace DfE.ExternalApplications.Infrastructure.Services
 {
@@ -7,6 +8,14 @@ namespace DfE.ExternalApplications.Infrastructure.Services
     /// </summary>
     public class FormNavigationService : IFormNavigationService
     {
+        private readonly INavigationHistoryService _history;
+        private readonly IHttpContextAccessor _httpContextAccessor;
+
+        public FormNavigationService(INavigationHistoryService history, IHttpContextAccessor httpContextAccessor)
+        {
+            _history = history;
+            _httpContextAccessor = httpContextAccessor;
+        }
         /// <summary>
         /// Gets the URL for the next page in the form
         /// </summary>
@@ -87,19 +96,33 @@ namespace DfE.ExternalApplications.Infrastructure.Services
         /// <returns>The back link URL</returns>
         public string GetBackLinkUrl(string currentPageId, string taskId, string referenceNumber)
         {
-            // If we're on a specific page, go back to task summary
+            // Build scope: reference:task[:flow:instance]
+            var scope = BuildScope(referenceNumber, taskId, currentPageId);
+            var session = _httpContextAccessor.HttpContext?.Session;
+
+            // Prefer history when available
+            var last = session != null ? _history.Peek(scope, session) : null;
+            if (!string.IsNullOrEmpty(last))
+            {
+                // Append nav=back so GET can pop
+                var sep = last.Contains('?') ? "&" : "?";
+                return last + sep + "nav=back";
+            }
+
+            // Fallbacks
             if (!string.IsNullOrEmpty(currentPageId))
             {
+                // If this is a sub-flow page, use collection summary
+                if (!string.IsNullOrEmpty(taskId) && IsSubFlowPage(currentPageId))
+                {
+                    return GetCollectionFlowSummaryUrl(taskId, referenceNumber);
+                }
                 return GetTaskSummaryUrl(taskId, referenceNumber);
             }
-            
-            // If we're on task summary, go back to task list
             if (!string.IsNullOrEmpty(taskId))
             {
                 return GetTaskListUrl(referenceNumber);
             }
-            
-            // Default to task list
             return GetTaskListUrl(referenceNumber);
         }
 
@@ -169,6 +192,28 @@ namespace DfE.ExternalApplications.Infrastructure.Services
         public string GetSubFlowPageUrl(string taskId, string referenceNumber, string flowId, string instanceId, string pageId)
         {
             return $"/applications/{referenceNumber}/{taskId}/flow/{flowId}/{instanceId}/{pageId}";
+        }
+
+        private static bool IsSubFlowPage(string currentPageId)
+        {
+            return !string.IsNullOrEmpty(currentPageId) && currentPageId.StartsWith("flow/", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string BuildScope(string referenceNumber, string taskId, string currentPageId)
+        {
+            if (string.IsNullOrEmpty(currentPageId))
+            {
+                return $"{referenceNumber}:{taskId}";
+            }
+            // Extract flow/instance if present: flow/{flowId}/{instanceId}/...
+            var parts = currentPageId.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length >= 3 && string.Equals(parts[0], "flow", StringComparison.OrdinalIgnoreCase))
+            {
+                var flowId = parts[1];
+                var instanceId = parts[2];
+                return $"{referenceNumber}:{taskId}:flow:{flowId}:{instanceId}";
+            }
+            return $"{referenceNumber}:{taskId}";
         }
     }
 }

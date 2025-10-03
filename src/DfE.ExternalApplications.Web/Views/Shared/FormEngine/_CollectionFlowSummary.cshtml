@@ -52,7 +52,6 @@
 
                 <div class="govuk-button-group govuk-!-margin-top-6">
                     <govuk-button type="submit" id="save-task-summary-button">Save and continue</govuk-button>
-                    <a class="govuk-link" id="return-to-application-overview" data-testid="return-to-application-overview" href="/applications/@Model.ReferenceNumber">Return to application overview</a>
                 </div>
             </form>
         }
@@ -61,10 +60,6 @@
             <div class="govuk-inset-text govuk-!-margin-top-6">
                 <p>This application has been submitted and can no longer be changed.</p>
                 <p>Status: <strong>@Model.ApplicationStatus</strong></p>
-            </div>
-            
-            <div class="govuk-!-margin-top-6">
-                <a class="govuk-link" id="return-to-application-overview" data-testid="return-to-application-overview" href="/applications/@Model.ReferenceNumber">Return to application overview</a>
             </div>
         }
     </div>
