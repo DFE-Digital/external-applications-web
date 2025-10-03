@@ -41,16 +41,17 @@
                     @Model.Field.Tooltip
                 </govuk-date-input-hint>
             }
-        </govuk-date-input-fieldset>
-        @if (Model.ErrorMessage != String.Empty)
-        {
-            <govuk-date-input-error-message>
-                @Model.ErrorMessage
-            </govuk-date-input-error-message>
-        }
+            @if (Model.ErrorMessage != String.Empty)
+            {
+                <govuk-date-input-error-message>
+                    @Model.ErrorMessage
+                </govuk-date-input-error-message>
+            }
+        
         <govuk-date-input-day value="@(hasPostedParts ? postedDay : persistedDay)"></govuk-date-input-day>
         <govuk-date-input-month value="@(hasPostedParts ? postedMonth : persistedMonth)"></govuk-date-input-month>
         <govuk-date-input-year value="@(hasPostedParts ? postedYear : persistedYear)"></govuk-date-input-year>
+        </govuk-date-input-fieldset>
     </govuk-date-input>
 }
 else
@@ -66,12 +67,12 @@ else
                     @Model.Field.Tooltip
                 </govuk-date-input-hint>
             }
+            @if (Model.ErrorMessage != String.Empty)
+            {
+                <govuk-date-input-error-message>
+                    @Model.ErrorMessage
+                </govuk-date-input-error-message>
+            }
         </govuk-date-input-fieldset>
-        @if (Model.ErrorMessage != String.Empty)
-        {
-            <govuk-date-input-error-message>
-                @Model.ErrorMessage
-            </govuk-date-input-error-message>
-        }
     </govuk-date-input>
 }
