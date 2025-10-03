@@ -457,13 +457,19 @@
     }
     else
     {
-        <div class="govuk-inset-text">
+        var noItemsHintId = flow.FlowId + "-no-items-added-hint";
+
+        <div class="govuk-inset-text" id="@noItemsHintId">
             No @(itemLabel.ToLowerInvariant())s have been added.
         </div>
     }
 
+    @{
+        var addItemButtonId = flow.FlowId + "-add-item";
+    }
+
     <div class="govuk-!-margin-bottom-4">
-        <a class="govuk-button" href="/applications/@renderModel.ReferenceNumber/@renderModel.TaskId/flow/@flow.FlowId/@Guid.NewGuid()">@flow.AddButtonLabel</a>
+        <a class="govuk-button" id="@addItemButtonId" href="/applications/@renderModel.ReferenceNumber/@renderModel.TaskId/flow/@flow.FlowId/@Guid.NewGuid()">@flow.AddButtonLabel</a>
     </div>
 </div>
 @functions{
