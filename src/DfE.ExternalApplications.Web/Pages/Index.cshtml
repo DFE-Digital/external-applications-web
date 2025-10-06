@@ -6,7 +6,7 @@
 @inject IAuthorizationService AuthService
 
 @{
-    ViewData["Title"] = "Transfer academies to another academy trust";
+    ViewData["Title"] = "Apply to transfer an academy into your trust";
 }
 
 <style>
@@ -48,14 +48,14 @@
 
 
         <h1 class="gem-c-heading__text govuk-heading-l">
-          Apply to transfer an academy to another trust
+          Apply to transfer an academy into your trust
         </h1>
       </div>
     </div>
 
     <div class="govuk-grid-column-two-thirds">
       <p class="gem-c-lead-paragraph govuk-body-l">
-        Make an application to transfer an academy from one trust to another.
+        Make an application to transfer one or more academies into your trust.
       </p>
     </div>
   </div>
@@ -65,7 +65,7 @@
       <div class="govuk-grid-column-two-thirds metadata-column">
         <div data-module="metadata" class="gem-c-metadata" style="margin-bottom: 40px;" data-metadata-module-started="true">
           <dl class="gem-c-metadata__list">
-            <dt class="gem-c-metadata__term govuk-body-s" style="float: inline-start;">From:</dt>
+            <dt class="gem-c-metadata__term govuk-body-s" style="float: inline-start;">From: </dt>
             <dd class="gem-c-metadata__definition govuk-body-s" data-module="gem-toggle" data-gem-toggle-module-started="true">
               <a class="govuk-link" href="/government/organisations/department-for-education">Department for
                 Education</a>
@@ -125,50 +125,19 @@
                 <span class="gem-c-contents-list__list-item-dash" aria-hidden="true"></span>
                 <a class="gem-c-contents-list__link govuk-link gem-c-force-print-link-styles govuk-link--no-underline"
                   data-ga4-link="{&quot;event_name&quot;:&quot;select_content&quot;,&quot;section&quot;:&quot;Contents&quot;,&quot;type&quot;:&quot;contents list&quot;,&quot;index_total&quot;:8,&quot;index_link&quot;:1}"
-                  href="#who-should-use-this-guidance">Who should use this guidance</a>
-              </li>
-              <li class="gem-c-contents-list__list-item gem-c-contents-list__list-item--dashed">
-                <span class="gem-c-contents-list__list-item-dash" aria-hidden="true"></span>
-                <a class="gem-c-contents-list__link govuk-link gem-c-force-print-link-styles govuk-link--no-underline"
-                  data-ga4-link="{&quot;event_name&quot;:&quot;select_content&quot;,&quot;section&quot;:&quot;Contents&quot;,&quot;type&quot;:&quot;contents list&quot;,&quot;index_total&quot;:8,&quot;index_link&quot;:2}"
-                  href="#other-support">Other support</a>
+                  href="#who-should-use-this-service">Who should use this service</a>
               </li>
               <li class="gem-c-contents-list__list-item gem-c-contents-list__list-item--dashed">
                 <span class="gem-c-contents-list__list-item-dash" aria-hidden="true"></span>
                 <a class="gem-c-contents-list__link govuk-link gem-c-force-print-link-styles govuk-link--no-underline"
                   data-ga4-link="{&quot;event_name&quot;:&quot;select_content&quot;,&quot;section&quot;:&quot;Contents&quot;,&quot;type&quot;:&quot;contents list&quot;,&quot;index_total&quot;:8,&quot;index_link&quot;:3}"
-                  href="#before-you-start">Before you start</a>
+                  href="#before-you-apply">Before you apply</a>
               </li>
               <li class="gem-c-contents-list__list-item gem-c-contents-list__list-item--dashed">
                 <span class="gem-c-contents-list__list-item-dash" aria-hidden="true"></span>
                 <a class="gem-c-contents-list__link govuk-link gem-c-force-print-link-styles govuk-link--no-underline"
                   data-ga4-link="{&quot;event_name&quot;:&quot;select_content&quot;,&quot;section&quot;:&quot;Contents&quot;,&quot;type&quot;:&quot;contents list&quot;,&quot;index_total&quot;:8,&quot;index_link&quot;:4}"
-                  href="#apply-to-transfer-an-academy">Apply to transfer an academy</a>
-              </li>
-              <li class="gem-c-contents-list__list-item gem-c-contents-list__list-item--dashed">
-                <span class="gem-c-contents-list__list-item-dash" aria-hidden="true"></span>
-                <a class="gem-c-contents-list__link govuk-link gem-c-force-print-link-styles govuk-link--no-underline"
-                  data-ga4-link="{&quot;event_name&quot;:&quot;select_content&quot;,&quot;section&quot;:&quot;Contents&quot;,&quot;type&quot;:&quot;contents list&quot;,&quot;index_total&quot;:8,&quot;index_link&quot;:5}"
-                  href="#what-happens-next">What happens next</a>
-              </li>
-              <li class="gem-c-contents-list__list-item gem-c-contents-list__list-item--dashed">
-                <span class="gem-c-contents-list__list-item-dash" aria-hidden="true"></span>
-                <a class="gem-c-contents-list__link govuk-link gem-c-force-print-link-styles govuk-link--no-underline"
-                  data-ga4-link="{&quot;event_name&quot;:&quot;select_content&quot;,&quot;section&quot;:&quot;Contents&quot;,&quot;type&quot;:&quot;contents list&quot;,&quot;index_total&quot;:8,&quot;index_link&quot;:6}"
-                  href="#get-a-decision-from-dfe-before-you-make-any-changes">Get a decision from DfE before you make
-                  any changes</a>
-              </li>
-              <li class="gem-c-contents-list__list-item gem-c-contents-list__list-item--dashed">
-                <span class="gem-c-contents-list__list-item-dash" aria-hidden="true"></span>
-                <a class="gem-c-contents-list__link govuk-link gem-c-force-print-link-styles govuk-link--no-underline"
-                  data-ga4-link="{&quot;event_name&quot;:&quot;select_content&quot;,&quot;section&quot;:&quot;Contents&quot;,&quot;type&quot;:&quot;contents list&quot;,&quot;index_total&quot;:8,&quot;index_link&quot;:7}"
-                  href="#get-a-solicitor">Get a solicitor</a>
-              </li>
-              <li class="gem-c-contents-list__list-item gem-c-contents-list__list-item--dashed">
-                <span class="gem-c-contents-list__list-item-dash" aria-hidden="true"></span>
-                <a class="gem-c-contents-list__link govuk-link gem-c-force-print-link-styles govuk-link--no-underline"
-                  data-ga4-link="{&quot;event_name&quot;:&quot;select_content&quot;,&quot;section&quot;:&quot;Contents&quot;,&quot;type&quot;:&quot;contents list&quot;,&quot;index_total&quot;:8,&quot;index_link&quot;:8}"
-                  href="#inform-parents-and-staff">Inform parents and staff</a>
+                  href="#growing-your-academy-trust">Growing your academy trust</a>
               </li>
             </ol>
           </nav>
@@ -183,15 +152,11 @@
           data-govspeak-module-started="true">
 
           <div class="govspeak">
-            <h2 id="who-should-use-this-guidance" class="govuk-heading-m">Who should use this guidance</h2>
+            <h2 id="who-should-use-this-service" class="govuk-heading-m">Who should use this service</h2>
 
             <ul class="govuk-list govuk-list--bullet">
-              <li>Single academy trusts (<abbr title="single academy trusts">SATs</abbr>) that want to add other
-                maintained schools or academies by using their existing legal entity, and becoming a new multi-academy
-                trust (<abbr title="multi-academy trust">MAT</abbr>)</li>
-              <li>
-                <abbr title="multi-academy trusts">MATs</abbr> that want to add an academy or academies from <abbr
-                  title="single academy trusts">SATs</abbr>
+              <li>Multi-academy trusts (<abbr title="multi-academy trusts">MATs</abbr>) that want to add an academy or
+                academies from single academy trusts (<abbr title="single academy trusts">SATs</abbr>)
               </li>
               <li>
                 <abbr title="multi-academy trusts">MATs</abbr> that want to add an academy or academies from a different
@@ -202,120 +167,69 @@
                 one trust are transferring to another trust
               </li>
             </ul>
+            
+            <p class="govuk-body">
+              For all other types of transfer use the guidance on
+              <a href="https://www.gov.uk/government/publications/academy-transfers-information-for-academy-trusts" class="govuk-link">academy transfers</a>.
+            </p>
 
-            <h2 id="other-support" class="govuk-heading-m">Other support</h2>
-
+            <h2 id="before-you-apply" class="govuk-heading-m">Before you apply</h2>
+            
+            <p class="govuk-body">Make sure the lead applicant completes the application.</p>
+            <p class="govuk-body">The lead applicant:</p>
             <ul class="govuk-list govuk-list--bullet">
-              <li>
-                <abbr title="single academy trusts">SATs</abbr> or <abbr title="multi-academy trusts">MATs</abbr> who
-                want to add a new free school to their trust must complete a <a
-                  href="https://www.gov.uk/government/collections/opening-a-free-school" class="govuk-link">free school
-                  application</a>
-              </li>
-              <li>
-                <abbr title="multi-academy trusts">MATs</abbr> who want to add schools that are applying to become
-                academies should direct schools to the <a
-                  href="https://www.gov.uk/government/publications/academy-conversion-application-forms"
-                  class="govuk-link">Apply to become an academy</a> online service - these schools may need additional
-                information from the trust to complete their application
-              </li>
-              <li>
-                <abbr title="multi-academy trusts">MATs</abbr> who want to merge or consolidate and form a new <abbr
-                  title="multi-academy trust">MAT</abbr> should discuss plans with their named Regions Group contactat
-                Department for Education (DfE)
-              </li>
-              <li>Groups of schools forming a new <abbr title="multi-academy trust">MAT</abbr> should apply to convert
-                using <a href="https://www.gov.uk/government/publications/academy-conversion-application-forms"
-                  class="govuk-link">Apply to become an academy</a> online service - the lead school should complete
-                this form using the <a href="https://www.gov.uk/guidance/convert-to-an-academy-information-for-schools"
-                  class="govuk-link">Convert to an academy: guide for schools</a>.</li>
+              <li>should be a representative from the trust that academies are joining</li>
+              <li>can invite anyone involved in the transfer to help complete this application</li>
             </ul>
-
-            <h2 id="before-you-start" class="govuk-heading-m">Before you start</h2>
-
-            <p class="govuk-body">If you have already provided some information to DfE, speak to your DfE delivery officer or named contact
-              before completing this form. If you do not have a lead contact for your trust, find the Regional
-              Director's Office for your area using the About Us section of the <a
-                href="https://www.gov.uk/government/organisations/regional-department-for-education-dfe-directors/about"
-                class="govuk-link">Regional Department for Education Directors</a>.</p>
-
-            <h2 id="apply-to-transfer-an-academy" class="govuk-heading-m">Apply to transfer an academy</h2>
-
-            <p class="govuk-body">Fill in the online form to request to transfer an academy from one trust to another.</p>
-
-            <p class="govuk-body">You need names of the:</p>
-
+            
+            <p class="govuk-body">
+              The chair of trustees from all trusts involved in the transfer must also sign a declaration.
+            </p>
+            
+            <h3 id="what-you-will-need" class="govuk-heading-s">What you will need</h3>
+            
+            <p class="govuk-body">Before you start your application you will need the:</p>
+            
             <ul class="govuk-list govuk-list--bullet">
-              <li>academies involved, including unique reference numbers</li>
-              <li>trustees</li>
-              <li>members</li>
-              <li>the date you want to transfer</li>
+              <li>names of the academies involved, including unique reference numbers</li>
+              <li>names of trustees and members</li>
+              <li>date you want to transfer</li>
             </ul>
 
             <a href="/applications/dashboard" role="button" draggable="false" class="govuk-button govuk-button--start" data-module="govuk-button" id="start-application-button">
-                Start
-                <svg class="govuk-button__start-icon" xmlns="http://www.w3.org/2000/svg" width="17.5" height="19" viewBox="0 0 33 40" aria-hidden="true" focusable="false">
-                    <path fill="currentColor" d="M0 0h13l20 20-20 20H0l20-20z" />
-                </svg>
+              Start now
+              <svg class="govuk-button__start-icon" xmlns="http://www.w3.org/2000/svg" width="17.5" height="19" viewBox="0 0 33 40" aria-hidden="true" focusable="false">
+                <path fill="currentColor" d="M0 0h13l20 20-20 20H0l20-20z" />
+              </svg>
             </a>
-
-            <h2 id="what-happens-next" class="govuk-heading-m">What happens next</h2>
-
-            <p class="govuk-body">All plans to grow an academy trust will need to be agreed by the Regions Group (RG) for your area.</p>
-
-            <p class="govuk-body"><strong>Additional sentence about what happens next, for example when trusts will find out DfE's
-                decision.</strong></p>
-
-            <p class="govuk-body"><a
-                href="https://www.gov.uk/government/publications/multi-academy-trusts-establishing-and-developing-your-trust"
-                class="govuk-link">Multi-academy trusts: establishing and developing your trust</a> has more information
-              about how <abbr title="multi-academy trusts">MATs</abbr> can grow their trust.</p>
-
-            <p class="govuk-body"><a href="https://www.gov.uk/government/publications/commissioning-high-quality-trusts"
-                class="govuk-link">Commissioning high-quality trusts</a> has information about how the DfE makes academy
-              trust commissioning decisions and the five pillars of strong trusts.</p>
-
-            <p class="govuk-body"><a href="https://www.gov.uk/government/publications/academy-transfers-information-for-academy-trusts"
-                class="govuk-link">Academy transfers: information for academy trusts</a> has information for existing
-              <abbr title="single academy trusts">SATs</abbr> or <abbr title="multi-academy trusts">MATs</abbr> that
-              want to add academies from another <abbr title="single academy trust">SAT</abbr> or <abbr
-                title="multi-academy trust">MAT</abbr>.</p>
-
-            <h2 id="get-a-decision-from-dfe-before-you-make-any-changes" class="govuk-heading-m">Get a decision from DfE before you make any
-              changes</h2>
-
-            <p class="govuk-body">You must have approval for your application from the DfE Regions Group before you make any changes to the
-              articles of association or any other trust documents.</p>
-
-            <p class="govuk-body">Academy transfers are decided based on the details given in their existing funding agreement. If current
-              provision is different from the funding agreement, you will need written approval from DfE through the <a
-                href="https://www.gov.uk/government/publications/making-significant-changes-to-an-existing-academy"
-                class="govuk-link">making a significant change process</a>. For example differences in capacity, age
-              range or resource provision. Discuss next steps with your DfE named contact if this applies to your
-              application. &nbsp;</p>
-
-            <h2 id="get-a-solicitor" class="govuk-heading-m">Get a solicitor</h2>
-
-            <p class="govuk-body">Consider getting a solicitor to advise you on the changes needed to:</p>
-
+            
+            <h2 id="growing-your-academy-trust" class="govuk-heading-m">Growing your academy trust</h2>
+            
+            <p class="govuk-body">
+              All plans to grow an academy trust will need to be agreed by the
+              <a href="https://www.gov.uk/government/organisations/regional-department-for-education-dfe-directors/about" class="govuk-link">regions group</a>
+              for your area. The following guidance has useful information:
+            </p>
+            
             <ul class="govuk-list govuk-list--bullet">
-              <li>your trust documents</li>
-              <li>any other legal, charity or statutory requirements that may apply</li>
+              <li>
+                <a href="https://www.gov.uk/government/publications/multi-academy-trusts-establishing-and-developing-your-trust"
+                   class="govuk-link">Multi-academy trusts: establishing and developing your trust</a>
+              </li>
+              <li>
+                <a href="https://www.gov.uk/government/publications/commissioning-high-quality-trusts"
+                   class="govuk-link">Commissioning high-quality trusts</a>:
+                how DfE makes academy trust commissioning decisions and the 5 pillars of strong trusts
+              </li>
+              <li>
+                <a href="https://www.gov.uk/government/publications/academy-transfers-information-for-academy-trusts"
+                   class="govuk-link">Academy transfers: information for academy trusts</a>:
+                information for existing <abbr title="single academy trusts">SATs</abbr> or <abbr
+                  title="multi-academy trusts">MATs</abbr> that want to add academies from another <abbr
+                  title="single academy trust">SAT</abbr> or <abbr title="multi-academy trust">MAT</abbr>
+              </li>
             </ul>
-
-            <p class="govuk-body">For example <a rel="external" href="https://www.legislation.gov.uk/uksi/2006/246/contents"
-                class="govuk-link">The Transfer of Undertakings (Protection of Employment) Regulations 2006</a> (TUPE)
-              or the <a rel="external" href="https://www.legislation.gov.uk/ukpga/2010/15/contents"
-                class="govuk-link">Equality Act 2010</a>.</p>
-
-            <h2 id="inform-parents-and-staff" class="govuk-heading-m">Inform parents and staff</h2>
-
-            <p class="govuk-body">As public bodies, academy trusts should also consider whether they need to consult on their proposed
-              changes. In all cases, it is good practice for trusts to inform parents, staff and other interested
-              parties about their plans, and give them the opportunity to respond.</p>
-
           </div>
-
         </div>
 
 
