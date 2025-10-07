@@ -80,18 +80,10 @@
         <div class="govuk-grid-column-one-third">
             <div class="govuk-!-margin-top-6">
                 <h2 class="govuk-heading-m">Contributors</h2>
-                <p class="govuk-body">You can invite other people to complete parts of this application.</p>
-
-                @if (Model.IsApplicationEditable())
-                {
+                <p class="govuk-body">You can invite other people to complete or view parts of this application.</p>
                     <a href="/applications/@Model.ReferenceNumber/contributors" id="invite-contributors" class="govuk-button govuk-button--secondary" role="button">
                         Inviting contributors
                     </a>
-                }
-                else
-                {
-                    <p class="govuk-body govuk-hint">Contributors cannot be invited to submitted applications.</p>
-                }
             </div>
         </div>
     }
