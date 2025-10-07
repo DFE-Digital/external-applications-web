@@ -17,7 +17,9 @@ public class PermissionsClaimProvider(IMemoryCache cache) : ICustomClaimProvider
         if (string.IsNullOrEmpty(userId))
             return Task.FromResult(Enumerable.Empty<Claim>());
 
-        var cacheKey = $"{PermissionsCacheMiddleware.PermissionsCacheKeyPrefix}{userId}";
+        var email = principal.FindFirstValue(ClaimTypes.Email);
+
+        var cacheKey = $"{PermissionsCacheMiddleware.PermissionsCacheKeyPrefix}{userId+email}";
         
         var claims = new List<Claim>();
 

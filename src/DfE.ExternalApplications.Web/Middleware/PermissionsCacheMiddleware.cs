@@ -20,48 +20,38 @@ public class PermissionsCacheMiddleware(
     {
         var logger = context.RequestServices.GetService<ILogger<PermissionsCacheMiddleware>>();
         var user = context.User;
-        var requestPath = context.Request.Path;
-        
 
-        
         if (user.Identity?.IsAuthenticated == true)
         {
             var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+            var email = user.FindFirstValue(ClaimTypes.Email);
 
-            
             if (!string.IsNullOrEmpty(userId))
             {
-                var cacheKey = $"{PermissionsCacheKeyPrefix}{userId}";
+                var cacheKey = $"{PermissionsCacheKeyPrefix}{userId+email}";
+                
                 if (!cache.TryGetValue(cacheKey, out _))
                 {
-
-                    
                     try
                     {
                         var permissions = await usersClient.GetMyPermissionsAsync();
                         cache.Set(cacheKey, permissions, TimeSpan.FromMinutes(5));
-
                     }
                     catch (HttpRequestException ex) when (ex.Message.Contains("403") || ex.Message.Contains("Forbidden"))
                     {
-
-                        
                         // Token is invalid/expired - force re-authentication
                         context.Response.Redirect("/Logout?reason=token_expired");
                         return;
                     }
                     catch (HttpRequestException ex) when (ex.Message.Contains("401") || ex.Message.Contains("Unauthorized"))
                     {
-
-                        
                         // Authentication failed - force re-authentication
                         context.Response.Redirect("/Logout?reason=auth_failed");
                         return;
                     }
                     catch (Exception ex)
                     {
-                        // Cache empty auth data on other errors but log the issue
-
+                        logger?.LogError(ex, "Failed to fetch user permissions for {UserId}", userId);
                         
                         var emptyAuthData = new UserAuthorizationDto
                         {
@@ -69,24 +59,10 @@ public class PermissionsCacheMiddleware(
                             Roles = Enumerable.Empty<string>()
                         };
                         cache.Set(cacheKey, emptyAuthData, TimeSpan.FromMinutes(1));
-
                     }
                 }
-                else
-                {
-
-                }
-            }
-            else
-            {
-
             }
         }
-        else
-        {
-
-        }
-
 
         await next(context);
     }
