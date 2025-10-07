@@ -196,7 +196,7 @@
                                                         buttonText: "Remove",
                                                         handler: "RemoveFieldItem",
                                                         displayFields: "itemTitle",
-                                                        title: "Please confirm removal of the following item",
+                                                        title:$"Please confirm removal of the following {itemLabel.ToLower()}",
                                                         buttonId: $"remove-field-item-@itemId")
                                                 </form>
                                             }
@@ -319,7 +319,7 @@
                                                 buttonText: "Remove",
                                                 handler: "RemoveFieldItem",
                                                 displayFields: displayFieldsForRemove,
-                                                title: "Please confirm removal of the following item",
+                                                title: $"Please confirm removal of the following {itemLabel.ToLower()}",
                                                 buttonId: $"remove-field-item-@itemId")
                                         </form>
                                     }
