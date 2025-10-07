@@ -5,7 +5,7 @@
 @{
 	var isRequired = Model.Field.Required ?? true;
 	var validationAttributes = new HtmlString(Model.ValidationAttributes);
-	var labelClasses = Model.Field.Label.IsVisible ? "" : "govuk-visually-hidden";
+	var labelClasses = Model.Field.Label.IsVisible ? "govuk-label govuk-label--m" : "govuk-visually-hidden";
 }
 
 
