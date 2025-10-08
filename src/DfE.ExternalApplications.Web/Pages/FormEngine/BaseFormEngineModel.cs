@@ -66,6 +66,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         }
 
         /// <summary>
+        /// Exposes the back link URL to Razor views that cannot call protected methods.
+        /// </summary>
+        public string BackLinkUrl => GetBackLinkUrl();
+
+        /// <summary>
         /// Gets the task summary URL for the current task
         /// </summary>
         /// <returns>The task summary URL</returns>

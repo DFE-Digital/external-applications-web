@@ -36,7 +36,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         IFormErrorStore formErrorStore,
         IComplexFieldConfigurationService complexFieldConfigurationService,
         IDerivedCollectionFlowService derivedCollectionFlowService,
-        ILogger<RenderFormModel> logger)
+        ILogger<RenderFormModel> logger,
+        INavigationHistoryService navigationHistoryService)
         : BaseFormEngineModel(renderer, applicationResponseService, fieldFormattingService, templateManagementService,
             applicationStateService, formStateManager, formNavigationService, formDataManager, formValidationOrchestrator, formConfigurationService, logger)
     {
@@ -46,8 +47,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         private readonly IFormErrorStore _formErrorStore = formErrorStore;
         private readonly IComplexFieldConfigurationService _complexFieldConfigurationService = complexFieldConfigurationService;
         private readonly IDerivedCollectionFlowService _derivedCollectionFlowService = derivedCollectionFlowService;
+        private readonly INavigationHistoryService _navigationHistoryService = navigationHistoryService;
 
         [BindProperty] public Dictionary<string, object> Data { get; set; } = new();
+
+        public string BackLinkUrl => GetBackLinkUrl();
 
         [BindProperty] public bool IsTaskCompleted { get; set; }
         
@@ -260,7 +264,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             {
                 // For sub-flows, still apply conditional logic using the current Data
                 await ApplyConditionalLogicAsync();
-                }
+            }
 
                 // Initialize task completion status for summaries (standard or derived)
                 if (CurrentTask != null)
@@ -273,6 +277,32 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         IsTaskCompleted = taskStatus == Domain.Models.TaskStatus.Completed;
                     }
                 }
+            // If this GET was reached via back navigation, pop history entry for the current scope
+            try
+            {
+                if (Request.Query.ContainsKey("nav") && string.Equals(Request.Query["nav"], "back", StringComparison.OrdinalIgnoreCase))
+                {
+                    var scope = BuildHistoryScope(ReferenceNumber, TaskId, CurrentPageId);
+                    _navigationHistoryService.Pop(scope, HttpContext.Session);
+                }
+            }
+            catch { }
+        }
+
+        public static string BuildHistoryScope(string referenceNumber, string taskId, string currentPageId)
+        {
+            if (string.IsNullOrEmpty(currentPageId))
+            {
+                return $"{referenceNumber}:{taskId}";
+            }
+            var parts = currentPageId.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length >= 3 && string.Equals(parts[0], "flow", StringComparison.OrdinalIgnoreCase))
+            {
+                var flowId = parts[1];
+                var instanceId = parts[2];
+                return $"{referenceNumber}:{taskId}:flow:{flowId}:{instanceId}";
+            }
+            return $"{referenceNumber}:{taskId}";
         }
 
         public async Task<IActionResult> OnPostTaskSummaryAsync()
@@ -812,6 +842,24 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     // Continue with navigation even if save fails - we can show a warning to user later
                 }
             }
+
+            // Before deciding where to go, push current page URL to navigation history so Back returns here
+            try
+            {
+                if (!string.IsNullOrEmpty(CurrentPageId))
+                {
+                    var scope = RenderFormModel.BuildHistoryScope(ReferenceNumber, TaskId, CurrentPageId);
+                    var currentUrl = $"/applications/{ReferenceNumber}/{TaskId}/{CurrentPageId}";
+                    _navigationHistoryService.Push(scope, currentUrl, HttpContext.Session);
+                }
+                else if (!string.IsNullOrEmpty(TaskId))
+                {
+                    var scope = RenderFormModel.BuildHistoryScope(ReferenceNumber, TaskId, CurrentPageId);
+                    var currentUrl = $"/applications/{ReferenceNumber}/{TaskId}";
+                    _navigationHistoryService.Push(scope, currentUrl, HttpContext.Session);
+                }
+            }
+            catch { }
 
             // Use the new navigation logic to determine where to go after saving
             if (CurrentTask != null && CurrentPage != null)
