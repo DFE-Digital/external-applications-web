@@ -2,6 +2,8 @@
 import "cypress-axe";
 import { Logger } from "../Common/logger";
 import { RuleObject } from "axe-core";
+import { AuthenticationInterceptor } from "../auth/authenticationInterceptor";
+
 
 Cypress.Commands.add("getByTestId", (id) => {
     cy.get(`[data-testid="${id}"]`);
@@ -90,17 +92,31 @@ Cypress.Commands.add("hasAddress", (id: string, line1: string, line2: string, li
 
 
 // Login command to clear cookies and local storage, then visit the application URL
+//Cypress.Commands.add("login", () => {
+//    cy.clearCookies();
+//    cy.clearLocalStorage();
+
+    // // Intercept all browser requests and add our special auth header
+    // // Means we don't have to use azure to authenticate
+//    new AuthenticationInterceptor().register();
+//});
+// Login command to clear cookies and local storage, then visit the application URL
 Cypress.Commands.add("login", () => {
     cy.clearCookies();
     cy.clearLocalStorage();
     cy.visit(Cypress.env('url'));
 });
 
+
 // Custom command to Save and Continue
 Cypress.Commands.add("SaveAndContinue", () => {
     cy.getById('save-and-continue-button').click();
 });
-
+//Custom command to Mark the Section as complete
+ Cypress.Commands.add ("clickMarkCompleteCheckbox", () => {
+        cy.getById('IsTaskCompleted').check();
+        cy.getById('IsTaskCompleted').should('be.checked');
+    });
 // Custom command to Save Task Summary
             Cypress.Commands.add("SaveTaskSummary", () => {
     cy.getById('save-task-summary-button').click();

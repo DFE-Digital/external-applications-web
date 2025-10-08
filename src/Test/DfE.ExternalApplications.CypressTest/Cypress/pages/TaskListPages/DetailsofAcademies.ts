@@ -8,8 +8,9 @@ export class Academies{
         academyName:'Abberley Hall',
         verifyselectedAcademy:'Data_academiesSearch-selected-items',
         ukprn:'UKPRN: 10017109',
-        saveandcontinue:'save-and-continue-button',
+        saveandcontinue:'save-task-summary-button',
         Markcompletecheckbox:'IsTaskCompleted',
+        TaskStatus:'task-details-of-academies-status',
 
 
     }
@@ -40,6 +41,12 @@ export class Academies{
         cy.getById(this.selectors.saveandcontinue).contains('Save and continue').click();
         return this;
     }
+
+    static verifyTaskStatusIsCompleted() {
+
+        cy.getById(this.selectors.TaskStatus).contains('Completed')
+
+    }  
 
 
 

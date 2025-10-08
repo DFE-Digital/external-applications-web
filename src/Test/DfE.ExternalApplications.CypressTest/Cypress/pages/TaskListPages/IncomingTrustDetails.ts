@@ -1,25 +1,24 @@
 
-export class Risks{
+export class IncomingTrust{
 
 static selectors = {
 
-        Risks: 'group-about-transferring-academies-task-risks',
-        TaskStatus: 'task-risks-status',
-        taskCompleted:'task-details-of-trusts-status',
+        DetailsofTrusts: 'group-about-the-trust-that-academies-are-joining-task-trust-details',
+        TaskStatus: 'task-trust-details-status',
         saveandcontinue:'save-task-summary-button',
         Markcompletecheckbox:'IsTaskCompleted',
 
 
     }
 
-    static clickRisks() 
+    static clickDetailsofTrust() 
         {
-            cy.getById(this.selectors.Risks).contains('Risks').click();
+            cy.getById(this.selectors.DetailsofTrusts).contains('Trust details').click();
         }
 
-    static clickRisksIfNotStarted() {
+    static clickDetailsofTrustIfNotStarted() {
         if (cy.getById(this.selectors.TaskStatus).contains('Not started')) {
-            this.clickRisks();
+            this.clickDetailsofTrust();
         }
     }
 
@@ -47,7 +46,7 @@ static selectors = {
 
 
 
-export default Risks;
+export default IncomingTrust;
 
 
 

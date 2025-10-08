@@ -34,6 +34,7 @@ declare global {
             login(): Chainable<Element>;
             SaveAndContinue(): Chainable<Element>;
             SaveTaskSummary(): Chainable<Element>;
+            clickMarkCompleteCheckbox(): Chainable<Element>;
             loginWithCredentials(): Chainable<Element>;
             assertChildList(selector: string, values: string[]): Chainable<Element>;
             executeAccessibilityTests(ruleExclusions?: RuleObject): Chainable<Element>;

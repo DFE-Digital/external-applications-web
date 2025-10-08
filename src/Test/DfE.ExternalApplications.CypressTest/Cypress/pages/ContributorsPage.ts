@@ -47,7 +47,7 @@ static ClickProceedBtn() {
 }
 // This method is used to invite contributors from Task List Page
 static inviteContributors() {
-    cy.getById(this.selectors.inviteContributor).contains('Invite contributors').click();
+    cy.getById(this.selectors.inviteContributor).contains('Inviting contributors').click();
 }
 
 }

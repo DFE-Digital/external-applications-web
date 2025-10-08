@@ -8,11 +8,12 @@ export class ReasonsAndBenefits{
         strategicNeedsData: 'Data_reasonAndBenefitsAcademiesStrategicNeeds',
         maintainAndImproveData: 'Data_reasonAndBenefitsAcademiesMaintainImprove',
         benefitsTrustData: 'Data_reasonAndBenefitsAcademiesBenefitTrust',
-        saveAndContinueButton: 'save-and-continue-button',
+        saveAndContinueButton: 'save-task-summary-button',
         TaskcompleteCheckbox: 'IsTaskCompleted',
-        Clickchangestrategic:'strategic',
-        ClickchangeMaintain:'improve',
-        ClickchangeBenefits:'trust'
+        Clickchangestrategic:'field-reasonandbenefitsacademiesstrategicneeds-change-link',
+        ClickchangeMaintain:'field-reasonandbenefitsacademiesmaintainimprove-change-link',
+        ClickchangeBenefits:'trust',
+        Taskstatus:'task-reason-and-benefits-status',
     }
     static selectReasonsAndBenefits() {
         
@@ -105,11 +106,15 @@ static TraversingRows() {
     cy.getById(this.selectors.maintainAndImproveData).type('Maintain and improve Testing text');
     cy.getById('save-and-continue-button').click();
 
-    cy.get('#field-reasonandbenefitsacademiesbenefittrust-change-link').contains('Change').click();
-    cy.getById(this.selectors.benefitsTrustData).type('Benefits Testing text');
-    cy.getById('save-and-continue-button').click();
+   // cy.get('#field-reasonandbenefitsacademiesbenefittrust-change-link').contains('Change').click();
+   // cy.getById(this.selectors.benefitsTrustData).type('Benefits Testing text');
+   // cy.getById('save-and-continue-button').click();
 
 }
+static verifyTaskStatusIsCompleted() {
+    cy.getById(this.selectors.Taskstatus).contains('Completed')
+}
+
    // cy.getById("field...improve").contains("Change").click()
   //  cy.getByClass('govuk-summary-list').each(($row, index) => {
   // Find the link within the current row

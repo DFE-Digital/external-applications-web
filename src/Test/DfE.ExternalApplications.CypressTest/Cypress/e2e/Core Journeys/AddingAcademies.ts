@@ -30,7 +30,7 @@ describe('Create an Application', () => {
     Logger.log("Logging in with the test user");
     TestLoginPage.enterUsername(Cypress.env('username'));
      Logger.log("Clicking the Continue button on the TestLogin page");
-    TestLoginPage.ContinueBtn();
+    TestLoginPage.SignInBtn();
     // Add assertions or further actions here as needed
 
     //  assertion to check if redirected to dashboard
