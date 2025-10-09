@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using System.Diagnostics.CodeAnalysis;
+using DfE.ExternalApplications.Web.Services;
 
 namespace DfE.ExternalApplications.Web.Authentication;
 
@@ -10,6 +11,8 @@ namespace DfE.ExternalApplications.Web.Authentication;
 public class TestAuthenticationHandler : AuthenticationHandler<TestAuthenticationSchemeOptions>
 {
     public const string SchemeName = "TestAuthentication";
+    
+    private readonly ICypressAuthenticationService _cypressAuthService;
     
     private static class SessionKeys
     {
@@ -27,13 +30,21 @@ public class TestAuthenticationHandler : AuthenticationHandler<TestAuthenticatio
         IOptionsMonitor<TestAuthenticationSchemeOptions> options,
         ILoggerFactory logger,
         UrlEncoder encoder,
-        ISystemClock clock)
+        ISystemClock clock,
+        ICypressAuthenticationService cypressAuthService)
         : base(options, logger, encoder, clock)
     {
+        _cypressAuthService = cypressAuthService;
     }
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
+        // Check if test authentication should be enabled (either globally or via Cypress)
+        if (!_cypressAuthService.ShouldEnableTestAuthentication(Context))
+        {
+            return Task.FromResult(AuthenticateResult.NoResult());
+        }
+
         var requestPath = Context.Request.Path;
 
         
