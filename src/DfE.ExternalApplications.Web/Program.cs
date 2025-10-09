@@ -32,6 +32,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 ConfigurationManager configuration = builder.Configuration;
 
+builder.Services.AddApplicationInsightsTelemetry(configuration);
 // Configure test authentication options
 builder.Services.Configure<TestAuthenticationOptions>(
     configuration.GetSection(TestAuthenticationOptions.SectionName));
