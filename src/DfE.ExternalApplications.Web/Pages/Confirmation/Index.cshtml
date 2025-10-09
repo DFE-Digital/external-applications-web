@@ -5,11 +5,12 @@
     ViewData["Title"] = Model.DisplayModel.Title;
 }
 
+@section BeforeContent {
+    <govuk-back-link href="@Model.DisplayModel.ReturnUrl">Back</govuk-back-link>
+}
+
 <div class="govuk-grid-row">
     <div class="govuk-grid-column-two-thirds">
-        
-        <govuk-back-link href="@Model.DisplayModel.ReturnUrl">Back</govuk-back-link>
-
         <legend class="govuk-fieldset__legend govuk-fieldset__legend--l">
             <h1 class="govuk-fieldset__heading">
                 @Model.DisplayModel.Title
