@@ -1,61 +1,57 @@
 ﻿using Microsoft.AspNetCore.Html;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
-using System;
-using System.Threading.Tasks;
 using DfE.ExternalApplications.Domain.Models;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.ViewEngines;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using System.Diagnostics.CodeAnalysis;
-using Microsoft.AspNetCore.Http;
 
 namespace DfE.ExternalApplications.Web.Services
 {
-    [ExcludeFromCodeCoverage]
-    public class FieldRendererService : IFieldRendererService
+    public class FieldRendererService(IServiceProvider serviceProvider) : IFieldRendererService
     {
-        private readonly IServiceProvider _serviceProvider;
-
-        public FieldRendererService(IServiceProvider serviceProvider)
+        public async Task<IHtmlContent> RenderFieldAsync(Field field, string prefix, string currentValue, string errorMessage, string taskName)
         {
-            _serviceProvider = serviceProvider;
-        }
-        
-        public async Task<IHtmlContent> RenderFieldAsync(Field field, string prefix, string currentValue, string errorMessage)
-        {
-            var htmlHelper = _serviceProvider.GetRequiredService<IHtmlHelper>() as IViewContextAware;
+            if (serviceProvider.GetRequiredService<IHtmlHelper>() is not IViewContextAware htmlHelper)
+            {
+                throw new InvalidOperationException("IHtmlHelper is not IViewContextAware.");
+            }
 
-            var actionContextAccessor = _serviceProvider.GetRequiredService<IActionContextAccessor>();
-            var viewEngine = _serviceProvider.GetRequiredService<ICompositeViewEngine>();
-            var tempDataProvider = _serviceProvider.GetRequiredService<ITempDataProvider>();
+            var actionContextAccessor = serviceProvider.GetRequiredService<IActionContextAccessor>();
+            var tempDataProvider = serviceProvider.GetRequiredService<ITempDataProvider>();
+
+            if (actionContextAccessor.ActionContext is null)
+            {
+                throw new InvalidOperationException("Cannot render field without an ActionContext");
+            }
 
             var viewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary())
             {
-                Model = new FieldViewModel(field, prefix, currentValue, errorMessage)
+                Model = new FieldViewModel(field, prefix, currentValue, errorMessage, taskName)
             };
-            
+
             // Pass route parameters to ViewData for use in partial views
             var routeData = actionContextAccessor.ActionContext.RouteData.Values;
             viewData["referenceNumber"] = routeData.TryGetValue("referenceNumber", out var refNum) ? refNum : null;
             viewData["taskId"] = routeData.TryGetValue("taskId", out var taskId) ? taskId : null;
             viewData["pageId"] = routeData.TryGetValue("pageId", out var pageId) ? pageId : null;
-            
+
             // Also pass applicationId from session if available
-            var httpContext = actionContextAccessor.ActionContext.HttpContext;
+            var httpContext = actionContextAccessor.ActionContext!.HttpContext;
             viewData["applicationId"] = httpContext.Session.GetString("ApplicationId");
 
             var tempData = new TempDataDictionary(actionContextAccessor.ActionContext.HttpContext, tempDataProvider);
 
             var viewContext = new ViewContext(
-                  actionContextAccessor.ActionContext,
-                  new FakeView(),
-                  viewData,
-                  tempData,
-                  TextWriter.Null,
-                  new HtmlHelperOptions());
+                actionContextAccessor.ActionContext,
+                new FakeView(),
+                viewData,
+                tempData,
+                TextWriter.Null,
+                new HtmlHelperOptions());
 
-            ((IViewContextAware)htmlHelper).Contextualize(viewContext);
+            htmlHelper.Contextualize(viewContext);
 
             var partialName = field.Type switch
             {
@@ -72,7 +68,6 @@ namespace DfE.ExternalApplications.Web.Services
             };
 
             return await ((IHtmlHelper)htmlHelper).PartialAsync($"~/Views/Shared/{partialName}.cshtml", viewData.Model);
-
         }
     }
 
@@ -80,6 +75,8 @@ namespace DfE.ExternalApplications.Web.Services
     internal class FakeView : IView
     {
         public string Path => string.Empty;
-        public System.Threading.Tasks.Task RenderAsync(ViewContext context) => System.Threading.Tasks.Task.CompletedTask;
+
+        public System.Threading.Tasks.Task RenderAsync(ViewContext context) =>
+            System.Threading.Tasks.Task.CompletedTask;
     }
 }

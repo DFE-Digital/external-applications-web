@@ -193,6 +193,7 @@
                                         <input type="hidden" name="InstanceId" value="@instanceId" />
                                     }
                                     <input type="hidden" name="fileName" value="@file.OriginalFileName" />
+                                    <input type="hidden" name="CurrentTask.TaskName" value="@Model.TaskName" />
                                     @Html.RenderWarningConfirmationButton(
                                         buttonText: "Delete",
                                         handler: "DeleteFile",

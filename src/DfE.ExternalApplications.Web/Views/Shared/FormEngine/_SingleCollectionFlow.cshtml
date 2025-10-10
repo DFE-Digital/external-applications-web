@@ -60,6 +60,7 @@
                                     <input type="hidden" name="fieldId" value="@flow.FieldId" />
                                     <input type="hidden" name="itemId" value="@(item.TryGetValue("id", out var itemIdValue) ? itemIdValue?.ToString() : "")" />
                                     <input type="hidden" name="itemTitle" value="@memberTitle" />
+                                    <input type="hidden" name="CurrentTask.TaskName" value="@Model.Item1.CurrentTask.TaskName" />
                                     @Html.RenderLinkConfirmationButton(
                                         buttonText: "Remove",
                                         handler: "RemoveCollectionItem",
@@ -88,6 +89,7 @@
                                     <input type="hidden" name="fieldId" value="@flow.FieldId" />
                                     <input type="hidden" name="itemId" value="@(item.TryGetValue("id", out var itemIdValue2) ? itemIdValue2?.ToString() : "")" />
                                     <input type="hidden" name="itemTitle" value="@memberTitle" />
+                                    <input type="hidden" name="CurrentTask.TaskName" value="@Model.Item1.CurrentTask.TaskName" />
                                     @Html.RenderLinkConfirmationButton(
                                         buttonText: "Remove",
                                         handler: "RemoveCollectionItem",
@@ -281,6 +283,7 @@
                                     <input type="hidden" name="fieldId" value="@flow.FieldId" />
                                     <input type="hidden" name="itemId" value="@(item.TryGetValue("id", out var itemIdValue) ? itemIdValue?.ToString() : "")" />
                                     <input type="hidden" name="itemTitle" value="@memberTitle" />
+                                    <input type="hidden" name="CurrentTask.TaskName" value="@Model.Item1.CurrentTask.TaskName" />
                                     @Html.RenderLinkConfirmationButton(
                                         buttonText: "Remove",
                                         handler: "RemoveCollectionItem",

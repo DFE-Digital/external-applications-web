@@ -5,6 +5,6 @@ namespace DfE.ExternalApplications.Web.Services
 {
     public interface IFieldRendererService
     {
-        Task<IHtmlContent> RenderFieldAsync(Field field, string prefix, string currentValue, string errorMessage);
+        Task<IHtmlContent> RenderFieldAsync(Field field, string prefix, string currentValue, string errorMessage, string taskName);
     }
 }

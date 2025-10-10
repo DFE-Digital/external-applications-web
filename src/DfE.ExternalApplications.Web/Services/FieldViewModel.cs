@@ -14,13 +14,15 @@ namespace DfE.ExternalApplications.Web.Services
         public string Prefix { get; }
         public string CurrentValue { get; }
         public string ErrorMessage { get; }
+        public string TaskName { get; }
 
-        public FieldViewModel(Field field, string prefix, string currentValue, string errorMessage)
+        public FieldViewModel(Field field, string prefix, string currentValue, string errorMessage, string taskName)
         {
             Field = field;
             Prefix = prefix;
             CurrentValue = currentValue;
             ErrorMessage = errorMessage;
+            TaskName = taskName;
         }
 
         public string Name => $"{Prefix}[{Field.FieldId}]";
