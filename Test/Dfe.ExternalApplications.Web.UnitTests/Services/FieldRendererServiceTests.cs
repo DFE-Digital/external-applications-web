@@ -4,7 +4,9 @@ using AutoFixture.Kernel;
 using DfE.ExternalApplications.Domain.Models;
 using DfE.ExternalApplications.Web.Services;
 using Microsoft.AspNetCore.Html;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using NSubstitute;
@@ -115,6 +117,43 @@ public class FieldRendererServiceTests
         var taskName = _fixture.Create<string>();
 
         await Assert.ThrowsAsync<NotSupportedException>(() =>
+            _service.RenderFieldAsync(field, prefix, currentValue, errorMessage, taskName));
+    }
+
+    [Fact]
+    public async Task RenderFieldAsync_throws_InvalidOperationException_when_IHtmlHelper_is_not_IViewContextAware()
+    {
+        var htmlHelper = Substitute.For<IHtmlHelper>();
+        _serviceProvider.GetService(typeof(IHtmlHelper)).Returns(htmlHelper);
+
+        var field = _fixture.Build<Field>().With(f => f.Type, "text").Create();
+        var prefix = _fixture.Create<string>();
+        var currentValue = _fixture.Create<string>();
+        var errorMessage = _fixture.Create<string>();
+        var taskName = _fixture.Create<string>();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _service.RenderFieldAsync(field, prefix, currentValue, errorMessage, taskName));
+    }
+
+    [Fact]
+    public async Task RenderFieldAsync_throws_InvalidOperationException_when_ActionContext_is_null()
+    {
+        var htmlHelper = Substitute.For([typeof(IHtmlHelper), typeof(IViewContextAware)], []) as IHtmlHelper;
+        _serviceProvider.GetService(typeof(IHtmlHelper)).Returns(htmlHelper);
+
+        var actionContextAccessor = Substitute.For<IActionContextAccessor>();
+        actionContextAccessor.ActionContext.Returns(null as ActionContext);
+
+        _serviceProvider.GetService(typeof(IActionContextAccessor)).Returns(actionContextAccessor);
+
+        var field = _fixture.Build<Field>().With(f => f.Type, "text").Create();
+        var prefix = _fixture.Create<string>();
+        var currentValue = _fixture.Create<string>();
+        var errorMessage = _fixture.Create<string>();
+        var taskName = _fixture.Create<string>();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
             _service.RenderFieldAsync(field, prefix, currentValue, errorMessage, taskName));
     }
 }
