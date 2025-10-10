@@ -3,6 +3,9 @@
 @using System.Linq
 @{
     ViewData["Title"] = Model.DisplayModel.Title;
+
+    var hasTaskName = Model.DisplayModel.OriginalFormData.ContainsKey("CurrentTask.TaskName");
+    var taskName = hasTaskName ? Model.DisplayModel.OriginalFormData["CurrentTask.TaskName"] as string : null;
 }
 
 @section BeforeContent {
@@ -13,6 +16,10 @@
     <div class="govuk-grid-column-two-thirds">
         <legend class="govuk-fieldset__legend govuk-fieldset__legend--l">
             <h1 class="govuk-fieldset__heading">
+                @if (hasTaskName)
+                {
+                    <span class="govuk-caption-l">@taskName</span>
+                }
                 @Model.DisplayModel.Title
             </h1>
         </legend>
