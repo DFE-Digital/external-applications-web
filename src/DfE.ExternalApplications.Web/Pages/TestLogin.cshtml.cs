@@ -13,8 +13,10 @@ namespace DfE.ExternalApplications.Web.Pages;
 [AllowAnonymous]
 public class TestLoginModel : PageModel
 {
+    private readonly IConfiguration _configuration;
     private readonly TestAuthenticationOptions _testAuthOptions;
     private readonly ITestAuthenticationService _testAuthenticationService;
+    private readonly ICypressAuthenticationService _cypressAuthService;
 
     [BindProperty]
     public InputModel Input { get; set; } = new();
@@ -25,17 +27,21 @@ public class TestLoginModel : PageModel
     public string? ErrorMessage { get; set; }
 
     public TestLoginModel(
+        IConfiguration configuration,
         IOptions<TestAuthenticationOptions> testAuthOptions,
-        ITestAuthenticationService testAuthenticationService)
+        ITestAuthenticationService testAuthenticationService,
+        ICypressAuthenticationService cypressAuthService)
     {
+        _configuration = configuration;
         _testAuthOptions = testAuthOptions.Value;
         _testAuthenticationService = testAuthenticationService;
+        _cypressAuthService = cypressAuthService;
     }
 
     public IActionResult OnGet()
     {
-        // Only allow access if test authentication is enabled
-        if (!_testAuthOptions.Enabled)
+        // Allow access if test authentication is enabled OR Cypress toggle is enabled
+        if (!_cypressAuthService.ShouldEnableTestAuthentication(HttpContext))
         {
             return NotFound();
         }
@@ -45,8 +51,8 @@ public class TestLoginModel : PageModel
 
     public async Task<IActionResult> OnPostAsync()
     {
-        // Only allow access if test authentication is enabled
-        if (!_testAuthOptions.Enabled)
+        // Allow access if test authentication is enabled OR Cypress toggle is enabled
+        if (!_cypressAuthService.ShouldEnableTestAuthentication(HttpContext))
         {
             return NotFound();
         }
