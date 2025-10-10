@@ -50,8 +50,9 @@ public class FieldRendererServiceTests
         var prefix = _fixture.Create<string>();
         var currentValue = _fixture.Create<string>();
         var errorMessage = _fixture.Create<string>();
+        var taskName = _fixture.Create<string>();
 
-        var result = await _service.RenderFieldAsync(field, prefix, currentValue, errorMessage);
+        var result = await _service.RenderFieldAsync(field, prefix, currentValue, errorMessage, taskName);
 
         Assert.NotNull(result);
 
@@ -88,8 +89,9 @@ public class FieldRendererServiceTests
         var prefix = _fixture.Create<string>();
         var currentValue = _fixture.Create<string>();
         var errorMessage = _fixture.Create<string>();
+        var taskName = _fixture.Create<string>();
 
-        var result = await _service.RenderFieldAsync(field, prefix, currentValue, errorMessage);
+        var result = await _service.RenderFieldAsync(field, prefix, currentValue, errorMessage, taskName);
 
         Assert.NotNull(result);
 
@@ -110,8 +112,9 @@ public class FieldRendererServiceTests
         var prefix = _fixture.Create<string>();
         var currentValue = _fixture.Create<string>();
         var errorMessage = _fixture.Create<string>();
+        var taskName = _fixture.Create<string>();
 
         await Assert.ThrowsAsync<NotSupportedException>(() =>
-            _service.RenderFieldAsync(field, prefix, currentValue, errorMessage));
+            _service.RenderFieldAsync(field, prefix, currentValue, errorMessage, taskName));
     }
 }

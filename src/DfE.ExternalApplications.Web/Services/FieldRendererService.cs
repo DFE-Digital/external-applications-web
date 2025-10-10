@@ -22,7 +22,7 @@ namespace DfE.ExternalApplications.Web.Services
             _serviceProvider = serviceProvider;
         }
         
-        public async Task<IHtmlContent> RenderFieldAsync(Field field, string prefix, string currentValue, string errorMessage)
+        public async Task<IHtmlContent> RenderFieldAsync(Field field, string prefix, string currentValue, string errorMessage, string taskName)
         {
             var htmlHelper = _serviceProvider.GetRequiredService<IHtmlHelper>() as IViewContextAware;
 
@@ -32,7 +32,7 @@ namespace DfE.ExternalApplications.Web.Services
 
             var viewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary())
             {
-                Model = new FieldViewModel(field, prefix, currentValue, errorMessage)
+                Model = new FieldViewModel(field, prefix, currentValue, errorMessage, taskName)
             };
             
             // Pass route parameters to ViewData for use in partial views
@@ -72,7 +72,6 @@ namespace DfE.ExternalApplications.Web.Services
             };
 
             return await ((IHtmlHelper)htmlHelper).PartialAsync($"~/Views/Shared/{partialName}.cshtml", viewData.Model);
-
         }
     }
 
