@@ -27,6 +27,7 @@ using Microsoft.AspNetCore.ResponseCompression;
 using System.Diagnostics.CodeAnalysis;
 using GovUK.Dfe.CoreLibs.Security.TokenRefresh.Extensions;
 using System.IO.Compression;
+using Microsoft.AspNetCore.Authentication;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -119,35 +120,17 @@ builder.Services.Configure<GzipCompressionProviderOptions>(options =>
 
 builder.Services.Configure<TokenRefreshSettings>(configuration.GetSection("TokenRefresh"));
 
-// Configure authentication based on test mode
-// If test auth is globally enabled OR Cypress toggle is allowed, use TestAuthentication only
-if (isTestAuthEnabled || allowCypressToggle)
-{
-    // Use TestAuthentication scheme (no OIDC needed for Cypress/test environments)
-    builder.Services.AddAuthentication(options =>
-    {
-        options.DefaultScheme = TestAuthenticationHandler.SchemeName;
-        options.DefaultChallengeScheme = TestAuthenticationHandler.SchemeName;
-        options.DefaultSignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-        options.DefaultSignOutScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-    })
+// Register both schemes once, and use a dynamic scheme provider to pick per-request
+builder.Services
+    .AddAuthentication()
     .AddCookie()
+    .AddCustomOpenIdConnect(configuration, sectionName: "DfESignIn")
     .AddScheme<TestAuthenticationSchemeOptions, TestAuthenticationHandler>(
-        TestAuthenticationHandler.SchemeName, 
+        TestAuthenticationHandler.SchemeName,
         options => { });
-}
-else
-{
-    // Production mode - only OIDC authentication
-    builder.Services.AddAuthentication(options =>
-    {
-        options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-        options.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
-        options.DefaultSignOutScheme = OpenIdConnectDefaults.AuthenticationScheme;
-    })
-    .AddCookie()
-    .AddCustomOpenIdConnect(configuration, sectionName: "DfESignIn");
-}
+
+// Replace default scheme provider with dynamic provider
+builder.Services.AddSingleton<IAuthenticationSchemeProvider, DynamicAuthenticationSchemeProvider>();
 
 builder.Services
     .AddApplicationAuthorization(
@@ -171,18 +154,10 @@ builder.Services.AddScoped<IContributorService, ContributorService>();
 
 builder.Services.AddExternalApplicationsApiClients(configuration);
 
-// Register authentication strategies in consuming app (Clean Architecture)
-// These were moved out of the library to remove coupling
-if (isTestAuthEnabled || allowCypressToggle)
-{
-    // Register TestAuthenticationStrategy when test auth or Cypress is enabled
-    builder.Services.AddScoped<IAuthenticationSchemeStrategy, TestAuthenticationStrategy>();
-}
-else
-{
-    // Register OidcAuthenticationStrategy when OIDC is enabled
-    builder.Services.AddScoped<IAuthenticationSchemeStrategy, OidcAuthenticationStrategy>();
-}
+// Register authentication strategies and composite selector (per-request)
+builder.Services.AddScoped<OidcAuthenticationStrategy>();
+builder.Services.AddScoped<TestAuthenticationStrategy>();
+builder.Services.AddScoped<IAuthenticationSchemeStrategy, CompositeAuthenticationSchemeStrategy>();
 
 builder.Services.AddGovUkFrontend(options => options.Rebrand = true);
 builder.Services.AddSingleton<IActionContextAccessor, ActionContextAccessor>();
