@@ -23,7 +23,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\src\DfE.ExternalApplications.Web\DfE.ExternalApplications.Web.csproj" />
+      <ProjectReference Include="..\..\DfE.ExternalApplications.Web\DfE.ExternalApplications.Web.csproj" />
     </ItemGroup>
 
 </Project>
