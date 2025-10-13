@@ -11,9 +11,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DfE.ExternalApplications.Ap
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DfE.ExternalApplications.Infrastructure", "src\DfE.ExternalApplications.Infrastructure\DfE.ExternalApplications.Infrastructure.csproj", "{72352B4A-6C2E-4800-B7E1-0B5E3111FE93}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Dfe.ExternalApplications.Web.UnitTests", "Test\Dfe.ExternalApplications.Web.UnitTests\Dfe.ExternalApplications.Web.UnitTests.csproj", "{C84456FB-C231-4885-BBF2-52B60C7F480E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Dfe.ExternalApplications.Web.UnitTests", "src\Tests\Dfe.ExternalApplications.Web.UnitTests\Dfe.ExternalApplications.Web.UnitTests.csproj", "{C84456FB-C231-4885-BBF2-52B60C7F480E}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Test", "Test", "{F62DE500-90E9-431D-B84C-8DF4CB166F54}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "src\Tests", "{F62DE500-90E9-431D-B84C-8DF4CB166F54}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
