@@ -12,7 +12,6 @@ COPY ./src/ ./src/
 # Mount GitHub Token as a Docker secret, add NuGet source, and build the solution
 RUN --mount=type=secret,id=github_token \
     --mount=type=cache,target=/root/.nuget/packages \
-    dotnet nuget add source --username USERNAME --password $(cat /run/secrets/github_token) --store-password-in-clear-text --name github "https://nuget.pkg.github.com/DFE-Digital/index.json" && \
     dotnet restore DfE.ExternalApplications.Web.sln && \
     dotnet build DfE.ExternalApplications.Web.sln --no-restore -c Release && \
     dotnet publish DfE.ExternalApplications.Web.sln --no-build -o /app
