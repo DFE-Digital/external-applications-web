@@ -18,7 +18,7 @@
         // Get token expiry info for development
         string tokenInfo = "";
         bool isTokenExpiringSoon = false;
-        if (!currentEnvironment.Equals("Production", StringComparison.OrdinalIgnoreCase) && User?.Identity?.IsAuthenticated == true)
+        if (!currentEnvironment.Equals("Prod", StringComparison.OrdinalIgnoreCase) && User?.Identity?.IsAuthenticated == true)
         {
             try
             {
