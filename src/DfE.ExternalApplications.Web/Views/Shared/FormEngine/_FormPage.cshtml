@@ -31,6 +31,7 @@
     <input type="hidden" asp-for="TaskId" />
     <input type="hidden" asp-for="FlowId" />
     <input type="hidden" asp-for="InstanceId" />
+    <input type="hidden" asp-for="CurrentTask.TaskName" />
 
     <div class="govuk-grid-row">
         <div class="govuk-grid-column-two-thirds">
@@ -86,7 +87,7 @@
                field.ComplexField == null ||
                !ComplexFieldConfigurationService.GetConfiguration(field.ComplexField.Id).FieldType.Equals("upload", StringComparison.OrdinalIgnoreCase))
                 {
-                    @await FieldRenderer.RenderFieldAsync(field, "Data", currentValue, errorMessage)
+                    @await FieldRenderer.RenderFieldAsync(field, "Data", currentValue, errorMessage, Model.CurrentTask.TaskName)
                 }
             }
 
@@ -143,7 +144,7 @@
             var fieldModelState = ViewData.ModelState.Where(f => f.Key == field.FieldId).FirstOrDefault();
             var errorMessage = fieldModelState.Value?.Errors?.FirstOrDefault()?.ErrorMessage ?? String.Empty;
 
-            @await FieldRenderer.RenderFieldAsync(field, "Data", currentValue, errorMessage)
+            @await FieldRenderer.RenderFieldAsync(field, "Data", currentValue, errorMessage, Model.CurrentTask.TaskName)
         }
     }
 }
