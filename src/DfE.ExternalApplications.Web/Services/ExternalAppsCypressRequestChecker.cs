@@ -17,8 +17,8 @@ public class ExternalAppsCypressRequestChecker(
     ILogger<ExternalAppsCypressRequestChecker> logger)
     : ICustomRequestChecker
 {
-    private const string CypressHeaderKey = "X-Cypress-Test";
-    private const string CypressSecretHeaderKey = "X-Cypress-Secret";
+    private const string CypressHeaderKey = "x-cypress-test";
+    private const string CypressSecretHeaderKey = "x-cypress-secret";
     private const string ExpectedCypressValue = "true";
 
     /// <summary>
