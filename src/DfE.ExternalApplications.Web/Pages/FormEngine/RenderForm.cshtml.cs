@@ -990,6 +990,10 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                             }
                             // Clear the in-progress cache for this instance
                             ClearFlowProgress(flowId, instanceId);
+
+                            // Clear navigation history
+                            var scope = BuildHistoryScope(ReferenceNumber, TaskId, CurrentPageId);
+                            _navigationHistoryService.Clear(scope, HttpContext.Session);
                         }
                         var backToSummary = _formNavigationService.GetCollectionFlowSummaryUrl(CurrentTask.TaskId, ReferenceNumber);
                         return Redirect(backToSummary);
