@@ -41,7 +41,153 @@
 
             @foreach (var task in group.Tasks.OrderBy(t => t.TaskOrder))
             {
-                @if (task.Summary?.Mode?.Equals("multiCollectionFlow", StringComparison.OrdinalIgnoreCase) == true)
+                @if (task.Summary?.Mode?.Equals("derivedCollectionFlow", StringComparison.OrdinalIgnoreCase) == true || (task.Summary?.DerivedFlows != null && task.Summary.DerivedFlows.Any()))
+                {
+                    var taskNameHyphenated = task.TaskName.Replace(" ", "-").ToLower();
+
+                    <div class="govuk-summary-card govuk-!-margin-bottom-6" id="task-@taskNameHyphenated-summary">
+                        <div class="govuk-summary-card__title-wrapper">
+                            <h2 class="govuk-summary-card__title">@task.TaskName</h2>
+                            @if (Model.IsApplicationEditable())
+                            {
+                                <ul class="govuk-summary-card__actions">
+                                    <li class="govuk-summary-card__action">
+                                        <a class="govuk-link" href="/applications/@Model.ReferenceNumber/@task.TaskId" id="task-@taskNameHyphenated-change-link">
+                                            Change<span class="govuk-visually-hidden"> @task.TaskName</span>
+                                        </a>
+                                    </li>
+                                </ul>
+                            }
+                        </div>
+                        <div class="govuk-summary-card__content">
+                            <dl class="govuk-summary-list">
+                                @foreach (var derivedFlow in (task.Summary.DerivedFlows ?? new List<DfE.ExternalApplications.Domain.Models.DerivedCollectionFlowConfiguration>()).OrderBy(f => f.SectionOrder))
+                                {
+                                    var derivedItems = DerivedFlowService.GenerateItemsFromSourceField(
+                                        derivedFlow.SourceFieldId, Model.FormData, derivedFlow);
+                                    
+                                    <div class="govuk-summary-list__row">
+                                        <dt class="govuk-summary-list__key" style="font-weight: bold;">
+                                            @derivedFlow.Title
+                                        </dt>
+                                        <dd class="govuk-summary-list__value">
+                                        </dd>
+                                    </div>
+                                    
+                                    @if (!derivedItems.Any())
+                                    {
+                                        <div class="govuk-summary-list__row">
+                                            <dt class="govuk-summary-list__key">
+                                                No items
+                                            </dt>
+                                            <dd class="govuk-summary-list__value">
+                                                <span class="govuk-hint">@(derivedFlow.EmptyStateMessage ?? "No items to display")</span>
+                                            </dd>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var (item, itemIndex) in derivedItems.Select((item, i) => (item, i)))
+                                        {
+                                            var declarationData = DerivedFlowService.GetItemDeclarationData(derivedFlow.FieldId, item.Id, Model.FormData);
+                                            var statuses = DerivedFlowService.GetItemStatuses(derivedFlow.FieldId, Model.FormData);
+                                            var status = statuses.TryGetValue(item.Id, out var s) ? s : "Not signed yet";
+                                            
+                                            <div class="govuk-summary-list__row">
+                                                <dt class="govuk-summary-list__key" style="font-weight: bold;">
+                                                    @item.DisplayName
+                                                </dt>
+                                                <dd class="govuk-summary-list__value">
+                                                    @{
+                                                        var statusClass = status == "Signed" ? "govuk-tag govuk-tag--green" : "govuk-tag govuk-tag--blue";
+                                                    }
+                                                    <span class="@statusClass">@status</span>
+                                                </dd>
+                                            </div>
+                                            
+                                            @foreach (var page in (derivedFlow.Pages ?? new List<DfE.ExternalApplications.Domain.Models.Page>()).OrderBy(p => p.PageOrder))
+                                            {
+                                                @foreach (var field in page.Fields.OrderBy(f => f.Order))
+                                                {
+                                                    var fieldValue = declarationData.TryGetValue(field.FieldId, out var v) ? v?.ToString() : string.Empty;
+                                                    var hasValue = !string.IsNullOrEmpty(fieldValue);
+                                                    
+                                                    <div class="govuk-summary-list__row">
+                                                        <dt class="govuk-summary-list__key">
+                                                            @field.Label.Value
+                                                        </dt>
+                                                        <dd class="govuk-summary-list__value">
+                                                            @if (hasValue)
+                                                            {
+                                                                var isUploadField = fieldValue.StartsWith("[") && fieldValue.Contains("\"id\"");
+                                                                
+                                                                @if (isUploadField)
+                                                                {
+                                                                    try
+                                                                    {
+                                                                        var uploadFiles = System.Text.Json.JsonSerializer.Deserialize<List<GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>>(fieldValue);
+                                                                        if (uploadFiles != null && uploadFiles.Any())
+                                                                        {
+                                                                            @foreach (var file in uploadFiles)
+                                                                            {
+                                                                                <div>
+                                                                                    <form method="post" asp-page="/FormEngine/RenderForm" asp-route-referenceNumber="@Model.ReferenceNumber" asp-route-taskId="@task.TaskId" asp-page-handler="DownloadFile" style="display:inline">
+                                                                                        <input type="hidden" name="FileId" value="@file.Id" />
+                                                                                        <input type="hidden" name="ApplicationId" value="@Model.ApplicationId" />
+                                                                                        <button type="submit" class="govuk-link" style="border: none; background: none; padding: 0; color: #1d70b8; text-decoration: underline; cursor: pointer;">
+                                                                                            @file.OriginalFileName
+                                                                                        </button>
+                                                                                    </form>
+                                                                                </div>
+                                                                            }
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            @Html.Raw(fieldValue.Replace("\r\n", "<br/>").Replace("\r", "<br/>").Replace("\n", "<br/>"))
+                                                                        }
+                                                                    }
+                                                                    catch
+                                                                    {
+                                                                        @Html.Raw(fieldValue.Replace("\r\n", "<br/>").Replace("\r", "<br/>").Replace("\n", "<br/>"))
+                                                                    }
+                                                                }
+                                                                else if (field.Type == "radios" && field.Options != null)
+                                                                {
+                                                                    var selectedOption = field.Options.FirstOrDefault(o => o.Value == fieldValue);
+                                                                    @(selectedOption?.Label ?? fieldValue)
+                                                                }
+                                                                else if (field.Type == "select" && field.Options != null)
+                                                                {
+                                                                    var selectedOption = field.Options.FirstOrDefault(o => o.Value == fieldValue);
+                                                                    @(selectedOption?.Label ?? fieldValue)
+                                                                }
+                                                                else if (field.Type == "checkboxes" && field.Options != null)
+                                                                {
+                                                                    var selectedValues = fieldValue.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).ToList();
+                                                                    var selectedLabels = field.Options.Where(o => selectedValues.Contains(o.Value)).Select(o => o.Label).ToList();
+                                                                    @(selectedLabels.Any() ? string.Join(", ", selectedLabels) : fieldValue)
+                                                                }
+                                                                else
+                                                                {
+                                                                    @Html.Raw(fieldValue.Replace("\r\n", "<br/>").Replace("\r", "<br/>").Replace("\n", "<br/>"))
+                                                                }
+                                                            }
+                                                            else
+                                                            {
+                                                                <span class="govuk-hint">Not answered</span>
+                                                            }
+                                                        </dd>
+                                                    </div>
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            </dl>
+                        </div>
+                    </div>
+                }
+                else if (task.Summary?.Mode?.Equals("multiCollectionFlow", StringComparison.OrdinalIgnoreCase) == true)
                 {
                     // Multi-collection flow task: Display all flows in one table
                     var taskNameHyphenated = task.TaskName.Replace(" ", "-").ToLower();
