@@ -61,6 +61,24 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                         logger.LogDebug("Using cached template schema for application {ApplicationId} with template version {TemplateVersionId}", 
                             sessionAppId, storedTemplateVersionId);
 
+                        // Check if we need to load form data from API (for contributors or when session is empty)
+                        var existingFormData = applicationResponseService.GetAccumulatedFormData(session);
+                        if (!existingFormData.Any())
+                        {
+                            try
+                            {
+                                var fullApplication = await applicationsClient.GetApplicationByReferenceAsync(referenceNumber);
+                                if (fullApplication != null)
+                                {
+                                    await LoadResponseDataIntoSessionAsync(fullApplication, session);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                logger.LogError(ex, "Failed to load response data from API for application {ApplicationReference}", sessionReference);
+                            }
+                        }
+
                         return (sessionAppId, currentApplication);
                     }
 

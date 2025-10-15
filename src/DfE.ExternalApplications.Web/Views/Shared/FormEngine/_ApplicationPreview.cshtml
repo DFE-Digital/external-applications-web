@@ -1,4 +1,19 @@
+@using System.Security.Claims
 @model DfE.ExternalApplications.Web.Pages.FormEngine.RenderFormModel
+@inject DfE.ExternalApplications.Application.Interfaces.IDerivedCollectionFlowService DerivedFlowService
+@{
+    var applicationId = Context.Session.GetString("ApplicationId");
+    var leadApplicantEmail = Context.Session.GetString($"ApplicationLeadApplicantEmail_{applicationId}");
+    
+    // Use robust claim checking like authentication strategies do
+    var currentUserEmail = Context.User?.FindFirst(ClaimTypes.Email)?.Value 
+                        ?? Context.User?.FindFirst("email")?.Value
+                        ?? Context.User?.FindFirst("sub")?.Value
+                        ?? Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                        ?? Context.User?.Identity?.Name;
+    
+    var isLeadApplicant = string.Equals(currentUserEmail?.Trim(), leadApplicantEmail?.Trim(), StringComparison.InvariantCultureIgnoreCase);
+}
 
 <div class="govuk-grid-row">
     <div class="govuk-grid-column-full">
@@ -439,7 +454,7 @@
     </div>
 </div>
 
-@if (Model.IsApplicationEditable())
+@if (Model.IsApplicationEditable() && isLeadApplicant)
 {
     <div class="govuk-!-margin-top-6">
         <h2 class="govuk-heading-m govuk-!-margin-top-9">Submit your application</h2>
@@ -456,5 +471,13 @@
                 Submit
             </govuk-button>
         </form>
+    </div>
+}
+else if (Model.IsApplicationEditable() && !isLeadApplicant)
+{
+    <div class="govuk-!-margin-top-6">
+        <div class="govuk-inset-text">
+            <p class="govuk-body">Only the lead applicant can submit this application.</p>
+        </div>
     </div>
 }
