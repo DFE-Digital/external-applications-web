@@ -124,7 +124,29 @@ builder.Services.Configure<TokenRefreshSettings>(configuration.GetSection("Token
 builder.Services
     .AddAuthentication()
     .AddCookie()
-    .AddCustomOpenIdConnect(configuration, sectionName: "DfESignIn")
+    .AddCustomOpenIdConnect(configuration, sectionName: "DfESignIn", new OpenIdConnectEvents
+    {
+        OnRemoteFailure = context =>
+        {
+            var error = context.Failure?.Message ?? "Unknown error";
+
+            if (error.Contains("message.State", StringComparison.OrdinalIgnoreCase))
+            {
+                context.Response.Redirect("/");
+                context.HandleResponse(); // Suppress the exception
+                return Task.CompletedTask;
+            }
+
+            return Task.CompletedTask;
+        },
+
+        OnAuthenticationFailed = context =>
+        {
+            context.HandleResponse();
+            context.Response.Redirect("/error?message=" + Uri.EscapeDataString(context.Exception.Message));
+            return Task.CompletedTask;
+        }
+    })
     .AddScheme<TestAuthenticationSchemeOptions, TestAuthenticationHandler>(
         TestAuthenticationHandler.SchemeName,
         options => { });
