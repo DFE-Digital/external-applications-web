@@ -15,13 +15,22 @@ namespace DfE.ExternalApplications.Domain.Models
         [JsonPropertyName("description")]
         public required string Description { get; set; }
 
-            [JsonPropertyName("taskGroups")]
-    public required List<TaskGroup> TaskGroups { get; set; }
+        [JsonPropertyName("taskGroups")]
+        public required List<TaskGroup> TaskGroups { get; set; }
 
         /// <summary>
         /// Conditional logic rules for this template
         /// </summary>
         [JsonPropertyName("conditionalLogic")]
         public List<ConditionalLogic>? ConditionalLogic { get; set; }
+
+        /// <summary>
+        /// Default field requirement policy for the template.
+        /// - "required": All fields are required by default unless explicitly marked as optional
+        /// - "optional": All fields are optional by default unless explicitly marked as required
+        /// If not specified, defaults to "optional" for backward compatibility
+        /// </summary>
+        [JsonPropertyName("defaultFieldRequirementPolicy")]
+        public string? DefaultFieldRequirementPolicy { get; set; }
     }
 }

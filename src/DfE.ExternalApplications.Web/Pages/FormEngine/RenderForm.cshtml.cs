@@ -36,6 +36,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         IFormErrorStore formErrorStore,
         IComplexFieldConfigurationService complexFieldConfigurationService,
         IDerivedCollectionFlowService derivedCollectionFlowService,
+        IFieldRequirementService fieldRequirementService,
         ILogger<RenderFormModel> logger,
         INavigationHistoryService navigationHistoryService)
         : BaseFormEngineModel(renderer, applicationResponseService, fieldFormattingService, templateManagementService,
@@ -47,6 +48,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         private readonly IFormErrorStore _formErrorStore = formErrorStore;
         private readonly IComplexFieldConfigurationService _complexFieldConfigurationService = complexFieldConfigurationService;
         private readonly IDerivedCollectionFlowService _derivedCollectionFlowService = derivedCollectionFlowService;
+        private readonly IFieldRequirementService _fieldRequirementService = fieldRequirementService;
         private readonly INavigationHistoryService _navigationHistoryService = navigationHistoryService;
 
         [BindProperty] public Dictionary<string, object> Data { get; set; } = new();
@@ -275,6 +277,10 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     {
                         var taskStatus = GetTaskStatusFromSession(CurrentTask.TaskId);
                         IsTaskCompleted = taskStatus == Domain.Models.TaskStatus.Completed;
+                        
+                        // Clear any validation errors when viewing task summary on GET
+                        // Task completion validation errors should only appear after POST, not on initial load
+                        ModelState.Clear();
                     }
                 }
             // If this GET was reached via back navigation, pop history entry for the current scope
@@ -323,6 +329,46 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             {
                 if (IsTaskCompleted)
                 {
+                    // Validate that all required fields are filled before allowing completion
+                    _logger.LogInformation("Checking required fields for task {TaskId}. Template policy: {Policy}", 
+                        CurrentTask.TaskId, Template.DefaultFieldRequirementPolicy ?? "null");
+                    
+                    var missingFields = _fieldRequirementService.GetMissingRequiredFields(CurrentTask, Template, FormData);
+                    
+                    _logger.LogInformation("Found {Count} missing required fields for task {TaskId}", 
+                        missingFields.Count, CurrentTask.TaskId);
+                    
+                    if (missingFields.Any())
+                    {
+                        // Cannot complete task - required fields are missing
+                        // Clear ModelState to avoid persisting these errors to subsequent GET requests
+                        ModelState.Clear();
+                        
+                        // Build a list of missing field labels for the error message
+                        var missingFieldLabels = new List<string>();
+                        foreach (var fieldId in missingFields)
+                        {
+                            var field = GetFieldFromTask(CurrentTask, fieldId);
+                            if (field != null)
+                            {
+                                var fieldLabel = field.Label?.Value ?? fieldId;
+                                missingFieldLabels.Add(fieldLabel);
+                            }
+                        }
+                        
+                        // Create error message with bullet points
+                        var errorMessage = "You cannot mark this section as complete because some required questions have not been answered:\n" +
+                                         string.Join("\n", missingFieldLabels.Select(label => $"• {label}"));
+                        
+                        ModelState.AddModelError(string.Empty, errorMessage);
+                        
+                        IsTaskCompleted = false; // Reset the checkbox state
+                        
+                        // DON'T save ModelState errors to FormErrorStore - they should only appear once
+                        // on this immediate response, not persist to next GET request
+                        return Page();
+                    }
+                    
                     // Mark the task as completed in session and API
                     await _applicationStateService.SaveTaskStatusAsync(ApplicationId.Value, CurrentTask.TaskId, Domain.Models.TaskStatus.Completed, HttpContext.Session);
                 }
@@ -2951,6 +2997,34 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             {
                 _logger.LogWarning(ex, "Failed to restore form errors from session");
             }
+        }
+
+        #endregion
+
+        #region Helper Methods for Field Requirement
+
+        /// <summary>
+        /// Gets a field from a task by field ID
+        /// </summary>
+        /// <param name="task">The task to search</param>
+        /// <param name="fieldId">The field ID to find</param>
+        /// <returns>The field if found, otherwise null</returns>
+        private Field? GetFieldFromTask(Domain.Models.Task task, string fieldId)
+        {
+            if (task?.Pages == null) return null;
+
+            foreach (var page in task.Pages)
+            {
+                if (page?.Fields == null) continue;
+
+                var field = page.Fields.FirstOrDefault(f => f.FieldId == fieldId);
+                if (field != null)
+                {
+                    return field;
+                }
+            }
+
+            return null;
         }
 
         #endregion

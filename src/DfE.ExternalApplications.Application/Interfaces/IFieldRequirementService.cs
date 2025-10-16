@@ -1,0 +1,36 @@
+using DfE.ExternalApplications.Domain.Models;
+using DomainTask = DfE.ExternalApplications.Domain.Models.Task;
+
+namespace DfE.ExternalApplications.Application.Interfaces;
+
+/// <summary>
+/// Service to determine if a field is required based on template policy and field configuration
+/// </summary>
+public interface IFieldRequirementService
+{
+    /// <summary>
+    /// Determines if a field is required based on the template's default policy,
+    /// field's Required property, and field's validation rules
+    /// </summary>
+    /// <param name="field">The field to check</param>
+    /// <param name="template">The form template containing the default policy</param>
+    /// <returns>True if the field is required</returns>
+    bool IsFieldRequired(Field field, FormTemplate template);
+
+    /// <summary>
+    /// Gets all required fields for a task
+    /// </summary>
+    /// <param name="task">The task to check</param>
+    /// <param name="template">The form template containing the default policy</param>
+    /// <returns>List of required field IDs</returns>
+    List<string> GetRequiredFieldsForTask(DomainTask task, FormTemplate template);
+
+    /// <summary>
+    /// Validates that all required fields in a task have values
+    /// </summary>
+    /// <param name="task">The task to validate</param>
+    /// <param name="template">The form template</param>
+    /// <param name="formData">The form data</param>
+    /// <returns>List of field IDs that are required but missing values</returns>
+    List<string> GetMissingRequiredFields(DomainTask task, FormTemplate template, Dictionary<string, object> formData);
+}
