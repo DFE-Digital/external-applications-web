@@ -577,11 +577,14 @@ document.addEventListener('DOMContentLoaded', function() {
                             // Remember confirmed text and hide the menu until user types again (real input)
                             lastConfirmedText = labelText;
                             suppressMenuUntilUserInput = true;
-                            if (menuEl) menuEl.classList.remove('autocomplete__menu--visible');
+                            if (menuEl) {
+                                menuEl.classList.remove('autocomplete__menu--visible');
+                                menuEl.style.display = 'none';
+                            }
                             if (autocompleteInput) autocompleteInput.setAttribute('aria-expanded', 'false');
 
                             // Ensure no below-the-input rendering for single-select
-                            selectedItemsContainer.innerHTML = '';
+                            if (selectedItemsContainer) selectedItemsContainer.innerHTML = '';
                             return;
                         }
 
@@ -608,11 +611,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
                         lastConfirmedText = multiLabelText;
                         suppressMenuUntilUserInput = true;
-                        if (menuEl) menuEl.classList.remove('autocomplete__menu--visible');
+                        if (menuEl) {
+                            menuEl.classList.remove('autocomplete__menu--visible');
+                            menuEl.style.display = 'none';
+                        }
                         if (autocompleteInput) autocompleteInput.setAttribute('aria-expanded', 'false');
 
                         // Ensure nothing is rendered below input
-                        selectedItemsContainer.innerHTML = '';
+                        if (selectedItemsContainer) selectedItemsContainer.innerHTML = '';
                         return;
                     }
                 });
@@ -746,6 +752,7 @@ document.addEventListener('DOMContentLoaded', function() {
         updateSelectionLimitUI(initialValues);
         
         function attachRemoveButtonListeners() {
+            if (!selectedItemsContainer) return;
             const existingRemoveButtons = selectedItemsContainer.querySelectorAll('.complex-field-remove-item');
             existingRemoveButtons.forEach(function(button) {
                 button.addEventListener('click', function() {
@@ -847,6 +854,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         function updateSelectedItems(values) {
+            if (!selectedItemsContainer) return;
             selectedItemsContainer.innerHTML = '';
             
             values.forEach(function(value) {
