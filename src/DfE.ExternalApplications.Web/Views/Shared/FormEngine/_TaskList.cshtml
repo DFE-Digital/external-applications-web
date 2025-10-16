@@ -57,13 +57,13 @@
         <div class="govuk-!-margin-top-6">
             @if (Model.IsApplicationEditable())
             {
-                <a href="/applications/@Model.ReferenceNumber?preview=true" class="govuk-button" role="button">
+                <a href="/applications/@Model.ReferenceNumber?preview=true" class="govuk-button" id="review-application-button" role="button">
                     Review application
                 </a>
             }
             else
             {
-                <a href="/applications/@Model.ReferenceNumber?preview=true" class="govuk-button" role="button">
+                <a href="/applications/@Model.ReferenceNumber?preview=true" class="govuk-button" id="view-application-button" role="button">
                     View application
                 </a>
                 <div class="govuk-inset-text govuk-!-margin-top-4">
