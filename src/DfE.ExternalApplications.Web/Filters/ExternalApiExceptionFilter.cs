@@ -149,7 +149,18 @@ namespace DfE.ExternalApplications.Web.Filters
                     return;
                 }
 
+                // Handle 5xx errors (server errors)
+                if (r.StatusCode >= 500)
+                {
+                    page.TempData["ApiErrorId"] = r.ErrorId;
+                    executedContext.Result = new RedirectToPageResult("/Error/ServerError");
+                    executedContext.ExceptionHandled = true;
+                    return;
+                }
+                
+                // All other errors go to General error page
                 page.TempData["ApiErrorId"] = r.ErrorId;
+                page.TempData["ErrorMessage"] = r.Message;
                 executedContext.Result = new RedirectToPageResult("/Error/General");
                 executedContext.ExceptionHandled = true;
             }

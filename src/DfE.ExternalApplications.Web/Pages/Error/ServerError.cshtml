@@ -13,16 +13,23 @@
         @if (!string.IsNullOrEmpty(Model.ErrorId))
         {
             <p class="govuk-body">
-                Reference: <strong>@Model.ErrorId</strong>
+                If you continue to experience problems, 
+                <a class="govuk-link" href="mailto:@Model.SupportEmail?subject=@Uri.EscapeDataString(Model.EmailSubject)&body=@Uri.EscapeDataString(Model.EmailBody)">contact the support team</a> 
+                and quote this error reference:
+            </p>
+            <p class="govuk-body">
+                <strong class="govuk-tag govuk-tag--red">@Model.ErrorId</strong>
+            </p>
+        }
+        else
+        {
+            <p class="govuk-body">
+                If you continue to experience problems, 
+                <a class="govuk-link" href="mailto:@Model.SupportEmail?subject=@Uri.EscapeDataString(Model.EmailSubject)">contact the support team</a>.
             </p>
         }
         
-        <p class="govuk-body">
-            If you continue to experience problems, 
-            <a class="govuk-link" href="mailto:@Model.SupportEmail?subject=@Uri.EscapeDataString(Model.EmailSubject)&body=@Uri.EscapeDataString(Model.EmailBody)">contact the support team</a>.
-        </p>
-        
-        <p class="govuk-body">
+        <p class="govuk-body govuk-!-margin-top-6">
             <a class="govuk-link" href="/applications/dashboard">Go to your applications dashboard</a>
         </p>
     </div>
