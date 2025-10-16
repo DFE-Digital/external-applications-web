@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Linq;
 using DfE.ExternalApplications.Application.Interfaces;
 using DfE.ExternalApplications.Domain.Models;
 
@@ -76,9 +77,12 @@ namespace DfE.ExternalApplications.Web.Services
                 _logger.LogDebug("Raw JSON response for complex field {ComplexFieldId}: {JsonResponse}", complexFieldId, jsonResponse);
                 
                 var results = ParseResponse(jsonResponse);
-                
-                // Sort results alphabetically
-                var sortedResults = SortResultsAlphabetically(results);
+
+                // Normalise and de-duplicate results before sorting
+                results = DeduplicateAndNormalise(results);
+
+                // Sort results with prefix priority, then alphabetical
+                var sortedResults = SortResultsByPrefixThenAlpha(results, query);
 
                 _logger.LogDebug("Found {Count} results for query: {Query} from complex field: {ComplexFieldId}", 
                     sortedResults.Count, query, complexFieldId);
@@ -194,8 +198,8 @@ namespace DfE.ExternalApplications.Web.Services
                     }
                 }
                 
-                // Try to get UKPRN or other identifier fields
-                var identifierProperties = new[] { "ukprn", "id", "urn", "companiesHouseNumber", "code" };
+                // Try to get UKPRN or other identifier fields (support common casing variants)
+                var identifierProperties = new[] { "ukprn", "id", "urn", "companiesHouseNumber", "companieshousenumber", "companies_house_number", "code" };
                 foreach (var propertyName in identifierProperties)
                 {
                     if (item.TryGetProperty(propertyName, out var property))
@@ -269,6 +273,114 @@ namespace DfE.ExternalApplications.Web.Services
             
             // Fallback to string representation
             return result?.ToString() ?? string.Empty;
+        }
+
+        // Sort results so items starting with the query term appear first, then alphabetical
+        private List<object> SortResultsByPrefixThenAlpha(List<object> results, string query)
+        {
+            var q = (query ?? string.Empty).Trim();
+            if (q.Length == 0)
+            {
+                return SortResultsAlphabetically(results);
+            }
+
+            return results
+                .OrderBy(r =>
+                {
+                    var text = GetDisplayTextForSorting(r);
+                    return text.StartsWith(q, StringComparison.OrdinalIgnoreCase) ? 0 : 1;
+                })
+                .ThenBy(r => GetDisplayTextForSorting(r), StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        // Normalise casing variants and de-duplicate results by stable keys, merging properties
+        private List<object> DeduplicateAndNormalise(List<object> results)
+        {
+            var mergedByKey = new Dictionary<string, Dictionary<string, object>>(StringComparer.OrdinalIgnoreCase);
+
+            static string? GetFirstNonEmpty(Dictionary<string, object> d, params string[] keys)
+            {
+                foreach (var k in keys)
+                {
+                    if (d.TryGetValue(k, out var v) && v != null)
+                    {
+                        var s = v.ToString();
+                        if (!string.IsNullOrWhiteSpace(s)) return s;
+                    }
+                }
+                return null;
+            }
+
+            foreach (var item in results)
+            {
+                if (item is Dictionary<string, object> dict)
+                {
+                    // Canonicalise companies house number to companiesHouseNumber
+                    var ch = GetFirstNonEmpty(dict, "companiesHouseNumber", "companieshousenumber", "companies_house_number");
+                    if (!string.IsNullOrWhiteSpace(ch))
+                    {
+                        dict["companiesHouseNumber"] = ch;
+                    }
+
+                    // Build a stable dedupe key (prefer ukprn, then companiesHouseNumber, urn, id, else name)
+                    var key = GetFirstNonEmpty(dict, "ukprn")
+                              ?? GetFirstNonEmpty(dict, "companiesHouseNumber")
+                              ?? GetFirstNonEmpty(dict, "urn")
+                              ?? GetFirstNonEmpty(dict, "id")
+                              ?? (GetFirstNonEmpty(dict, "name") is string n && !string.IsNullOrWhiteSpace(n) ? $"name:{n}" : null);
+
+                    if (string.IsNullOrWhiteSpace(key))
+                    {
+                        // No usable key: keep as unique entry
+                        mergedByKey[Guid.NewGuid().ToString()] = dict;
+                        continue;
+                    }
+
+                    if (!mergedByKey.TryGetValue(key, out var existing))
+                    {
+                        mergedByKey[key] = dict;
+                    }
+                    else
+                    {
+                        // Merge non-empty properties into the existing record, preferring already-populated fields
+                        foreach (var kv in dict)
+                        {
+                            var val = kv.Value?.ToString();
+                            if (string.IsNullOrWhiteSpace(val)) continue;
+                            if (!existing.TryGetValue(kv.Key, out var existingVal) || string.IsNullOrWhiteSpace(existingVal?.ToString()))
+                            {
+                                existing[kv.Key] = kv.Value!;
+                            }
+                        }
+                    }
+                }
+                else if (item is string s)
+                {
+                    var key = $"str:{s}";
+                    if (!mergedByKey.ContainsKey(key))
+                    {
+                        mergedByKey[key] = new Dictionary<string, object> { { "name", s } };
+                    }
+                }
+            }
+
+            // Convert back: if an entry is just a name, return string; otherwise return the object
+            var normalised = new List<object>();
+            foreach (var kvp in mergedByKey)
+            {
+                var d = kvp.Value;
+                if (d.Count == 1 && d.ContainsKey("name"))
+                {
+                    normalised.Add(d["name"]?.ToString() ?? string.Empty);
+                }
+                else
+                {
+                    normalised.Add(d);
+                }
+            }
+
+            return normalised;
         }
     }
 } 
