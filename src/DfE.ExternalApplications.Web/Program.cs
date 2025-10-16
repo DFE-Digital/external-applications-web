@@ -74,6 +74,18 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AllowAnonymousToPage("/Index");
     options.Conventions.AllowAnonymousToPage("/Logout");
     
+    // Allow anonymous access to error pages
+    options.Conventions.AllowAnonymousToPage("/Error/NotFound");
+    options.Conventions.AllowAnonymousToPage("/Error/Forbidden");
+    options.Conventions.AllowAnonymousToPage("/Error/General");
+    options.Conventions.AllowAnonymousToPage("/Error/ServerError");
+    
+    // Allow anonymous access to test pages in non-production environments
+    if (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Test") || builder.Environment.IsStaging())
+    {
+        options.Conventions.AllowAnonymousToPage("/TestError");
+    }
+    
     // Allow anonymous access to test login page when test auth is enabled OR Cypress toggle is allowed
     if (isTestAuthEnabled || allowCypressToggle)
     {
@@ -231,9 +243,14 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
-    //app.UseExceptionHandler("/Error");
+    app.UseExceptionHandler("/Error/ServerError");
     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
+}
+else
+{
+    // In development, still show custom error page but with more details in logs
+    app.UseExceptionHandler("/Error/ServerError");
 }
 
 app.UseHttpsRedirection();
@@ -259,6 +276,9 @@ app.UseStatusCodePages(ctx =>
     var c = ctx.HttpContext.Response.StatusCode;
     if (c == 401) ctx.HttpContext.Response.Redirect("/Error/Forbidden");
     else if (c == 403) ctx.HttpContext.Response.Redirect("/Error/Forbidden");
+    else if (c == 404) ctx.HttpContext.Response.Redirect("/Error/NotFound");
+    else if (c == 500) ctx.HttpContext.Response.Redirect("/Error/ServerError");
+    else if (c >= 500 && c < 600) ctx.HttpContext.Response.Redirect("/Error/ServerError"); // All 5xx errors
     return Task.CompletedTask;
 });
 
