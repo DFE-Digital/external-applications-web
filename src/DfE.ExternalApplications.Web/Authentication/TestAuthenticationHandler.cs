@@ -39,32 +39,41 @@ public class TestAuthenticationHandler : AuthenticationHandler<TestAuthenticatio
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
+        var path = Context.Request.Path;
+        var shouldEnable = _cypressAuthService.ShouldEnableTestAuthentication(Context);
+        
+        Logger.LogDebug(
+            "TestAuthenticationHandler.HandleAuthenticateAsync for path {Path}. ShouldEnable: {ShouldEnable}",
+            path, shouldEnable);
+        
         // Check if test authentication should be enabled (either globally or via Cypress)
-        if (!_cypressAuthService.ShouldEnableTestAuthentication(Context))
+        if (!shouldEnable)
         {
+            Logger.LogDebug("TestAuthentication not enabled for {Path}, returning NoResult", path);
             return Task.FromResult(AuthenticateResult.NoResult());
         }
 
-        var requestPath = Context.Request.Path;
-
-        
         var email = Context.Session.GetString(SessionKeys.Email);
         var token = Context.Session.GetString(SessionKeys.Token);
 
+        Logger.LogDebug(
+            "TestAuth session check for {Path}. HasEmail: {HasEmail}, HasToken: {HasToken}",
+            path, !string.IsNullOrEmpty(email), !string.IsNullOrEmpty(token));
+
         if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(token))
         {
-
+            Logger.LogDebug("TestAuthentication session data missing for {Path}, returning NoResult", path);
             return Task.FromResult(AuthenticateResult.NoResult());
         }
 
-
-        
         var claims = CreateUserClaims(email);
         var identity = new ClaimsIdentity(claims, SchemeName);
         var principal = new ClaimsPrincipal(identity);
         var ticket = new AuthenticationTicket(principal, CreateAuthenticationProperties(token), SchemeName);
 
-
+        Logger.LogInformation(
+            "TestAuthentication successful for {Email} on path {Path}",
+            email, path);
 
         return Task.FromResult(AuthenticateResult.Success(ticket));
     }

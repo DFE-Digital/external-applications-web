@@ -36,25 +36,27 @@ public class TestAuthenticationService : ITestAuthenticationService
 
     public async Task<TestAuthenticationResult> AuthenticateAsync(string email, HttpContext httpContext)
     {
-
+        _logger.LogInformation("TestAuthenticationService.AuthenticateAsync called for email: {Email}", email);
         
         if (!_cypressAuthService.ShouldEnableTestAuthentication(httpContext))
         {
-
+            _logger.LogWarning("Test authentication is not enabled for this request");
             return TestAuthenticationResult.Failure("Test authentication is not enabled.");
         }
 
         try
         {
-
+            _logger.LogDebug("Creating claims and identity for {Email}", email);
+            
             var claims = CreateUserClaims(email);
             var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
             var principal = new ClaimsPrincipal(identity);
 
-
             // Generate test token using the existing UserTokenService
+            _logger.LogDebug("Generating test token for {Email}", email);
             var testToken = await _userTokenService.GetUserTokenAsync(principal);
             
+            _logger.LogDebug("Test token generated successfully. Storing in session for {Email}", email);
 
             // Store in session for TestAuthenticationHandler
             httpContext.Session.SetString(SessionKeys.Email, email);
@@ -68,17 +70,18 @@ public class TestAuthenticationService : ITestAuthenticationService
                 new AuthenticationToken { Name = "access_token", Value = testToken }
             });
 
-
+            _logger.LogDebug("Calling SignInAsync with CookieAuthenticationDefaults for {Email}", email);
+            
             // Sign in using cookie authentication
             await httpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal, authProperties);
 
-
+            _logger.LogInformation("Test authentication successful for {Email}. Redirecting to dashboard.", email);
 
             return TestAuthenticationResult.Success("/applications/dashboard");
         }
         catch (Exception ex)
         {
-
+            _logger.LogError(ex, "Error during test authentication for {Email}: {Message}", email, ex.Message);
             return TestAuthenticationResult.Failure("An error occurred during authentication. Please try again.");
         }
     }

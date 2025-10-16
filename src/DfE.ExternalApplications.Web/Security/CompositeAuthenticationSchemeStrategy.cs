@@ -35,10 +35,20 @@ public class CompositeAuthenticationSchemeStrategy(
 
     private IAuthenticationSchemeStrategy Select()
     {
-        if (IsTestEnabled() || IsCypressRequest())
+        var ctx = httpContextAccessor.HttpContext;
+        var path = ctx?.Request.Path.ToString() ?? "unknown";
+        var isTestEnabled = IsTestEnabled();
+        var isCypress = IsCypressRequest();
+        
+        if (isTestEnabled || isCypress)
         {
+            logger.LogDebug(
+                "Selecting TestAuthenticationStrategy for {Path}. TestEnabled: {TestEnabled}, IsCypress: {IsCypress}",
+                path, isTestEnabled, isCypress);
             return testStrategy;
         }
+        
+        logger.LogDebug("Selecting OidcAuthenticationStrategy for {Path}", path);
         return oidcStrategy;
     }
 

@@ -138,6 +138,12 @@ async function ensureHubCookie() {
 }
 
 async function startHub() {
+    // Skip SignalR when running under Cypress to avoid WebSocket proxy issues
+    if (window.Cypress) {
+        console.log('Cypress detected - skipping SignalR notifications hub');
+        return;
+    }
+    
     try {
         await ensureHubCookie();
 

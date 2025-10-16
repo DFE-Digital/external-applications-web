@@ -28,10 +28,20 @@ public class ExternalAppsCypressRequestChecker(
     /// <returns>True if this is a valid Cypress request with correct headers and secret</returns>
     public bool IsValidRequest(HttpContext httpContext)
     {
+        var path = httpContext.Request.Path;
+        var ipAddress = httpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+        
         // Check for Cypress header
         var cypressHeader = httpContext.Request.Headers[CypressHeaderKey].ToString();
+        logger.LogDebug(
+            "Checking Cypress header '{HeaderKey}' for path {Path}. Value: '{Value}' (expected: '{Expected}')",
+            CypressHeaderKey, path, cypressHeader, ExpectedCypressValue);
+            
         if (!string.Equals(cypressHeader, ExpectedCypressValue, StringComparison.OrdinalIgnoreCase))
         {
+            logger.LogDebug(
+                "Cypress header check failed for {Path} from {IP}. Header '{HeaderKey}' = '{Value}'",
+                path, ipAddress, CypressHeaderKey, cypressHeader);
             return false;
         }
 

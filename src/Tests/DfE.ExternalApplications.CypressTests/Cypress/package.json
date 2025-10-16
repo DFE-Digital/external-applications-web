@@ -13,5 +13,10 @@
     "axe-core": "^4.10.3",
     "cypress": "^14.5.2",
     "cypress-axe": "^1.6.0"
+  },
+  "dependencies": {
+    "-": "^0.0.1",
+    "g": "^2.0.1",
+    "typescript": "^5.9.3"
   }
 }

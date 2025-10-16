@@ -42,8 +42,12 @@ builder.Services.Configure<TestAuthenticationOptions>(
 var testAuthOptions = configuration.GetSection(TestAuthenticationOptions.SectionName).Get<TestAuthenticationOptions>();
 var isTestAuthEnabled = testAuthOptions?.Enabled ?? false;
 
+// Check if Cypress toggle is allowed (for shared dev/test environments)
+var allowCypressToggle = configuration.GetValue<bool>("CypressAuthentication:AllowToggle");
+
 // Configure token settings for test authentication
-if (isTestAuthEnabled && testAuthOptions != null)
+// This is needed when test auth is enabled OR when Cypress toggle is enabled
+if ((isTestAuthEnabled || allowCypressToggle) && testAuthOptions != null)
 {
     builder.Services.Configure<GovUK.Dfe.CoreLibs.Security.Configurations.TokenSettings>(options =>
     {
@@ -61,9 +65,6 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(optio
     options.ValueLengthLimit = 1048576; // 1MB limit for form values
     options.ValueCountLimit = 1000; // Allow more form values
 });
-
-// Check if Cypress toggle is allowed (for shared dev/test environments)
-var allowCypressToggle = configuration.GetValue<bool>("CypressAuthentication:AllowToggle");
 
 builder.Services.AddRazorPages(options =>
 {

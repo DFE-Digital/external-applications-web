@@ -63,7 +63,7 @@
             var sourceTaskUrl = !string.IsNullOrEmpty(sourceTaskId)
                 ? $"/applications/{renderModel.ReferenceNumber}/{sourceTaskId}"
                 : $"/applications/{renderModel.ReferenceNumber}";
-            <p class="govuk-body">You need to mark the <a href="@sourceTaskUrl" class="govuk-link">@sourceTaskName</a> task as complete first.</p>
+            <p class="govuk-body">You need to add a trust first in <a href="@sourceTaskUrl" class="govuk-link">@sourceTaskName</a>.</p>
         }
     }
 </div>

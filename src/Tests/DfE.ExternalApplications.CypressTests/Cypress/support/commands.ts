@@ -4,6 +4,23 @@ import { Logger } from "../Common/logger";
 import { RuleObject } from "axe-core";
 import { AuthenticationInterceptor } from "../auth/authenticationInterceptor";
 
+// Override cy.visit to automatically add Cypress authentication headers
+Cypress.Commands.overwrite('visit', (originalFn, url, options) => {
+    const cypressSecret = Cypress.env('CYPRESS_SECRET') || '';
+    
+    // Merge our custom headers with any existing headers
+    const visitOptions = {
+        ...(options || {}),
+        headers: {
+            ...(options?.headers || {}),
+            'x-cypress-test': 'true',
+            'x-cypress-secret': cypressSecret
+        }
+    };
+    
+    return originalFn(url, visitOptions);
+});
+
 
 Cypress.Commands.add("getByTestId", (id) => {
     cy.get(`[data-testid="${id}"]`);

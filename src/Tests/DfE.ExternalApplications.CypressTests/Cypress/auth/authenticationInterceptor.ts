@@ -16,6 +16,9 @@ export class AuthenticationInterceptor {
                     "x-user-context-id": "", // must be present for antiforgery claims
                     "x-user-ad-id": "",
                     "x-cypress-user": "cypressUser",
+                    "x-cypress-test": "true",
+                    "x-cypress-secret": Cypress.env('cypress_secret')
+
                 };
             },
         ).as("AuthInterceptor");

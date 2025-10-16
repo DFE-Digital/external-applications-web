@@ -18,6 +18,50 @@
 import "./commands";
 import { RuleObject } from "axe-core";
 
+// Block ASP.NET Core development tools that cause issues with Cypress proxy
+Cypress.on('uncaught:exception', (err) => {
+    // Ignore SignalR and browser refresh errors that cause "Invalid status code: 0"
+    if (err.message.includes('SignalR') || 
+        err.message.includes('browser-refresh') ||
+        err.message.includes('browserLink')) {
+        return false; // Don't fail the test
+    }
+    return true;
+});
+
+beforeEach(() => {
+    // Block problematic ASP.NET Core development middleware requests
+    // These cause "Invalid status code: 0" errors when running against localhost
+    cy.intercept('/_framework/aspnetcore-browser-refresh.js*', { 
+        statusCode: 204,
+        body: ''
+    }).as('blockBrowserRefresh');
+    
+    cy.intercept('/_vs/browserLink*', { 
+        statusCode: 204,
+        body: ''
+    }).as('blockBrowserLink');
+    
+    cy.intercept('/_framework/**', { 
+        statusCode: 204,
+        body: ''
+    }).as('blockFramework');
+    
+    cy.intercept('**/*', (req) => {
+        // Skip for already blocked URLs and Cypress internal URLs
+        if (req.url.includes('_framework') || 
+            req.url.includes('_vs') || 
+            req.url.includes('__cypress') ||
+            req.url.includes('__/')) {
+            return;
+        }
+        
+        // Add Cypress authentication headers
+        req.headers['x-cypress-test'] = 'true';
+        req.headers['x-cypress-secret'] = Cypress.env('cypress_secret') || '';
+    });
+});
+
 
 
 declare global {
