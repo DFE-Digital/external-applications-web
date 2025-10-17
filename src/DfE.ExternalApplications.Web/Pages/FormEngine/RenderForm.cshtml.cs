@@ -2308,50 +2308,18 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
 
             // Check if page is hidden by visibility rules
-            if (ConditionalState.PageVisibility.TryGetValue(pageId, out var isVisible) && !isVisible)
+            if (ConditionalState.PageVisibility.TryGetValue(pageId, out var isVisible))
             {
-
+                // Trust the ConditionalState that was already calculated by ApplyConditionalLogicAsync
+                return !isVisible;
+            }
+            
+            // If page is not in ConditionalState.PageVisibility but has conditional logic rules, hide it by default
+            if (Template?.ConditionalLogic != null && HasPageConditionalLogic(pageId))
+            {
                 return true;
             }
             
-            // NEW: Check if page has conditional logic rules and evaluate them
-            if (Template?.ConditionalLogic != null && HasPageConditionalLogic(pageId))
-            {
-                // Check if any show rules for this page are triggered
-                var hasShowRuleMet = Template.ConditionalLogic.Any(rule => 
-                    rule.Enabled && 
-                    rule.AffectedElements.Any(element => 
-                        element.ElementId == pageId && 
-                        element.ElementType == "page" && 
-                        element.Action == "show") &&
-                    EvaluateRuleConditions(rule));
-                
-                if (hasShowRuleMet)
-                {
-
-                    return false; // Show the page
-                }
-                
-                // Check if any hide/skip rules for this page are triggered
-                var hasHideRuleMet = Template.ConditionalLogic.Any(rule => 
-                    rule.Enabled && 
-                    rule.AffectedElements.Any(element => 
-                        element.ElementId == pageId && 
-                        element.ElementType == "page" && 
-                        (element.Action == "hide" || element.Action == "skip")) &&
-                    EvaluateRuleConditions(rule));
-                
-                if (hasHideRuleMet)
-                {
-
-                    return true; // Hide the page
-                }
-                
-
-                return true; // Hide by default if page has conditional logic but no rules match
-            }
-            
-
             return false;
         }
 
