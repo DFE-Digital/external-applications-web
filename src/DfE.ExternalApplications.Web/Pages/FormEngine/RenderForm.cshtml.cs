@@ -36,6 +36,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         IFormErrorStore formErrorStore,
         IComplexFieldConfigurationService complexFieldConfigurationService,
         IDerivedCollectionFlowService derivedCollectionFlowService,
+        IFieldRequirementService fieldRequirementService,
         ILogger<RenderFormModel> logger,
         INavigationHistoryService navigationHistoryService)
         : BaseFormEngineModel(renderer, applicationResponseService, fieldFormattingService, templateManagementService,
@@ -47,6 +48,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         private readonly IFormErrorStore _formErrorStore = formErrorStore;
         private readonly IComplexFieldConfigurationService _complexFieldConfigurationService = complexFieldConfigurationService;
         private readonly IDerivedCollectionFlowService _derivedCollectionFlowService = derivedCollectionFlowService;
+        private readonly IFieldRequirementService _fieldRequirementService = fieldRequirementService;
         private readonly INavigationHistoryService _navigationHistoryService = navigationHistoryService;
 
         [BindProperty] public Dictionary<string, object> Data { get; set; } = new();
@@ -275,6 +277,10 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     {
                         var taskStatus = GetTaskStatusFromSession(CurrentTask.TaskId);
                         IsTaskCompleted = taskStatus == Domain.Models.TaskStatus.Completed;
+                        
+                        // Clear any validation errors when viewing task summary on GET
+                        // Task completion validation errors should only appear after POST, not on initial load
+                        ModelState.Clear();
                     }
                 }
             // If this GET was reached via back navigation, pop history entry for the current scope
@@ -318,11 +324,80 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 CurrentPage = null;
             }
 
+            // Task summary POST does not submit form field data, so Data is empty.
+            // We need to apply conditional logic using FormData (session data) for accurate validation.
+            // Create a custom conditional logic evaluation using FormData instead of Data.
+            try
+            {
+                if (Template?.ConditionalLogic != null && Template.ConditionalLogic.Any())
+                {
+                    var context = new ConditionalLogicContext
+                    {
+                        CurrentPageId = CurrentPageId,
+                        CurrentTaskId = TaskId,
+                        IsClientSide = false,
+                        Trigger = "task_summary_validation"
+                    };
+
+                    // CRITICAL FIX: Use FormData (session data) instead of Data (empty on task summary POST)
+                    ConditionalState = await _conditionalLogicOrchestrator.ApplyConditionalLogicAsync(Template, FormData, context);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error applying conditional logic in task summary validation");
+                // Continue with empty conditional state - better than failing
+                ConditionalState = new FormConditionalState();
+            }
+            
+            // Log conditional state for debugging
+            _logger.LogInformation("ConditionalState after ApplyConditionalLogicAsync: Fields={FieldCount}, HiddenFields={HiddenFields}", 
+                ConditionalState?.FieldVisibility?.Count ?? 0,
+                string.Join(", ", ConditionalState?.FieldVisibility?.Where(kv => !kv.Value).Select(kv => kv.Key) ?? new List<string>()));
+
             // Handle task completion checkbox state
             if (CurrentTask != null && ApplicationId.HasValue)
             {
                 if (IsTaskCompleted)
                 {
+                    // Validate that all required fields are filled before allowing completion
+                    // Pass IsFieldHidden to exclude fields hidden by conditional logic
+                    var missingFields = _fieldRequirementService.GetMissingRequiredFields(CurrentTask, Template, FormData, IsFieldHidden);
+                    
+                    if (missingFields.Any())
+                    {
+                        // Cannot complete task - required fields are missing
+                        // Clear ModelState to avoid persisting these errors to subsequent GET requests
+                        ModelState.Clear();
+                        
+                        // Build a list of missing field labels for the error message
+                        var missingFieldLabels = new List<string>();
+                        foreach (var fieldId in missingFields)
+                        {
+                            var field = GetFieldFromTask(CurrentTask, fieldId);
+                            if (field != null)
+                            {
+                                var fieldLabel = field.Label?.Value ?? fieldId;
+                                missingFieldLabels.Add(fieldLabel);
+                            }
+                        }
+                        
+                        // Create error message with bullet points
+                        var errorMessage = "You cannot mark this section as complete because some required questions have not been answered:\n" +
+                                         string.Join("\n", missingFieldLabels.Select(label => $"• {label}"));
+                        
+                        ModelState.AddModelError(string.Empty, errorMessage);
+                        
+                        IsTaskCompleted = false; // Reset the checkbox state
+                        
+                        // CRITICAL: Set CurrentFormState so the view knows to render the task summary
+                        CurrentFormState = FormState.TaskSummary;
+                        
+                        // DON'T save ModelState errors to FormErrorStore - they should only appear once
+                        // on this immediate response, not persist to next GET request
+                        return Page();
+                    }
+                    
                     // Mark the task as completed in session and API
                     await _applicationStateService.SaveTaskStatusAsync(ApplicationId.Value, CurrentTask.TaskId, Domain.Models.TaskStatus.Completed, HttpContext.Session);
                 }
@@ -2100,15 +2175,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         /// <returns>True if the field should be hidden</returns>
         public bool IsFieldHidden(string fieldId)
         {
-
-            
             if (ConditionalState == null)
             {
-
                 // If no conditional state but field has conditional logic rules, hide it by default
                 if (Template?.ConditionalLogic != null && HasFieldConditionalLogic(fieldId))
                 {
-
                     return true;
                 }
                 return false;
@@ -2116,18 +2187,15 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
             if (ConditionalState.FieldVisibility.TryGetValue(fieldId, out var isVisible))
             {
-
                 return !isVisible;
             }
             
             // Check if field has conditional logic rules - if so, hide by default until conditions are met
             if (Template?.ConditionalLogic != null && HasFieldConditionalLogic(fieldId))
             {
-
                 return true;
             }
             
-
             return false;
         }
 
@@ -2177,50 +2245,18 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
 
             // Check if page is hidden by visibility rules
-            if (ConditionalState.PageVisibility.TryGetValue(pageId, out var isVisible) && !isVisible)
+            if (ConditionalState.PageVisibility.TryGetValue(pageId, out var isVisible))
             {
-
+                // Trust the ConditionalState that was already calculated by ApplyConditionalLogicAsync
+                return !isVisible;
+            }
+            
+            // If page is not in ConditionalState.PageVisibility but has conditional logic rules, hide it by default
+            if (Template?.ConditionalLogic != null && HasPageConditionalLogic(pageId))
+            {
                 return true;
             }
             
-            // NEW: Check if page has conditional logic rules and evaluate them
-            if (Template?.ConditionalLogic != null && HasPageConditionalLogic(pageId))
-            {
-                // Check if any show rules for this page are triggered
-                var hasShowRuleMet = Template.ConditionalLogic.Any(rule => 
-                    rule.Enabled && 
-                    rule.AffectedElements.Any(element => 
-                        element.ElementId == pageId && 
-                        element.ElementType == "page" && 
-                        element.Action == "show") &&
-                    EvaluateRuleConditions(rule));
-                
-                if (hasShowRuleMet)
-                {
-
-                    return false; // Show the page
-                }
-                
-                // Check if any hide/skip rules for this page are triggered
-                var hasHideRuleMet = Template.ConditionalLogic.Any(rule => 
-                    rule.Enabled && 
-                    rule.AffectedElements.Any(element => 
-                        element.ElementId == pageId && 
-                        element.ElementType == "page" && 
-                        (element.Action == "hide" || element.Action == "skip")) &&
-                    EvaluateRuleConditions(rule));
-                
-                if (hasHideRuleMet)
-                {
-
-                    return true; // Hide the page
-                }
-                
-
-                return true; // Hide by default if page has conditional logic but no rules match
-            }
-            
-
             return false;
         }
 
@@ -2955,6 +2991,34 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             {
                 _logger.LogWarning(ex, "Failed to restore form errors from session");
             }
+        }
+
+        #endregion
+
+        #region Helper Methods for Field Requirement
+
+        /// <summary>
+        /// Gets a field from a task by field ID
+        /// </summary>
+        /// <param name="task">The task to search</param>
+        /// <param name="fieldId">The field ID to find</param>
+        /// <returns>The field if found, otherwise null</returns>
+        private Field? GetFieldFromTask(Domain.Models.Task task, string fieldId)
+        {
+            if (task?.Pages == null) return null;
+
+            foreach (var page in task.Pages)
+            {
+                if (page?.Fields == null) continue;
+
+                var field = page.Fields.FirstOrDefault(f => f.FieldId == fieldId);
+                if (field != null)
+                {
+                    return field;
+                }
+            }
+
+            return null;
         }
 
         #endregion

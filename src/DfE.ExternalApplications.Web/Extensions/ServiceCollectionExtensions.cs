@@ -53,6 +53,7 @@ namespace DfE.ExternalApplications.Web.Extensions
             services.AddScoped<IFormNavigationService, FormNavigationService>();
             services.AddScoped<INavigationHistoryService, NavigationHistoryService>();
             services.AddScoped<IFormDataManager, FormDataManager>();
+            services.AddScoped<IFieldRequirementService, FieldRequirementService>();
             services.AddScoped<IFormValidationOrchestrator, DfE.ExternalApplications.Infrastructure.Services.FormValidationOrchestrator>();
             services.AddScoped<IFormConfigurationService, FormConfigurationService>();
             services.AddHttpContextAccessor();

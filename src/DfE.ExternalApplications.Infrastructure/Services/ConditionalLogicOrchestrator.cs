@@ -251,18 +251,44 @@ public class ConditionalLogicOrchestrator(
 
     private void InitializeDefaultState(FormTemplate template, FormConditionalState state)
     {
-        // Initialize all fields and pages as visible and enabled by default
+        // Determine which pages/fields are affected by conditional logic rules
+        var affectedPages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var affectedFields = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (template?.ConditionalLogic != null)
+        {
+            foreach (var rule in template.ConditionalLogic.Where(r => r.Enabled))
+            {
+                if (rule?.AffectedElements == null) continue;
+                foreach (var element in rule.AffectedElements)
+                {
+                    if (element == null) continue;
+                    switch (element.ElementType?.ToLowerInvariant())
+                    {
+                        case ConditionalLogicConstants.ElementTypes.Page:
+                            affectedPages.Add(element.ElementId);
+                            break;
+                        case ConditionalLogicConstants.ElementTypes.Field:
+                            affectedFields.Add(element.ElementId);
+                            break;
+                    }
+                }
+            }
+        }
+
         var allPages = GetAllPages(template);
         var allFields = GetAllFields(template);
 
         foreach (var page in allPages)
         {
-            state.PageVisibility[page.PageId] = true;
+            var isAffected = affectedPages.Contains(page.PageId);
+            state.PageVisibility[page.PageId] = isAffected ? false : true;
         }
 
         foreach (var field in allFields)
         {
-            state.FieldVisibility[field.FieldId] = true;
+            var isAffected = affectedFields.Contains(field.FieldId);
+            state.FieldVisibility[field.FieldId] = isAffected ? false : true;
             state.FieldEnabled[field.FieldId] = true;
             state.FieldRequired[field.FieldId] = field.Required ?? false;
         }

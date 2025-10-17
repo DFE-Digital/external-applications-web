@@ -17,11 +17,16 @@ namespace DfE.ExternalApplications.Infrastructure.Services
     {
         private readonly ILogger<FormValidationOrchestrator> _logger;
         private readonly IConditionalLogicEngine _conditionalLogicEngine;
+        private readonly IFieldRequirementService _fieldRequirementService;
 
-        public FormValidationOrchestrator(ILogger<FormValidationOrchestrator> logger, IConditionalLogicEngine conditionalLogicEngine)
+        public FormValidationOrchestrator(
+            ILogger<FormValidationOrchestrator> logger, 
+            IConditionalLogicEngine conditionalLogicEngine,
+            IFieldRequirementService fieldRequirementService)
         {
             _logger = logger;
             _conditionalLogicEngine = conditionalLogicEngine;
+            _fieldRequirementService = fieldRequirementService;
         }
 
         /// <summary>
@@ -30,8 +35,9 @@ namespace DfE.ExternalApplications.Infrastructure.Services
         /// <param name="page">The page to validate</param>
         /// <param name="data">The form data</param>
         /// <param name="modelState">The model state to add errors to</param>
+        /// <param name="template">Optional template for field requirement policy</param>
         /// <returns>True if validation passes</returns>
-        public bool ValidatePage(Page page, Dictionary<string, object> data, ModelStateDictionary modelState)
+        public bool ValidatePage(Page page, Dictionary<string, object> data, ModelStateDictionary modelState, FormTemplate? template = null)
         {
             if (page?.Fields == null)
             {
@@ -45,7 +51,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                 data.TryGetValue(key, out var rawValue);
                 var value = rawValue?.ToString() ?? string.Empty;
 
-                if (!ValidateField(field, value, data, modelState, key))
+                if (!ValidateField(field, value, data, modelState, key, template))
                 {
                     isValid = false;
                 }
@@ -60,8 +66,9 @@ namespace DfE.ExternalApplications.Infrastructure.Services
         /// <param name="task">The task to validate</param>
         /// <param name="data">The form data</param>
         /// <param name="modelState">The model state to add errors to</param>
+        /// <param name="template">Optional template for field requirement policy</param>
         /// <returns>True if validation passes</returns>
-        public bool ValidateTask(Task task, Dictionary<string, object> data, ModelStateDictionary modelState)
+        public bool ValidateTask(Task task, Dictionary<string, object> data, ModelStateDictionary modelState, FormTemplate? template = null)
         {
             if (task?.Pages == null)
             {
@@ -71,7 +78,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             var isValid = true;
             foreach (var page in task.Pages)
             {
-                if (!ValidatePage(page, data, modelState))
+                if (!ValidatePage(page, data, modelState, template))
                 {
                     isValid = false;
                 }
@@ -119,8 +126,8 @@ namespace DfE.ExternalApplications.Infrastructure.Services
         /// <returns>True if validation passes</returns>
         public bool ValidateField(Field field, object value, ModelStateDictionary modelState, string fieldKey)
         {
-            // Call the overloaded method with null data for backward compatibility
-            return ValidateField(field, value, null, modelState, fieldKey);
+            // Call the overloaded method with null data and template for backward compatibility
+            return ValidateField(field, value, null, modelState, fieldKey, null);
         }
 
         /// <summary>
@@ -134,8 +141,34 @@ namespace DfE.ExternalApplications.Infrastructure.Services
         /// <returns>True if validation passes</returns>
         public bool ValidateField(Field field, object value, Dictionary<string, object>? formData, ModelStateDictionary modelState, string fieldKey)
         {
+            return ValidateField(field, value, formData, modelState, fieldKey, null);
+        }
+
+        /// <summary>
+        /// Validates a single field with full form data context, conditional validation, and template-based requirement policy
+        /// </summary>
+        /// <param name="field">The field to validate</param>
+        /// <param name="value">The field value</param>
+        /// <param name="formData">The complete form data for conditional evaluation</param>
+        /// <param name="modelState">The model state to add errors to</param>
+        /// <param name="fieldKey">The field key for model state</param>
+        /// <param name="template">The template containing the default field requirement policy</param>
+        /// <returns>True if validation passes</returns>
+        public bool ValidateField(Field field, object value, Dictionary<string, object>? formData, ModelStateDictionary modelState, string fieldKey, FormTemplate? template)
+        {
             var stringValue = value?.ToString() ?? string.Empty;
             var isValid = true;
+
+            // Check if field is required based on template policy (before explicit validation rules)
+            if (template != null && _fieldRequirementService.IsFieldRequired(field, template))
+            {
+                if (string.IsNullOrWhiteSpace(stringValue))
+                {
+                    var fieldLabel = field.Label?.Value ?? field.FieldId;
+                    modelState.AddModelError(fieldKey, $"{fieldLabel} is required");
+                    isValid = false;
+                }
+            }
 
             // Special handling for complex fields (upload, autocomplete, etc.)
             if (field.Type == "complexField" && field.ComplexField != null)

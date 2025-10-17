@@ -13,8 +13,9 @@ namespace DfE.ExternalApplications.Application.Interfaces
         /// <param name="page">The page to validate</param>
         /// <param name="data">The form data</param>
         /// <param name="modelState">The model state to add errors to</param>
+        /// <param name="template">Optional template for field requirement policy</param>
         /// <returns>True if validation passes</returns>
-        bool ValidatePage(Domain.Models.Page page, Dictionary<string, object> data, ModelStateDictionary modelState);
+        bool ValidatePage(Domain.Models.Page page, Dictionary<string, object> data, ModelStateDictionary modelState, Domain.Models.FormTemplate? template = null);
         
         /// <summary>
         /// Validates a single task
@@ -22,8 +23,9 @@ namespace DfE.ExternalApplications.Application.Interfaces
         /// <param name="task">The task to validate</param>
         /// <param name="data">The form data</param>
         /// <param name="modelState">The model state to add errors to</param>
+        /// <param name="template">Optional template for field requirement policy</param>
         /// <returns>True if validation passes</returns>
-        bool ValidateTask(Domain.Models.Task task, Dictionary<string, object> data, ModelStateDictionary modelState);
+        bool ValidateTask(Domain.Models.Task task, Dictionary<string, object> data, ModelStateDictionary modelState, Domain.Models.FormTemplate? template = null);
         
         /// <summary>
         /// Validates the entire application
