@@ -105,7 +105,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         /// <returns>True if validation passes</returns>
         protected bool ValidateCurrentPage(Domain.Models.Page page, Dictionary<string, object> data)
         {
-            return _formValidationOrchestrator.ValidatePage(page, data, ModelState);
+            return _formValidationOrchestrator.ValidatePage(page, data, ModelState, Template);
         }
 
         /// <summary>
@@ -116,7 +116,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         /// <returns>True if validation passes</returns>
         protected bool ValidateCurrentTask(Domain.Models.Task task, Dictionary<string, object> data)
         {
-            return _formValidationOrchestrator.ValidateTask(task, data, ModelState);
+            return _formValidationOrchestrator.ValidateTask(task, data, ModelState, Template);
         }
 
         /// <summary>

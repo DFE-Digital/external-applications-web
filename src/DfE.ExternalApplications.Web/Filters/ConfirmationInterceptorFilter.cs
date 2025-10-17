@@ -170,8 +170,23 @@ namespace DfE.ExternalApplications.Web.Filters
                 return;
             }
 
-            _logger.LogInformation("[Pages] Intercepting form submission for confirmation - Handler: {Handler}, DisplayFields: {DisplayFields}",
+            _logger.LogInformation("[Pages] Found confirmation button - Handler: {Handler}, DisplayFields: {DisplayFields}. Executing handler first for validation.",
                 confirmationInfo.Handler, string.Join(",", confirmationInfo.DisplayFields));
+            
+            // Execute the page handler first to allow validation to run
+            var executedContext = await next();
+            
+            // After handler execution, check if ModelState is valid
+            // If validation failed, the handler will have returned Page() with errors, so don't intercept
+            if (executedContext.ModelState != null && !executedContext.ModelState.IsValid)
+            {
+                _logger.LogInformation("[Pages] ModelState is invalid after handler execution. Skipping confirmation interception to show validation errors.");
+                return;
+            }
+            
+            // If validation passed, intercept the result and redirect to confirmation instead
+            _logger.LogInformation("[Pages] Validation passed. Intercepting result ({ResultType}) for confirmation - Handler: {Handler}",
+                executedContext.Result?.GetType().Name ?? "null", confirmationInfo.Handler);
 
             var (title2, message2) = ReadCustomMeta(form, confirmationInfo.Handler);
 
@@ -214,14 +229,13 @@ namespace DfE.ExternalApplications.Web.Filters
             try
             {
                 var token = _confirmationService.CreateConfirmation(confirmationRequest);
-                context.Result = new RedirectToPageResult("/Confirmation/Index", new { token });
+                executedContext.Result = new RedirectToPageResult("/Confirmation/Index", new { token });
                 _logger.LogInformation("[Pages] Redirecting to confirmation page with token {Token}", token);
-                return;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "[Pages] Failed to create confirmation for handler {Handler}", confirmationInfo.Handler);
-                await next();
+                // If confirmation creation fails, let the original handler result proceed
             }
         }
 
