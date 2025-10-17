@@ -39,12 +39,8 @@ namespace DfE.ExternalApplications.Infrastructure.Services
         /// <returns>True if validation passes</returns>
         public bool ValidatePage(Page page, Dictionary<string, object> data, ModelStateDictionary modelState, FormTemplate? template = null)
         {
-            _logger.LogInformation("VALIDATION: ValidatePage called for page '{PageId}' with {FieldCount} fields. Template: {HasTemplate}", 
-                page?.PageId ?? "N/A", page?.Fields?.Count ?? 0, template != null);
-            
             if (page?.Fields == null)
             {
-                _logger.LogInformation("VALIDATION: Page or Fields is null, returning true");
                 return true;
             }
 
@@ -55,20 +51,12 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                 data.TryGetValue(key, out var rawValue);
                 var value = rawValue?.ToString() ?? string.Empty;
 
-                _logger.LogInformation("VALIDATION: Processing field '{FieldId}' with value: '{Value}'", key, value);
                 if (!ValidateField(field, value, data, modelState, key, template))
                 {
-                    _logger.LogWarning("VALIDATION: Field '{FieldId}' validation FAILED", key);
                     isValid = false;
-                }
-                else
-                {
-                    _logger.LogInformation("VALIDATION: Field '{FieldId}' validation PASSED", key);
                 }
             }
 
-            _logger.LogInformation("VALIDATION: ValidatePage result for page '{PageId}': {IsValid}. ModelState.IsValid: {ModelStateValid}", 
-                page.PageId, isValid, modelState.IsValid);
             return isValid;
         }
 
@@ -171,40 +159,22 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             var stringValue = value?.ToString() ?? string.Empty;
             var isValid = true;
 
-            _logger.LogInformation("VALIDATION: Validating field '{FieldId}' (Type: {FieldType}, ComplexField: {ComplexFieldId})", 
-                field.FieldId, field.Type, field.ComplexField?.Id ?? "N/A");
-            _logger.LogInformation("VALIDATION: Field value: '{Value}' (IsEmpty: {IsEmpty})", 
-                stringValue, string.IsNullOrWhiteSpace(stringValue));
-            _logger.LogInformation("VALIDATION: Template provided: {HasTemplate}, DefaultPolicy: {Policy}", 
-                template != null, template?.DefaultFieldRequirementPolicy ?? "N/A");
-
             // Check if field is required based on template policy (before explicit validation rules)
             if (template != null && _fieldRequirementService.IsFieldRequired(field, template))
             {
-                _logger.LogInformation("VALIDATION: Field '{FieldId}' is REQUIRED based on template/field config", field.FieldId);
                 if (string.IsNullOrWhiteSpace(stringValue))
                 {
                     var fieldLabel = field.Label?.Value ?? field.FieldId;
-                    var errorMsg = $"{fieldLabel} is required";
-                    modelState.AddModelError(fieldKey, errorMsg);
-                    _logger.LogWarning("VALIDATION: Added ModelState error for '{FieldId}': {ErrorMsg}", field.FieldId, errorMsg);
+                    modelState.AddModelError(fieldKey, $"{fieldLabel} is required");
                     isValid = false;
                 }
-            }
-            else
-            {
-                _logger.LogInformation("VALIDATION: Field '{FieldId}' is NOT required (skipping empty check)", field.FieldId);
             }
 
             // Special handling for complex fields (upload, autocomplete, etc.)
             if (field.Type == "complexField" && field.ComplexField != null)
             {
-                _logger.LogInformation("VALIDATION: Field '{FieldId}' is complex field, calling ValidateComplexField. Current isValid: {IsValid}", 
-                    field.FieldId, isValid);
                 // Combine template-based required validation with complex field validation
                 var complexFieldValid = ValidateComplexField(field, value, formData, modelState, fieldKey);
-                _logger.LogInformation("VALIDATION: ValidateComplexField returned: {ComplexValid}, Combined result: {FinalValid}", 
-                    complexFieldValid, isValid && complexFieldValid);
                 return isValid && complexFieldValid;
             }
 

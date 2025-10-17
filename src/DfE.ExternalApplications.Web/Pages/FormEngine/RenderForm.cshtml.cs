@@ -765,28 +765,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
             if (CurrentPage != null)
             {
-                _logger.LogInformation("VALIDATION: Calling ValidateCurrentPage for page '{PageId}' with {DataCount} data items. Template: {HasTemplate}", 
-                    CurrentPage.PageId, Data?.Count ?? 0, Template != null);
-                _logger.LogInformation("VALIDATION: Data keys: {Keys}", Data != null ? string.Join(", ", Data.Keys) : "N/A");
                 ValidateCurrentPage(CurrentPage, Data);
-                _logger.LogInformation("VALIDATION: After ValidateCurrentPage - ModelState.IsValid: {IsValid}, ErrorCount: {ErrorCount}", 
-                    ModelState.IsValid, ModelState.ErrorCount);
-                if (!ModelState.IsValid)
-                {
-                    foreach (var key in ModelState.Keys)
-                    {
-                        var errors = ModelState[key]?.Errors;
-                        if (errors != null && errors.Any())
-                        {
-                            _logger.LogWarning("VALIDATION: ModelState error for '{Key}': {Errors}", 
-                                key, string.Join("; ", errors.Select(e => e.ErrorMessage)));
-                        }
-                    }
-                }
-            }
-            else
-            {
-                _logger.LogWarning("VALIDATION: CurrentPage is NULL, skipping validation");
             }
 
             if (!ModelState.IsValid)
