@@ -8,16 +8,11 @@ namespace DfE.ExternalApplications.Infrastructure.Services;
 /// <summary>
 /// Service to determine if a field is required based on template policy and field configuration
 /// </summary>
-public class FieldRequirementService : IFieldRequirementService
+public class FieldRequirementService(ILogger<FieldRequirementService> logger) : IFieldRequirementService
 {
-    private readonly ILogger<FieldRequirementService> _logger;
+    private readonly ILogger<FieldRequirementService> _logger = logger;
     private const string PolicyRequired = "required";
     private const string PolicyOptional = "optional";
-
-    public FieldRequirementService(ILogger<FieldRequirementService> logger)
-    {
-        _logger = logger;
-    }
 
     /// <summary>
     /// Determines if a field is required based on the template's default policy,
@@ -45,12 +40,6 @@ public class FieldRequirementService : IFieldRequirementService
 
         // Priority 3: Use template's default policy
         var defaultPolicy = template.DefaultFieldRequirementPolicy;
-        
-        if (string.IsNullOrWhiteSpace(defaultPolicy))
-        {
-            // Backward compatibility: if no policy is set, default to optional
-            return false;
-        }
 
         return string.Equals(defaultPolicy, PolicyRequired, StringComparison.OrdinalIgnoreCase);
     }
