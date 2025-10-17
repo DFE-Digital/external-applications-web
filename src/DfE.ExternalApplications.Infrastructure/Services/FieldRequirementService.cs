@@ -65,7 +65,7 @@ public class FieldRequirementService : IFieldRequirementService
     /// <summary>
     /// Gets all required fields for a task
     /// </summary>
-    public List<string> GetRequiredFieldsForTask(Task task, FormTemplate template)
+    public List<string> GetRequiredFieldsForTask(Task task, FormTemplate template, Func<string, bool>? isFieldHidden = null)
     {
         var requiredFields = new List<string>();
 
@@ -80,6 +80,18 @@ public class FieldRequirementService : IFieldRequirementService
 
             foreach (var field in page.Fields)
             {
+                // Check if field is hidden by conditional logic
+                var isHidden = isFieldHidden != null && isFieldHidden(field.FieldId);
+                
+                _logger.LogInformation("Field {FieldId}: IsHidden = {IsHidden}", field.FieldId, isHidden);
+                
+                // Skip fields that are hidden by conditional logic
+                if (isHidden)
+                {
+                    _logger.LogDebug("Field {FieldId} is hidden by conditional logic, skipping requirement check", field.FieldId);
+                    continue;
+                }
+                
                 var isRequired = IsFieldRequired(field, template);
                 _logger.LogInformation("Field {FieldId}: IsRequired = {IsRequired}, Field.Required = {FieldRequired}, HasValidationRules = {HasRules}", 
                     field.FieldId, isRequired, field.Required?.ToString() ?? "null", field.Validations?.Any() ?? false);
@@ -99,14 +111,14 @@ public class FieldRequirementService : IFieldRequirementService
     /// <summary>
     /// Validates that all required fields in a task have values
     /// </summary>
-    public List<string> GetMissingRequiredFields(Task task, FormTemplate template, Dictionary<string, object> formData)
+    public List<string> GetMissingRequiredFields(Task task, FormTemplate template, Dictionary<string, object> formData, Func<string, bool>? isFieldHidden = null)
     {
         var missingFields = new List<string>();
         
         _logger.LogInformation("GetMissingRequiredFields called for task {TaskId}. Template policy: {Policy}", 
             task.TaskId, template?.DefaultFieldRequirementPolicy ?? "null");
         
-        var requiredFields = GetRequiredFieldsForTask(task, template);
+        var requiredFields = GetRequiredFieldsForTask(task, template, isFieldHidden);
         
         _logger.LogInformation("Found {Count} required fields in task {TaskId}", requiredFields.Count, task.TaskId);
 

@@ -22,8 +22,9 @@ public interface IFieldRequirementService
     /// </summary>
     /// <param name="task">The task to check</param>
     /// <param name="template">The form template containing the default policy</param>
+    /// <param name="isFieldHidden">Optional predicate to check if a field is hidden by conditional logic</param>
     /// <returns>List of required field IDs</returns>
-    List<string> GetRequiredFieldsForTask(DomainTask task, FormTemplate template);
+    List<string> GetRequiredFieldsForTask(DomainTask task, FormTemplate template, Func<string, bool>? isFieldHidden = null);
 
     /// <summary>
     /// Validates that all required fields in a task have values
@@ -31,6 +32,7 @@ public interface IFieldRequirementService
     /// <param name="task">The task to validate</param>
     /// <param name="template">The form template</param>
     /// <param name="formData">The form data</param>
+    /// <param name="isFieldHidden">Optional predicate to check if a field is hidden by conditional logic</param>
     /// <returns>List of field IDs that are required but missing values</returns>
-    List<string> GetMissingRequiredFields(DomainTask task, FormTemplate template, Dictionary<string, object> formData);
+    List<string> GetMissingRequiredFields(DomainTask task, FormTemplate template, Dictionary<string, object> formData, Func<string, bool>? isFieldHidden = null);
 }

@@ -324,6 +324,43 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 CurrentPage = null;
             }
 
+            // Log FormData BEFORE applying conditional logic to debug
+            _logger.LogInformation("FormData BEFORE ApplyConditionalLogicAsync: reasonAndBenefitsTrustAcademiesTrustsWorkedTogether = {Value}",
+                FormData.TryGetValue("reasonAndBenefitsTrustAcademiesTrustsWorkedTogether", out var val) ? val?.ToString() : "NOT FOUND");
+            
+            // Task summary POST does not submit form field data, so Data is empty.
+            // We need to apply conditional logic using FormData (session data) for accurate validation.
+            // Create a custom conditional logic evaluation using FormData instead of Data.
+            try
+            {
+                if (Template?.ConditionalLogic != null && Template.ConditionalLogic.Any())
+                {
+                    var context = new ConditionalLogicContext
+                    {
+                        CurrentPageId = CurrentPageId,
+                        CurrentTaskId = TaskId,
+                        IsClientSide = false,
+                        Trigger = "task_summary_validation"
+                    };
+
+                    // CRITICAL FIX: Use FormData (session data) instead of Data (empty on task summary POST)
+                    ConditionalState = await _conditionalLogicOrchestrator.ApplyConditionalLogicAsync(Template, FormData, context);
+                    
+                    _logger.LogInformation("Applied conditional logic for task summary using FormData");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error applying conditional logic in task summary validation");
+                // Continue with empty conditional state - better than failing
+                ConditionalState = new FormConditionalState();
+            }
+            
+            // Log conditional state for debugging
+            _logger.LogInformation("ConditionalState after ApplyConditionalLogicAsync: Fields={FieldCount}, HiddenFields={HiddenFields}", 
+                ConditionalState?.FieldVisibility?.Count ?? 0,
+                string.Join(", ", ConditionalState?.FieldVisibility?.Where(kv => !kv.Value).Select(kv => kv.Key) ?? new List<string>()));
+
             // Handle task completion checkbox state
             if (CurrentTask != null && ApplicationId.HasValue)
             {
@@ -333,7 +370,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     _logger.LogInformation("Checking required fields for task {TaskId}. Template policy: {Policy}", 
                         CurrentTask.TaskId, Template.DefaultFieldRequirementPolicy ?? "null");
                     
-                    var missingFields = _fieldRequirementService.GetMissingRequiredFields(CurrentTask, Template, FormData);
+                    // Pass IsFieldHidden to exclude fields hidden by conditional logic
+                    var missingFields = _fieldRequirementService.GetMissingRequiredFields(CurrentTask, Template, FormData, IsFieldHidden);
                     
                     _logger.LogInformation("Found {Count} missing required fields for task {TaskId}", 
                         missingFields.Count, CurrentTask.TaskId);
@@ -363,6 +401,57 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         ModelState.AddModelError(string.Empty, errorMessage);
                         
                         IsTaskCompleted = false; // Reset the checkbox state
+                        
+                        // CRITICAL: Set CurrentFormState so the view knows to render the task summary
+                        CurrentFormState = FormState.TaskSummary;
+                        
+                        // Log the conditional state for the specific field for debugging
+                        if (ConditionalState?.FieldVisibility != null)
+                        {
+                            var targetFieldId = "reasonAndBenefitsTrustHowHaveAcademiesTrustsWorkedTogether";
+                            var targetPageId = "reason-and-benefits-trust-how-have-academies-trusts-worked-together";
+                            
+                            if (ConditionalState.FieldVisibility.TryGetValue(targetFieldId, out var isVisible))
+                            {
+                                _logger.LogInformation("Field {FieldId} visibility in ConditionalState: {IsVisible}", targetFieldId, isVisible);
+                            }
+                            else
+                            {
+                                _logger.LogWarning("Field {FieldId} NOT FOUND in ConditionalState.FieldVisibility", targetFieldId);
+                            }
+                            
+                            // Log page visibility
+                            if (ConditionalState.PageVisibility != null && ConditionalState.PageVisibility.TryGetValue(targetPageId, out var isPageVisible))
+                            {
+                                _logger.LogInformation("Page {PageId} visibility in ConditionalState: {IsVisible}", targetPageId, isPageVisible);
+                            }
+                            else
+                            {
+                                _logger.LogWarning("Page {PageId} NOT FOUND in ConditionalState.PageVisibility", targetPageId);
+                            }
+                            
+                            // Log all pages and their fields for debugging
+                            _logger.LogInformation("CurrentTask pages count: {PageCount}", CurrentTask?.Pages?.Count ?? 0);
+                            if (CurrentTask?.Pages != null)
+                            {
+                                foreach (var page in CurrentTask.Pages.OrderBy(p => p.PageOrder))
+                                {
+                                    var isPageHidden = IsPageHidden(page.PageId);
+                                    _logger.LogInformation("Page {PageId}: IsHidden={IsHidden}, Fields={FieldCount}", 
+                                        page.PageId, isPageHidden, page.Fields?.Count ?? 0);
+                                    
+                                    if (page.Fields != null && !isPageHidden)
+                                    {
+                                        foreach (var field in page.Fields.OrderBy(f => f.Order))
+                                        {
+                                            var isFieldHidden = IsFieldHidden(field.FieldId);
+                                            _logger.LogInformation("  Field {FieldId} on page {PageId}: IsHidden={IsHidden}", 
+                                                field.FieldId, page.PageId, isFieldHidden);
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         
                         // DON'T save ModelState errors to FormErrorStore - they should only appear once
                         // on this immediate response, not persist to next GET request
@@ -2142,34 +2231,34 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         /// <returns>True if the field should be hidden</returns>
         public bool IsFieldHidden(string fieldId)
         {
-
-            
             if (ConditionalState == null)
             {
-
                 // If no conditional state but field has conditional logic rules, hide it by default
                 if (Template?.ConditionalLogic != null && HasFieldConditionalLogic(fieldId))
                 {
-
+                    _logger.LogDebug("IsFieldHidden({FieldId}): No ConditionalState, field has conditional logic -> returning TRUE (hidden)", fieldId);
                     return true;
                 }
+                _logger.LogDebug("IsFieldHidden({FieldId}): No ConditionalState, no conditional logic -> returning FALSE (visible)", fieldId);
                 return false;
             }
 
             if (ConditionalState.FieldVisibility.TryGetValue(fieldId, out var isVisible))
             {
-
-                return !isVisible;
+                var isHidden = !isVisible;
+                _logger.LogDebug("IsFieldHidden({FieldId}): Found in ConditionalState.FieldVisibility, isVisible={IsVisible} -> returning {IsHidden}", 
+                    fieldId, isVisible, isHidden ? "TRUE (hidden)" : "FALSE (visible)");
+                return isHidden;
             }
             
             // Check if field has conditional logic rules - if so, hide by default until conditions are met
             if (Template?.ConditionalLogic != null && HasFieldConditionalLogic(fieldId))
             {
-
+                _logger.LogDebug("IsFieldHidden({FieldId}): Not in ConditionalState but has conditional logic -> returning TRUE (hidden)", fieldId);
                 return true;
             }
             
-
+            _logger.LogDebug("IsFieldHidden({FieldId}): Not in ConditionalState, no conditional logic -> returning FALSE (visible)", fieldId);
             return false;
         }
 
