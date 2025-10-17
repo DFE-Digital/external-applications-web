@@ -32,7 +32,6 @@ public class FieldRequirementService : IFieldRequirementService
             {
                 if (string.Equals(validation.Type, "required", StringComparison.OrdinalIgnoreCase))
                 {
-                    _logger.LogDebug("Field {FieldId} is required due to validation rule", field.FieldId);
                     return true;
                 }
             }
@@ -41,7 +40,6 @@ public class FieldRequirementService : IFieldRequirementService
         // Priority 2: Check field's Required property
         if (field.Required.HasValue)
         {
-            _logger.LogDebug("Field {FieldId} required status explicitly set to {Required}", field.FieldId, field.Required.Value);
             return field.Required.Value;
         }
 
@@ -51,15 +49,10 @@ public class FieldRequirementService : IFieldRequirementService
         if (string.IsNullOrWhiteSpace(defaultPolicy))
         {
             // Backward compatibility: if no policy is set, default to optional
-            _logger.LogDebug("Field {FieldId} using default 'optional' policy (no template policy set)", field.FieldId);
             return false;
         }
 
-        var isRequiredByPolicy = string.Equals(defaultPolicy, PolicyRequired, StringComparison.OrdinalIgnoreCase);
-        _logger.LogDebug("Field {FieldId} required status based on template policy '{Policy}': {Required}", 
-            field.FieldId, defaultPolicy, isRequiredByPolicy);
-        
-        return isRequiredByPolicy;
+        return string.Equals(defaultPolicy, PolicyRequired, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -83,18 +76,13 @@ public class FieldRequirementService : IFieldRequirementService
                 // Check if field is hidden by conditional logic
                 var isHidden = isFieldHidden != null && isFieldHidden(field.FieldId);
                 
-                _logger.LogInformation("Field {FieldId}: IsHidden = {IsHidden}", field.FieldId, isHidden);
-                
                 // Skip fields that are hidden by conditional logic
                 if (isHidden)
                 {
-                    _logger.LogDebug("Field {FieldId} is hidden by conditional logic, skipping requirement check", field.FieldId);
                     continue;
                 }
                 
                 var isRequired = IsFieldRequired(field, template);
-                _logger.LogInformation("Field {FieldId}: IsRequired = {IsRequired}, Field.Required = {FieldRequired}, HasValidationRules = {HasRules}", 
-                    field.FieldId, isRequired, field.Required?.ToString() ?? "null", field.Validations?.Any() ?? false);
                 
                 if (isRequired)
                 {
@@ -103,8 +91,6 @@ public class FieldRequirementService : IFieldRequirementService
             }
         }
 
-        _logger.LogInformation("Task {TaskId} has {Count} required fields: {Fields}", 
-            task.TaskId, requiredFields.Count, string.Join(", ", requiredFields));
         return requiredFields;
     }
 
@@ -115,28 +101,15 @@ public class FieldRequirementService : IFieldRequirementService
     {
         var missingFields = new List<string>();
         
-        _logger.LogInformation("GetMissingRequiredFields called for task {TaskId}. Template policy: {Policy}", 
-            task.TaskId, template?.DefaultFieldRequirementPolicy ?? "null");
-        
         var requiredFields = GetRequiredFieldsForTask(task, template, isFieldHidden);
-        
-        _logger.LogInformation("Found {Count} required fields in task {TaskId}", requiredFields.Count, task.TaskId);
 
         foreach (var fieldId in requiredFields)
         {
             if (!formData.TryGetValue(fieldId, out var value) || IsFieldValueEmpty(value))
             {
                 missingFields.Add(fieldId);
-                _logger.LogInformation("Required field {FieldId} is missing or empty", fieldId);
-            }
-            else
-            {
-                _logger.LogDebug("Required field {FieldId} has value: {Value}", fieldId, value);
             }
         }
-
-        _logger.LogInformation("Task {TaskId} has {MissingCount} out of {TotalRequired} required fields missing", 
-            task.TaskId, missingFields.Count, requiredFields.Count);
         
         return missingFields;
     }
