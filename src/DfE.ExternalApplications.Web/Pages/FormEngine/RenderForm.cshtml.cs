@@ -360,31 +360,49 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             {
                 if (IsTaskCompleted)
                 {
-                    // Validate that all required fields are filled before allowing completion
-                    // Pass IsFieldHidden to exclude fields hidden by conditional logic
                     var missingFields = _fieldRequirementService.GetMissingRequiredFields(CurrentTask, Template, FormData, IsFieldHidden);
-                    
+                    var errorLines = new List<string>();
+
                     if (missingFields.Any())
                     {
-                        // Cannot complete task - required fields are missing
-                        // Clear ModelState to avoid persisting these errors to subsequent GET requests
-                        ModelState.Clear();
-                        
-                        // Build a list of missing field labels for the error message
-                        var missingFieldLabels = new List<string>();
                         foreach (var fieldId in missingFields)
                         {
                             var field = GetFieldFromTask(CurrentTask, fieldId);
-                            if (field != null)
-                            {
-                                var fieldLabel = field.Label?.Value ?? fieldId;
-                                missingFieldLabels.Add(fieldLabel);
-                            }
+                            var fieldLabel = field?.Label?.Value ?? fieldId;
+                            errorLines.Add($"• {fieldLabel}");
                         }
-                        
+                    }
+
+                    // Additional validation for multi-collection flow tasks
+                    if (CurrentTask.Summary?.Mode?.Equals("multiCollectionFlow", StringComparison.OrdinalIgnoreCase) == true &&
+                        CurrentTask.Summary.Flows != null && CurrentTask.Summary.Flows.Any())
+                    {
+                        foreach (var flow in CurrentTask.Summary.Flows)
+                        {
+                            var items = ReadCollectionItemsFromFormData(flow.FieldId);
+                            var itemCount = items.Count;
+
+                            var requiredMin = flow.MinItems ?? 1; // default to at least one item
+                            if (itemCount < requiredMin)
+                            {
+                                var flowTitle = string.IsNullOrWhiteSpace(flow.Title)
+                                    ? (string.IsNullOrWhiteSpace(CurrentTask?.TaskName) ? "this section" : CurrentTask!.TaskName)
+                                    : flow.Title;
+                                errorLines.Add($"• Add at least {requiredMin} item(s) to {flowTitle}");
+                                _logger.LogInformation("Collection flow '{FlowId}' requires at least {MinItems} items but has {Count}", flow.FlowId, requiredMin, itemCount);
+                            }
+
+                        }
+                    }
+
+                    if (errorLines.Any())
+                    {
+                        // Cannot complete task - required fields are missing
+                        ModelState.Clear();
+
                         // Create error message with bullet points
                         var errorMessage = "You cannot mark this section as complete because some required questions have not been answered:\n" +
-                                         string.Join("\n", missingFieldLabels.Select(label => $"• {label}"));
+                                         string.Join("\n", errorLines);
                         
                         ModelState.AddModelError(string.Empty, errorMessage);
                         
@@ -1689,6 +1707,32 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 }
             }
             return false;
+        }
+
+        /// <summary>
+        /// Reads a collection field value from FormData and parses it to a list of item dictionaries.
+        /// Returns an empty list when missing or invalid.
+        /// </summary>
+        private List<Dictionary<string, object>> ReadCollectionItemsFromFormData(string fieldId)
+        {
+            if (!FormData.TryGetValue(fieldId, out var value) || value == null)
+            {
+                return new List<Dictionary<string, object>>();
+            }
+            var s = value.ToString();
+            if (string.IsNullOrWhiteSpace(s) || !s!.TrimStart().StartsWith("["))
+            {
+                return new List<Dictionary<string, object>>();
+            }
+            try
+            {
+                var parsed = JsonSerializer.Deserialize<List<Dictionary<string, object>>>(s);
+                return parsed ?? new List<Dictionary<string, object>>();
+            }
+            catch
+            {
+                return new List<Dictionary<string, object>>();
+            }
         }
 
         /// <summary>
