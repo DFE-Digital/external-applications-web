@@ -26,6 +26,22 @@
 
 <div class="govuk-grid-row">
     <div class="govuk-grid-column-two-thirds">
+        <!-- Display validation errors if any -->
+        @if (!ViewData.ModelState.IsValid)
+        {
+            <govuk-error-summary>
+                @foreach (var error in ViewData.ModelState.Where(m => m.Value.Errors.Any()))
+                {
+                    @foreach (var errorMsg in error.Value.Errors)
+                    {
+                        <govuk-error-summary-item>
+                            @errorMsg.ErrorMessage
+                        </govuk-error-summary-item>
+                    }
+                }
+            </govuk-error-summary>
+        }
+        
         <!-- Custom page title and description -->
         <h1 class="govuk-heading-l">@(summary?.Title ?? task?.TaskName)</h1>
         

@@ -1389,12 +1389,67 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 }
                 if (_formStateManager.ShouldShowDerivedCollectionFlowSummary(CurrentTask))
                 {
-                    // If the derived summary form included the completion checkbox, update status
                     var completedValue = Request.Form["IsTaskCompleted"].ToString();
                     var isCompleted = !string.IsNullOrEmpty(completedValue) &&
                         (string.Equals(completedValue, "true", StringComparison.OrdinalIgnoreCase) ||
                          string.Equals(completedValue, "on", StringComparison.OrdinalIgnoreCase));
                     
+                    if (isCompleted)
+                    {
+                        var derivedFlows = CurrentTask?.Summary?.DerivedFlows;
+                        var errorLines = new List<string>();
+                        
+                        if (derivedFlows != null && derivedFlows.Any())
+                        {
+                            foreach (var derivedFlow in derivedFlows)
+                            {
+                                var derivedItems = _derivedCollectionFlowService.GenerateItemsFromSourceField(
+                                    derivedFlow.SourceFieldId, FormData, derivedFlow);
+                                
+                                if (!derivedItems.Any())
+                                {
+                                    errorLines.Add($"You need to add at least one item before signing the {derivedFlow.Title}");
+                                    continue;
+                                }
+                                
+                                var statuses = _derivedCollectionFlowService.GetItemStatuses(derivedFlow.FieldId, FormData);
+                                
+                                var unsignedItems = derivedItems
+                                    .Where(item => !statuses.ContainsKey(item.Id) || statuses[item.Id] != "Signed")
+                                    .ToList();
+                                
+                                if (unsignedItems.Any())
+                                {
+                                    foreach (var item in unsignedItems)
+                                    {
+                                        var displayName = GetDerivedItemDisplayName(derivedFlow, item.Id);
+                                        errorLines.Add($"• {derivedFlow.Title} for {displayName}");
+                                    }
+                                }
+                            }
+                        }
+                        
+                        if (errorLines.Any())
+                        {
+                            ModelState.Clear();
+                            // Add header message
+                            ModelState.AddModelError("", "You cannot mark this section as complete:");
+                            // Add each error as a separate ModelState entry so they render as bullet points
+                            foreach (var errorLine in errorLines)
+                            {
+                                ModelState.AddModelError("", errorLine);
+                            }
+                            IsTaskCompleted = false;
+                            
+                            // CRITICAL: Ensure CurrentFormState is set correctly for the view to render properly
+                            CurrentFormState = FormState.DerivedCollectionFlowSummary;
+                            
+                            // CRITICAL: Load FormData from session so the view can render the derived flow sections
+                            LoadFormDataFromSession();
+                            
+                            return Page();
+                        }
+                    }
 
                     if (ApplicationId.HasValue)
                     {
@@ -1411,7 +1466,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                             }
                             else
                             {
-                                // Unchecked: compute InProgress if any data exists for this task, else NotStarted
                                 var hasAnyData = _applicationStateService.CalculateTaskStatus(CurrentTask.TaskId, Template, FormData, ApplicationId, HttpContext.Session, ApplicationStatus)
                                     != Domain.Models.TaskStatus.NotStarted;
                                 var newStatus = hasAnyData ? Domain.Models.TaskStatus.InProgress : Domain.Models.TaskStatus.NotStarted;
