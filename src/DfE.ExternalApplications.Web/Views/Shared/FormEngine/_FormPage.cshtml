@@ -38,18 +38,35 @@
 
             <govuk-error-summary>
                 @{
-                    var ModelStateWithFieldProps = from m in ViewData.ModelState
-                                                   join f in Model.CurrentPage.Fields on m.Key.ToString() equals f.FieldId
-                                                   where !Model.IsFieldHidden(f.FieldId)
-                                                   select new { m, f };
-                }
-                @foreach (var s in ModelStateWithFieldProps.OrderBy(s => s.f.Order))
-                {
-                    foreach (var e in s.m.Value.Errors)
+                    var validationErrors = ViewData["ValidationErrors"] as Dictionary<string, List<string>>;
+                    var hasViewDataErrors = validationErrors != null && validationErrors.Any();
+                    var hasModelStateErrors = ViewData.ModelState.Any(m => m.Value.Errors.Any());
+                    
+                    IEnumerable<dynamic> errorsToDisplay;
+                    
+                    if (!hasModelStateErrors && hasViewDataErrors)
                     {
-                        var href = $"#Data_{s.m.Key.ToString()}";
+                        errorsToDisplay = from kvp in validationErrors
+                                         join f in Model.CurrentPage.Fields on kvp.Key equals f.FieldId
+                                         where !Model.IsFieldHidden(f.FieldId)
+                                         select new { Key = kvp.Key, Field = f, Errors = kvp.Value };
+                    }
+                    else
+                    {
+                        var ModelStateWithFieldProps = from m in ViewData.ModelState
+                                                       join f in Model.CurrentPage.Fields on m.Key.ToString() equals f.FieldId
+                                                       where !Model.IsFieldHidden(f.FieldId)
+                                                       select new { Key = m.Key, Field = f, Errors = m.Value.Errors.Select(e => e.ErrorMessage).ToList() };
+                        errorsToDisplay = ModelStateWithFieldProps;
+                    }
+                }
+                @foreach (var s in errorsToDisplay.OrderBy(s => s.Field.Order))
+                {
+                    foreach (var errorMsg in s.Errors)
+                    {
+                        var href = $"#Data_{s.Key}";
                         <govuk-error-summary-item href="@href">
-                            @e.ErrorMessage
+                            @errorMsg
                         </govuk-error-summary-item>
                     }
                 }

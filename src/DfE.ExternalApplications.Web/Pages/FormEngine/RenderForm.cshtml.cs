@@ -51,7 +51,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         private readonly IFieldRequirementService _fieldRequirementService = fieldRequirementService;
         private readonly INavigationHistoryService _navigationHistoryService = navigationHistoryService;
 
-        [BindProperty] public Dictionary<string, object> Data { get; set; } = new();
+        [BindProperty(SupportsGet = false)] public Dictionary<string, object> Data { get; set; } = new();
 
         public string BackLinkUrl => GetBackLinkUrl();
 
@@ -131,8 +131,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 }
                 else
                 {
-                    // Restore any saved validation errors from previous POST
-                    RestoreFormErrors();
                     // Detect sub-flow route segments inside pageId via route value parsing if needed in future
                     // If application is not editable and trying to access a specific page, redirect to preview
                     if (!IsApplicationEditable() && !string.IsNullOrEmpty(CurrentPageId))
@@ -253,19 +251,24 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 // Check if we need to clear session data for a new application
                 CheckAndClearSessionForNewApplication();
 
-            // Load accumulated form data from session to pre-populate fields (only if not in a sub-flow)
             if (string.IsNullOrEmpty(CurrentPageId) || !CurrentPageId.Contains("flow/"))
             {
                 await LoadAccumulatedDataFromSessionAsync();
-                // Apply conditional logic for regular pages too
-
-
                 await ApplyConditionalLogicAsync();
+                ModelState.Clear();
+                RestoreFormErrors();
+                
+                ViewData["ValidationErrors"] = ModelState.Where(m => m.Value.Errors.Any())
+                    .ToDictionary(m => m.Key, m => m.Value.Errors.Select(e => e.ErrorMessage).ToList());
             }
             else
             {
-                // For sub-flows, still apply conditional logic using the current Data
                 await ApplyConditionalLogicAsync();
+                ModelState.Clear();
+                RestoreFormErrors();
+                
+                ViewData["ValidationErrors"] = ModelState.Where(m => m.Value.Errors.Any())
+                    .ToDictionary(m => m.Key, m => m.Value.Errors.Select(e => e.ErrorMessage).ToList());
             }
 
                 // Initialize task completion status for summaries (standard or derived)
@@ -786,10 +789,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 }
             }
 
-            if (CurrentPage != null)
-            {
-                ValidateCurrentPage(CurrentPage, Data);
-            }
+			bool isDerivedFlowRoute = TryParseDerivedFlowRoute(CurrentPageId, out var _, out var _, out var _);
+			if (!isDerivedFlowRoute && CurrentPage != null)
+			{
+				ValidateCurrentPage(CurrentPage, Data);
+			}
 
             if (!ModelState.IsValid)
             {
@@ -811,18 +815,21 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     _logger.LogWarning(ex, "Failed to save flow progress on validation failure.");
                 }
 
-                // Save ModelState errors to session so they persist after redirect
                 var contextKey = GetFormErrorContextKey();
                 _formErrorStore.Save(contextKey, ModelState);
-                _logger.LogInformation("DEBUG: Saved ModelState errors to FormErrorStore with key: {ContextKey}", contextKey);
                 
-                // If we're inside a sub-flow, redirect back to the same URL to avoid state mis-binding
+                if (TryParseDerivedFlowRoute(CurrentPageId, out _, out _, out _))
+                {
+                    var selfUrl = $"/applications/{ReferenceNumber}/{TaskId}/{CurrentPageId}";
+                    return Redirect(selfUrl);
+                }
+
                 if (TryParseFlowRoute(CurrentPageId, out _, out _, out _))
                 {
                     var selfUrl = $"/applications/{ReferenceNumber}/{TaskId}/{CurrentPageId}";
-                    _logger.LogInformation("DEBUG: Redirecting to: {SelfUrl}", selfUrl);
                     return Redirect(selfUrl);
                 }
+                
                 return Page();
             }
 
@@ -1129,17 +1136,30 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     _logger.LogInformation("POST: CurrentPageId '{CurrentPageId}' is NOT a derived flow route", CurrentPageId);
                 }
                 
-                if (TryParseDerivedFlowRoute(CurrentPageId, out derivedFlowId, out derivedItemId, out derivedPageId))
+			if (TryParseDerivedFlowRoute(CurrentPageId, out derivedFlowId, out derivedItemId, out derivedPageId))
                 {
-                    
-                    
-                    // For derived flows, we need to ensure we're looking at the correct task
-                    // The CurrentTask might be wrong during POST, so let's get the task by TaskId
-                    var correctTask = Template?.TaskGroups?.SelectMany(g => g.Tasks)?.FirstOrDefault(t => t.TaskId == TaskId);
-                    _logger.LogInformation("DerivedFlow POST: Using task '{TaskId}' instead of CurrentTask '{CurrentTaskId}'", 
-                        TaskId, CurrentTask?.TaskId);
-                    
-                    var derivedConfig = GetDerivedFlowConfiguration(correctTask, derivedFlowId);
+				var correctTask = Template?.TaskGroups?.SelectMany(g => g.Tasks)?.FirstOrDefault(t => t.TaskId == TaskId);
+				var derivedConfig = GetDerivedFlowConfiguration(correctTask, derivedFlowId);
+				if (derivedConfig != null)
+				{
+					var currentDerivedPage = string.IsNullOrEmpty(derivedPageId)
+						? derivedConfig.Pages?.FirstOrDefault()
+						: derivedConfig.Pages?.FirstOrDefault(p => p.PageId == derivedPageId);
+
+					if (currentDerivedPage != null)
+					{
+						ValidateCurrentPage(currentDerivedPage, Data);
+					}
+
+					if (!ModelState.IsValid)
+					{
+						var contextKey = GetFormErrorContextKey();
+						_formErrorStore.Save(contextKey, ModelState);
+						var selfUrl = $"/applications/{ReferenceNumber}/{TaskId}/{CurrentPageId}";
+						return Redirect(selfUrl);
+					}
+				}
+
                     if (derivedConfig != null)
                     {
                     
