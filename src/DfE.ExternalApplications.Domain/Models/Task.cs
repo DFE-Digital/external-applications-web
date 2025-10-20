@@ -97,6 +97,8 @@ public class DerivedCollectionFlowConfiguration
     [JsonPropertyName("signedMessage")] public string? SignedMessage { get; set; }
     [JsonPropertyName("statusField")] public string StatusField { get; set; } = "status";
     [JsonPropertyName("emptyStateMessage")] public string? EmptyStateMessage { get; set; }
+    [JsonPropertyName("noItemsErrorMessage")] public string? NoItemsErrorMessage { get; set; }
+    [JsonPropertyName("unsignedItemErrorMessage")] public string? UnsignedItemErrorMessage { get; set; }
     [JsonPropertyName("pages")] public List<Page> Pages { get; set; } = new();
 }
 

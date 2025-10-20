@@ -1408,7 +1408,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                 
                                 if (!derivedItems.Any())
                                 {
-                                    errorLines.Add($"You need to add at least one item before signing the {derivedFlow.Title}");
+                                    // Use template-defined error message or fallback to default
+                                    var errorMessage = !string.IsNullOrEmpty(derivedFlow.NoItemsErrorMessage)
+                                        ? derivedFlow.NoItemsErrorMessage
+                                        : $"You need to add at least one item before signing the {derivedFlow.Title}";
+                                    errorLines.Add(errorMessage);
                                     continue;
                                 }
                                 
@@ -1423,7 +1427,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                     foreach (var item in unsignedItems)
                                     {
                                         var displayName = GetDerivedItemDisplayName(derivedFlow, item.Id);
-                                        errorLines.Add($"• {derivedFlow.Title} for {displayName}");
+                                        // Use template-defined error message or fallback to default
+                                        var errorMessage = !string.IsNullOrEmpty(derivedFlow.UnsignedItemErrorMessage)
+                                            ? derivedFlow.UnsignedItemErrorMessage.Replace("{sourceName}", displayName)
+                                            : $"You need to sign the declaration for {displayName}";
+                                        errorLines.Add(errorMessage);
                                     }
                                 }
                             }
