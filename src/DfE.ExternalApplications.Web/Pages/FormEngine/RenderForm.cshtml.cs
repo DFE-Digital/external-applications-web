@@ -1442,6 +1442,17 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 return BadRequest("Field ID and Item ID are required");
             }
 
+            bool isConfirmed = Request.Query.ContainsKey("confirmed") && Request.Query["confirmed"] == "true";
+            
+            if (!isConfirmed)
+            {
+                _logger.LogInformation("RemoveCollectionItem handler executing for validation - item will not be removed yet");
+                
+                return Redirect(_formNavigationService.GetCollectionFlowSummaryUrl(TaskId, ReferenceNumber));
+            }
+            
+            _logger.LogInformation("RemoveCollectionItem handler executing confirmed removal for item {ItemId} from field {FieldId}", itemId, fieldId);
+
             // Get current collection from session first
             var accumulatedData = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
             
@@ -2724,7 +2735,9 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         public async Task<IActionResult> OnPostDeleteFileAsync()
         {
-
+            // Clear any validation errors from previous POST requests
+            // Without this, ModelState errors prevent confirmation from showing
+            ModelState.Clear();
             
             // Simple fix: Ensure Template is not null to prevent NullReferenceException
             if (Template == null)
@@ -2739,19 +2752,10 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
             }
             
-            // CRITICAL: Setup notification request for delete operations
-            var fieldId = Request.Form["FieldId"].ToString();
-            var addRequest = new AddNotificationRequest
-            {
-                Message = string.Empty, // set later when known
-                Category = "file-upload",
-                Context = fieldId + "FileDeletion",
-                Type = NotificationType.Success
-            };
-            
             var applicationId = Request.Form["ApplicationId"].ToString();
             var returnUrl = Request.Form["ReturnUrl"].ToString();
             var fileIdStr = Request.Form["FileId"].ToString();
+            var fieldId = Request.Form["FieldId"].ToString();
             
             if (!Guid.TryParse(applicationId, out var appId))
                 return NotFound();
@@ -2768,6 +2772,25 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 
                 return Page();
             }
+
+            bool isConfirmed = Request.Query.ContainsKey("confirmed") && Request.Query["confirmed"] == "true";
+            
+            if (!isConfirmed)
+            {
+                _logger.LogInformation("DeleteFile handler executing for validation - file will not be deleted yet");
+                
+                return Redirect(returnUrl);
+            }
+            
+            _logger.LogInformation("DeleteFile handler executing confirmed deletion for file {FileId}", fileId);
+            
+            var addRequest = new AddNotificationRequest
+            {
+                Message = string.Empty, // set later when known
+                Category = "file-upload",
+                Context = fieldId + "FileDeletion",
+                Type = NotificationType.Success
+            };
 
             await fileUploadService.DeleteFileAsync(fileId, appId);
 
