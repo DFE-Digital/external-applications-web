@@ -717,6 +717,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     }
                 }
             }
+            
             await ApplyConditionalLogicAsync("change");
 
             // Compose collected date parts into a single ISO date string so summaries recognise an answer
@@ -2006,6 +2007,22 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         }
                     }
 
+                    var dataForConditionalLogic = new Dictionary<string, object>(Data);
+                    
+                    // Only merge when in POST/change trigger (not during initial GET/load)
+                    if (trigger == "change")
+                    {
+                        var accumulatedData = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
+                        foreach (var kvp in accumulatedData)
+                        {
+                            // Only add if not already in dataForConditionalLogic (current page data takes priority)
+                            if (!dataForConditionalLogic.ContainsKey(kvp.Key))
+                            {
+                                dataForConditionalLogic[kvp.Key] = kvp.Value;
+                            }
+                        }
+                    }
+
                     var context = new ConditionalLogicContext
                     {
                         CurrentPageId = CurrentPageId,
@@ -2014,7 +2031,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         Trigger = trigger
                     };
 
-                    ConditionalState = await _conditionalLogicOrchestrator.ApplyConditionalLogicAsync(Template, Data, context);
+                    ConditionalState = await _conditionalLogicOrchestrator.ApplyConditionalLogicAsync(Template, dataForConditionalLogic, context);
                     
                     
                     
