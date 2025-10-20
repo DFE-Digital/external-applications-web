@@ -159,7 +159,15 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             var stringValue = value?.ToString() ?? string.Empty;
             var isValid = true;
 
+            // Special handling for complex fields (upload, autocomplete, etc.)
+            if (field.Type == "complexField" && field.ComplexField != null)
+            {
+                // Pass template to complex field validation so it can check global required policy
+                return ValidateComplexField(field, value, formData, modelState, fieldKey, template);
+            }
+
             // Check if field is required based on template policy (before explicit validation rules)
+            // This check is for standard fields only - complex fields are handled above
             if (template != null && _fieldRequirementService.IsFieldRequired(field, template))
             {
                 if (string.IsNullOrWhiteSpace(stringValue))
@@ -168,14 +176,6 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                     modelState.AddModelError(fieldKey, $"{fieldLabel} is required");
                     isValid = false;
                 }
-            }
-
-            // Special handling for complex fields (upload, autocomplete, etc.)
-            if (field.Type == "complexField" && field.ComplexField != null)
-            {
-                // Combine template-based required validation with complex field validation
-                var complexFieldValid = ValidateComplexField(field, value, formData, modelState, fieldKey);
-                return isValid && complexFieldValid;
             }
 
             // Automatic date validation even when no explicit rules are provided
@@ -288,19 +288,51 @@ namespace DfE.ExternalApplications.Infrastructure.Services
         /// <param name="formData">The complete form data for conditional evaluation</param>
         /// <param name="modelState">The model state to add errors to</param>
         /// <param name="fieldKey">The field key for model state</param>
+        /// <param name="template">The template containing the default field requirement policy</param>
         /// <returns>True if validation passes</returns>
-        private bool ValidateComplexField(Field field, object? value, Dictionary<string, object>? formData, ModelStateDictionary modelState, string fieldKey)
+        private bool ValidateComplexField(Field field, object? value, Dictionary<string, object>? formData, ModelStateDictionary modelState, string fieldKey, FormTemplate? template = null)
         {
-            if (field.Validations == null)
-            {
-                return true;
-            }
-
             var stringValue = value?.ToString() ?? string.Empty;
             var isValid = true;
             
             // Determine if this is an upload field
             bool isUploadField = field.ComplexField!.Id.Contains("Upload", StringComparison.OrdinalIgnoreCase);
+
+            // Check if field is required based on template policy (when no explicit validation rules exist)
+            // This ensures upload fields respect the global required policy
+            if (template != null && (field.Validations == null || field.Validations.Count == 0))
+            {
+                if (_fieldRequirementService.IsFieldRequired(field, template))
+                {
+                    if (isUploadField)
+                    {
+                        // For upload fields, check if files are uploaded
+                        bool hasFiles = HasUploadedFiles(stringValue);
+                        if (!hasFiles)
+                        {
+                            var fieldLabel = field.Label?.Value ?? field.FieldId;
+                            modelState.AddModelError(fieldKey, $"{fieldLabel} is required");
+                            isValid = false;
+                        }
+                    }
+                    else
+                    {
+                        // For other complex fields (autocomplete), check if value is empty
+                        if (string.IsNullOrWhiteSpace(stringValue))
+                        {
+                            var fieldLabel = field.Label?.Value ?? field.FieldId;
+                            modelState.AddModelError(fieldKey, $"{fieldLabel} is required");
+                            isValid = false;
+                        }
+                    }
+                }
+            }
+
+            // If no explicit validation rules, we're done (global policy check above is sufficient)
+            if (field.Validations == null)
+            {
+                return isValid;
+            }
 
             foreach (var rule in field.Validations)
             {

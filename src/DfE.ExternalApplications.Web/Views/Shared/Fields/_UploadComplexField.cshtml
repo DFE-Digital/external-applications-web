@@ -232,8 +232,12 @@
         }
         else
         {
-            <!-- For regular forms, redirect to summary -->
-            <a href="@continueUrl" role="button" draggable="false" class="govuk-button" data-module="govuk-button">@continueButtonText</a>
+            <!-- For regular forms, submit form to trigger validation and navigation -->
+            <form method="post" asp-page="/FormEngine/RenderForm" asp-route-referenceNumber="@referenceNumber" asp-route-taskId="@taskId" asp-route-pageId="@actualPageId" asp-page-handler="Page">
+                <!-- Don't include large JSON data - rely on session storage instead -->
+                <input type="hidden" name="Data[@fieldId]" value="UPLOAD_FIELD_SESSION_DATA" />
+                <button type="submit" class="govuk-button" data-module="govuk-button">@continueButtonText</button>
+            </form>
         }
     </div>
 </div>

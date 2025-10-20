@@ -717,6 +717,28 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     }
                 }
             }
+            else
+            {
+                // For regular (non-collection) forms, also replace upload placeholders with session data
+                var accumulatedData = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
+                foreach (var key in Data.Keys.ToList())
+                {
+                    if (Data[key]?.ToString() == "UPLOAD_FIELD_SESSION_DATA")
+                    {
+                        // Replace with actual data from session
+                        if (accumulatedData.TryGetValue(key, out var sessionValue))
+                        {
+                            Data[key] = sessionValue;
+                            _logger.LogInformation("Replaced upload placeholder for field {FieldId} with session data", key);
+                        }
+                        else
+                        {
+                            // No session data means no files uploaded yet - keep placeholder so validation can detect it
+                            _logger.LogInformation("No session data found for upload field {FieldId} - validation will detect empty field", key);
+                        }
+                    }
+                }
+            }
             
             await ApplyConditionalLogicAsync("change");
 
@@ -2546,7 +2568,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             var existingFileIds = Request.Form["ExistingFileIds"].ToArray();
 
             
-            // === EXACT REPLICA OF ORIGINAL ERROR HANDLING ===
             if (file == null || file.Length == 0)
             {
 
@@ -2562,11 +2583,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
 
                 
-                // CRITICAL: Save errors to FormErrorStore like original implementation
-                // Note: API errors will be handled by ExternalApiExceptionFilter with FormErrorStore
 
                 
-                // Load existing files (CRITICAL - exactly like original)
 
                 Files = await GetFilesForFieldAsync(appId, fieldId);
 
@@ -2585,7 +2603,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 return Page();
             }
             
-            // Continue with successful upload - let filter handle API errors
 
 
 
@@ -2642,6 +2659,17 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 
                 UpdateSessionFileList(appId, fieldId, currentFieldFiles);
                 await SaveUploadedFilesToResponseAsync(appId, fieldId, currentFieldFiles);
+                
+                // 1. Field-level key (used by the view partial)
+                _formErrorStore.Clear(fieldId);
+                // 2. Page-level context key (used by validation in OnPostPageAsync) - use same method to ensure exact match
+                var pageContextKey = GetFormErrorContextKey();
+                _formErrorStore.Clear(pageContextKey);
+                // 3. Clear any errors already loaded into ModelState for this field
+                ModelState.Remove(fieldId);
+                ModelState.Remove($"Data[{fieldId}]");
+                _logger.LogInformation("Cleared FormErrorStore (fieldKey: {FieldId}, contextKey: {PageContext}) and ModelState after successful upload", 
+                    fieldId, pageContextKey);
                 
                 // Set success message
                 SuccessMessage = $"Your file '{file.FileName}' uploaded.";
