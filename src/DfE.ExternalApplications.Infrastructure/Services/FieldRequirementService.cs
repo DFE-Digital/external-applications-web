@@ -111,7 +111,30 @@ public class FieldRequirementService(ILogger<FieldRequirementService> logger) : 
         if (value == null) return true;
         
         var stringValue = value.ToString();
-        return string.IsNullOrWhiteSpace(stringValue);
+        if (string.IsNullOrWhiteSpace(stringValue)) return true;
+        
+        // Special handling for upload fields - check if it's an empty JSON array or has no files
+        if (stringValue.TrimStart().StartsWith("["))
+        {
+            try
+            {
+                // Try to parse as JSON array to check if it's empty or has no valid files
+                var jsonDoc = System.Text.Json.JsonDocument.Parse(stringValue);
+                if (jsonDoc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array)
+                {
+                    var arrayLength = jsonDoc.RootElement.GetArrayLength();
+                    // Empty array means no files uploaded
+                    return arrayLength == 0;
+                }
+            }
+            catch
+            {
+                // If parsing fails, treat as non-empty string value
+                return false;
+            }
+        }
+        
+        return false;
     }
 }
 
