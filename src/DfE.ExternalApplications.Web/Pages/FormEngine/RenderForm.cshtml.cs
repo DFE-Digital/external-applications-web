@@ -1428,6 +1428,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         {
             await CommonFormEngineInitializationAsync();
             
+            ModelState.Clear();
+            
             if (!string.IsNullOrEmpty(TaskId))
             {
                 var (group, task) = InitializeCurrentTask(TaskId);
