@@ -168,7 +168,11 @@ namespace DfE.ExternalApplications.Infrastructure.Services
 
             // Check if field is required based on template policy (before explicit validation rules)
             // This check is for standard fields only - complex fields are handled above
-            if (template != null && _fieldRequirementService.IsFieldRequired(field, template))
+            // Skip this check if there's an explicit required validation rule (to avoid duplicate errors)
+            bool hasExplicitRequiredRule = field.Validations?.Any(v => 
+                string.Equals(v.Type, "required", StringComparison.OrdinalIgnoreCase)) ?? false;
+            
+            if (template != null && !hasExplicitRequiredRule && _fieldRequirementService.IsFieldRequired(field, template))
             {
                 if (string.IsNullOrWhiteSpace(stringValue))
                 {
@@ -300,30 +304,31 @@ namespace DfE.ExternalApplications.Infrastructure.Services
 
             // Check if field is required based on template policy (when no explicit validation rules exist)
             // This ensures upload fields respect the global required policy
-            if (template != null && (field.Validations == null || field.Validations.Count == 0))
+            // Skip this check if there's an explicit required validation rule (to avoid duplicate errors)
+            bool hasExplicitRequiredRule = field.Validations?.Any(v => 
+                string.Equals(v.Type, "required", StringComparison.OrdinalIgnoreCase)) ?? false;
+            
+            if (template != null && !hasExplicitRequiredRule && _fieldRequirementService.IsFieldRequired(field, template))
             {
-                if (_fieldRequirementService.IsFieldRequired(field, template))
+                if (isUploadField)
                 {
-                    if (isUploadField)
+                    // For upload fields, check if files are uploaded
+                    bool hasFiles = HasUploadedFiles(stringValue);
+                    if (!hasFiles)
                     {
-                        // For upload fields, check if files are uploaded
-                        bool hasFiles = HasUploadedFiles(stringValue);
-                        if (!hasFiles)
-                        {
-                            var fieldLabel = field.Label?.Value ?? field.FieldId;
-                            modelState.AddModelError(fieldKey, $"{fieldLabel} is required");
-                            isValid = false;
-                        }
+                        var fieldLabel = field.Label?.Value ?? field.FieldId;
+                        modelState.AddModelError(fieldKey, $"{fieldLabel} is required");
+                        isValid = false;
                     }
-                    else
+                }
+                else
+                {
+                    // For other complex fields (autocomplete), check if value is empty
+                    if (string.IsNullOrWhiteSpace(stringValue))
                     {
-                        // For other complex fields (autocomplete), check if value is empty
-                        if (string.IsNullOrWhiteSpace(stringValue))
-                        {
-                            var fieldLabel = field.Label?.Value ?? field.FieldId;
-                            modelState.AddModelError(fieldKey, $"{fieldLabel} is required");
-                            isValid = false;
-                        }
+                        var fieldLabel = field.Label?.Value ?? field.FieldId;
+                        modelState.AddModelError(fieldKey, $"{fieldLabel} is required");
+                        isValid = false;
                     }
                 }
             }
@@ -430,6 +435,27 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             }
 
             return isValid;
+        }
+
+        /// <summary>
+        /// Gets the custom error message from a field's required validation rule, if it exists
+        /// </summary>
+        /// <param name="field">The field to check</param>
+        /// <returns>Custom error message or null</returns>
+        private static string? GetCustomRequiredMessage(Field field)
+        {
+            if (field.Validations != null)
+            {
+                foreach (var validation in field.Validations)
+                {
+                    if (string.Equals(validation.Type, "required", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return validation.Message;
+                    }
+                }
+            }
+            
+            return null;
         }
 
         /// <summary>

@@ -363,16 +363,15 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             {
                 if (IsTaskCompleted)
                 {
-                    var missingFields = _fieldRequirementService.GetMissingRequiredFields(CurrentTask, Template, FormData, IsFieldHidden);
+                    // Use new method that returns custom error messages
+                    var missingFieldsWithMessages = _fieldRequirementService.GetMissingRequiredFieldsWithMessages(CurrentTask, Template, FormData, IsFieldHidden);
                     var errorLines = new List<string>();
 
-                    if (missingFields.Any())
+                    if (missingFieldsWithMessages.Any())
                     {
-                        foreach (var fieldId in missingFields)
+                        foreach (var errorMessage in missingFieldsWithMessages.Values)
                         {
-                            var field = GetFieldFromTask(CurrentTask, fieldId);
-                            var fieldLabel = field?.Label?.Value ?? fieldId;
-                            errorLines.Add($"• {fieldLabel}");
+                            errorLines.Add(errorMessage);
                         }
                     }
 

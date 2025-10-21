@@ -104,6 +104,81 @@ public class FieldRequirementService(ILogger<FieldRequirementService> logger) : 
     }
 
     /// <summary>
+    /// Validates that all required fields in a task have values and returns custom error messages
+    /// </summary>
+    public Dictionary<string, string> GetMissingRequiredFieldsWithMessages(Task task, FormTemplate template, Dictionary<string, object> formData, Func<string, bool>? isFieldHidden = null)
+    {
+        var missingFieldsWithMessages = new Dictionary<string, string>();
+        
+        if (task?.Pages == null)
+        {
+            return missingFieldsWithMessages;
+        }
+
+        foreach (var page in task.Pages)
+        {
+            if (page?.Fields == null) continue;
+
+            foreach (var field in page.Fields)
+            {
+                // Check if field is hidden by conditional logic
+                var isHidden = isFieldHidden != null && isFieldHidden(field.FieldId);
+                
+                // Skip fields that are hidden by conditional logic
+                if (isHidden)
+                {
+                    continue;
+                }
+                
+                var isRequired = IsFieldRequired(field, template);
+                
+                if (isRequired)
+                {
+                    // Check if field has a value
+                    if (!formData.TryGetValue(field.FieldId, out var value) || IsFieldValueEmpty(value))
+                    {
+                        // Get custom error message from validation rule if it exists
+                        var customMessage = GetCustomRequiredMessage(field);
+                        
+                        if (!string.IsNullOrEmpty(customMessage))
+                        {
+                            // Use custom message from validation rule
+                            missingFieldsWithMessages[field.FieldId] = customMessage;
+                        }
+                        else
+                        {
+                            // Use default format: field label
+                            var fieldLabel = field.Label?.Value ?? field.FieldId;
+                            missingFieldsWithMessages[field.FieldId] = $"• {fieldLabel}";
+                        }
+                    }
+                }
+            }
+        }
+
+        return missingFieldsWithMessages;
+    }
+
+    /// <summary>
+    /// Gets the custom error message from a field's required validation rule, if it exists
+    /// </summary>
+    private static string? GetCustomRequiredMessage(Field field)
+    {
+        if (field.Validations != null)
+        {
+            foreach (var validation in field.Validations)
+            {
+                if (string.Equals(validation.Type, "required", StringComparison.OrdinalIgnoreCase))
+                {
+                    return validation.Message;
+                }
+            }
+        }
+        
+        return null;
+    }
+
+    /// <summary>
     /// Checks if a field value is considered empty
     /// </summary>
     private static bool IsFieldValueEmpty(object? value)
