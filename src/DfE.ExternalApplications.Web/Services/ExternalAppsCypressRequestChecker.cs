@@ -20,6 +20,7 @@ public class ExternalAppsCypressRequestChecker(
     private const string CypressHeaderKey = "x-cypress-test";
     private const string CypressSecretHeaderKey = "x-cypress-secret";
     private const string ExpectedCypressValue = "true";
+    private const string CacheKey = "__CypressRequestChecked";
 
     /// <summary>
     /// Validates if the current HTTP request is a valid Cypress test request
@@ -28,30 +29,66 @@ public class ExternalAppsCypressRequestChecker(
     /// <returns>True if this is a valid Cypress request with correct headers and secret</returns>
     public bool IsValidRequest(HttpContext httpContext)
     {
+        // Cache the result per request to prevent infinite recursion
+        // If logging triggers any operation that requires authentication, it could call this method again
+        if (httpContext.Items.TryGetValue(CacheKey, out var cachedResult))
+        {
+            return (bool)cachedResult!;
+        }
+        
+        var result = ValidateRequestInternal(httpContext);
+        httpContext.Items[CacheKey] = result;
+        return result;
+    }
+    
+    private bool ValidateRequestInternal(HttpContext httpContext)
+    {
         var path = httpContext.Request.Path;
         var ipAddress = httpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
         
         // Check for Cypress header
         var cypressHeader = httpContext.Request.Headers[CypressHeaderKey].ToString();
-        logger.LogDebug(
-            "Checking Cypress header '{HeaderKey}' for path {Path}. Value: '{Value}' (expected: '{Expected}')",
-            CypressHeaderKey, path, cypressHeader, ExpectedCypressValue);
+        
+        try
+        {
+            logger.LogDebug(
+                "Checking Cypress header '{HeaderKey}' for path {Path}. Value: '{Value}' (expected: '{Expected}')",
+                CypressHeaderKey, path, cypressHeader, ExpectedCypressValue);
+        }
+        catch
+        {
+            // Silently ignore logging errors to prevent recursion
+        }
             
         if (!string.Equals(cypressHeader, ExpectedCypressValue, StringComparison.OrdinalIgnoreCase))
         {
-            logger.LogDebug(
-                "Cypress header check failed for {Path} from {IP}. Header '{HeaderKey}' = '{Value}'",
-                path, ipAddress, CypressHeaderKey, cypressHeader);
+            try
+            {
+                logger.LogDebug(
+                    "Cypress header check failed for {Path} from {IP}. Header '{HeaderKey}' = '{Value}'",
+                    path, ipAddress, CypressHeaderKey, cypressHeader);
+            }
+            catch
+            {
+                // Silently ignore logging errors to prevent recursion
+            }
             return false;
         }
 
         // Only allow in Development, Staging or Test environments (NOT Production)
         if (!(env.IsDevelopment() || env.IsStaging() || env.IsEnvironment("Test")))
         {
-            logger.LogWarning(
-                "Cypress authentication attempted in {Environment} environment from {IP} - rejected",
-                env.EnvironmentName,
-                httpContext.Connection.RemoteIpAddress);
+            try
+            {
+                logger.LogWarning(
+                    "Cypress authentication attempted in {Environment} environment from {IP} - rejected",
+                    env.EnvironmentName,
+                    httpContext.Connection.RemoteIpAddress);
+            }
+            catch
+            {
+                // Silently ignore logging errors to prevent recursion
+            }
             return false;
         }
 
@@ -59,9 +96,16 @@ public class ExternalAppsCypressRequestChecker(
         var allowCypressToggle = config.GetValue<bool>("CypressAuthentication:AllowToggle");
         if (!allowCypressToggle)
         {
-            logger.LogWarning(
-                "Cypress authentication attempted but AllowToggle is disabled from {IP}",
-                httpContext.Connection.RemoteIpAddress);
+            try
+            {
+                logger.LogWarning(
+                    "Cypress authentication attempted but AllowToggle is disabled from {IP}",
+                    httpContext.Connection.RemoteIpAddress);
+            }
+            catch
+            {
+                // Silently ignore logging errors to prevent recursion
+            }
             return false;
         }
 
@@ -71,9 +115,16 @@ public class ExternalAppsCypressRequestChecker(
 
         if (string.IsNullOrWhiteSpace(expectedSecret) || string.IsNullOrWhiteSpace(providedSecret))
         {
-            logger.LogWarning(
-                "Cypress authentication attempted with missing secret from {IP}",
-                httpContext.Connection.RemoteIpAddress);
+            try
+            {
+                logger.LogWarning(
+                    "Cypress authentication attempted with missing secret from {IP}",
+                    httpContext.Connection.RemoteIpAddress);
+            }
+            catch
+            {
+                // Silently ignore logging errors to prevent recursion
+            }
             return false;
         }
 
@@ -81,17 +132,31 @@ public class ExternalAppsCypressRequestChecker(
 
         if (isValid)
         {
-            logger.LogInformation(
-                "Valid Cypress test request detected from {IP} for path {Path}",
-                httpContext.Connection.RemoteIpAddress,
-                httpContext.Request.Path);
+            try
+            {
+                logger.LogInformation(
+                    "Valid Cypress test request detected from {IP} for path {Path}",
+                    httpContext.Connection.RemoteIpAddress,
+                    httpContext.Request.Path);
+            }
+            catch
+            {
+                // Silently ignore logging errors to prevent recursion
+            }
         }
         else
         {
-            logger.LogWarning(
-                "Invalid Cypress secret provided from {IP} for path {Path}",
-                httpContext.Connection.RemoteIpAddress,
-                httpContext.Request.Path);
+            try
+            {
+                logger.LogWarning(
+                    "Invalid Cypress secret provided from {IP} for path {Path}",
+                    httpContext.Connection.RemoteIpAddress,
+                    httpContext.Request.Path);
+            }
+            catch
+            {
+                // Silently ignore logging errors to prevent recursion
+            }
         }
 
         return isValid;
