@@ -115,7 +115,16 @@ builder.Services.Configure<Microsoft.AspNetCore.Mvc.MvcOptions>(options =>
     options.Filters.Add<DfE.ExternalApplications.Web.Filters.ConfirmationInterceptorFilter>();
 });
 builder.Services.AddDistributedMemoryCache();
-builder.Services.AddSession();
+
+// Configure session with timeout settings to prevent hanging/blocking
+builder.Services.AddSession(options =>
+{
+    options.IdleTimeout = TimeSpan.FromMinutes(30);
+    options.Cookie.HttpOnly = true;
+    options.Cookie.IsEssential = true;
+    options.IOTimeout = TimeSpan.FromSeconds(5); // Prevent indefinite blocking on session I/O
+});
+
 builder.Services.AddMemoryCache();
 
 builder.Services.AddResponseCompression(options =>
@@ -238,6 +247,19 @@ builder.Services.AddServiceCaching(configuration);
 
 builder.Services.AddSingleton<IFormTemplateParser, JsonFormTemplateParser>();
 builder.Services.AddScoped<IFormTemplateProvider, FormTemplateProvider>();
+
+// Add global exception handler to log crashes before app dies
+AppDomain.CurrentDomain.UnhandledException += (sender, args) =>
+{
+    var exception = args.ExceptionObject as Exception;
+    var loggerFactory = builder.Services.BuildServiceProvider().GetRequiredService<ILoggerFactory>();
+    var logger = loggerFactory.CreateLogger("UnhandledException");
+    logger.LogCritical(exception, 
+        "UNHANDLED EXCEPTION - App is crashing! IsTerminating: {IsTerminating}, Exception Type: {ExceptionType}, Memory: {MemoryMB} MB",
+        args.IsTerminating, 
+        exception?.GetType().FullName ?? "Unknown",
+        GC.GetTotalMemory(false) / 1024 / 1024);
+};
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

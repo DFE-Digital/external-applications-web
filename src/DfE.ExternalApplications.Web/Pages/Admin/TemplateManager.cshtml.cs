@@ -56,27 +56,42 @@ public class TemplateManagerModel : PageModel
 
     public async Task<IActionResult> OnGetAsync(bool showForm = false, bool success = false, bool cleared = false, string? suggestedVersion = null)
     {
-        ShowAddVersionForm = showForm;
-        ShowSuccess = success;
-        ShowCacheCleared = cleared;
-
-        var templateId = HttpContext.Session.GetString("TemplateId");
-        if (string.IsNullOrEmpty(templateId))
+        try
         {
-            _logger.LogWarning("TemplateId not found in session.");
-            return RedirectToPage("/Index");
-        }
+            _logger.LogInformation("TemplateManager GET started. Memory: {MemoryMB} MB", 
+                GC.GetTotalMemory(false) / 1024 / 1024);
+            
+            ShowAddVersionForm = showForm;
+            ShowSuccess = success;
+            ShowCacheCleared = cleared;
 
-        await LoadTemplateDataAsync(templateId);
-        
-        // If a suggested version is provided, use it to pre-populate the NewVersion field
-        if (!string.IsNullOrEmpty(suggestedVersion))
-        {
-            NewVersion = suggestedVersion;
-            _logger.LogInformation("Pre-populated NewVersion field with suggested version: {SuggestedVersion}", suggestedVersion);
+            var templateId = HttpContext.Session.GetString("TemplateId");
+            if (string.IsNullOrEmpty(templateId))
+            {
+                _logger.LogWarning("TemplateId not found in session.");
+                return RedirectToPage("/Index");
+            }
+
+            await LoadTemplateDataAsync(templateId);
+            
+            // If a suggested version is provided, use it to pre-populate the NewVersion field
+            if (!string.IsNullOrEmpty(suggestedVersion))
+            {
+                NewVersion = suggestedVersion;
+                _logger.LogInformation("Pre-populated NewVersion field with suggested version: {SuggestedVersion}", suggestedVersion);
+            }
+            
+            _logger.LogInformation("TemplateManager GET completed successfully. Memory: {MemoryMB} MB", 
+                GC.GetTotalMemory(false) / 1024 / 1024);
+            
+            return Page();
         }
-        
-        return Page();
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "CRITICAL ERROR in TemplateManager OnGetAsync. Memory: {MemoryMB} MB, Exception Type: {ExceptionType}", 
+                GC.GetTotalMemory(false) / 1024 / 1024, ex.GetType().FullName);
+            throw;
+        }
     }
 
     public async Task<IActionResult> OnPostAsync()
@@ -186,11 +201,11 @@ public class TemplateManagerModel : PageModel
     {
         try
         {
+            var templateId = HttpContext.Session.GetString("TemplateId");
+            
             // Clear all session data
             HttpContext.Session.Clear();
             
-            // Clear template cache
-            var templateId = HttpContext.Session.GetString("TemplateId");
             if (!string.IsNullOrEmpty(templateId))
             {
                 var cacheKey = $"FormTemplate_{CacheKeyHelper.GenerateHashedCacheKey(templateId)}";
@@ -200,8 +215,8 @@ public class TemplateManagerModel : PageModel
 
             _logger.LogInformation("Successfully cleared all sessions and caches from TemplateManager");
             
-            // Redirect back to template manager with success message
-            return RedirectToPage(new { success = true, cleared = true });
+            // Redirect back to Index since session is cleared (TemplateId is gone)
+            return RedirectToPage("/Index");
         }
         catch (Exception ex)
         {
