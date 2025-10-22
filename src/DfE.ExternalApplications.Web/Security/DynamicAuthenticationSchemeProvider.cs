@@ -24,11 +24,6 @@ public class DynamicAuthenticationSchemeProvider(
     IConfiguration configuration)
     : AuthenticationSchemeProvider(options)
 {
-    // Cache the authentication mode decision per request to prevent infinite recursion
-    // If GetDefaultForbidSchemeAsync is called during a forbid flow, and it tries to check IsCypressRequest,
-    // which might trigger another auth check, we get a stack overflow
-    private const string AuthModeCacheKey = "__AuthMode_Cached__";
-
     private bool IsTestAuthGloballyEnabled()
     {
         return testAuthOptions.Value.Enabled;
@@ -36,13 +31,29 @@ public class DynamicAuthenticationSchemeProvider(
 
     private bool IsCypressToggleAllowed()
     {
-        return configuration.GetValue<bool>("CypressAuthentication:AllowToggle");
+        // Only allow Cypress toggle if BOTH conditions are met:
+        // 1. Configuration setting is true
+        // 2. Running in GitHub Actions (GITHUB_ACTIONS environment variable is set)
+        var configAllowsToggle = configuration.GetValue<bool>("CypressAuthentication:AllowToggle");
+        if (!configAllowsToggle)
+        {
+            return false;
+        }
+
+        var isGitHubActions = Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true";
+        return isGitHubActions;
     }
 
-    /// <summary>
-    /// Determines if the current request should use Test authentication.
-    /// This is cached per request to prevent infinite recursion during authentication flows.
-    /// </summary>
+    private bool IsCypressRequest()
+    {
+        var httpContext = httpContextAccessor.HttpContext;
+        if (httpContext == null) return false;
+        if (!IsCypressToggleAllowed()) return false;
+        
+        var checker = httpContext.RequestServices.GetService<ICustomRequestChecker>();
+        return checker != null && checker.IsValidRequest(httpContext);
+    }
+
     private bool ShouldUseTestAuth()
     {
         // Always use test auth if globally enabled
@@ -51,38 +62,8 @@ public class DynamicAuthenticationSchemeProvider(
             return true;
         }
 
-        var httpContext = httpContextAccessor.HttpContext;
-        if (httpContext == null)
-        {
-            return false;
-        }
-
-        // Check cache first to prevent re-entry during authentication flow
-        if (httpContext.Items.TryGetValue(AuthModeCacheKey, out var cachedMode))
-        {
-            return (bool)cachedMode!;
-        }
-
-        // Determine if this is a Cypress request (only if toggle is allowed)
-        bool isCypressRequest = false;
-        if (IsCypressToggleAllowed())
-        {
-            try
-            {
-                var checker = httpContext.RequestServices.GetService<ICustomRequestChecker>();
-                isCypressRequest = checker != null && checker.IsValidRequest(httpContext);
-            }
-            catch
-            {
-                // If we can't check (e.g., during service resolution or auth flow), default to false
-                // This prevents cascading failures during authentication
-                isCypressRequest = false;
-            }
-        }
-
-        // Cache the result for this request
-        httpContext.Items[AuthModeCacheKey] = isCypressRequest;
-        return isCypressRequest;
+        // Check if this is a Cypress request (only in GitHub Actions)
+        return IsCypressRequest();
     }
 
     public override Task<AuthenticationScheme?> GetDefaultAuthenticateSchemeAsync()

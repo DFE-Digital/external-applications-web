@@ -43,6 +43,22 @@ public class ExternalAppsCypressRequestChecker(
     
     private bool ValidateRequestInternal(HttpContext httpContext)
     {
+        // Only enable Cypress auth in GitHub Actions environment
+        // This prevents the recursion issue from occurring in local/production environments
+        var isGitHubActions = Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true";
+        if (!isGitHubActions)
+        {
+            try
+            {
+                logger.LogDebug("Cypress authentication disabled: Not running in GitHub Actions");
+            }
+            catch
+            {
+                // Silently ignore logging errors to prevent recursion
+            }
+            return false;
+        }
+
         var path = httpContext.Request.Path;
         var ipAddress = httpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
         
