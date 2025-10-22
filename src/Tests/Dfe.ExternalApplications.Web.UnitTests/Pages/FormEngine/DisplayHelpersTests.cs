@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AutoFixture;
 using DfE.ExternalApplications.Web.Pages.FormEngine;
 
@@ -80,6 +81,82 @@ public class DisplayHelpersTests
         var result = DisplayHelpers.GenerateSuccessMessage(customMessage, operation, itemData, flowTitle);
         
         Assert.Equal(customMessage, result);
+    }
+
+    [Fact]
+    public void GenerateSuccessMessage_when_itemData_has_a_key_with_a_JsonElement_value_then_return_interpolated_message()
+    {
+        var customMessage = "{foo} was successful";
+        var operation = _fixture.Create<string>();
+        var flowTitle = _fixture.Create<string?>();
+        
+        var obj = new
+        {
+            bar = "bar"
+        };
+
+        var itemData = new Dictionary<string, object>()
+        {
+            { "foo", JsonSerializer.SerializeToElement(obj) }
+        };
+        
+        var result = DisplayHelpers.GenerateSuccessMessage(customMessage, operation, itemData, flowTitle);
+        
+        Assert.Equal("{\"bar\":\"bar\"} was successful", result);
+    }
+
+    [Fact]
+    public void GenerateSuccessMessage_when_itemData_has_a_key_with_a_JsonElement_value_then_subkeys_can_be_interpolated()
+    {
+        var customMessage = "{foo.bar.baz} was {foo.xyzzy}";
+        var operation = _fixture.Create<string>();
+        var flowTitle = _fixture.Create<string?>();
+        
+        var obj = new
+        {
+            bar = new
+            {
+                baz = "quux",
+                nope = "nope"
+            },
+            xyzzy = "bleeb",
+            nope = "nope"
+        };
+
+        var itemData = new Dictionary<string, object>()
+        {
+            { "foo", JsonSerializer.SerializeToElement(obj) }
+        };
+        
+        var result = DisplayHelpers.GenerateSuccessMessage(customMessage, operation, itemData, flowTitle);
+        
+        Assert.Equal("quux was bleeb", result);
+    }
+
+    [Fact]
+    public void GenerateSuccessMessage_when_itemData_has_a_key_with_a_JsonElement_value_then_missing_subkeys_are_not_interpolated()
+    {
+        var customMessage = "{foo.bar.baz} was {foo.xyzzy}";
+        var operation = _fixture.Create<string>();
+        var flowTitle = _fixture.Create<string?>();
+        
+        var obj = new
+        {
+            bar = new
+            {
+                nope = "nope"
+            },
+            nope = "nope"
+        };
+
+        var itemData = new Dictionary<string, object>()
+        {
+            { "foo", JsonSerializer.SerializeToElement(obj) }
+        };
+        
+        var result = DisplayHelpers.GenerateSuccessMessage(customMessage, operation, itemData, flowTitle);
+        
+        Assert.Equal("{foo.bar.baz} was {foo.xyzzy}", result);
     }
 
     [Theory]
@@ -203,6 +280,25 @@ public class DisplayHelpersTests
         {
             {"foo", "Bar"},
             {itemDataKey, itemDataValue},
+        };
+        
+        var result = DisplayHelpers.GenerateSuccessMessage(customMessage, operation, itemData, flowTitle);
+        
+        Assert.Equal(expected, result);
+    }
+    
+    [Theory]
+    [InlineData("Data[incomingTrustsSearch-field-flow]", "Someone", "Someone was successfully added to the thing")]
+    [InlineData("CurrentTask.TaskName", "Some Task", "Some Task was successfully added to the thing")]
+    public void GenerateSuccessMessage_can_handle_itemData_with_weird_keys_and_json_values(string itemDataKey, string itemDataValue, string expected)
+    {
+        var customMessage = $"{{{itemDataKey}}} was successfully added to the thing";
+        var operation = _fixture.Create<string>();
+        var flowTitle = _fixture.Create<string?>();
+        
+        var itemData = new Dictionary<string, object>
+        {
+            {itemDataKey, JsonSerializer.SerializeToElement(itemDataValue)}
         };
         
         var result = DisplayHelpers.GenerateSuccessMessage(customMessage, operation, itemData, flowTitle);

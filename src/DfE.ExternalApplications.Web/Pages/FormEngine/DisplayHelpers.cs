@@ -1,3 +1,6 @@
+using System.Text.Json;
+using System.Text.RegularExpressions;
+
 namespace DfE.ExternalApplications.Web.Pages.FormEngine;
 
 public static class DisplayHelpers
@@ -12,50 +15,12 @@ public static class DisplayHelpers
     /// <returns>Formatted success message</returns>
     public static string GenerateSuccessMessage(string? customMessage, string operation, Dictionary<string, object>? itemData, string? flowTitle)
     {
-        // If custom message is provided, use it with placeholder substitution
         if (!string.IsNullOrEmpty(customMessage))
         {
-            var message = customMessage;
-            
-            // Replace {flowTitle} placeholder
-            message = message.Replace("{flowTitle}", flowTitle ?? "collection");
-            
-            // Replace field-based placeholders like {firstName}, {gender}, etc.
-            if (itemData != null)
-            {
-                foreach (var kvp in itemData)
-                {
-                    var placeholder = $"{{{kvp.Key}}}";
-                    var value = kvp.Value?.ToString() ?? "";
-                    message = message.Replace(placeholder, value);
-                }
-            }
-            
-            return message;
+            return InterpolateCustomMessage(customMessage, itemData, flowTitle);
         }
 
-        // Fallback to default messages - try to use itemTitleBinding or first available field
-        string displayName = "Item";
-        if (itemData != null && itemData.Any())
-        {
-            // Try common name fields first, then fall back to any non-empty value
-            var nameFields = new[] { "firstName", "name", "title", "label" };
-            var nameField = nameFields.FirstOrDefault(field => itemData.ContainsKey(field) && !string.IsNullOrEmpty(itemData[field]?.ToString()));
-            
-            if (nameField != null)
-            {
-                displayName = itemData[nameField]?.ToString() ?? "Item";
-            }
-            else
-            {
-                // Use the first non-empty field value
-                var firstValue = itemData.Values.FirstOrDefault(v => !string.IsNullOrEmpty(v?.ToString()));
-                if (firstValue != null)
-                {
-                    displayName = firstValue.ToString() ?? "Item";
-                }
-            }
-        }
+        var displayName = GetDisplayNameFromItemData(itemData);
 
         var lowerFlowTitle = flowTitle?.ToLowerInvariant() ?? "collection";
 
@@ -66,5 +31,78 @@ public static class DisplayHelpers
             "delete" => $"{displayName} has been removed from {lowerFlowTitle}",
             _ => $"{displayName} has been processed"
         };
+    }
+
+    private static string InterpolateCustomMessage(string message, Dictionary<string, object>? itemData, string? flowTitle)
+    {
+        message = message.Replace("{flowTitle}", flowTitle ?? "collection");
+
+        if (itemData == null) return message;
+
+        foreach (var (key, value) in itemData)
+        {
+            message = value switch
+            {
+                JsonElement jsonElement => InterpolateJsonValue(message, key, jsonElement),
+                _ => InterpolateBasicValue(message, key, value)
+            };
+        }
+
+        return message;
+    }
+
+    private static string InterpolateJsonValue(string message, string key, JsonElement jsonElement)
+    {
+        // This regex matches interpolation expressions in the form of "{key.subkey}". It doesn't attempt to parse a
+        // valid JSON path from the subkey.
+        var matches = Regex.Matches(message, @$"\{{{Regex.Escape(key)}\.([^}}]+)}}");
+        
+        foreach (var subkey in matches.Select(c => c.Groups[1].Value))
+        {
+            var result = jsonElement.EvaluatePath(subkey);
+            
+            if (result is null) continue;
+            
+            var placeholder = $"{{{key}.{subkey}}}";
+            message = message.Replace(placeholder, result.Value.ToString());
+        }
+        
+        message = message.Replace($"{{{key}}}", jsonElement.ToString());
+
+        return message;
+    }
+
+    private static string InterpolateBasicValue(string message, string key, object value)
+    {
+        var placeholder = $"{{{key}}}";
+        var valueString = value.ToString() ?? "";
+        message = message.Replace(placeholder, valueString);
+        return message;
+    }
+
+    private static string GetDisplayNameFromItemData(Dictionary<string, object>? itemData)
+    {
+        var displayName = "Item";
+        if (itemData == null || itemData.Count == 0) return displayName;
+        
+        // Try common name fields first, then fall back to any non-empty value
+        var nameFields = new[] { "firstName", "name", "title", "label" };
+        var nameField = nameFields.FirstOrDefault(field => itemData.ContainsKey(field) && !string.IsNullOrEmpty(itemData[field].ToString()));
+            
+        if (nameField != null)
+        {
+            displayName = itemData[nameField].ToString() ?? "Item";
+        }
+        else
+        {
+            // Use the first non-empty field value
+            var firstValue = itemData.Values.FirstOrDefault(v => !string.IsNullOrEmpty(v.ToString()));
+            if (firstValue != null)
+            {
+                displayName = firstValue.ToString() ?? "Item";
+            }
+        }
+
+        return displayName;
     }
 }
