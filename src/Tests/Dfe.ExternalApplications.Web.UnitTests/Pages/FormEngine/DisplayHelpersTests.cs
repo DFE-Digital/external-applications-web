@@ -9,6 +9,105 @@ public class DisplayHelpersTests
     private readonly IFixture _fixture = new Fixture();
 
     [Fact]
+    public void ExpandEncodedJson_when_itemData_is_null_then_return_null()
+    {
+        Dictionary<string, object>? itemData = null;
+        
+        var result = DisplayHelpers.ExpandEncodedJson(itemData);
+        
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void ExpandEncodedJson_when_itemData_is_empty_then_return_empty_dictionary()
+    {
+        var itemData = new Dictionary<string, object>();
+        
+        var result = DisplayHelpers.ExpandEncodedJson(itemData);
+        
+        Assert.NotNull(result);
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void ExpandEncodedJson_when_itemData_has_basic_values_then_return_values_unchanged()
+    {
+        var itemData = new Dictionary<string, object>
+        {
+            {"foo", "bar"},
+            {"baz", 123},
+            {"quux", true},
+        };
+        
+        var result = DisplayHelpers.ExpandEncodedJson(itemData);
+        
+        Assert.NotNull(result);
+        Assert.Equal(result["foo"], "bar");
+        Assert.Equal(result["baz"], 123);
+        Assert.Equal(result["quux"], true);
+    }
+
+    [Fact]
+    public void ExpandEncodedJson_when_itemData_has_JsonElement_values_then_parse_json_strings_into_JsonElements()
+    {
+        var itemData = new Dictionary<string, object>
+        {
+            {"foo", "bar"},
+            {"baz", 123},
+            {"quux", true},
+            {"json", JsonSerializer.Deserialize<JsonElement>("\"{\\\"isJsonString\\\":true}\"")}
+        };
+        
+        var result = DisplayHelpers.ExpandEncodedJson(itemData);
+
+        Assert.NotNull(result);
+        Assert.Equal(result["foo"], "bar");
+        Assert.Equal(result["baz"], 123);
+        Assert.Equal(result["quux"], true);
+        Assert.Equivalent(result["json"], JsonSerializer.Deserialize<JsonElement>("{\"isJsonString\":true}"));
+    }
+
+    [Fact]
+    public void ExpandEncodedJson_when_itemData_has_JsonElement_values_then_return_unparseable_strings_unchanged()
+    {
+        var itemData = new Dictionary<string, object>
+        {
+            {"foo", "bar"},
+            {"baz", 123},
+            {"quux", true},
+            {"json", JsonSerializer.Deserialize<JsonElement>("\"Just a regular string\"")}
+        };
+        
+        var result = DisplayHelpers.ExpandEncodedJson(itemData);
+
+        Assert.NotNull(result);
+        Assert.Equal(result["foo"], "bar");
+        Assert.Equal(result["baz"], 123);
+        Assert.Equal(result["quux"], true);
+        Assert.Equivalent(result["json"], JsonSerializer.Deserialize<JsonElement>("\"Just a regular string\""));
+    }
+
+    [Fact]
+    public void ExpandEncodedJson_when_itemData_has_JsonElement_values_that_are_not_strings_then_return_values_unchanged()
+    {
+        var itemData = new Dictionary<string, object>
+        {
+            {"foo", "bar"},
+            {"baz", 123},
+            {"quux", true},
+            {"json", JsonSerializer.Deserialize<JsonElement>("{\"isJsonString\":false}")}
+        };
+        
+        var result = DisplayHelpers.ExpandEncodedJson(itemData);
+        
+        Assert.NotNull(result);
+        Assert.Equal(result["foo"], "bar");
+        Assert.Equal(result["baz"], 123);
+        Assert.Equal(result["quux"], true);
+        Assert.Equivalent(result["json"], JsonSerializer.Deserialize<JsonElement>("{\"isJsonString\":false}"));
+    }
+    
+    [Fact]
     public void GenerateSuccessMessage_when_customMessage_is_not_null_then_return_provided_message()
     {
         var customMessage = _fixture.Create<string>();

@@ -1091,6 +1091,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                             var flow = CurrentTask.Summary?.Flows?.FirstOrDefault(f => f.FlowId == flowId);
                             if (flow != null)
                             {
+                                accumulated = ExpandEncodedJson(accumulated);
                                 // Use the accumulated data (all fields from the item)
                                 if (isNewItem)
                                 {
@@ -1584,6 +1585,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     }
                     
                     // Generate success message using custom message or fallback
+                    itemData = ExpandEncodedJson(itemData);
                     SuccessMessage = GenerateSuccessMessage(flow.DeleteItemMessage, "delete", itemData, flowTitle);
                 }
             }
