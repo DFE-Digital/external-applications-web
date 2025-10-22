@@ -6,6 +6,37 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine;
 public static class DisplayHelpers
 {
     /// <summary>
+    /// Expands JSON strings encoded within a dictionary's values into their corresponding JSON objects.
+    /// When a value is a JsonElement of type String containing valid JSON, it will be deserialized into a JsonElement.
+    /// Other values remain unchanged.
+    /// </summary>
+    /// <param name="itemData">The dictionary containing potentially encoded JSON strings as values</param>
+    /// <returns>A new dictionary with the same keys but with encoded JSON strings expanded into JsonElement objects.
+    /// Returns null if the input dictionary is null.</returns>
+    public static Dictionary<string, object>? ExpandEncodedJson(Dictionary<string, object>? itemData)
+    {
+        return itemData?.Select(kvp => (kvp.Key, TransformEncodedJsonString(kvp.Value))).ToDictionary();
+    }
+
+    private static object TransformEncodedJsonString(object value)
+    {
+        switch (value)
+        {
+            case JsonElement { ValueKind: JsonValueKind.String } jsonString:
+                try
+                {
+                    return JsonSerializer.Deserialize<JsonElement>(jsonString.GetString() ?? "");
+                }
+                catch (JsonException)
+                {
+                    return value;
+                }
+            default:
+                return value;
+        }
+    }
+
+    /// <summary>
     /// Generates a success message using custom template or fallback default
     /// </summary>
     /// <param name="customMessage">Custom message template from configuration</param>
