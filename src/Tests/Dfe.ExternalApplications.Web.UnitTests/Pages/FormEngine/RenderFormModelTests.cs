@@ -1,3 +1,4 @@
+using System.Text;
 using AutoFixture;
 using AutoFixture.AutoNSubstitute;
 using DfE.ExternalApplications.Application.Interfaces;
@@ -16,6 +17,8 @@ namespace Dfe.ExternalApplications.Web.UnitTests.Pages.FormEngine;
 public class RenderFormModelTests
 {
     private readonly IFixture _fixture;
+    private readonly ISession _session;
+    private readonly IApplicationResponseService _applicationResponseService;
     private readonly INavigationHistoryService _navigationHistoryService;
     private readonly RenderFormModel _model;
 
@@ -33,10 +36,16 @@ public class RenderFormModelTests
             .Without(desc => desc.Parameters)
             .Without(desc => desc.BoundProperties)
         );
+        
+        _session = _fixture.Create<ISession>();
+        _fixture.Register(() => _session);
 
         var applicationStateService = _fixture.Create<IApplicationStateService>();
         applicationStateService.IsApplicationEditable(Arg.Any<string>()).Returns(true);
         _fixture.Register(() => applicationStateService);
+        
+        _applicationResponseService = _fixture.Create<IApplicationResponseService>();
+        _fixture.Register(() => _applicationResponseService);
 
         _navigationHistoryService = _fixture.Create<INavigationHistoryService>();
         _fixture.Register(() => _navigationHistoryService);
@@ -122,5 +131,87 @@ public class RenderFormModelTests
 
         _navigationHistoryService.Received().Push(expectedScope, expectedUrl, Arg.Any<ISession>());
         _navigationHistoryService.DidNotReceive().Clear(Arg.Any<string>(), Arg.Any<ISession>());
+    }
+
+    [Fact]
+    public async Task OnPostPageAsync_when_collection_item_is_added_then_all_fields_are_available_for_success_message()
+    {
+        var flowId = _fixture.Create<string>();
+        var instanceId = _fixture.Create<string>();
+        var flowPageId = _fixture.Create<string>();
+
+        _model.ReferenceNumber = _fixture.Create<string>();
+        _model.TaskId = _fixture.Create<string>();
+        _model.CurrentPageId = $"flow/{flowId}/{instanceId}/{flowPageId}";
+
+        var flow = _fixture.Build<MultiCollectionFlowConfiguration>()
+            .With(f => f.FlowId, flowId)
+            .With(f => f.AddItemMessage, "{firstField} has been added")
+            .With(f => f.UpdateItemMessage, "{firstField} has been updated")
+            .Create();
+        var summary = _fixture.Build<TaskSummaryConfiguration>()
+            .With(s => s.Flows, [flow])
+            .Create();
+        var task = _fixture
+            .Build<TaskModel>()
+            .With(t => t.TaskId, _model.TaskId)
+            .With(t => t.Summary, summary)
+            .Create();
+        _fixture.Register(() => task);
+
+        _session.TryGetValue($"FlowProgress_{flowId}_{instanceId}", out _).Returns(call =>
+        {
+            call[1] = "{\"firstField\":\"Some Data\",\"secondField\":2}"u8.ToArray();
+            return true;
+        });
+
+        await _model.OnPostPageAsync();
+        
+        Assert.NotEqual("{firstField} has been updated", _model.SuccessMessage);
+        Assert.DoesNotContain("{firstField}", _model.SuccessMessage);
+        Assert.NotEqual("Some Data has been updated", _model.SuccessMessage);
+        Assert.Equal("Some Data has been added", _model.SuccessMessage);
+    }
+
+    [Fact]
+    public async Task OnPostPageAsync_when_collection_item_is_updated_then_all_fields_are_available_for_success_message()
+    {
+        var flowId = _fixture.Create<string>();
+        var instanceId = _fixture.Create<string>();
+        var flowPageId = _fixture.Create<string>();
+
+        _model.ReferenceNumber = _fixture.Create<string>();
+        _model.TaskId = _fixture.Create<string>();
+        _model.CurrentPageId = $"flow/{flowId}/{instanceId}/{flowPageId}";
+
+        var flow = _fixture.Build<MultiCollectionFlowConfiguration>()
+            .With(f => f.FlowId, flowId)
+            .With(f => f.AddItemMessage, "{firstField} has been added")
+            .With(f => f.UpdateItemMessage, "{firstField} has been updated")
+            .Create();
+        var summary = _fixture.Build<TaskSummaryConfiguration>()
+            .With(s => s.Flows, [flow])
+            .Create();
+        var task = _fixture
+            .Build<TaskModel>()
+            .With(t => t.TaskId, _model.TaskId)
+            .With(t => t.Summary, summary)
+            .Create();
+        _fixture.Register(() => task);
+
+        _session.TryGetValue($"FlowProgress_{flowId}_{instanceId}", out _).Returns(call =>
+        {
+            call[1] = "{\"secondField\":2}"u8.ToArray();
+            return true;
+        });
+        _applicationResponseService.GetAccumulatedFormData(Arg.Any<ISession>())
+            .Returns(new Dictionary<string, object> { { flow.FieldId, $"[{{\"id\":\"{instanceId}\",\"firstField\":\"Some Data\",\"secondField\":2}}]" } });
+
+        await _model.OnPostPageAsync();
+        
+        Assert.NotEqual("{firstField} has been added", _model.SuccessMessage);
+        Assert.DoesNotContain("{firstField}", _model.SuccessMessage);
+        Assert.NotEqual("Some Data has been added", _model.SuccessMessage);
+        Assert.Equal("Some Data has been updated", _model.SuccessMessage);
     }
 }
