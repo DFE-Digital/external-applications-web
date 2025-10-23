@@ -1091,15 +1091,33 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                             var flow = CurrentTask.Summary?.Flows?.FirstOrDefault(f => f.FlowId == flowId);
                             if (flow != null)
                             {
-                                accumulated = ExpandEncodedJson(accumulated);
                                 // Use the accumulated data (all fields from the item)
                                 if (isNewItem)
                                 {
+                                    accumulated = ExpandEncodedJson(accumulated);
                                     SuccessMessage = GenerateSuccessMessage(flow.AddItemMessage, "add", accumulated, flow.Title);
                                 }
                                 else
                                 {
-                                    SuccessMessage = GenerateSuccessMessage(flow.UpdateItemMessage, "update", accumulated, flow.Title);
+                                    // When a collection item is updated, the user can press the "Change" button on any
+                                    // of the fields. If they click (for example) the third button, the values for the
+                                    // first two fields aren't included in `accumulated`, which results in a bug where
+                                    // success messages show placeholders instead of the interpolated values.
+                                    // Merging in the original values using `TryAdd` ensures that all fields are
+                                    // available regardless of whether they were changed or not.
+                                    var itemData = accumulated;
+                                    var existingData = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
+                                    if (existingData.TryGetValue(flowFieldId, out var existingValue))
+                                    {
+                                        var contents = JsonSerializer.Deserialize<List<Dictionary<string, object>>>(existingValue.ToString() ?? "[]") ?? [];
+                                        foreach (var (key, value) in contents.FirstOrDefault() ?? new Dictionary<string, object>())
+                                        {
+                                            itemData.TryAdd(key, value);
+                                        }
+                                    }
+                                    itemData = ExpandEncodedJson(itemData);
+                                    
+                                    SuccessMessage = GenerateSuccessMessage(flow.UpdateItemMessage, "update", itemData, flow.Title);
                                 }
                             }
                             
