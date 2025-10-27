@@ -126,6 +126,12 @@
             }
 
             <div class="govuk-form-group @(ViewData.ModelState.Any(x => x.Value.Errors.Count > 0) ? "govuk-form-group--error" : "")">
+                @if (ViewData.ModelState.Any(x => x.Value.Errors.Count > 0))
+                {
+                    <govuk-error-message>
+                        @string.Join(", ", ViewData.ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage))
+                    </govuk-error-message>
+                }
                 <label class="govuk-label" for="upload-file-@fieldId">
                     Upload a file
                 </label>
@@ -134,12 +140,6 @@
                        name="UploadFile"
                        type="file"
                        required />
-                @if (ViewData.ModelState.Any(x => x.Value.Errors.Count > 0))
-                {
-                    <govuk-error-message>
-                        @string.Join(", ", ViewData.ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage))
-                    </govuk-error-message>
-                }
             </div>
 
             <button class="govuk-button" type="submit">Upload file</button>

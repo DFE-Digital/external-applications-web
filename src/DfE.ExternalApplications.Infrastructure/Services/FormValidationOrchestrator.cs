@@ -398,10 +398,14 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                         if (!isUploadField && !string.IsNullOrWhiteSpace(stringValue))
                         {
                             var pattern = rule.Rule?.ToString();
-                            if (!string.IsNullOrEmpty(pattern) && !Regex.IsMatch(stringValue, pattern, RegexOptions.None, TimeSpan.FromMilliseconds(200)))
+                            if (!string.IsNullOrEmpty(pattern))
                             {
-                                modelState.AddModelError(fieldKey, rule.Message);
-                                isValid = false;
+                                var target = ExtractAutocompleteDisplayText(stringValue);
+                                if (!Regex.IsMatch(target, pattern, RegexOptions.None, TimeSpan.FromMilliseconds(200)))
+                                {
+                                    modelState.AddModelError(fieldKey, rule.Message);
+                                    isValid = false;
+                                }
                             }
                         }
                         break;
@@ -466,6 +470,61 @@ namespace DfE.ExternalApplications.Infrastructure.Services
 
             // If not JSON or parsing failed, treat non-empty as having files (except for known placeholders)
             return !string.IsNullOrWhiteSpace(value);
+        }
+
+        /// <summary>
+        /// Attempts to extract a human-readable display text from an autocomplete value.
+        /// Values are often JSON objects like { "name": "Trust A", "ukprn": "123" }.
+        /// If parsing fails, returns the raw value.
+        /// </summary>
+        private static string ExtractAutocompleteDisplayText(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            try
+            {
+                using var doc = JsonDocument.Parse(value);
+                if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                {
+                    // Prefer typical display properties
+                    var displayProps = new[] { "name", "title", "label", "displayName", "groupName", "text", "value" };
+                    foreach (var p in displayProps)
+                    {
+                        if (doc.RootElement.TryGetProperty(p, out var prop) && prop.ValueKind == JsonValueKind.String)
+                        {
+                            var s = prop.GetString();
+                            if (!string.IsNullOrWhiteSpace(s)) return s!;
+                        }
+                    }
+
+                    // Otherwise, return a key identifier if present
+                    var idProps = new[] { "ukprn", "urn", "id", "companiesHouseNumber", "companieshousenumber", "companies_house_number", "code" };
+                    foreach (var p in idProps)
+                    {
+                        if (doc.RootElement.TryGetProperty(p, out var prop))
+                        {
+                            if (prop.ValueKind == JsonValueKind.String)
+                            {
+                                var s = prop.GetString();
+                                if (!string.IsNullOrWhiteSpace(s)) return s!;
+                            }
+                            else if (prop.ValueKind == JsonValueKind.Number)
+                            {
+                                return prop.GetInt64().ToString(CultureInfo.InvariantCulture);
+                            }
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Not JSON; fall through
+            }
+
+            return value;
         }
 
         #endregion
