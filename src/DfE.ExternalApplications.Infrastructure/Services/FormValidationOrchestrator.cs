@@ -183,9 +183,29 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             {
                 if (!string.IsNullOrWhiteSpace(stringValue))
                 {
-                    if (!DateTime.TryParseExact(stringValue, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
+                    // Detect missing date parts (day/month/year) from the composed value
+                    // We compose values as "YYYY-M-D" when parts are incomplete or invalid
+                    var fieldLabel = field.Label?.Value ?? field.FieldId;
+                    var missingParts = false;
+
+                    if (stringValue.Contains('-'))
                     {
-                        modelState.AddModelError(fieldKey, "Enter a valid date");
+                        var bits = stringValue.Split('-', StringSplitOptions.TrimEntries);
+                        if (bits.Length == 3)
+                        {
+                            missingParts = string.IsNullOrWhiteSpace(bits[0]) || string.IsNullOrWhiteSpace(bits[1]) || string.IsNullOrWhiteSpace(bits[2]);
+                        }
+                    }
+
+                    if (missingParts)
+                    {
+                        modelState.AddModelError(fieldKey, $"{fieldLabel} must include a day, month and year");
+                        isValid = false;
+                    }
+                    else if (!DateTime.TryParseExact(stringValue, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
+                    {
+                        // All parts present and numeric but not a real calendar date
+                        modelState.AddModelError(fieldKey, $"{fieldLabel} must be a real date");
                         isValid = false;
                     }
                 }
