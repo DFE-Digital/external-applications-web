@@ -208,6 +208,21 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                     }
                 }
             }
+            
+            var fieldTypesWithOptions = new List<string> { "radios", "checkboxes" };
+            if (fieldTypesWithOptions.Contains(field.Type, StringComparer.OrdinalIgnoreCase))
+            {
+                if (!string.IsNullOrWhiteSpace(stringValue))
+                {
+                    var isValidOption = field.Options?.Select(o => o.Value).Contains(stringValue) ?? false;
+                    if (!isValidOption)
+                    {
+                        var message = GetCustomRequiredMessage(field) ?? "Select an option from the list";
+                        modelState.AddModelError(fieldKey, message);
+                        isValid = false;
+                    }
+                }
+            }
 
             if (field?.Validations != null)
             {
