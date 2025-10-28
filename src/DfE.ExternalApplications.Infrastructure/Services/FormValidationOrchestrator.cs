@@ -168,13 +168,19 @@ namespace DfE.ExternalApplications.Infrastructure.Services
 
             // Check if field is required based on template policy (before explicit validation rules)
             // This check is for standard fields only - complex fields are handled above
-            if (template != null && _fieldRequirementService.IsFieldRequired(field, template))
+            // IMPORTANT: If the field already has an explicit required rule in Validations,
+            // do NOT add the default required message here to avoid duplicate/conflicting messages.
+            if (template != null)
             {
-                if (string.IsNullOrWhiteSpace(stringValue))
+                var hasExplicitRequired = field.Validations?.Any(v => string.Equals(v.Type, "required", StringComparison.OrdinalIgnoreCase)) == true;
+                if (!hasExplicitRequired && _fieldRequirementService.IsFieldRequired(field, template))
                 {
-                    var fieldLabel = field.Label?.Value ?? field.FieldId;
-                    modelState.AddModelError(fieldKey, $"{fieldLabel} is required");
-                    isValid = false;
+                    if (string.IsNullOrWhiteSpace(stringValue))
+                    {
+                        var fieldLabel = field.Label?.Value ?? field.FieldId;
+                        modelState.AddModelError(fieldKey, $"{fieldLabel} is required");
+                        isValid = false;
+                    }
                 }
             }
 
