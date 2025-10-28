@@ -638,7 +638,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     // Convert StringValues to a simple string or array based on count
                     if (formValue.Count == 1)
                     {
-                        var val = formValue.ToString();
+                        var val = SanitiseHtmlInput(formValue.ToString());
                         Data[fieldId] = val;
                         if (!string.Equals(fieldId, normalisedFieldId, StringComparison.Ordinal))
                         {
@@ -648,7 +648,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     }
                     else if (formValue.Count > 1)
                     {
-                        var arr = formValue.ToArray();
+                        var arr = formValue.Select(SanitiseHtmlInput).ToArray();
                         Data[fieldId] = arr;
                         if (!string.Equals(fieldId, normalisedFieldId, StringComparison.Ordinal))
                         {
