@@ -219,7 +219,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                     var emailAttr = new EmailAddressAttribute();
                     if (!emailAttr.IsValid(stringValue))
                     {
-                        modelState.AddModelError(fieldKey, "Enter an email address in the correct format");
+                        modelState.AddModelError(fieldKey, "Enter an email address in the correct format, for example, name@example.com");
                         isValid = false;
                     }
                 }
