@@ -431,4 +431,31 @@ public class DisplayHelpersTests
         
         Assert.Equal("&#x1F44D;", result);
     }
+    
+    [Fact]
+    public void UnsanitiseHtmlInput_converts_br_tags_to_newlines()
+    {
+        var sanitisedInput = "Some<br>new<br/>lines<br />here";
+        var result = DisplayHelpers.UnsanitiseHtmlInput(sanitisedInput);
+        
+        Assert.Equal("Some\nnew\nlines\nhere", result);
+    }
+
+    [Fact]
+    public void UnsanitiseHtmlInput_unescapes_html_characters()
+    {
+        var sanitisedInput = "&lt;script&gt;alert(&#x27;hello&#x27;)&lt;/script&gt;";
+        var result = DisplayHelpers.UnsanitiseHtmlInput(sanitisedInput);
+        
+        Assert.Equal("<script>alert('hello')</script>", result);
+    }
+
+    [Fact]
+    public void UnsanitiseHtmlInput_unescapes_characters_outside_the_latin_set()
+    {
+        var sanitisedInput = "&#x1F44D;";
+        var result = DisplayHelpers.UnsanitiseHtmlInput(sanitisedInput);
+        
+        Assert.Equal("👍", result);
+    }
 }

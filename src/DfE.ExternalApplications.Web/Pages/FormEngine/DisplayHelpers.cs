@@ -1,10 +1,13 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Web;
+using Microsoft.AspNetCore.Html;
+using Microsoft.AspNetCore.Mvc.Rendering;
 
 namespace DfE.ExternalApplications.Web.Pages.FormEngine;
 
-public static class DisplayHelpers
+public static partial class DisplayHelpers
 {
     /// <summary>
     /// Expands JSON strings encoded within a dictionary's values into their corresponding JSON objects.
@@ -155,4 +158,16 @@ public static class DisplayHelpers
 
         return string.Join("<br>", lines.Select(HtmlEncoder.Default.Encode));
     }
+
+    /// <summary>
+    /// Converts a sanitised HTML input string back to its original form by decoding HTML entities
+    /// and replacing <c>&lt;br&gt;</c> tags with newline characters.
+    /// </summary>
+    /// <param name="sanitisedInput">The HTML-encoded input string with <c>&lt;br&gt;</c> used as newline indicators.</param>
+    /// <returns>The original unsanitised string with HTML entities decoded and <c>&lt;br&gt;</c> replaced with newlines.</returns>
+    public static string UnsanitiseHtmlInput(string sanitisedInput) =>
+        HttpUtility.HtmlDecode(LineBreakTagRegex().Replace(sanitisedInput, "\n"));
+    
+    [GeneratedRegex(@"<br\s*/?>")]
+    private static partial Regex LineBreakTagRegex();
 }
