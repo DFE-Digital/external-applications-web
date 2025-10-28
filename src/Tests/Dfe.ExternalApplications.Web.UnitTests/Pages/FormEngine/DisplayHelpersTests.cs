@@ -404,4 +404,31 @@ public class DisplayHelpersTests
         
         Assert.Equal(expected, result);
     }
+    
+    [Fact]
+    public void SanitiseHtmlInput_normalises_newlines_to_br_tags()
+    {
+        var input = "Some\r\nnew\rlines\nhere";
+        var result = DisplayHelpers.SanitiseHtmlInput(input);
+        
+        Assert.Equal("Some<br>new<br>lines<br>here", result);
+    }
+
+    [Fact]
+    public void SanitiseHtmlInput_escapes_html_characters()
+    {
+        var input = "<script>alert('hello')</script>";
+        var result = DisplayHelpers.SanitiseHtmlInput(input);
+        
+        Assert.Equal("&lt;script&gt;alert(&#x27;hello&#x27;)&lt;/script&gt;", result);
+    }
+
+    [Fact]
+    public void SanitiseHtmlInput_escapes_characters_outside_the_latin_set()
+    {
+        var input = "👍";
+        var result = DisplayHelpers.SanitiseHtmlInput(input);
+        
+        Assert.Equal("&#x1F44D;", result);
+    }
 }

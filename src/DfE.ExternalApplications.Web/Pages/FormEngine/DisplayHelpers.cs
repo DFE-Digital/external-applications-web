@@ -1,3 +1,4 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -135,5 +136,23 @@ public static class DisplayHelpers
         }
 
         return displayName;
+    }
+
+    /// <summary>
+    /// <para>
+    /// Sanitises a string containing HTML by encoding its content to prevent XSS attacks.
+    /// </para>
+    /// <para>
+    /// Removes line breaks and normalises them to the <c>&lt;br&gt;</c> tag, and encodes any HTML content or characters
+    /// outside of the ASCII range.
+    /// </para>
+    /// </summary>
+    /// <param name="input">The input string containing potentially unsafe text.</param>
+    /// <returns>A sanitised string with HTML encoded content and normalised line breaks.</returns>
+    public static string SanitiseHtmlInput(string input)
+    {
+        var lines = input.Split("\r\n").SelectMany(s => s.Split('\r')).SelectMany(s => s.Split('\n'));
+
+        return string.Join("<br>", lines.Select(HtmlEncoder.Default.Encode));
     }
 }
