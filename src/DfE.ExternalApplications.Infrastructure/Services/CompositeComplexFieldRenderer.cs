@@ -27,7 +27,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
         
         {(string.IsNullOrEmpty(tooltip) ? "" : $@"<div class=""govuk-hint"">{tooltip}</div>")}
         
-        {(string.IsNullOrEmpty(errorMessage) ? "" : $@"<div class=""govuk-error-message"">{errorMessage}</div>")}
+        {(string.IsNullOrEmpty(errorMessage) ? "" : $@"<div class=""govuk-error-message""><span class=""govuk-visually-hidden"">Error: </span>{errorMessage}</div>")}
         
         <div class=""govuk-form-group"" data-module=""composite-field"">
             <!-- Composite field content would be rendered here based on SubFields configuration -->

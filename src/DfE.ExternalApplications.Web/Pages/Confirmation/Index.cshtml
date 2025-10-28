@@ -14,7 +14,7 @@
 @if (ViewData.ModelState.ContainsKey("Confirmed"))
 {
     <govuk-error-summary>
-        <govuk-error-summary-item href="#confirmation-radios">@ViewData.ModelState["Confirmed"].Errors.FirstOrDefault()?.ErrorMessage</govuk-error-summary-item>
+        <govuk-error-summary-item href="#confirmation-radios"><span class="govuk-visually-hidden">Error: </span>@ViewData.ModelState["Confirmed"].Errors.FirstOrDefault()?.ErrorMessage</govuk-error-summary-item>
     </govuk-error-summary>
 }
 <div class="govuk-grid-row">
@@ -69,7 +69,7 @@
                     <legend class="govuk-visually-hidden">Choose Yes or No</legend>
                     @if (ViewData.ModelState.ContainsKey("Confirmed"))
                     {
-                        <govuk-error-message> @ViewData.ModelState["Confirmed"].Errors.FirstOrDefault()?.ErrorMessage </govuk-error-message>
+                        <govuk-error-message><span class="govuk-visually-hidden">Error: </span>@ViewData.ModelState["Confirmed"].Errors.FirstOrDefault()?.ErrorMessage </govuk-error-message>
                     }
                     <div class="govuk-radios" data-module="govuk-radios">
                         <div class="govuk-radios__item">

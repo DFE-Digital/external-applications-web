@@ -35,7 +35,7 @@
                     @foreach (var errorMsg in error.Value.Errors)
                     {
                         <govuk-error-summary-item>
-                            @errorMsg.ErrorMessage
+                            <span class="govuk-visually-hidden">Error: </span>@errorMsg.ErrorMessage
                         </govuk-error-summary-item>
                     }
                 }

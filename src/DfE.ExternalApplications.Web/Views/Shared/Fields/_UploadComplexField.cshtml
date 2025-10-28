@@ -129,6 +129,7 @@
                 @if (ViewData.ModelState.Any(x => x.Value.Errors.Count > 0))
                 {
                     <govuk-error-message>
+                        <span class="govuk-visually-hidden">Error: </span>
                         @string.Join(", ", ViewData.ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage))
                     </govuk-error-message>
                 }

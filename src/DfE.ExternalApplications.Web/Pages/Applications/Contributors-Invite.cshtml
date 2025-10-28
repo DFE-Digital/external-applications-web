@@ -23,7 +23,7 @@
                             foreach (var modelError in error.Value!.Errors)
                             {
                                 <li>
-                                    <a href="#@error.Key">@modelError.ErrorMessage</a>
+                                    <a href="#@error.Key"><span class="govuk-visually-hidden">Error: </span>@modelError.ErrorMessage</a>
                                 </li>
                             }
                         }

@@ -19,7 +19,9 @@
 
     @if (Model.ErrorMessage != String.Empty)
     {
-        <govuk-character-count-error-message>@Model.ErrorMessage
+        <govuk-character-count-error-message>
+            <span class="govuk-visually-hidden">Error: </span>
+            @Model.ErrorMessage
         </govuk-character-count-error-message>
     }
     <govuk-character-count-value>@Model.CurrentValue</govuk-character-count-value>
@@ -90,10 +92,22 @@
                 setGovUkErrorState(false);
             }
 
+            function setInlineError(message) {
+                var err = ensureErrorEl();
+                // Clear and prepend visually hidden prefix
+                err.textContent = '';
+                var vh = document.createElement('span');
+                vh.className = 'govuk-visually-hidden';
+                vh.textContent = 'Error: ';
+                err.appendChild(vh);
+                err.appendChild(document.createTextNode(message));
+                return err;
+            }
+
             function update() {
                 var len = (textarea.value || '').length;
                 if (len > max) {
-                    ensureErrorEl().textContent = templateMsg;
+                    setInlineError(templateMsg);
                     textarea.setAttribute('aria-invalid', 'true');
                 addSummaryError();
                     setGovUkErrorState(true);

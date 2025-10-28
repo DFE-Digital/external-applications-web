@@ -169,13 +169,25 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (vd || vm || vy) {
             if (!allPresent(vd, vm, vy)) {
-                ensureErrorEl().textContent = missingMsg;
+                var err1 = ensureErrorEl();
+                err1.textContent = '';
+                var vh1 = document.createElement('span');
+                vh1.className = 'govuk-visually-hidden';
+                vh1.textContent = 'Error: ';
+                err1.appendChild(vh1);
+                err1.appendChild(document.createTextNode(missingMsg));
                 setInputsError(true);
                 addSummaryError(missingMsg);
                 return;
             }
             if (!isRealDate(vy, vm, vd)) {
-                ensureErrorEl().textContent = invalidMsg;
+                var err2 = ensureErrorEl();
+                err2.textContent = '';
+                var vh2 = document.createElement('span');
+                vh2.className = 'govuk-visually-hidden';
+                vh2.textContent = 'Error: ';
+                err2.appendChild(vh2);
+                err2.appendChild(document.createTextNode(invalidMsg));
                 setInputsError(true);
                 addSummaryError(invalidMsg);
                 return;
@@ -213,6 +225,7 @@ document.addEventListener('DOMContentLoaded', function () {
             @if (Model.ErrorMessage != String.Empty)
             {
                 <govuk-date-input-error-message>
+                    <span class="govuk-visually-hidden">Error: </span>
                     @Model.ErrorMessage
                 </govuk-date-input-error-message>
             }
