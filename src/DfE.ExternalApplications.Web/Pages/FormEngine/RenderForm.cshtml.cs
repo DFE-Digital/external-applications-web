@@ -2901,7 +2901,14 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 Type = NotificationType.Success
             };
 
-            await fileUploadService.DeleteFileAsync(fileId, appId);
+            try
+            {
+                await fileUploadService.DeleteFileAsync(fileId, appId);
+            }
+            catch (Exception e)
+            {
+                _logger.LogWarning("File doesn't exist to delete, perhaps removed already, ignoring the exception.{e}", e);
+            }
 
             
             // CRITICAL: Set success message for delete operation

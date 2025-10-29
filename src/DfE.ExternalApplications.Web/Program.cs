@@ -309,6 +309,9 @@ app.UseTokenManagementMiddleware();
 app.UsePermissionsCache();
 app.UseAuthorization();
 
+// Check for malware notifications and clean up infected files automatically
+app.UseMiddleware<DfE.ExternalApplications.Web.Middleware.MalwareNotificationMiddleware>();
+
 app.MapRazorPages();
 app.MapControllers();
 

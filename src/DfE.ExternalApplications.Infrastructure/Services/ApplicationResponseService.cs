@@ -1,6 +1,8 @@
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using DfE.ExternalApplications.Application.Interfaces;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
@@ -10,6 +12,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services;
 
 public class ApplicationResponseService(
     IApplicationsClient applicationsClient,
+    INotificationsClient notificationsClient,
     ILogger<ApplicationResponseService> logger)
     : IApplicationResponseService
 {
@@ -19,6 +22,9 @@ public class ApplicationResponseService(
     {
         try
         {
+            // CRITICAL: Check for malware notifications and filter out infected files BEFORE saving
+            formData = await FilterInfectedFilesAsync(applicationId, formData, cancellationToken);
+            
             // Accumulate the new data with existing data
             AccumulateFormData(formData, session);
             
@@ -281,5 +287,203 @@ public class ApplicationResponseService(
     public void SetCurrentAccumulatedApplicationId(Guid applicationId, ISession session)
     {
         session.SetString("CurrentAccumulatedApplicationId", applicationId.ToString());
+    }
+
+    /// <summary>
+    /// Filters out infected files from form data before saving
+    /// </summary>
+    private async Task<Dictionary<string, object>> FilterInfectedFilesAsync(
+        Guid applicationId, 
+        Dictionary<string, object> formData, 
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Get all notifications to check for malware warnings
+            var notifications = await notificationsClient.GetAllNotificationsAsync(cancellationToken);
+            
+            if (notifications == null || notifications.Count == 0)
+                return formData;
+
+            // Find malware notifications for this application
+            var malwareNotifications = notifications
+                .Where(n => IsMalwareNotification(n, applicationId))
+                .ToList();
+
+            if (malwareNotifications.Count == 0)
+                return formData;
+
+            logger.LogWarning("Found {Count} malware notifications for application {ApplicationId}, filtering infected files",
+                malwareNotifications.Count, applicationId);
+
+            // Get list of infected file IDs
+            var infectedFileIds = malwareNotifications
+                .Select(n => n.Metadata?["fileId"]?.ToString())
+                .Where(id => !string.IsNullOrEmpty(id))
+                .Select(id => Guid.TryParse(id, out var guid) ? guid : (Guid?)null)
+                .Where(id => id.HasValue)
+                .Select(id => id!.Value)
+                .ToHashSet();
+
+            if (infectedFileIds.Count == 0)
+                return formData;
+
+            logger.LogWarning("Filtering {Count} infected file(s) from form data", infectedFileIds.Count);
+
+            // Filter form data to remove infected files
+            var filtered = new Dictionary<string, object>();
+
+            foreach (var (key, value) in formData)
+            {
+                // Check if this field contains file upload data
+                var filteredValue = FilterInfectedFilesFromValue(value, infectedFileIds);
+                
+                // Only include the field if it still has content after filtering
+                if (filteredValue != null && !IsEmptyFileList(filteredValue))
+                {
+                    filtered[key] = filteredValue;
+                }
+                else if (filteredValue != null)
+                {
+                    // Field had files but they were all infected, log it
+                    logger.LogWarning("Field {FieldKey} contained only infected files, removing from save data", key);
+                }
+            }
+
+            return filtered;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error filtering infected files for application {ApplicationId}, proceeding with original data", applicationId);
+            return formData; // Return original data if filtering fails
+        }
+    }
+
+    private bool IsMalwareNotification(NotificationDto notification, Guid applicationId)
+    {
+        if (notification.Type != NotificationType.Warning)
+            return false;
+
+        if (notification.Metadata == null || notification.Metadata.Count == 0)
+            return false;
+
+        // Check if it's for this application
+        if (notification.Metadata.TryGetValue("applicationId", out var appIdObj))
+        {
+            var appIdStr = appIdObj?.ToString();
+            if (Guid.TryParse(appIdStr, out var appId) && appId != applicationId)
+                return false;
+        }
+
+        // Check for required malware fields
+        return notification.Metadata.ContainsKey("fileId") &&
+               notification.Metadata.ContainsKey("fileName") &&
+               notification.Metadata.ContainsKey("malwareName") &&
+               !string.IsNullOrWhiteSpace(notification.Metadata["malwareName"]?.ToString());
+    }
+
+    private object? FilterInfectedFilesFromValue(object? value, HashSet<Guid> infectedFileIds)
+    {
+        if (value == null)
+            return null;
+
+        // Handle JSON element (common in serialized data)
+        if (value is JsonElement jsonElement)
+        {
+            if (jsonElement.ValueKind == JsonValueKind.Array || jsonElement.ValueKind == JsonValueKind.String)
+            {
+                try
+                {
+                    var json = jsonElement.ValueKind == JsonValueKind.String 
+                        ? jsonElement.GetString() 
+                        : jsonElement.GetRawText();
+                    
+                    if (string.IsNullOrWhiteSpace(json))
+                        return value;
+
+                    var files = JsonSerializer.Deserialize<List<UploadDto>>(json);
+                    if (files != null)
+                    {
+                        var cleaned = files.Where(f => !infectedFileIds.Contains(f.Id)).ToList();
+                        if (cleaned.Count < files.Count)
+                        {
+                            logger.LogWarning("Removed {RemovedCount} infected file(s) from field data", 
+                                files.Count - cleaned.Count);
+                            return JsonSerializer.Serialize(cleaned);
+                        }
+                    }
+                }
+                catch
+                {
+                    // Not a file list, return as-is
+                }
+            }
+            return value;
+        }
+
+        // Handle string (JSON serialized file list)
+        if (value is string strValue && !string.IsNullOrWhiteSpace(strValue))
+        {
+            try
+            {
+                var files = JsonSerializer.Deserialize<List<UploadDto>>(strValue);
+                if (files != null)
+                {
+                    var cleaned = files.Where(f => !infectedFileIds.Contains(f.Id)).ToList();
+                    if (cleaned.Count < files.Count)
+                    {
+                        logger.LogWarning("Removed {RemovedCount} infected file(s) from field data", 
+                            files.Count - cleaned.Count);
+                        return JsonSerializer.Serialize(cleaned);
+                    }
+                }
+            }
+            catch
+            {
+                // Not a file list, return as-is
+            }
+            return value;
+        }
+
+        // Handle direct list of UploadDto
+        if (value is List<UploadDto> uploadList)
+        {
+            var cleaned = uploadList.Where(f => !infectedFileIds.Contains(f.Id)).ToList();
+            if (cleaned.Count < uploadList.Count)
+            {
+                logger.LogWarning("Removed {RemovedCount} infected file(s) from field data", 
+                    uploadList.Count - cleaned.Count);
+            }
+            return cleaned;
+        }
+
+        return value;
+    }
+
+    private bool IsEmptyFileList(object? value)
+    {
+        if (value == null)
+            return true;
+
+        if (value is string strValue && string.IsNullOrWhiteSpace(strValue))
+            return true;
+
+        if (value is List<UploadDto> list && list.Count == 0)
+            return true;
+
+        // Try to parse as JSON array
+        try
+        {
+            var json = value.ToString();
+            if (string.IsNullOrWhiteSpace(json) || json == "[]")
+                return true;
+
+            var files = JsonSerializer.Deserialize<List<UploadDto>>(json!);
+            return files == null || files.Count == 0;
+        }
+        catch
+        {
+            return false;
+        }
     }
 } 
