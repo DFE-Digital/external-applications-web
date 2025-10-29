@@ -54,12 +54,22 @@
             tr.querySelector('a').onclick = async (e) => {
                 e.preventDefault();
                 const id = e.currentTarget.getAttribute('data-id');
-                await fetch(`/notifications/remove/${encodeURIComponent(id)}`, {
-                    method: 'POST',
-                    credentials: 'include',
-                    headers: { 'RequestVerificationToken': antiForgeryToken() }
-                });
-                tr.remove();
+                try {
+                    const response = await fetch(`/notifications/remove/${encodeURIComponent(id)}`, {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: { 'RequestVerificationToken': antiForgeryToken() }
+                    });
+                    if (response.ok) {
+                        tr.remove();
+                    } else {
+                        console.error('Failed to dismiss notification:', response.status, await response.text());
+                        alert('Failed to dismiss notification. Please try again.');
+                    }
+                } catch (error) {
+                    console.error('Error dismissing notification:', error);
+                    alert('An error occurred while dismissing the notification.');
+                }
             };
             return tr;
         }

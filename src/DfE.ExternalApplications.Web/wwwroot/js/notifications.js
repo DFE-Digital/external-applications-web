@@ -196,23 +196,34 @@ document.addEventListener("DOMContentLoaded", startHub);
 
 async function markAsRead(id) {
     try {
-        await fetch(`/notifications/read/${encodeURIComponent(id)}`, {
+        const response = await fetch(`/notifications/read/${encodeURIComponent(id)}`, {
             method: 'POST',
             credentials: 'include',
             headers: { 'RequestVerificationToken': antiForgeryToken() ?? '' }
         });
-    } catch { }
+        if (!response.ok) {
+            console.error('Failed to mark notification as read:', response.status, response.statusText);
+        }
+    } catch (error) {
+        console.error('Error marking notification as read:', error);
+    }
 }
 
 async function dismiss(id) {
     try {
-        const ok = await fetch(`/notifications/remove/${encodeURIComponent(id)}`, {
+        const response = await fetch(`/notifications/remove/${encodeURIComponent(id)}`, {
             method: 'POST',
             credentials: 'include',
             headers: { 'RequestVerificationToken': antiForgeryToken() ?? '' }
         });
-        if (ok?.ok) window.removeFromUi(id);
-    } catch { }
+        if (!response.ok) {
+            console.error('Failed to dismiss notification:', response.status, response.statusText);
+        } else {
+            window.removeFromUi(id);
+        }
+    } catch (error) {
+        console.error('Error dismissing notification:', error);
+    }
     await refreshUnreadCount();
 }
 
