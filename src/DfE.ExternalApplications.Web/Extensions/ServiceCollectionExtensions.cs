@@ -56,6 +56,7 @@ namespace DfE.ExternalApplications.Web.Extensions
             services.AddScoped<IFieldRequirementService, FieldRequirementService>();
             services.AddScoped<IFormValidationOrchestrator, DfE.ExternalApplications.Infrastructure.Services.FormValidationOrchestrator>();
             services.AddScoped<IFormConfigurationService, FormConfigurationService>();
+            services.AddScoped<ITemplateValidationService, TemplateValidationService>();
             services.AddHttpContextAccessor();
             
             // Confirmation Services

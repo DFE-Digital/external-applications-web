@@ -31,7 +31,17 @@ public class DynamicAuthenticationSchemeProvider(
 
     private bool IsCypressToggleAllowed()
     {
-        return configuration.GetValue<bool>("CypressAuthentication:AllowToggle");
+        // Only allow Cypress toggle if BOTH conditions are met:
+        // 1. Configuration setting is true
+        // 2. Running in GitHub Actions (GITHUB_ACTIONS environment variable is set)
+        var configAllowsToggle = configuration.GetValue<bool>("CypressAuthentication:AllowToggle");
+        if (!configAllowsToggle)
+        {
+            return false;
+        }
+
+        var isGitHubActions = Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true";
+        return isGitHubActions;
     }
 
     private bool IsCypressRequest()
@@ -39,13 +49,26 @@ public class DynamicAuthenticationSchemeProvider(
         var httpContext = httpContextAccessor.HttpContext;
         if (httpContext == null) return false;
         if (!IsCypressToggleAllowed()) return false;
+        
         var checker = httpContext.RequestServices.GetService<ICustomRequestChecker>();
         return checker != null && checker.IsValidRequest(httpContext);
     }
 
+    private bool ShouldUseTestAuth()
+    {
+        // Always use test auth if globally enabled
+        if (IsTestAuthGloballyEnabled())
+        {
+            return true;
+        }
+
+        // Check if this is a Cypress request (only in GitHub Actions)
+        return IsCypressRequest();
+    }
+
     public override Task<AuthenticationScheme?> GetDefaultAuthenticateSchemeAsync()
     {
-        if (IsTestAuthGloballyEnabled() || IsCypressRequest())
+        if (ShouldUseTestAuth())
         {
             return GetSchemeAsync(TestAuthenticationHandler.SchemeName);
         }
@@ -54,7 +77,7 @@ public class DynamicAuthenticationSchemeProvider(
 
     public override Task<AuthenticationScheme?> GetDefaultChallengeSchemeAsync()
     {
-        if (IsTestAuthGloballyEnabled() || IsCypressRequest())
+        if (ShouldUseTestAuth())
         {
             return GetSchemeAsync(TestAuthenticationHandler.SchemeName);
         }
@@ -63,8 +86,13 @@ public class DynamicAuthenticationSchemeProvider(
 
     public override Task<AuthenticationScheme?> GetDefaultForbidSchemeAsync()
     {
-        // Match challenge behaviour
-        return GetDefaultChallengeSchemeAsync();
+        // Don't call GetDefaultChallengeSchemeAsync here as it might trigger recursion
+        // Instead, inline the logic with the cached result
+        if (ShouldUseTestAuth())
+        {
+            return GetSchemeAsync(TestAuthenticationHandler.SchemeName);
+        }
+        return GetSchemeAsync(OpenIdConnectDefaults.AuthenticationScheme);
     }
 
     public override Task<AuthenticationScheme?> GetDefaultSignInSchemeAsync()
@@ -75,7 +103,7 @@ public class DynamicAuthenticationSchemeProvider(
 
     public override Task<AuthenticationScheme?> GetDefaultSignOutSchemeAsync()
     {
-        if (IsTestAuthGloballyEnabled() || IsCypressRequest())
+        if (ShouldUseTestAuth())
         {
             // Test auth signs out cookies only
             return GetSchemeAsync(CookieAuthenticationDefaults.AuthenticationScheme);

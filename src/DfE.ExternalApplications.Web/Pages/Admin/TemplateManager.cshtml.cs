@@ -19,20 +19,21 @@ public class TemplateManagerModel : PageModel
 {
     private readonly IFormTemplateProvider _formTemplateProvider;
     private readonly ITemplatesClient _templatesClient;
-
     private readonly ICacheService<IMemoryCacheType> _cacheService;
-
+    private readonly ITemplateValidationService _templateValidationService;
     private readonly ILogger<TemplateManagerModel> _logger;
 
     public TemplateManagerModel(
         IFormTemplateProvider formTemplateProvider,
         ITemplatesClient templatesClient,
         ICacheService<IMemoryCacheType> cacheService,
+        ITemplateValidationService templateValidationService,
         ILogger<TemplateManagerModel> logger)
     {
         _formTemplateProvider = formTemplateProvider;
         _templatesClient = templatesClient;
         _cacheService = cacheService;
+        _templateValidationService = templateValidationService;
         _logger = logger;
     }
 
@@ -53,21 +54,44 @@ public class TemplateManagerModel : PageModel
     [Required(ErrorMessage = "JSON schema is required")]
     public string? NewSchema { get; set; }
 
-    public async Task<IActionResult> OnGetAsync(bool showForm = false, bool success = false, bool cleared = false)
+    public async Task<IActionResult> OnGetAsync(bool showForm = false, bool success = false, bool cleared = false, string? suggestedVersion = null)
     {
-        ShowAddVersionForm = showForm;
-        ShowSuccess = success;
-        ShowCacheCleared = cleared;
-
-        var templateId = HttpContext.Session.GetString("TemplateId");
-        if (string.IsNullOrEmpty(templateId))
+        try
         {
-            _logger.LogWarning("TemplateId not found in session.");
-            return RedirectToPage("/Index");
-        }
+            _logger.LogInformation("TemplateManager GET started. Memory: {MemoryMB} MB", 
+                GC.GetTotalMemory(false) / 1024 / 1024);
+            
+            ShowAddVersionForm = showForm;
+            ShowSuccess = success;
+            ShowCacheCleared = cleared;
 
-        await LoadTemplateDataAsync(templateId);
-        return Page();
+            var templateId = HttpContext.Session.GetString("TemplateId");
+            if (string.IsNullOrEmpty(templateId))
+            {
+                _logger.LogWarning("TemplateId not found in session.");
+                return RedirectToPage("/Index");
+            }
+
+            await LoadTemplateDataAsync(templateId);
+            
+            // If a suggested version is provided, use it to pre-populate the NewVersion field
+            if (!string.IsNullOrEmpty(suggestedVersion))
+            {
+                NewVersion = suggestedVersion;
+                _logger.LogInformation("Pre-populated NewVersion field with suggested version: {SuggestedVersion}", suggestedVersion);
+            }
+            
+            _logger.LogInformation("TemplateManager GET completed successfully. Memory: {MemoryMB} MB", 
+                GC.GetTotalMemory(false) / 1024 / 1024);
+            
+            return Page();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "CRITICAL ERROR in TemplateManager OnGetAsync. Memory: {MemoryMB} MB, Exception Type: {ExceptionType}", 
+                GC.GetTotalMemory(false) / 1024 / 1024, ex.GetType().FullName);
+            throw;
+        }
     }
 
     public async Task<IActionResult> OnPostAsync()
@@ -100,9 +124,72 @@ public class TemplateManagerModel : PageModel
 
 }
 
-    public IActionResult OnPostShowAddForm()
+    public async Task<IActionResult> OnPostShowAddFormAsync()
     {
+        // Pre-populate the NewVersion field with auto-incremented version
+        var templateId = HttpContext.Session.GetString("TemplateId");
+        if (!string.IsNullOrEmpty(templateId))
+        {
+            await LoadTemplateDataAsync(templateId);
+            
+            if (!string.IsNullOrEmpty(CurrentVersionNumber))
+            {
+                var incrementedVersion = IncrementPatchVersion(CurrentVersionNumber);
+                _logger.LogInformation("Auto-incremented version from {CurrentVersion} to {NewVersion}", 
+                    CurrentVersionNumber, incrementedVersion);
+                
+                // Pass the auto-incremented version via query parameter
+                return RedirectToPage(new { showForm = true, suggestedVersion = incrementedVersion });
+            }
+        }
+        
         return RedirectToPage(new { showForm = true });
+    }
+    
+    /// <summary>
+    /// Increments the patch version of a semantic version string (e.g., 1.0.1 -> 1.0.2)
+    /// </summary>
+    private static string IncrementPatchVersion(string version)
+    {
+        try
+        {
+            var parts = version.Split('.');
+            
+            if (parts.Length == 0)
+            {
+                return "1.0.1";
+            }
+            else if (parts.Length == 1)
+            {
+                // If only major version exists (e.g., "1"), add minor and patch
+                return $"{parts[0]}.0.1";
+            }
+            else if (parts.Length == 2)
+            {
+                // If major.minor exists (e.g., "1.0"), add patch as 1
+                return $"{parts[0]}.{parts[1]}.1";
+            }
+            else
+            {
+                // Full semantic version (e.g., "1.0.1")
+                // Increment the patch version
+                if (int.TryParse(parts[2], out var patchVersion))
+                {
+                    patchVersion++;
+                    return $"{parts[0]}.{parts[1]}.{patchVersion}";
+                }
+                else
+                {
+                    // If patch is not a number, default to adding .1
+                    return $"{parts[0]}.{parts[1]}.1";
+                }
+            }
+        }
+        catch
+        {
+            // If anything goes wrong, return a sensible default
+            return "1.0.1";
+        }
     }
 
     public IActionResult OnPostCancelAdd()
@@ -114,11 +201,11 @@ public class TemplateManagerModel : PageModel
     {
         try
         {
+            var templateId = HttpContext.Session.GetString("TemplateId");
+            
             // Clear all session data
             HttpContext.Session.Clear();
             
-            // Clear template cache
-            var templateId = HttpContext.Session.GetString("TemplateId");
             if (!string.IsNullOrEmpty(templateId))
             {
                 var cacheKey = $"FormTemplate_{CacheKeyHelper.GenerateHashedCacheKey(templateId)}";
@@ -128,8 +215,8 @@ public class TemplateManagerModel : PageModel
 
             _logger.LogInformation("Successfully cleared all sessions and caches from TemplateManager");
             
-            // Redirect back to template manager with success message
-            return RedirectToPage(new { success = true, cleared = true });
+            // Redirect back to Index since session is cleared (TemplateId is gone)
+            return RedirectToPage("/Index");
         }
         catch (Exception ex)
         {
@@ -190,26 +277,30 @@ public class TemplateManagerModel : PageModel
             ModelState.AddModelError(nameof(NewSchema), "JSON schema is required");
             isValid = false;
         }
-        else if (!IsValidJson(NewSchema))
+        else
         {
-            ModelState.AddModelError(nameof(NewSchema), "Invalid JSON format. Please check your schema syntax.");
-            isValid = false;
+            // Validate JSON against FormTemplate domain model
+            var (templateIsValid, validationErrors) = _templateValidationService.ValidateTemplateJson(NewSchema);
+            
+            if (!templateIsValid)
+            {
+                _logger.LogWarning("Template validation failed with {ErrorCount} errors", validationErrors.Count);
+                
+                // Add all validation errors to ModelState
+                foreach (var error in validationErrors)
+                {
+                    ModelState.AddModelError(nameof(NewSchema), error);
+                }
+                
+                isValid = false;
+            }
+            else
+            {
+                _logger.LogInformation("Template validation passed successfully");
+            }
         }
 
         return isValid;
-    }
-
-    private static bool IsValidJson(string jsonString)
-    {
-        try
-        {
-            JsonSerializer.Deserialize<JsonElement>(jsonString);
-            return true;
-        }
-        catch (JsonException)
-        {
-            return false;
-        }
     }
 
     private async Task CreateNewTemplateVersionAsync(string templateId)
