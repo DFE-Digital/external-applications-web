@@ -37,8 +37,11 @@ public class FieldRendererServiceTests
         _service = _fixture.Create<FieldRendererService>();
     }
 
-    [Fact]
-    public async Task RenderFieldAsync_returns_expected_model()
+    [Theory]
+    [InlineData("some text", "some text")]
+    [InlineData("&#x1F44D;", "👍")]
+    [InlineData("&lt;script&gt;alert(&#x27;hello&#x27;)&lt;/script&gt;", "<script>alert('hello')</script>")]
+    public async Task RenderFieldAsync_returns_expected_model_with_unsanitised_value_for_field(string currentValue, string expectedModelCurrentValue)
     {
         var htmlHelper = Substitute.For([typeof(IHtmlHelper), typeof(IViewContextAware)], []) as IHtmlHelper;
 
@@ -50,7 +53,6 @@ public class FieldRendererServiceTests
 
         var field = _fixture.Build<Field>().With(f => f.Type, "text").Create();
         var prefix = _fixture.Create<string>();
-        var currentValue = _fixture.Create<string>();
         var errorMessage = _fixture.Create<string>();
         var taskName = _fixture.Create<string>();
 
@@ -68,7 +70,7 @@ public class FieldRendererServiceTests
         var model = Assert.IsType<FieldViewModel>(capturedModel);
         Assert.Equal(field, model.Field);
         Assert.Equal(prefix, model.Prefix);
-        Assert.Equal(currentValue, model.CurrentValue);
+        Assert.Equal(expectedModelCurrentValue, model.CurrentValue);
         Assert.Equal(errorMessage, model.ErrorMessage);
     }
 

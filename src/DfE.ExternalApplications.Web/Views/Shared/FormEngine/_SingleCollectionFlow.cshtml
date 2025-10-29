@@ -382,7 +382,7 @@
                                                 }
                                                 else if (isAutocompleteField)
                                                 {
-                                                    var html = RenderAutocompleteSummary(value);
+                                                    var html = RenderAutocompleteSummary(DisplayHelpers.UnsanitiseHtmlInput(value));
                                                     @Html.Raw(html)
                                                 }
                                                 else
