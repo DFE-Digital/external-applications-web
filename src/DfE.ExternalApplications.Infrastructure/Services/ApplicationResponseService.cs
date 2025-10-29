@@ -390,44 +390,100 @@ public class ApplicationResponseService(
         // Handle JSON element (common in serialized data)
         if (value is JsonElement jsonElement)
         {
-            if (jsonElement.ValueKind == JsonValueKind.Array || jsonElement.ValueKind == JsonValueKind.String)
+            if (jsonElement.ValueKind == JsonValueKind.Array)
             {
                 try
                 {
-                    var json = jsonElement.ValueKind == JsonValueKind.String 
-                        ? jsonElement.GetString() 
-                        : jsonElement.GetRawText();
+                    var json = jsonElement.GetRawText();
                     
                     if (string.IsNullOrWhiteSpace(json))
                         return value;
 
-                    var files = JsonSerializer.Deserialize<List<UploadDto>>(json);
-                    if (files != null)
+                    // Try to parse as file list first
+                    try
                     {
-                        var cleaned = files.Where(f => !infectedFileIds.Contains(f.Id)).ToList();
-                        if (cleaned.Count < files.Count)
+                        var files = JsonSerializer.Deserialize<List<UploadDto>>(json);
+                        if (files != null && files.Count > 0)
                         {
-                            logger.LogWarning("Removed {RemovedCount} infected file(s) from field data", 
-                                files.Count - cleaned.Count);
-                            return JsonSerializer.Serialize(cleaned);
+                            var cleaned = files.Where(f => !infectedFileIds.Contains(f.Id)).ToList();
+                            if (cleaned.Count < files.Count)
+                            {
+                                logger.LogWarning("Removed {RemovedCount} infected file(s) from field data", 
+                                    files.Count - cleaned.Count);
+                                return JsonSerializer.Serialize(cleaned);
+                            }
+                            return value;
                         }
                     }
+                    catch { /* Not a file list */ }
+
+                    // If not a file list, might be a collection array - check each item
+                    try
+                    {
+                        var collection = JsonSerializer.Deserialize<List<Dictionary<string, object>>>(json);
+                        if (collection != null)
+                        {
+                            var modified = false;
+                            var cleanedCollection = new List<Dictionary<string, object>>();
+
+                            foreach (var item in collection)
+                            {
+                                var cleanedItem = new Dictionary<string, object>();
+                                foreach (var (key, itemValue) in item)
+                                {
+                                    var cleanedValue = FilterInfectedFilesFromValue(itemValue, infectedFileIds);
+                                    if (cleanedValue != null && !IsEmptyFileList(cleanedValue))
+                                    {
+                                        cleanedItem[key] = cleanedValue;
+                                        if (cleanedValue != itemValue)
+                                        {
+                                            modified = true;
+                                        }
+                                    }
+                                    else if (cleanedValue == null && itemValue == null)
+                                    {
+                                        cleanedItem[key] = itemValue!;
+                                    }
+                                    else
+                                    {
+                                        // Field had files but they were all infected
+                                        cleanedItem[key] = "[]"; // Empty array for file fields
+                                        modified = true;
+                                    }
+                                }
+                                cleanedCollection.Add(cleanedItem);
+                            }
+
+                            if (modified)
+                            {
+                                logger.LogInformation("Removed infected file(s) from collection data");
+                                return JsonSerializer.Serialize(cleanedCollection);
+                            }
+                        }
+                    }
+                    catch { /* Not a collection */ }
                 }
                 catch
                 {
-                    // Not a file list, return as-is
+                    // Parsing failed, return as-is
                 }
+            }
+            else if (jsonElement.ValueKind == JsonValueKind.String)
+            {
+                var json = jsonElement.GetString();
+                return FilterInfectedFilesFromValue(json, infectedFileIds);
             }
             return value;
         }
 
-        // Handle string (JSON serialized file list)
+        // Handle string (JSON serialized file list or collection)
         if (value is string strValue && !string.IsNullOrWhiteSpace(strValue))
         {
+            // Try to parse as file list first
             try
             {
                 var files = JsonSerializer.Deserialize<List<UploadDto>>(strValue);
-                if (files != null)
+                if (files != null && files.Count > 0)
                 {
                     var cleaned = files.Where(f => !infectedFileIds.Contains(f.Id)).ToList();
                     if (cleaned.Count < files.Count)
@@ -436,12 +492,57 @@ public class ApplicationResponseService(
                             files.Count - cleaned.Count);
                         return JsonSerializer.Serialize(cleaned);
                     }
+                    return value;
                 }
             }
-            catch
+            catch { /* Not a file list */ }
+
+            // Try to parse as collection
+            try
             {
-                // Not a file list, return as-is
+                var collection = JsonSerializer.Deserialize<List<Dictionary<string, object>>>(strValue);
+                if (collection != null && collection.Count > 0)
+                {
+                    var modified = false;
+                    var cleanedCollection = new List<Dictionary<string, object>>();
+
+                    foreach (var item in collection)
+                    {
+                        var cleanedItem = new Dictionary<string, object>();
+                        foreach (var (key, itemValue) in item)
+                        {
+                            var cleanedValue = FilterInfectedFilesFromValue(itemValue, infectedFileIds);
+                            if (cleanedValue != null && !IsEmptyFileList(cleanedValue))
+                            {
+                                cleanedItem[key] = cleanedValue;
+                                if (cleanedValue != itemValue)
+                                {
+                                    modified = true;
+                                }
+                            }
+                            else if (cleanedValue == null && itemValue == null)
+                            {
+                                cleanedItem[key] = itemValue!;
+                            }
+                            else
+                            {
+                                // Field had files but they were all infected
+                                cleanedItem[key] = "[]"; // Empty array for file fields
+                                modified = true;
+                            }
+                        }
+                        cleanedCollection.Add(cleanedItem);
+                    }
+
+                    if (modified)
+                    {
+                        logger.LogInformation("Removed infected file(s) from collection data");
+                        return JsonSerializer.Serialize(cleanedCollection);
+                    }
+                }
             }
+            catch { /* Not a collection */ }
+
             return value;
         }
 

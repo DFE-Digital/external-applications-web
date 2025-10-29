@@ -147,6 +147,55 @@ public class FileCleanupService(
                 }
             }
 
+            // Check FlowProgress session keys for collection flows (in-progress uploads)
+            // Format: FlowProgress_{flowId}_{instanceId}
+            foreach (var sessionKey in session.Keys)
+            {
+                if (sessionKey.StartsWith("FlowProgress_"))
+                {
+                    var sessionValue = session.GetString(sessionKey);
+                    
+                    if (!string.IsNullOrWhiteSpace(sessionValue))
+                    {
+                        try
+                        {
+                            var flowProgress = JsonSerializer.Deserialize<Dictionary<string, object>>(sessionValue);
+                            if (flowProgress != null)
+                            {
+                                foreach (var progressKvp in flowProgress)
+                                {
+                                    var progressFieldId = progressKvp.Key;
+                                    var progressValue = progressKvp.Value?.ToString();
+                                    
+                                    if (string.IsNullOrWhiteSpace(progressValue))
+                                        continue;
+
+                                    try
+                                    {
+                                        var files = JsonSerializer.Deserialize<List<UploadDto>>(progressValue);
+                                        if (files != null && files.Any(f => f.Id == fileId))
+                                        {
+                                            logger.LogInformation("Found file {FileId} in FlowProgress {SessionKey}, field {FieldId}", 
+                                                fileId, sessionKey, progressFieldId);
+                                            return progressFieldId;
+                                        }
+                                    }
+                                    catch (JsonException)
+                                    {
+                                        // Not a file list, continue
+                                    }
+                                }
+                            }
+                        }
+                        catch (JsonException)
+                        {
+                            // Not valid JSON, continue
+                        }
+                    }
+                }
+            }
+
+            logger.LogWarning("Could not find fieldId for file {FileId} in any session data", fileId);
             return null;
         }
         catch (Exception ex)
@@ -158,14 +207,38 @@ public class FileCleanupService(
 
     /// <summary>
     /// Removes the file from the specified field in both session and application response
+    /// Handles both regular fields and collection flows
     /// </summary>
     private async Task RemoveFileFromFieldAsync(Guid applicationId, string fieldId, Guid fileId, ISession session)
     {
-        // Get current files for this field
+        logger.LogInformation("Attempting to remove file {FileId} from field {FieldId}", fileId, fieldId);
+
+        // Try to remove from FlowProgress (in-progress collection flows) first
+        var removedFromFlowProgress = TryRemoveFromFlowProgressAsync(fieldId, fileId, session);
+        
+        if (removedFromFlowProgress)
+        {
+            logger.LogInformation("Successfully removed file {FileId} from FlowProgress for field {FieldId}", fileId, fieldId);
+            return;
+        }
+
+        // Check if this is a collection field by looking at accumulated data
+        var accumulatedData = applicationResponseService.GetAccumulatedFormData(session);
+        
+        // Try to remove from collection flows (completed collections)
+        var removedFromCollection = await TryRemoveFromCollectionAsync(applicationId, fieldId, fileId, session, accumulatedData);
+        
+        if (removedFromCollection)
+        {
+            logger.LogInformation("Successfully removed file {FileId} from collection field {FieldId}", fileId, fieldId);
+            return;
+        }
+
+        // Fall back to regular field handling
         var currentFiles = await GetFilesForFieldAsync(applicationId, fieldId, session);
         var updatedFiles = currentFiles.Where(f => f.Id != fileId).ToList();
 
-        logger.LogInformation("Removing file {FileId} from field {FieldId}. Before: {BeforeCount}, After: {AfterCount}", 
+        logger.LogInformation("Removing file {FileId} from regular field {FieldId}. Before: {BeforeCount}, After: {AfterCount}", 
             fileId, fieldId, currentFiles.Count, updatedFiles.Count);
 
         // Update session
@@ -173,6 +246,167 @@ public class FileCleanupService(
 
         // Update application response
         await SaveFilesToResponseAsync(applicationId, fieldId, updatedFiles, session);
+    }
+
+    /// <summary>
+    /// Attempts to remove a file from FlowProgress session data (in-progress collection flows)
+    /// </summary>
+    private bool TryRemoveFromFlowProgressAsync(string fieldId, Guid fileId, ISession session)
+    {
+        try
+        {
+            // Scan all FlowProgress session keys
+            foreach (var sessionKey in session.Keys)
+            {
+                if (!sessionKey.StartsWith("FlowProgress_"))
+                    continue;
+
+                var sessionValue = session.GetString(sessionKey);
+                if (string.IsNullOrWhiteSpace(sessionValue))
+                    continue;
+
+                try
+                {
+                    var flowProgress = JsonSerializer.Deserialize<Dictionary<string, object>>(sessionValue);
+                    if (flowProgress == null || !flowProgress.ContainsKey(fieldId))
+                        continue;
+
+                    var fieldValue = flowProgress[fieldId]?.ToString();
+                    if (string.IsNullOrWhiteSpace(fieldValue))
+                        continue;
+
+                    try
+                    {
+                        var files = JsonSerializer.Deserialize<List<UploadDto>>(fieldValue);
+                        if (files != null && files.Any(f => f.Id == fileId))
+                        {
+                            // Remove the infected file
+                            var updatedFiles = files.Where(f => f.Id != fileId).ToList();
+                            flowProgress[fieldId] = JsonSerializer.Serialize(updatedFiles);
+
+                            // Save back to session
+                            var updatedJson = JsonSerializer.Serialize(flowProgress);
+                            session.SetString(sessionKey, updatedJson);
+
+                            logger.LogInformation(
+                                "Removed file {FileId} from FlowProgress {SessionKey}, field {FieldId}. Before: {Before}, After: {After}",
+                                fileId, sessionKey, fieldId, files.Count, updatedFiles.Count);
+
+                            return true;
+                        }
+                    }
+                    catch (JsonException)
+                    {
+                        // Not a file list
+                    }
+                }
+                catch (JsonException)
+                {
+                    // Not valid FlowProgress JSON
+                }
+            }
+
+            return false;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error removing file {FileId} from FlowProgress for field {FieldId}", fileId, fieldId);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Attempts to remove a file from collection flow data
+    /// </summary>
+    private async Task<bool> TryRemoveFromCollectionAsync(
+        Guid applicationId, 
+        string fieldId, 
+        Guid fileId, 
+        ISession session,
+        Dictionary<string, object> accumulatedData)
+    {
+        try
+        {
+            foreach (var kvp in accumulatedData)
+            {
+                var collectionKey = kvp.Key;
+                var collectionValue = kvp.Value?.ToString();
+
+                if (string.IsNullOrWhiteSpace(collectionValue))
+                    continue;
+
+                try
+                {
+                    // Try to parse as collection array
+                    var collection = JsonSerializer.Deserialize<List<Dictionary<string, object>>>(collectionValue);
+                    if (collection == null || collection.Count == 0)
+                        continue;
+
+                    var modified = false;
+
+                    // Look for the file in each collection item
+                    foreach (var item in collection)
+                    {
+                        if (!item.ContainsKey(fieldId))
+                            continue;
+
+                        var itemFieldValue = item[fieldId]?.ToString();
+                        if (string.IsNullOrWhiteSpace(itemFieldValue))
+                            continue;
+
+                        try
+                        {
+                            var files = JsonSerializer.Deserialize<List<UploadDto>>(itemFieldValue);
+                            if (files != null && files.Any(f => f.Id == fileId))
+                            {
+                                // Remove the infected file
+                                var updatedFiles = files.Where(f => f.Id != fileId).ToList();
+                                item[fieldId] = JsonSerializer.Serialize(updatedFiles);
+                                modified = true;
+
+                                logger.LogInformation(
+                                    "Removed file {FileId} from collection {CollectionKey}, field {FieldId}. Before: {Before}, After: {After}",
+                                    fileId, collectionKey, fieldId, files.Count, updatedFiles.Count);
+                            }
+                        }
+                        catch (JsonException)
+                        {
+                            // Not a file list in this item field
+                        }
+                    }
+
+                    if (modified)
+                    {
+                        // Save the updated collection back to accumulated data
+                        var updatedCollectionJson = JsonSerializer.Serialize(collection);
+                        accumulatedData[collectionKey] = updatedCollectionJson;
+
+                        // Update session accumulated data
+                        var accumulatedJson = JsonSerializer.Serialize(accumulatedData);
+                        session.SetString("AccumulatedFormData", accumulatedJson);
+
+                        // Save to application response
+                        await applicationResponseService.SaveApplicationResponseAsync(
+                            applicationId, 
+                            new Dictionary<string, object> { { collectionKey, updatedCollectionJson } }, 
+                            session);
+
+                        return true;
+                    }
+                }
+                catch (JsonException)
+                {
+                    // Not a collection, continue
+                }
+            }
+
+            return false;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error removing file {FileId} from collection for field {FieldId}", fileId, fieldId);
+            return false;
+        }
     }
 
     /// <summary>
