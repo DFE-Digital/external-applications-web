@@ -17,13 +17,14 @@ public class ApplicationResponseService(
     : IApplicationResponseService
 {
     private const string SessionKeyFormData = "AccumulatedFormData";
+    private const string ProcessedFilesSessionKey = "ProcessedMalwareFiles";
 
     public async Task SaveApplicationResponseAsync(Guid applicationId, Dictionary<string, object> formData, ISession session, CancellationToken cancellationToken = default)
     {
         try
         {
             // CRITICAL: Check for malware notifications and filter out infected files BEFORE saving
-            formData = await FilterInfectedFilesAsync(applicationId, formData, cancellationToken);
+            formData = await FilterInfectedFilesAsync(applicationId, formData, session, cancellationToken);
             
             // Accumulate the new data with existing data
             AccumulateFormData(formData, session);
@@ -294,7 +295,8 @@ public class ApplicationResponseService(
     /// </summary>
     private async Task<Dictionary<string, object>> FilterInfectedFilesAsync(
         Guid applicationId, 
-        Dictionary<string, object> formData, 
+        Dictionary<string, object> formData,
+        ISession session,
         CancellationToken cancellationToken)
     {
         try
@@ -305,15 +307,29 @@ public class ApplicationResponseService(
             if (notifications == null || notifications.Count == 0)
                 return formData;
 
+            // Get already processed files from session to avoid duplicate processing
+            var processedFiles = GetProcessedFilesFromSession(session);
+
             // Find malware notifications for this application
             var malwareNotifications = notifications
                 .Where(n => IsMalwareNotification(n, applicationId))
+                .Where(n =>
+                {
+                    // Skip already processed files
+                    var fileIdStr = n.Metadata?["fileId"]?.ToString();
+                    if (!string.IsNullOrEmpty(fileIdStr) && processedFiles.Contains(fileIdStr))
+                    {
+                        logger.LogDebug("Skipping already processed malware file in FilterInfectedFilesAsync: FileId={FileId}", fileIdStr);
+                        return false;
+                    }
+                    return true;
+                })
                 .ToList();
 
             if (malwareNotifications.Count == 0)
                 return formData;
 
-            logger.LogWarning("Found {Count} malware notifications for application {ApplicationId}, filtering infected files",
+            logger.LogWarning("Found {Count} unprocessed malware notifications for application {ApplicationId}, filtering infected files",
                 malwareNotifications.Count, applicationId);
 
             // Get list of infected file IDs
@@ -329,6 +345,13 @@ public class ApplicationResponseService(
                 return formData;
 
             logger.LogWarning("Filtering {Count} infected file(s) from form data", infectedFileIds.Count);
+            
+            // Mark these files as processed
+            foreach (var fileId in infectedFileIds)
+            {
+                processedFiles.Add(fileId.ToString());
+            }
+            SaveProcessedFilesToSession(session, processedFiles);
 
             // Filter form data to remove infected files
             var filtered = new Dictionary<string, object>();
@@ -585,6 +608,45 @@ public class ApplicationResponseService(
         catch
         {
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Gets the set of already processed malware file IDs from session
+    /// </summary>
+    private HashSet<string> GetProcessedFilesFromSession(ISession session)
+    {
+        var json = session.GetString(ProcessedFilesSessionKey);
+        if (string.IsNullOrEmpty(json))
+        {
+            return new HashSet<string>();
+        }
+
+        try
+        {
+            var list = JsonSerializer.Deserialize<List<string>>(json);
+            return list != null ? new HashSet<string>(list) : new HashSet<string>();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error deserializing processed files from session");
+            return new HashSet<string>();
+        }
+    }
+
+    /// <summary>
+    /// Saves the set of processed malware file IDs to session
+    /// </summary>
+    private void SaveProcessedFilesToSession(ISession session, HashSet<string> processedFiles)
+    {
+        try
+        {
+            var json = JsonSerializer.Serialize(processedFiles.ToList());
+            session.SetString(ProcessedFilesSessionKey, json);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error saving processed files to session");
         }
     }
 } 

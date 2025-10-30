@@ -27,7 +27,12 @@ using Microsoft.AspNetCore.ResponseCompression;
 using System.Diagnostics.CodeAnalysis;
 using GovUK.Dfe.CoreLibs.Security.TokenRefresh.Extensions;
 using System.IO.Compression;
+using DfE.ExternalApplications.Infrastructure.Consumers;
+using GovUK.Dfe.CoreLibs.Messaging.Contracts.Entities.Topics;
+using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Events;
+using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Extensions;
 using Microsoft.AspNetCore.Authentication;
+using MassTransit;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -244,9 +249,29 @@ if (isTestAuthEnabled || allowCypressToggle)
 
 builder.Services.AddServiceCaching(configuration);
 
-
 builder.Services.AddSingleton<IFormTemplateParser, JsonFormTemplateParser>();
 builder.Services.AddScoped<IFormTemplateProvider, FormTemplateProvider>();
+
+builder.Services.AddDfEMassTransit(
+    configuration,
+    configureConsumers: x =>
+    {
+        x.AddConsumer<ScanResultConsumer>();
+    },
+    configureBus: (context, cfg) =>
+    {
+        // Configure topic names for message types
+        cfg.Message<ScanResultEvent>(m => m.SetEntityName(TopicNames.ScanResult));
+    },
+    configureAzureServiceBus: (context, cfg) =>
+    {
+        // Azure Service Bus specific configuration
+        cfg.SubscriptionEndpoint<ScanResultEvent>("extweb", e =>
+        {
+            e.ConfigureConsumeTopology = false;
+            e.ConfigureConsumer<ScanResultConsumer>(context);
+        });
+    });
 
 // Add global exception handler to log crashes before app dies
 AppDomain.CurrentDomain.UnhandledException += (sender, args) =>

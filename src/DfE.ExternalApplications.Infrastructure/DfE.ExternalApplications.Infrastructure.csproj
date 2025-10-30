@@ -8,6 +8,8 @@
 
   <ItemGroup>
     <PackageReference Include="GovUK.Dfe.CoreLibs.Caching" Version="1.0.10" />
+    <PackageReference Include="GovUK.Dfe.CoreLibs.Messaging.Contracts" Version="0.1.0" />
+    <PackageReference Include="GovUK.Dfe.CoreLibs.Messaging.MassTransit" Version="0.1.0" />
     <PackageReference Include="Microsoft.AspNetCore.Http.Extensions" Version="2.3.0" />
   </ItemGroup>
 
