@@ -36,10 +36,20 @@ function ensureElement(id) {
 }
 
 window.renderOrUpdate = function (n) {
-    // Handle case where notification might be wrapped in an array (from SignalR)
-    const notification = Array.isArray(n) ? n[0] : n;
+    // Handle case where notifications might be in an array (from SignalR)
+    // If it's an array, render each notification
+    if (Array.isArray(n)) {
+        n.forEach(notification => renderSingleNotification(notification));
+        return;
+    }
     
+    // Otherwise render the single notification
+    renderSingleNotification(n);
+};
+
+function renderSingleNotification(notification) {
     if (!notification || !notification.id) return;
+    
     const map = mapTypeToCss(notification.type);
     const id = `notification-${notification.id}`;
     const wrapper = ensureElement(id);
@@ -78,15 +88,13 @@ window.renderOrUpdate = function (n) {
         };
     }
 
-    // Mark as read immediately on render
-    void markAsRead(notification.id);
 
     // Auto-dismiss if configured
     if (notification.autoDismiss) {
         const secs = Number(notification.autoDismissSeconds ?? 5);
         setTimeout(() => dismiss(notification.id), secs * 1000);
     }
-};
+}
 
 window.removeFromUi = function (id) {
     const el = document.getElementById(`notification-${id}`);

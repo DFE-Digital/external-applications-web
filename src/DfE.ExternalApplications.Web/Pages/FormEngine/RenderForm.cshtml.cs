@@ -2898,7 +2898,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 Message = string.Empty, // set later when known
                 Category = "file-upload",
                 Context = fieldId + "FileDeletion",
-                Type = NotificationType.Success
+                Type = NotificationType.Success,
+                AutoDismiss = false,
             };
 
             try
