@@ -119,7 +119,9 @@ builder.Services.Configure<Microsoft.AspNetCore.Mvc.MvcOptions>(options =>
 {
     options.Filters.Add<DfE.ExternalApplications.Web.Filters.ConfirmationInterceptorFilter>();
 });
-builder.Services.AddDistributedMemoryCache();
+
+// Add hybrid caching (Memory + Redis) with automatic session support
+builder.Services.AddHybridCaching(builder.Configuration);
 
 // Configure session with timeout settings to prevent hanging/blocking
 builder.Services.AddSession(options =>
@@ -129,8 +131,6 @@ builder.Services.AddSession(options =>
     options.Cookie.IsEssential = true;
     options.IOTimeout = TimeSpan.FromSeconds(5); // Prevent indefinite blocking on session I/O
 });
-
-builder.Services.AddMemoryCache();
 
 builder.Services.AddResponseCompression(options =>
 {
