@@ -938,7 +938,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         // Update both normalized and Data_ forms to be safe
                         Data[key] = updatedJson;
                         Data[$"Data_{key}"] = updatedJson;
-                        _applicationResponseService.AccumulateFormData(new Dictionary<string, object> { [key] = updatedJson }, HttpContext.Session, ApplicationId);
+                        _applicationResponseService.AccumulateFormData(new Dictionary<string, object> { [key] = updatedJson }, HttpContext.Session);
                     }
                 }
                 catch (Exception ex)
@@ -1600,7 +1600,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     
                     // Update the collection
                     var updatedJson = JsonSerializer.Serialize(items);
-                    _applicationResponseService.AccumulateFormData(new Dictionary<string, object> { [fieldId] = updatedJson }, HttpContext.Session, ApplicationId);
+                    _applicationResponseService.AccumulateFormData(new Dictionary<string, object> { [fieldId] = updatedJson }, HttpContext.Session);
                     
                     // Save to API
                     if (ApplicationId.HasValue)
@@ -1968,7 +1968,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
             var serialized = JsonSerializer.Serialize(list);
 
-            _applicationResponseService.AccumulateFormData(new Dictionary<string, object> { [fieldId] = serialized }, HttpContext.Session, ApplicationId);
+            _applicationResponseService.AccumulateFormData(new Dictionary<string, object> { [fieldId] = serialized }, HttpContext.Session);
         }
 
         private static string GetFlowProgressSessionKey(string flowId, string instanceId) => $"FlowProgress_{flowId}_{instanceId}";
@@ -2088,8 +2088,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         private async Task LoadAccumulatedDataFromSessionAsync()
         {
             // Get accumulated form data from session and populate the Data dictionary
-            // Pass ApplicationId to check for cleaned marker (infected file removal)
-            var accumulatedData = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session, ApplicationId);
+            // Infected files are automatically filtered by the blacklist
+            var accumulatedData = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
 
             if (accumulatedData.Any())
             {

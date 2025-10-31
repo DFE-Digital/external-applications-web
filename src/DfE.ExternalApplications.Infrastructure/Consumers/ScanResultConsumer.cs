@@ -309,9 +309,8 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
         }
 
         /// <summary>
-        /// Clears all Redis cache and session keys related to an application to force fresh data load from database.
-        /// This includes both cache keys (DfE:Cache:*) and session keys that may contain accumulated form data.
-        /// Also creates a blacklist entry for the infected file.
+        /// Clears all Redis cache keys related to an application and creates a blacklist entry for the infected file.
+        /// The blacklist ensures the file is filtered out everywhere it appears.
         /// </summary>
         private async Task ClearRedisCacheForApplicationAsync(Guid applicationId, Guid fileId, string fileName)
         {
@@ -334,11 +333,6 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
                     logger.LogDebug("Deleted Redis cache key: {Key}", key);
                 }
 
-                // Store a marker in Redis indicating this application has been cleaned
-                // This marker will be checked when loading session data to force a DB reload
-                var cleanedMarkerKey = $"DfE:Cleaned:Application:{applicationId}";
-                await db.StringSetAsync(cleanedMarkerKey, DateTimeOffset.UtcNow.ToString("o"), TimeSpan.FromHours(24));
-                
                 // CRITICAL: Store the infected file ID in a blacklist for 24 hours
                 // This ensures the file is filtered out EVERYWHERE it appears, even in cached data
                 var infectedFileKey = $"DfE:InfectedFile:{fileId}";
@@ -353,14 +347,9 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
                 await db.StringSetAsync(infectedFileKey, infectedFileData, TimeSpan.FromHours(24));
                 
                 logger.LogInformation(
-                    "Set cleaned marker and infected file blacklist for application {ApplicationId} and file {FileId}",
-                    applicationId,
-                    fileId);
-
-                logger.LogInformation(
-                    "Successfully cleared {CacheCount} cache key(s) and set cleaned marker for application {ApplicationId}",
+                    "Successfully cleared {CacheCount} cache key(s) and created blacklist entry for infected file {FileId}",
                     cacheKeys.Count,
-                    applicationId);
+                    fileId);
             }
             catch (Exception ex)
             {

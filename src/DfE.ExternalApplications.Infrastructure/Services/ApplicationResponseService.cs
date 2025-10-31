@@ -21,21 +21,8 @@ public class ApplicationResponseService(
     {
         try
         {
-            // CRITICAL: Check if application has been cleaned (infected file removed) BEFORE saving
-            // If cleaned marker exists, session will be cleared and we abort this save to force page reload
-            if (HasBeenCleaned(applicationId, session))
-            {
-                logger.LogWarning(
-                    "Application {ApplicationId} has been cleaned. Aborting save and clearing session to force reload from cleaned database.",
-                    applicationId);
-                
-                // Don't save - force user to refresh page to get cleaned data
-                throw new InvalidOperationException(
-                    "This application data has been updated. Please refresh the page to continue.");
-            }
-            
-            // Accumulate the new data with existing data (pass applicationId to check marker)
-            AccumulateFormData(formData, session, applicationId);
+            // Accumulate the new data with existing data (infected files filtered by blacklist)
+            AccumulateFormData(formData, session);
             
             // Get all accumulated data
             var allFormData = GetAccumulatedFormData(session);
@@ -96,10 +83,10 @@ public class ApplicationResponseService(
         }
     }
 
-    public void AccumulateFormData(Dictionary<string, object> newData, ISession session, Guid? applicationId = null)
+    public void AccumulateFormData(Dictionary<string, object> newData, ISession session)
     {
-        // Check for cleaned marker to ensure we don't accumulate with stale data
-        var existingData = GetAccumulatedFormData(session, applicationId);
+        // Get existing data (infected files will be filtered by blacklist)
+        var existingData = GetAccumulatedFormData(session);
         
         foreach (var kvp in newData)
         {
@@ -147,16 +134,10 @@ public class ApplicationResponseService(
     }
 
     /// <summary>
-    /// Gets accumulated form data with application-aware cleaned marker check and infected file filtering
+    /// Gets accumulated form data with infected file filtering
     /// </summary>
-    public Dictionary<string, object> GetAccumulatedFormData(ISession session, Guid? applicationId = null)
+    public Dictionary<string, object> GetAccumulatedFormData(ISession session)
     {
-        // Check if application has been cleaned (infected file removed) and clear session if needed
-        if (applicationId.HasValue)
-        {
-            CheckAndClearIfApplicationCleaned(applicationId.Value, session);
-        }
-        
         var jsonString = session.GetString(SessionKeyFormData);
         
         if (string.IsNullOrEmpty(jsonString))
@@ -233,55 +214,6 @@ public class ApplicationResponseService(
     {
         session.Remove(SessionKeyFormData);
         logger.LogInformation("Cleared accumulated form data from session");
-    }
-
-    /// <summary>
-    /// Checks if an application has been cleaned (infected file removed).
-    /// If so, clears session and deletes the marker, then returns true.
-    /// </summary>
-    private bool HasBeenCleaned(Guid applicationId, ISession session)
-    {
-        try
-        {
-            var db = redis.GetDatabase();
-            var cleanedMarkerKey = $"DfE:Cleaned:Application:{applicationId}";
-            
-            var markerExists = db.KeyExists(cleanedMarkerKey);
-            
-            if (markerExists)
-            {
-                logger.LogWarning(
-                    "Application {ApplicationId} has been cleaned (infected file removed). Clearing session data.",
-                    applicationId);
-                
-                // Clear session to force reload from database
-                ClearAccumulatedFormData(session);
-                
-                // Delete the marker so we don't clear again on next request
-                db.KeyDelete(cleanedMarkerKey);
-                
-                return true;
-            }
-            
-            return false;
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex,
-                "Error checking cleaned marker for application {ApplicationId}",
-                applicationId);
-            // Don't throw - if marker check fails, continue with normal flow
-            return false;
-        }
-    }
-    
-    /// <summary>
-    /// Checks if an application has been cleaned (infected file removed) and clears session if needed.
-    /// Used when loading data (non-blocking).
-    /// </summary>
-    private void CheckAndClearIfApplicationCleaned(Guid applicationId, ISession session)
-    {
-        HasBeenCleaned(applicationId, session);
     }
 
     /// <summary>

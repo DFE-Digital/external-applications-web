@@ -20,15 +20,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 return BadRequest("Field ID and valid index are required");
             }
 
-            // Try to get ApplicationId from session for cleaned marker check
-            Guid? applicationId = null;
-            var appIdStr = HttpContext.Session.GetString("CurrentAccumulatedApplicationId");
-            if (!string.IsNullOrEmpty(appIdStr) && Guid.TryParse(appIdStr, out var appId))
-            {
-                applicationId = appId;
-            }
-
-            var acc = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session, applicationId);
+            var acc = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
             if (acc.TryGetValue(fieldId, out var existing))
             {
                 var json = existing?.ToString() ?? "[]";
@@ -39,7 +31,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     {
                         list.RemoveAt(index);
                         var updated = JsonSerializer.Serialize(list);
-                        _applicationResponseService.AccumulateFormData(new Dictionary<string, object> { [fieldId] = updated }, HttpContext.Session, applicationId);
+                        _applicationResponseService.AccumulateFormData(new Dictionary<string, object> { [fieldId] = updated }, HttpContext.Session);
                     }
                 }
                 catch (Exception ex)
