@@ -28,7 +28,7 @@
                             <ul class="govuk-list govuk-list--bullet">
                                 @foreach (var line in lines.Skip(1))
                                 {
-                                    <li>@line.TrimStart('•', ' ')</li>
+                                    <li><span class="govuk-visually-hidden">Error: </span>@line.TrimStart('•', ' ')</li>
                                 }
                             </ul>
                         }

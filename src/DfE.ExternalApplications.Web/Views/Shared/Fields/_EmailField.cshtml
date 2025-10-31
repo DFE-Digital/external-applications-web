@@ -26,7 +26,7 @@
             
             @if (Model.ErrorMessage != String.Empty)
 			{
-				<govuk-input-error-message>@Model.ErrorMessage</govuk-input-error-message>
+		<govuk-input-error-message><span class="govuk-visually-hidden">Error: </span>@Model.ErrorMessage</govuk-input-error-message>
 			}
 </govuk-input>
 

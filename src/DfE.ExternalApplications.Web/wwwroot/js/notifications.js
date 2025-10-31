@@ -52,7 +52,7 @@ window.renderOrUpdate = function (n) {
             <div role="alert">
                 <h2 class="govuk-error-summary__title">${map.title}</h2>
                 <div class="govuk-error-summary__body">
-                    <p class="govuk-body">${n.message ?? ''}</p>
+                    <p class="govuk-body"><span class="govuk-visually-hidden">Error: </span>${n.message ?? ''}</p>
                 </div>
             </div>
         `;

@@ -763,11 +763,24 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     {
                         try
                         {
-                            var dt = new DateTime(y, m, d);
-                            var iso = dt.ToString("yyyy-MM-dd");
-                            var normalisedFieldId = fieldId.StartsWith("Data_", StringComparison.Ordinal) ? fieldId.Substring(5) : fieldId;
-                            Data[fieldId] = iso;
-                            if (!string.Equals(fieldId, normalisedFieldId, StringComparison.Ordinal)) Data[normalisedFieldId] = iso;
+                            // Enforce four-digit year: if not 4 digits, do not normalise to ISO,
+                            // leave as joined parts so validation can raise an error
+                            var yearText = parts.Year?.Trim() ?? string.Empty;
+                            if (yearText.Length != 4)
+                            {
+                                var joinedInvalid = $"{parts.Year}-{parts.Month}-{parts.Day}";
+                                var normalisedFieldId = fieldId.StartsWith("Data_", StringComparison.Ordinal) ? fieldId.Substring(5) : fieldId;
+                                Data[fieldId] = joinedInvalid;
+                                if (!string.Equals(fieldId, normalisedFieldId, StringComparison.Ordinal)) Data[normalisedFieldId] = joinedInvalid;
+                            }
+                            else
+                            {
+                                var dt = new DateTime(y, m, d);
+                                var iso = dt.ToString("yyyy-MM-dd");
+                                var normalisedFieldId = fieldId.StartsWith("Data_", StringComparison.Ordinal) ? fieldId.Substring(5) : fieldId;
+                                Data[fieldId] = iso;
+                                if (!string.Equals(fieldId, normalisedFieldId, StringComparison.Ordinal)) Data[normalisedFieldId] = iso;
+                            }
                         }
                         catch
                         {
