@@ -244,8 +244,10 @@
                                         {
                                             var itemNumber = itemIndex + 1;
                                             // Use itemTitleBinding to get the proper label (e.g., "Member", "Person") instead of "Item"
-                                            var itemLabel = flow.ItemTitleBinding ?? "Item";
-                                            var displayTitle = $"{itemLabel} {itemNumber}";
+                                            var itemLabel = flow.ItemKind ?? "Item";
+                                            var displayTitle = !string.IsNullOrEmpty(flow.ItemTitleBinding)
+                                                ? DisplayHelpers.InterpolateMessage($"{{{flow.ItemTitleBinding}}}", DisplayHelpers.ExpandEncodedJson(item))
+                                                : $"{itemLabel} {itemNumber}";
                                             
                                             // Add item header (no gray background, just bold text)
                                             <div class="govuk-summary-list__row">
@@ -260,7 +262,7 @@
                                             // Display each field for this collection item
                                             @foreach (var col in (flow.SummaryColumns ?? new List<DfE.ExternalApplications.Domain.Models.FlowSummaryColumn>()).Where(c => !Model.IsFieldHiddenForItem(c.Field, item)))
                                             {
-                                                var value = item.TryGetValue(col.Field, out var v) ? v?.ToString() : string.Empty;
+                                                var value = DisplayHelpers.InterpolateMessage($"{{{col.Field}}}", DisplayHelpers.ExpandEncodedJson(item));
                                                 
                                                 <div class="govuk-summary-list__row">
                                                     <dt class="govuk-summary-list__key">
