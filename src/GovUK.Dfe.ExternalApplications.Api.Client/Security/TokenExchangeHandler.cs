@@ -28,6 +28,35 @@ public class TokenExchangeHandler(
         HttpRequestMessage request,
         CancellationToken cancellationToken)
     {
+        // Check if we should use service-to-service authentication (for background consumers)
+        if (AuthenticationContext.UseServiceToServiceAuth)
+        {
+            logger.LogDebug("Using service-to-service authentication for background operation");
+            
+            try
+            {
+                // Use Azure service-to-service token instead of OBO token
+                var serviceToken = await tokenAcquisitionService.GetTokenAsync();
+                
+                if (!string.IsNullOrEmpty(serviceToken))
+                {
+                    request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", serviceToken);
+                    return await base.SendAsync(request, cancellationToken);
+                }
+                else
+                {
+                    logger.LogError("Failed to acquire service-to-service token for background operation");
+                    return UnauthorizedResponse(request);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error acquiring service-to-service token for background operation");
+                return UnauthorizedResponse(request);
+            }
+        }
+
+        // Normal OBO token flow for web requests
         var httpContext = httpContextAccessor.HttpContext;
         
         if (httpContext == null)

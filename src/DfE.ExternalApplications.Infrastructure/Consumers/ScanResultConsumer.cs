@@ -6,8 +6,8 @@ using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Enums;
 using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Events;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
+using GovUK.Dfe.ExternalApplications.Api.Client.Security;
 using MassTransit;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 
@@ -19,7 +19,7 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
     /// Handles infected files by cleaning them up from Redis sessions and notifying users.
     /// </summary>
     public sealed class ScanResultConsumer(
-        IServiceScopeFactory serviceScopeFactory,
+        IApplicationsClient applicationsClient,
         INotificationsClient notificationsClient,
         IConnectionMultiplexer redis,
         ILogger<ScanResultConsumer> logger) : IConsumer<ScanResultEvent>
@@ -133,15 +133,19 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
                     userId,
                     scanResult.MalwareName);
 
-                // Clean up infected file from database and clear Redis cache using user context
-                await RemoveInfectedFileFromDatabaseAndCacheAsync(reference, applicationId, fileId, scanResult.FileName, userId);
+                // Use service-to-service authentication for all API calls (database cleanup + notification)
+                using (AuthenticationContext.UseServiceToServiceAuthScope())
+                {
+                    // Clean up infected file from database and clear Redis cache
+                    await RemoveInfectedFileFromDatabaseAndCacheAsync(reference, applicationId, fileId, scanResult.FileName, userId);
 
-                // Create user notification about the infected file
-                await CreateMalwareNotificationAsync(
-                    fileId,
-                    applicationId ?? Guid.Empty,
-                    scanResult.FileName,
-                    scanResult.MalwareName!);
+                    // Create user notification about the infected file
+                    await CreateMalwareNotificationAsync(
+                        fileId,
+                        applicationId ?? Guid.Empty,
+                        scanResult.FileName,
+                        scanResult.MalwareName!);
+                }
 
                 logger.LogInformation(
                 "Successfully processed infected file {FileId} ({FileName}) from application {ApplicationId}",
@@ -173,10 +177,6 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
                     fileId,
                     reference);
 
-                // Create a scoped context for this operation
-                using var scope = serviceScopeFactory.CreateScope();
-                var applicationsClient = scope.ServiceProvider.GetRequiredService<IApplicationsClient>();
-
                 // Step 1: Get the application from database using reference
                 var application = await applicationsClient.GetApplicationByReferenceAsync(reference);
                 if (application == null)
@@ -200,20 +200,7 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
                     return;
                 }
 
-                // Step 3: Decode the response body (it's base64 encoded)
-                string responseJson;
-                try
-                {
-                    var decodedBytes = Convert.FromBase64String(application.LatestResponse.ResponseBody);
-                    responseJson = System.Text.Encoding.UTF8.GetString(decodedBytes);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex,
-                        "Failed to decode response body for application {Reference}",
-                        reference);
-                    return;
-                }
+                string responseJson = application.LatestResponse.ResponseBody;
 
                 // Step 4: Parse and clean the response JSON
                 var responseData = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(responseJson);
