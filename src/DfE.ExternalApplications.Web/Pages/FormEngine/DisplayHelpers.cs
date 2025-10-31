@@ -29,7 +29,7 @@ public static partial class DisplayHelpers
             case JsonElement { ValueKind: JsonValueKind.String } jsonString:
                 try
                 {
-                    return JsonSerializer.Deserialize<JsonElement>(jsonString.GetString() ?? "");
+                    return JsonSerializer.Deserialize<JsonElement>(UnsanitiseHtmlInput(jsonString.GetString() ?? ""));
                 }
                 catch (JsonException)
                 {

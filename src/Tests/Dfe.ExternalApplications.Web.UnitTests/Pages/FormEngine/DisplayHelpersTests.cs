@@ -66,6 +66,28 @@ public class DisplayHelpersTests
         Assert.Equal(result["quux"], true);
         Assert.Equivalent(result["json"], JsonSerializer.Deserialize<JsonElement>("{\"isJsonString\":true}"));
     }
+    
+    
+
+    [Fact]
+    public void ExpandEncodedJson_when_itemData_has_JsonElement_values_then_parse_html_encoded_json_strings_into_JsonElements()
+    {
+        var itemData = new Dictionary<string, object>
+        {
+            {"foo", "bar"},
+            {"baz", 123},
+            {"quux", true},
+            {"json", JsonSerializer.Deserialize<JsonElement>("\"{&quot;isJsonString&quot;:true}\"")}
+        };
+        
+        var result = DisplayHelpers.ExpandEncodedJson(itemData);
+
+        Assert.NotNull(result);
+        Assert.Equal(result["foo"], "bar");
+        Assert.Equal(result["baz"], 123);
+        Assert.Equal(result["quux"], true);
+        Assert.Equivalent(result["json"], JsonSerializer.Deserialize<JsonElement>("{\"isJsonString\":true}"));
+    }
 
     [Fact]
     public void ExpandEncodedJson_when_itemData_has_JsonElement_values_then_return_unparseable_strings_unchanged()
