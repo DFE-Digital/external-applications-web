@@ -457,8 +457,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
                                 const clearClientError = () => {
                                     if (formGroup) formGroup.classList.remove('govuk-form-group--error');
-                                    const existing = formGroup ? formGroup.querySelector('.govuk-error-message[data-autocomplete-error="true"]') : null;
-                                    if (existing) existing.remove();
+                                    // Remove any inline errors within this form group (both client and server-rendered)
+                                    if (formGroup) {
+                                        formGroup.querySelectorAll('.govuk-error-message').forEach(function(el){ el.remove(); });
+                                    }
                                     if (autocompleteInput) autocompleteInput.setAttribute('aria-invalid', 'false');
                                 };
                                 const setClientError = (message) => {
@@ -867,8 +869,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
                                     const clearClientError = () => {
                                         if (formGroup) formGroup.classList.remove('govuk-form-group--error');
-                                        const existing = formGroup ? formGroup.querySelector('.govuk-error-message[data-autocomplete-error="true"]') : null;
-                                        if (existing) existing.remove();
+                                        // Remove any inline errors within this form group (both client and server-rendered)
+                                        if (formGroup) {
+                                            formGroup.querySelectorAll('.govuk-error-message').forEach(function(el){ el.remove(); });
+                                        }
                                         autocompleteInput.setAttribute('aria-invalid', 'false');
                                     };
 
@@ -943,13 +947,12 @@ document.addEventListener('DOMContentLoaded', function() {
                                         });
                                     }
 
-                                    // Live clear error when user types
+                                    // Live clear: on any typing, reset inline error and summary for this field
                                     autocompleteInput.addEventListener('input', function() {
-                                        // Only clear; do not block typing
-                                        const q = this.value ? this.value.trim() : '';
-                                        if (!q || q.length >= minLength) {
-                                            clearClientError();
-                                        }
+                                        try { clearClientError(); } catch {}
+                                        try { removeSummaryError(); } catch {}
+                                        try { this.classList.remove('govuk-input--error'); } catch {}
+                                        try { this.setAttribute('aria-invalid', 'false'); } catch {}
                                     });
                                 } catch {}
                     }
@@ -1026,6 +1029,11 @@ document.addEventListener('DOMContentLoaded', function() {
             var anchorId = (container.querySelector('.autocomplete__input') || { id: inputId + '-complex-field' }).id;
             var existing = list.querySelector('li[data-autocomplete-error="true"][data-field-id="' + anchorId + '"]');
             if (existing) existing.remove();
+            // Also remove any server-rendered required entry that targets the hidden input anchor
+            try {
+                var serverLi = list.querySelector('a[href="#' + hiddenInput.id + '"]');
+                if (serverLi && serverLi.parentElement) serverLi.parentElement.remove();
+            } catch {}
             var anyLeft = list.querySelector('li');
             if (!anyLeft) {
                 if (summary.getAttribute('data-live-summary') === 'true') summary.remove(); else summary.setAttribute('hidden', 'true');
