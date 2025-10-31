@@ -8,7 +8,7 @@ public interface IApplicationResponseService
 {
     Task SaveApplicationResponseAsync(Guid applicationId, Dictionary<string, object> formData, ISession session, CancellationToken cancellationToken = default);
     string TransformToResponseJson(Dictionary<string, object> formData, Dictionary<string, string> taskStatusData);
-    void AccumulateFormData(Dictionary<string, object> newData, ISession session);
+    void AccumulateFormData(Dictionary<string, object> newData, ISession session, Guid? applicationId = null);
     Dictionary<string, object> GetAccumulatedFormData(ISession session, Guid? applicationId = null);
     void ClearAccumulatedFormData(ISession session);
     Dictionary<string, string> GetTaskStatusFromSession(Guid applicationId, ISession session);

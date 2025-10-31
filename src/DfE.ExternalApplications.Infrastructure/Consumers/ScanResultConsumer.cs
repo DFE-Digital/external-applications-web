@@ -143,8 +143,9 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
                     await CreateMalwareNotificationAsync(
                         fileId,
                         applicationId ?? Guid.Empty,
-                        scanResult.FileName,
-                        scanResult.MalwareName!);
+                        scanResult.Metadata["originalFileName"].ToString(),
+                        scanResult.MalwareName!,
+                        new Guid(userId));
                 }
 
                 logger.LogInformation(
@@ -195,8 +196,8 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
                         "No response data found for application {Reference}, skipping database cleanup",
                         reference);
                     
-                    // Still clear cache even if no database data
-                    await ClearRedisCacheForApplicationAsync(application.ApplicationId);
+                    // Still clear cache and create blacklist even if no database data
+                    await ClearRedisCacheForApplicationAsync(application.ApplicationId, fileId, fileName);
                     return;
                 }
 
@@ -295,7 +296,7 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
                 }
 
                 // Step 6: Clear ALL Redis cache keys for this application to force fresh load from cleaned DB
-                await ClearRedisCacheForApplicationAsync(application.ApplicationId);
+                await ClearRedisCacheForApplicationAsync(application.ApplicationId, fileId, fileName);
             }
             catch (Exception ex)
             {
@@ -310,8 +311,9 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
         /// <summary>
         /// Clears all Redis cache and session keys related to an application to force fresh data load from database.
         /// This includes both cache keys (DfE:Cache:*) and session keys that may contain accumulated form data.
+        /// Also creates a blacklist entry for the infected file.
         /// </summary>
-        private async Task ClearRedisCacheForApplicationAsync(Guid applicationId)
+        private async Task ClearRedisCacheForApplicationAsync(Guid applicationId, Guid fileId, string fileName)
         {
             try
             {
@@ -337,9 +339,23 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
                 var cleanedMarkerKey = $"DfE:Cleaned:Application:{applicationId}";
                 await db.StringSetAsync(cleanedMarkerKey, DateTimeOffset.UtcNow.ToString("o"), TimeSpan.FromHours(24));
                 
+                // CRITICAL: Store the infected file ID in a blacklist for 24 hours
+                // This ensures the file is filtered out EVERYWHERE it appears, even in cached data
+                var infectedFileKey = $"DfE:InfectedFile:{fileId}";
+                var infectedFileData = JsonSerializer.Serialize(new
+                {
+                    FileId = fileId,
+                    FileName = fileName,
+                    ApplicationId = applicationId,
+                    MalwareName = "infected",
+                    RemovedAt = DateTimeOffset.UtcNow.ToString("o")
+                });
+                await db.StringSetAsync(infectedFileKey, infectedFileData, TimeSpan.FromHours(24));
+                
                 logger.LogInformation(
-                    "Set cleaned marker for application {ApplicationId} to force session data reload on next access",
-                    applicationId);
+                    "Set cleaned marker and infected file blacklist for application {ApplicationId} and file {FileId}",
+                    applicationId,
+                    fileId);
 
                 logger.LogInformation(
                     "Successfully cleared {CacheCount} cache key(s) and set cleaned marker for application {ApplicationId}",
@@ -361,8 +377,9 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
         private async Task CreateMalwareNotificationAsync(
             Guid fileId,
             Guid applicationId,
-            string fileName,
-            string malwareName)
+            string? fileName,
+            string malwareName,
+            Guid? userId)
         {
             try
             {
@@ -380,7 +397,8 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
                         ["malwareName"] = malwareName,
                         ["applicationId"] = applicationId.ToString(),
                         ["detectedAt"] = DateTimeOffset.UtcNow.ToString("o")
-                    }
+                    },
+                    UserId = userId
                 };
 
                 await notificationsClient.CreateNotificationAsync(notification);
