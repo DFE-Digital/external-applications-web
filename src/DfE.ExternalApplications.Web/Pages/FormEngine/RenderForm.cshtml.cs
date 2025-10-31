@@ -2088,7 +2088,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         private async Task LoadAccumulatedDataFromSessionAsync()
         {
             // Get accumulated form data from session and populate the Data dictionary
-            var accumulatedData = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
+            // Pass ApplicationId to check for cleaned marker (infected file removal)
+            var accumulatedData = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session, ApplicationId);
 
             if (accumulatedData.Any())
             {

@@ -3,6 +3,7 @@ using DfE.ExternalApplications.Application.Interfaces;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using StackExchange.Redis;
 using System.Text.Json;
 using Task = System.Threading.Tasks.Task;
 
@@ -10,6 +11,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services;
 
 public class ApplicationResponseService(
     IApplicationsClient applicationsClient,
+    IConnectionMultiplexer redis,
     ILogger<ApplicationResponseService> logger)
     : IApplicationResponseService
 {
@@ -19,6 +21,19 @@ public class ApplicationResponseService(
     {
         try
         {
+            // CRITICAL: Check if application has been cleaned (infected file removed) BEFORE saving
+            // If cleaned marker exists, session will be cleared and we abort this save to force page reload
+            if (HasBeenCleaned(applicationId, session))
+            {
+                logger.LogWarning(
+                    "Application {ApplicationId} has been cleaned. Aborting save and clearing session to force reload from cleaned database.",
+                    applicationId);
+                
+                // Don't save - force user to refresh page to get cleaned data
+                throw new InvalidOperationException(
+                    "This application data has been updated. Please refresh the page to continue.");
+            }
+            
             // Accumulate the new data with existing data
             AccumulateFormData(formData, session);
             
@@ -130,8 +145,17 @@ public class ApplicationResponseService(
         return fieldName;
     }
 
-    public Dictionary<string, object> GetAccumulatedFormData(ISession session)
+    /// <summary>
+    /// Gets accumulated form data with application-aware cleaned marker check
+    /// </summary>
+    public Dictionary<string, object> GetAccumulatedFormData(ISession session, Guid? applicationId = null)
     {
+        // Check if application has been cleaned (infected file removed) and clear session if needed
+        if (applicationId.HasValue)
+        {
+            CheckAndClearIfApplicationCleaned(applicationId.Value, session);
+        }
+        
         var jsonString = session.GetString(SessionKeyFormData);
         
         if (string.IsNullOrEmpty(jsonString))
@@ -205,6 +229,55 @@ public class ApplicationResponseService(
     {
         session.Remove(SessionKeyFormData);
         logger.LogInformation("Cleared accumulated form data from session");
+    }
+
+    /// <summary>
+    /// Checks if an application has been cleaned (infected file removed).
+    /// If so, clears session and deletes the marker, then returns true.
+    /// </summary>
+    private bool HasBeenCleaned(Guid applicationId, ISession session)
+    {
+        try
+        {
+            var db = redis.GetDatabase();
+            var cleanedMarkerKey = $"DfE:Cleaned:Application:{applicationId}";
+            
+            var markerExists = db.KeyExists(cleanedMarkerKey);
+            
+            if (markerExists)
+            {
+                logger.LogWarning(
+                    "Application {ApplicationId} has been cleaned (infected file removed). Clearing session data.",
+                    applicationId);
+                
+                // Clear session to force reload from database
+                ClearAccumulatedFormData(session);
+                
+                // Delete the marker so we don't clear again on next request
+                db.KeyDelete(cleanedMarkerKey);
+                
+                return true;
+            }
+            
+            return false;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex,
+                "Error checking cleaned marker for application {ApplicationId}",
+                applicationId);
+            // Don't throw - if marker check fails, continue with normal flow
+            return false;
+        }
+    }
+    
+    /// <summary>
+    /// Checks if an application has been cleaned (infected file removed) and clears session if needed.
+    /// Used when loading data (non-blocking).
+    /// </summary>
+    private void CheckAndClearIfApplicationCleaned(Guid applicationId, ISession session)
+    {
+        HasBeenCleaned(applicationId, session);
     }
 
     public string TransformToResponseJson(Dictionary<string, object> formData, Dictionary<string, string> taskStatusData)

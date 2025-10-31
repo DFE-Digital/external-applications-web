@@ -308,7 +308,8 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
         }
 
         /// <summary>
-        /// Clears all Redis cache keys related to an application to force fresh data load from database
+        /// Clears all Redis cache and session keys related to an application to force fresh data load from database.
+        /// This includes both cache keys (DfE:Cache:*) and session keys that may contain accumulated form data.
         /// </summary>
         private async Task ClearRedisCacheForApplicationAsync(Guid applicationId)
         {
@@ -317,29 +318,38 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
                 var db = redis.GetDatabase();
                 var server = redis.GetServer(redis.GetEndPoints().First());
 
-                // Find all cache keys containing the applicationId
-                var keysToDelete = server.Keys(pattern: $"DfE:Cache:*{applicationId}*").ToList();
+                // Clear cache keys
+                var cacheKeys = server.Keys(pattern: $"DfE:Cache:*{applicationId}*").ToList();
 
                 logger.LogInformation(
                     "Found {Count} Redis cache key(s) to clear for application {ApplicationId}",
-                    keysToDelete.Count,
+                    cacheKeys.Count,
                     applicationId);
 
-                foreach (var key in keysToDelete)
+                foreach (var key in cacheKeys)
                 {
                     await db.KeyDeleteAsync(key);
                     logger.LogDebug("Deleted Redis cache key: {Key}", key);
                 }
 
+                // Store a marker in Redis indicating this application has been cleaned
+                // This marker will be checked when loading session data to force a DB reload
+                var cleanedMarkerKey = $"DfE:Cleaned:Application:{applicationId}";
+                await db.StringSetAsync(cleanedMarkerKey, DateTimeOffset.UtcNow.ToString("o"), TimeSpan.FromHours(24));
+                
                 logger.LogInformation(
-                    "Successfully cleared {Count} Redis cache key(s) for application {ApplicationId}",
-                    keysToDelete.Count,
+                    "Set cleaned marker for application {ApplicationId} to force session data reload on next access",
+                    applicationId);
+
+                logger.LogInformation(
+                    "Successfully cleared {CacheCount} cache key(s) and set cleaned marker for application {ApplicationId}",
+                    cacheKeys.Count,
                     applicationId);
             }
             catch (Exception ex)
             {
                 logger.LogError(ex,
-                    "Error clearing Redis cache for application {ApplicationId}",
+                    "Error clearing Redis cache and sessions for application {ApplicationId}",
                     applicationId);
                 // Don't re-throw - cache clearing failure shouldn't fail the entire process
             }
