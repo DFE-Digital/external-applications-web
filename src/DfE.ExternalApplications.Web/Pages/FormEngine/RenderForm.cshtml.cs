@@ -2870,9 +2870,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             var fileIdStr = Request.Form["FileId"].ToString();
             var fieldId = Request.Form["FieldId"].ToString();
             
-            _logger.LogWarning("🔴 DELETE_FILE_START: AppId={AppId}, FileId={FileId}, FieldId={FieldId}, IsCollectionFlow={IsCollection}", 
-                applicationId, fileIdStr, fieldId, IsCollectionFlow);
-            
             if (!Guid.TryParse(applicationId, out var appId))
                 return NotFound();
                 
@@ -2912,41 +2909,21 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             try
             {
                 await fileUploadService.DeleteFileAsync(fileId, appId);
-                _logger.LogWarning("🔴 DELETE_FILE: ✅ Physical file deleted from storage");
             }
             catch (Exception e)
             {
-                _logger.LogWarning("🔴 DELETE_FILE: ⚠️ File doesn't exist to delete, perhaps removed already, ignoring the exception.{e}", e);
+                _logger.LogWarning("File doesn't exist to delete, perhaps removed already, ignoring the exception.{e}", e);
             }
-
             
             // CRITICAL: Set success message for delete operation
             SuccessMessage = "File deleted.";
 
-
             // Get current files for this field and remove the deleted one
-            _logger.LogWarning("🔴 DELETE_FILE: About to call GetFilesForFieldAsync...");
             var currentFieldFiles = (await GetFilesForFieldAsync(appId, fieldId)).ToList();
-            _logger.LogWarning("🔴 DELETE_FILE: BEFORE removal - Field has {Count} file(s): {FileIds}", 
-                currentFieldFiles.Count, 
-                string.Join(", ", currentFieldFiles.Select(f => f.Id)));
-            
             currentFieldFiles.RemoveAll(f => f.Id == fileId);
-            _logger.LogWarning("🔴 DELETE_FILE: AFTER removal - Field has {Count} file(s): {FileIds}", 
-                currentFieldFiles.Count, 
-                string.Join(", ", currentFieldFiles.Select(f => f.Id)));
             
-
-            
-            _logger.LogWarning("🔴 DELETE_FILE: About to call UpdateSessionFileList...");
             UpdateSessionFileList(appId, fieldId, currentFieldFiles);
-            _logger.LogWarning("🔴 DELETE_FILE: ✅ UpdateSessionFileList completed");
-            
-            _logger.LogWarning("🔴 DELETE_FILE: About to call SaveUploadedFilesToResponseAsync...");
             await SaveUploadedFilesToResponseAsync(appId, fieldId, currentFieldFiles);
-            _logger.LogWarning("🔴 DELETE_FILE: ✅ SaveUploadedFilesToResponseAsync completed");
-            
-            _logger.LogWarning("🔴 DELETE_FILE_END: File deletion process completed. Redirecting to: {ReturnUrl}", returnUrl ?? "Page()");
             
             // If we have a return URL (from partial form), redirect back
             if (!string.IsNullOrEmpty(returnUrl))
@@ -2980,12 +2957,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 var infectedFileKeys = server.Keys(pattern: "DfE:InfectedFile:*").ToList();
                 
                 if (!infectedFileKeys.Any())
-                {
-                    _logger.LogDebug("🔵 FILTER_FILES: No infected files in blacklist");
                     return files; // No infected files to filter
-                }
-                
-                _logger.LogWarning("🔵 FILTER_FILES: Found {Count} infected file key(s) in Redis blacklist", infectedFileKeys.Count);
                 
                 // Get all infected file IDs from blacklist
                 var infectedFileIds = new HashSet<Guid>();
@@ -3011,66 +2983,39 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 }
                 
                 if (!infectedFileIds.Any())
-                {
-                    _logger.LogDebug("🔵 FILTER_FILES: No valid infected file IDs found in blacklist");
                     return files;
-                }
-                
-                _logger.LogWarning("🔵 FILTER_FILES: Blacklist contains {Count} infected file ID(s): {FileIds}", 
-                    infectedFileIds.Count, 
-                    string.Join(", ", infectedFileIds));
                 
                 // Filter out infected files
-                var originalCount = files.Count;
                 var cleanFiles = files.Where(f => !infectedFileIds.Contains(f.Id)).ToList();
                 
-                if (cleanFiles.Count < originalCount)
+                if (cleanFiles.Count < files.Count)
                 {
-                    _logger.LogWarning(
-                        "🔵 FILTER_FILES: Filtered out {RemovedCount} infected file(s) from list (was {OriginalCount}, now {CleanCount})",
-                        originalCount - cleanFiles.Count,
-                        originalCount,
-                        cleanFiles.Count);
-                }
-                else
-                {
-                    _logger.LogDebug("🔵 FILTER_FILES: No infected files found in the list");
+                    _logger.LogInformation(
+                        "Filtered out {RemovedCount} infected file(s) from list",
+                        files.Count - cleanFiles.Count);
                 }
                 
                 return cleanFiles;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "🔵 FILTER_FILES: Error filtering infected files from list, returning original list");
+                _logger.LogError(ex, "Error filtering infected files from list, returning original list");
                 return files; // Return original list if filtering fails
             }
         }
 
         private async Task<IReadOnlyList<UploadDto>> GetFilesForFieldAsync(Guid appId, string fieldId)
         {
-            _logger.LogWarning("🟢 GET_FILES_START: FieldId={FieldId}, IsCollectionFlow={IsCollection}, FlowId={FlowId}, InstanceId={InstanceId}", 
-                fieldId, IsCollectionFlow, FlowId ?? "null", InstanceId ?? "null");
-            
             if (string.IsNullOrEmpty(fieldId))
-            {
-                _logger.LogWarning("🟢 GET_FILES_END: Empty fieldId, returning empty list");
                 return new List<UploadDto>().AsReadOnly();
-            }
-
-
-
 
             if (IsCollectionFlow)
             {
-                _logger.LogWarning("🟢 GET_FILES: This is a collection flow, checking accumulated data...");
-
-
                 // CRITICAL FIX: Scan accumulated collection items to find this instance's item,
                 // then read the inner field value (matching 'fieldId') like GET does.
                 try
                 {
                     var accumulatedData = applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
-                    _logger.LogWarning("🟢 GET_FILES: Got {Count} accumulated field(s)", accumulatedData.Count);
 
 
                     foreach (var kvp in accumulatedData)
@@ -3087,12 +3032,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                             var existingItem = items.FirstOrDefault(item => item.TryGetValue("id", out var idVal) && idVal?.ToString() == InstanceId);
                             if (existingItem != null)
                             {
-                                _logger.LogWarning("🟢 GET_FILES: Found existing item in collection for InstanceId={InstanceId}", InstanceId);
-
                                 if (existingItem.TryGetValue(fieldId, out var innerValue) && innerValue != null)
                                 {
-                                    _logger.LogWarning("🟢 GET_FILES: Found field {FieldId} in existing item", fieldId);
-                                    
                                     // Handle JsonElement array
                                     if (innerValue is JsonElement innerElem)
                                     {
@@ -3101,15 +3042,12 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                             try
                                             {
                                                 var files = JsonSerializer.Deserialize<List<UploadDto>>(innerElem.GetRawText()) ?? new List<UploadDto>();
-                                                _logger.LogWarning("🟢 GET_FILES: Found {Count} file(s) from JsonElement array, applying blacklist filter", files.Count);
                                                 var cleanFiles = FilterInfectedFilesFromList(files);
-                                                _logger.LogWarning("🟢 GET_FILES_END: Returning {Count} file(s) from JsonElement array: {FileIds}", 
-                                                    cleanFiles.Count, string.Join(", ", cleanFiles.Select(f => f.Id)));
                                                 return cleanFiles.AsReadOnly();
                                             }
-                                            catch (JsonException ex)
+                                            catch (JsonException)
                                             {
-                                                _logger.LogWarning("🟢 GET_FILES: Failed to parse JsonElement array: {Error}", ex.Message);
+                                                // Failed to parse, continue to next source
                                             }
                                         }
                                     }
@@ -3119,33 +3057,26 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                         try
                                         {
                                             var files = JsonSerializer.Deserialize<List<UploadDto>>(innerJson) ?? new List<UploadDto>();
-                                            _logger.LogWarning("🟢 GET_FILES: Found {Count} file(s) from string JSON, applying blacklist filter", files.Count);
                                             var cleanFiles = FilterInfectedFilesFromList(files);
-                                            _logger.LogWarning("🟢 GET_FILES_END: Returning {Count} file(s) from string JSON: {FileIds}", 
-                                                cleanFiles.Count, string.Join(", ", cleanFiles.Select(f => f.Id)));
                                             return cleanFiles.AsReadOnly();
                                         }
-                                        catch (JsonException ex)
+                                        catch (JsonException)
                                         {
-
+                                            // Failed to parse, continue to next source
                                         }
                                     }
                                     // Handle direct list
                                     else if (innerValue is List<UploadDto> uploadList)
                                     {
-                                        _logger.LogWarning("🟢 GET_FILES: Found {Count} file(s) from direct list, applying blacklist filter", uploadList.Count);
                                         var cleanFiles = FilterInfectedFilesFromList(uploadList);
-                                        _logger.LogWarning("🟢 GET_FILES_END: Returning {Count} file(s) from direct list: {FileIds}", 
-                                            cleanFiles.Count, string.Join(", ", cleanFiles.Select(f => f.Id)));
                                         return cleanFiles.AsReadOnly();
                                     }
                                 }
                             }
                         }
-                        catch (Exception ex)
+                        catch (Exception)
                         {
                             // Ignore parse errors for non-collection fields
-
                         }
                     }
                 }
@@ -3155,29 +3086,23 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 }
 
                 // FALLBACK: Check session flow progress
-
                 var progressData = LoadFlowProgress(FlowId, InstanceId);
-
 
                 if (progressData.TryGetValue(fieldId, out var progressValue))
                 {
                     var sessionFilesJson = progressValue?.ToString();
-
 
                     if (!string.IsNullOrWhiteSpace(sessionFilesJson))
                     {
                         try
                         {
                             var files = JsonSerializer.Deserialize<List<UploadDto>>(sessionFilesJson) ?? new List<UploadDto>();
-                            _logger.LogWarning("🟢 GET_FILES: Found {Count} file(s) from session flow progress, applying blacklist filter", files.Count);
                             var cleanFiles = FilterInfectedFilesFromList(files);
-                            _logger.LogWarning("🟢 GET_FILES_END: Returning {Count} file(s) from session flow progress: {FileIds}", 
-                                cleanFiles.Count, string.Join(", ", cleanFiles.Select(f => f.Id)));
                             return cleanFiles.AsReadOnly();
                         }
-                        catch (JsonException ex)
+                        catch (JsonException)
                         {
-
+                            // Failed to parse, continue to next source
                         }
                     }
                 }
@@ -3185,30 +3110,21 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             else
             {
                 // For regular forms, get files from session
-                _logger.LogWarning("🟢 GET_FILES: This is a regular form, checking session key UploadedFiles_{AppId}_{FieldId}", appId, fieldId);
                 var sessionKey = $"UploadedFiles_{appId}_{fieldId}";
                 var sessionFilesJson = HttpContext.Session.GetString(sessionKey);
-
 
                 if (!string.IsNullOrWhiteSpace(sessionFilesJson))
                 {
                     try
                     {
                         var files = JsonSerializer.Deserialize<List<UploadDto>>(sessionFilesJson) ?? new List<UploadDto>();
-                        _logger.LogWarning("🟢 GET_FILES: Found {Count} file(s) from regular session, applying blacklist filter", files.Count);
                         var cleanFiles = FilterInfectedFilesFromList(files);
-                        _logger.LogWarning("🟢 GET_FILES_END: Returning {Count} file(s) from regular session: {FileIds}", 
-                            cleanFiles.Count, string.Join(", ", cleanFiles.Select(f => f.Id)));
                         return cleanFiles.AsReadOnly();
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "🟢 GET_FILES: Failed to deserialize regular session files for key {Key}", sessionKey);
+                        _logger.LogError(ex, "Failed to deserialize session files for key {Key}", sessionKey);
                     }
-                }
-                else
-                {
-                    _logger.LogWarning("🟢 GET_FILES: No files found in regular session for key {Key}, checking accumulated data as fallback", sessionKey);
                 }
                 
                 // CRITICAL FIX: Fallback to accumulated form data (which contains database data)
@@ -3216,46 +3132,32 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 try
                 {
                     var accumulatedData = applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
-                    _logger.LogWarning("🟢 GET_FILES: Fallback - Got {Count} accumulated field(s)", accumulatedData.Count);
                     
                     if (accumulatedData.TryGetValue(fieldId, out var fieldValue))
                     {
                         var fieldValueStr = fieldValue?.ToString();
-                        _logger.LogWarning("🟢 GET_FILES: Fallback - Found field {FieldId} in accumulated data", fieldId);
                         
                         if (!string.IsNullOrWhiteSpace(fieldValueStr))
                         {
                             try
                             {
                                 var files = JsonSerializer.Deserialize<List<UploadDto>>(fieldValueStr) ?? new List<UploadDto>();
-                                _logger.LogWarning("🟢 GET_FILES: Found {Count} file(s) from accumulated data fallback, applying blacklist filter", files.Count);
                                 var cleanFiles = FilterInfectedFilesFromList(files);
-                                _logger.LogWarning("🟢 GET_FILES_END: Returning {Count} file(s) from accumulated data fallback: {FileIds}", 
-                                    cleanFiles.Count, string.Join(", ", cleanFiles.Select(f => f.Id)));
                                 return cleanFiles.AsReadOnly();
                             }
-                            catch (JsonException ex)
+                            catch (JsonException)
                             {
-                                _logger.LogWarning(ex, "🟢 GET_FILES: Fallback - Failed to parse field value as file list for field {FieldId}", fieldId);
+                                // Failed to parse, continue
                             }
                         }
-                        else
-                        {
-                            _logger.LogWarning("🟢 GET_FILES: Fallback - Field {FieldId} has empty value in accumulated data", fieldId);
-                        }
-                    }
-                    else
-                    {
-                        _logger.LogWarning("🟢 GET_FILES: Fallback - Field {FieldId} NOT found in accumulated data", fieldId);
                     }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "🟢 GET_FILES: Fallback - Error accessing accumulated form data");
+                    _logger.LogError(ex, "Error accessing accumulated form data");
                 }
             }
 
-            _logger.LogWarning("🟢 GET_FILES_END: No files found anywhere, returning empty list");
             return new List<UploadDto>().AsReadOnly();
         }
 
