@@ -2898,7 +2898,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 return Redirect(returnUrl);
             }
             
-            _logger.LogInformation("DeleteFile handler executing confirmed deletion for file {FileId}", fileId);
+            _logger.LogWarning("🔴 DELETE_FILE_CONFIRMED: Starting deletion for FileId={FileId}", fileId);
             
             var addRequest = new AddNotificationRequest
             {
@@ -2912,21 +2912,35 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             try
             {
                 await fileUploadService.DeleteFileAsync(fileId, appId);
+                _logger.LogWarning("🔴 DELETE_FILE_SERVICE: Successfully deleted file {FileId} from service", fileId);
             }
             catch (Exception e)
             {
-                _logger.LogWarning("File doesn't exist to delete, perhaps removed already, ignoring the exception.{e}", e);
+                _logger.LogWarning("🔴 DELETE_FILE_SERVICE: File doesn't exist to delete, perhaps removed already. Error: {Error}", e.Message);
             }
             
             // CRITICAL: Set success message for delete operation
             SuccessMessage = "File deleted.";
 
             // Get current files for this field and remove the deleted one
+            _logger.LogWarning("🔴 DELETE_FILE_GET_FILES: Getting current files for FieldId={FieldId}, IsCollectionFlow={IsCollection}", fieldId, IsCollectionFlow);
             var currentFieldFiles = (await GetFilesForFieldAsync(appId, fieldId)).ToList();
-            currentFieldFiles.RemoveAll(f => f.Id == fileId);
+            _logger.LogWarning("🔴 DELETE_FILE_BEFORE_REMOVE: Found {Count} files BEFORE removal. Files: {Files}", 
+                currentFieldFiles.Count, 
+                string.Join(", ", currentFieldFiles.Select(f => $"[{f.Id}:{f.OriginalFileName}]")));
             
+            var removedCount = currentFieldFiles.RemoveAll(f => f.Id == fileId);
+            _logger.LogWarning("🔴 DELETE_FILE_AFTER_REMOVE: Removed {RemovedCount} file(s), {Count} files AFTER removal. Files: {Files}", 
+                removedCount,
+                currentFieldFiles.Count, 
+                string.Join(", ", currentFieldFiles.Select(f => $"[{f.Id}:{f.OriginalFileName}]")));
+            
+            _logger.LogWarning("🔴 DELETE_FILE_UPDATE_SESSION: Updating session for FieldId={FieldId}", fieldId);
             UpdateSessionFileList(appId, fieldId, currentFieldFiles);
+            
+            _logger.LogWarning("🔴 DELETE_FILE_SAVE_RESPONSE: Saving to database for FieldId={FieldId}", fieldId);
             await SaveUploadedFilesToResponseAsync(appId, fieldId, currentFieldFiles);
+            _logger.LogWarning("🔴 DELETE_FILE_COMPLETE: Deletion complete for FileId={FileId}", fileId);
             
             // If we have a return URL (from partial form), redirect back
             if (!string.IsNullOrEmpty(returnUrl))
@@ -3017,8 +3031,42 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 _logger.LogWarning("🔵 COLLECTION_GET_FILES_START: FlowId={FlowId}, InstanceId={InstanceId}, FieldId={FieldId}", 
                     FlowId, InstanceId, fieldId);
                 
-                // CRITICAL FIX: Scan accumulated collection items to find this instance's item,
-                // then read the inner field value (matching 'fieldId') like GET does.
+                // CRITICAL FIX: For collection flows, check SESSION flow progress FIRST!
+                // Session has the latest data (including recent deletes), database data is stale.
+                _logger.LogWarning("🔵 COLLECTION: Checking session flow progress FIRST");
+                var progressData = LoadFlowProgress(FlowId, InstanceId);
+                _logger.LogWarning("🔵 COLLECTION: Session flow progress has {Count} fields: {Keys}", 
+                    progressData.Count, 
+                    string.Join(", ", progressData.Keys));
+
+                if (progressData.TryGetValue(fieldId, out var progressValue))
+                {
+                    var sessionFilesJson = progressValue?.ToString();
+                    _logger.LogWarning("🔵 COLLECTION: Found field {FieldId} in session flow progress", fieldId);
+
+                    if (!string.IsNullOrWhiteSpace(sessionFilesJson))
+                    {
+                        try
+                        {
+                            var files = JsonSerializer.Deserialize<List<UploadDto>>(sessionFilesJson) ?? new List<UploadDto>();
+                            _logger.LogWarning("🔵 COLLECTION: Found {Count} file(s) from session flow progress, returning after filter", files.Count);
+                            var cleanFiles = FilterInfectedFilesFromList(files);
+                            return cleanFiles.AsReadOnly();
+                        }
+                        catch (JsonException ex)
+                        {
+                            _logger.LogWarning("🔵 COLLECTION: Failed to parse session flow progress: {Error}", ex.Message);
+                        }
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning("🔵 COLLECTION: Field {FieldId} NOT found in session flow progress", fieldId);
+                }
+                
+                // FALLBACK: Only check accumulated data (database) if session is empty
+                // This handles the initial load or page refresh scenarios
+                _logger.LogWarning("🔵 COLLECTION: Falling back to accumulated data (database)");
                 try
                 {
                     var accumulatedData = applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
@@ -3133,41 +3181,9 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 }
                 catch (Exception ex)
                 {
-
+                    _logger.LogWarning("🔵 COLLECTION: Error processing accumulated data: {Error}", ex.Message);
                 }
 
-                // FALLBACK: Check session flow progress
-                _logger.LogWarning("🔵 COLLECTION: Checking session flow progress fallback");
-                var progressData = LoadFlowProgress(FlowId, InstanceId);
-                _logger.LogWarning("🔵 COLLECTION: Session flow progress has {Count} fields: {Keys}", 
-                    progressData.Count, 
-                    string.Join(", ", progressData.Keys));
-
-                if (progressData.TryGetValue(fieldId, out var progressValue))
-                {
-                    var sessionFilesJson = progressValue?.ToString();
-                    _logger.LogWarning("🔵 COLLECTION: Found field {FieldId} in session flow progress", fieldId);
-
-                    if (!string.IsNullOrWhiteSpace(sessionFilesJson))
-                    {
-                        try
-                        {
-                            var files = JsonSerializer.Deserialize<List<UploadDto>>(sessionFilesJson) ?? new List<UploadDto>();
-                            _logger.LogWarning("🔵 COLLECTION: Found {Count} file(s) from session flow progress, returning after filter", files.Count);
-                            var cleanFiles = FilterInfectedFilesFromList(files);
-                            return cleanFiles.AsReadOnly();
-                        }
-                        catch (JsonException ex)
-                        {
-                            _logger.LogWarning("🔵 COLLECTION: Failed to parse session flow progress: {Error}", ex.Message);
-                        }
-                    }
-                }
-                else
-                {
-                    _logger.LogWarning("🔵 COLLECTION: Field {FieldId} NOT found in session flow progress", fieldId);
-                }
-                
                 _logger.LogWarning("🔵 COLLECTION_GET_FILES_END: No files found anywhere, returning empty list");
             }
             else
@@ -3226,50 +3242,68 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         private void UpdateSessionFileList(Guid appId, string fieldId, IReadOnlyList<UploadDto> files)
         {
-
-
-            foreach (var file in files)
-            {
-
-            }
+            _logger.LogWarning("🟢 UPDATE_SESSION_START: AppId={AppId}, FieldId={FieldId}, FileCount={Count}, IsCollectionFlow={IsCollection}, FlowId={FlowId}, InstanceId={InstanceId}", 
+                appId, fieldId, files.Count, IsCollectionFlow, FlowId, InstanceId);
+            _logger.LogWarning("🟢 UPDATE_SESSION_FILES: Files to save: {Files}", 
+                string.Join(", ", files.Select(f => $"[{f.Id}:{f.OriginalFileName}]")));
             
             if (IsCollectionFlow)
             {
                 // For collection flows, store in flow progress system
                 var progressKey = GetFlowProgressSessionKey(FlowId, InstanceId);
-
-
-                
-                // Debug: List all session keys before calling LoadFlowProgress
-                var sessionKeysBefore = HttpContext.Session.Keys.ToList();
-
+                _logger.LogWarning("🟢 UPDATE_SESSION_COLLECTION: ProgressKey={ProgressKey}", progressKey);
                 
                 // CRITICAL FIX: Use same method as page load for consistency
                 var existingProgress = LoadFlowProgress(FlowId, InstanceId);
-
+                _logger.LogWarning("🟢 UPDATE_SESSION_COLLECTION: Loaded existing progress with {Count} fields: {Keys}", 
+                    existingProgress.Count, 
+                    string.Join(", ", existingProgress.Keys));
+                
+                // Log existing files for this field before update
+                if (existingProgress.TryGetValue(fieldId, out var existingFilesJson))
+                {
+                    try
+                    {
+                        var existingFiles = JsonSerializer.Deserialize<List<UploadDto>>(existingFilesJson?.ToString() ?? "[]");
+                        _logger.LogWarning("🟢 UPDATE_SESSION_COLLECTION: BEFORE update, field {FieldId} had {Count} files: {Files}", 
+                            fieldId, 
+                            existingFiles?.Count ?? 0,
+                            string.Join(", ", existingFiles?.Select(f => $"[{f.Id}:{f.OriginalFileName}]") ?? Array.Empty<string>()));
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning("🟢 UPDATE_SESSION_COLLECTION: Could not parse existing files: {Error}", ex.Message);
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning("🟢 UPDATE_SESSION_COLLECTION: Field {FieldId} did not exist in progress before update", fieldId);
+                }
                 
                 // CRITICAL FIX: The 'files' parameter contains ALL files (existing + new), so just save it directly
                 // No need to merge because GetFilesForFieldAsync already combined existing and new files
                 var serializedFiles = JsonSerializer.Serialize(files);
-
                 existingProgress[fieldId] = serializedFiles;
+                
+                _logger.LogWarning("🟢 UPDATE_SESSION_COLLECTION: AFTER update, field {FieldId} now has {Count} files: {Files}", 
+                    fieldId, 
+                    files.Count,
+                    string.Join(", ", files.Select(f => $"[{f.Id}:{f.OriginalFileName}]")));
                 
                 // Force session to commit immediately
                 var progressJson = JsonSerializer.Serialize(existingProgress);
                 HttpContext.Session.SetString(progressKey, progressJson);
-                
-
-                
-                // Flow progress saved successfully
-
+                _logger.LogWarning("🟢 UPDATE_SESSION_COLLECTION: Saved to session with key {ProgressKey}", progressKey);
             }
             else
             {
                 // For regular forms, use the original session key
                 var key = $"UploadedFiles_{appId}_{fieldId}";
-
+                _logger.LogWarning("🟢 UPDATE_SESSION_REGULAR: Saving {Count} files to session key {Key}", files.Count, key);
                 HttpContext.Session.SetString(key, JsonSerializer.Serialize(files));
             }
+            
+            _logger.LogWarning("🟢 UPDATE_SESSION_COMPLETE: Successfully updated session for FieldId={FieldId}", fieldId);
         }
 
         private async Task SaveUploadedFilesToResponseAsync(Guid appId, string fieldId, IReadOnlyList<UploadDto> files)
