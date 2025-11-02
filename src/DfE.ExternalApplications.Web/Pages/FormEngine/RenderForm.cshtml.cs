@@ -13,6 +13,7 @@ using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using DfE.ExternalApplications.Web.Interfaces;
+using StackExchange.Redis;
 
 namespace DfE.ExternalApplications.Web.Pages.FormEngine
 {
@@ -37,6 +38,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         IComplexFieldConfigurationService complexFieldConfigurationService,
         IDerivedCollectionFlowService derivedCollectionFlowService,
         IFieldRequirementService fieldRequirementService,
+        IConnectionMultiplexer redis,
         ILogger<RenderFormModel> logger,
         INavigationHistoryService navigationHistoryService)
         : BaseFormEngineModel(renderer, applicationResponseService, fieldFormattingService, templateManagementService,
@@ -48,6 +50,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         private readonly IFormErrorStore _formErrorStore = formErrorStore;
         private readonly IComplexFieldConfigurationService _complexFieldConfigurationService = complexFieldConfigurationService;
         private readonly IDerivedCollectionFlowService _derivedCollectionFlowService = derivedCollectionFlowService;
+        private readonly IConnectionMultiplexer _redis = redis;
         private readonly IFieldRequirementService _fieldRequirementService = fieldRequirementService;
         private readonly INavigationHistoryService _navigationHistoryService = navigationHistoryService;
 
@@ -2959,6 +2962,90 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             return Page();
         }
 
+        /// <summary>
+        /// Filters out any infected files from the given list using the Redis blacklist.
+        /// CRITICAL: This ensures infected files are never shown or re-saved, regardless of where they come from.
+        /// </summary>
+        private List<UploadDto> FilterInfectedFilesFromList(List<UploadDto> files)
+        {
+            if (files == null || files.Count == 0)
+                return files ?? new List<UploadDto>();
+            
+            try
+            {
+                var db = _redis.GetDatabase();
+                var server = _redis.GetServer(_redis.GetEndPoints().First());
+                
+                // Get all infected file keys from Redis blacklist
+                var infectedFileKeys = server.Keys(pattern: "DfE:InfectedFile:*").ToList();
+                
+                if (!infectedFileKeys.Any())
+                {
+                    _logger.LogDebug("🔵 FILTER_FILES: No infected files in blacklist");
+                    return files; // No infected files to filter
+                }
+                
+                _logger.LogWarning("🔵 FILTER_FILES: Found {Count} infected file key(s) in Redis blacklist", infectedFileKeys.Count);
+                
+                // Get all infected file IDs from blacklist
+                var infectedFileIds = new HashSet<Guid>();
+                foreach (var key in infectedFileKeys)
+                {
+                    var fileDataJson = db.StringGet(key);
+                    if (!fileDataJson.IsNullOrEmpty)
+                    {
+                        try
+                        {
+                            var fileData = JsonSerializer.Deserialize<JsonElement>(fileDataJson!);
+                            if (fileData.TryGetProperty("FileId", out var fileIdProp) && 
+                                Guid.TryParse(fileIdProp.GetString(), out var fileId))
+                            {
+                                infectedFileIds.Add(fileId);
+                            }
+                        }
+                        catch
+                        {
+                            // Skip invalid entries
+                        }
+                    }
+                }
+                
+                if (!infectedFileIds.Any())
+                {
+                    _logger.LogDebug("🔵 FILTER_FILES: No valid infected file IDs found in blacklist");
+                    return files;
+                }
+                
+                _logger.LogWarning("🔵 FILTER_FILES: Blacklist contains {Count} infected file ID(s): {FileIds}", 
+                    infectedFileIds.Count, 
+                    string.Join(", ", infectedFileIds));
+                
+                // Filter out infected files
+                var originalCount = files.Count;
+                var cleanFiles = files.Where(f => !infectedFileIds.Contains(f.Id)).ToList();
+                
+                if (cleanFiles.Count < originalCount)
+                {
+                    _logger.LogWarning(
+                        "🔵 FILTER_FILES: Filtered out {RemovedCount} infected file(s) from list (was {OriginalCount}, now {CleanCount})",
+                        originalCount - cleanFiles.Count,
+                        originalCount,
+                        cleanFiles.Count);
+                }
+                else
+                {
+                    _logger.LogDebug("🔵 FILTER_FILES: No infected files found in the list");
+                }
+                
+                return cleanFiles;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "🔵 FILTER_FILES: Error filtering infected files from list, returning original list");
+                return files; // Return original list if filtering fails
+            }
+        }
+
         private async Task<IReadOnlyList<UploadDto>> GetFilesForFieldAsync(Guid appId, string fieldId)
         {
             _logger.LogWarning("🟢 GET_FILES_START: FieldId={FieldId}, IsCollectionFlow={IsCollection}, FlowId={FlowId}, InstanceId={InstanceId}", 
@@ -3014,9 +3101,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                             try
                                             {
                                                 var files = JsonSerializer.Deserialize<List<UploadDto>>(innerElem.GetRawText()) ?? new List<UploadDto>();
+                                                _logger.LogWarning("🟢 GET_FILES: Found {Count} file(s) from JsonElement array, applying blacklist filter", files.Count);
+                                                var cleanFiles = FilterInfectedFilesFromList(files);
                                                 _logger.LogWarning("🟢 GET_FILES_END: Returning {Count} file(s) from JsonElement array: {FileIds}", 
-                                                    files.Count, string.Join(", ", files.Select(f => f.Id)));
-                                                return files.AsReadOnly();
+                                                    cleanFiles.Count, string.Join(", ", cleanFiles.Select(f => f.Id)));
+                                                return cleanFiles.AsReadOnly();
                                             }
                                             catch (JsonException ex)
                                             {
@@ -3030,9 +3119,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                         try
                                         {
                                             var files = JsonSerializer.Deserialize<List<UploadDto>>(innerJson) ?? new List<UploadDto>();
+                                            _logger.LogWarning("🟢 GET_FILES: Found {Count} file(s) from string JSON, applying blacklist filter", files.Count);
+                                            var cleanFiles = FilterInfectedFilesFromList(files);
                                             _logger.LogWarning("🟢 GET_FILES_END: Returning {Count} file(s) from string JSON: {FileIds}", 
-                                                files.Count, string.Join(", ", files.Select(f => f.Id)));
-                                            return files.AsReadOnly();
+                                                cleanFiles.Count, string.Join(", ", cleanFiles.Select(f => f.Id)));
+                                            return cleanFiles.AsReadOnly();
                                         }
                                         catch (JsonException ex)
                                         {
@@ -3042,8 +3133,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                     // Handle direct list
                                     else if (innerValue is List<UploadDto> uploadList)
                                     {
-
-                                        return uploadList.AsReadOnly();
+                                        _logger.LogWarning("🟢 GET_FILES: Found {Count} file(s) from direct list, applying blacklist filter", uploadList.Count);
+                                        var cleanFiles = FilterInfectedFilesFromList(uploadList);
+                                        _logger.LogWarning("🟢 GET_FILES_END: Returning {Count} file(s) from direct list: {FileIds}", 
+                                            cleanFiles.Count, string.Join(", ", cleanFiles.Select(f => f.Id)));
+                                        return cleanFiles.AsReadOnly();
                                     }
                                 }
                             }
@@ -3074,9 +3168,12 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     {
                         try
                         {
-                            var files = JsonSerializer.Deserialize<List<UploadDto>>(sessionFilesJson);
-
-                            return (files ?? new List<UploadDto>()).AsReadOnly();
+                            var files = JsonSerializer.Deserialize<List<UploadDto>>(sessionFilesJson) ?? new List<UploadDto>();
+                            _logger.LogWarning("🟢 GET_FILES: Found {Count} file(s) from session flow progress, applying blacklist filter", files.Count);
+                            var cleanFiles = FilterInfectedFilesFromList(files);
+                            _logger.LogWarning("🟢 GET_FILES_END: Returning {Count} file(s) from session flow progress: {FileIds}", 
+                                cleanFiles.Count, string.Join(", ", cleanFiles.Select(f => f.Id)));
+                            return cleanFiles.AsReadOnly();
                         }
                         catch (JsonException ex)
                         {
@@ -3098,9 +3195,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     try
                     {
                         var files = JsonSerializer.Deserialize<List<UploadDto>>(sessionFilesJson) ?? new List<UploadDto>();
+                        _logger.LogWarning("🟢 GET_FILES: Found {Count} file(s) from regular session, applying blacklist filter", files.Count);
+                        var cleanFiles = FilterInfectedFilesFromList(files);
                         _logger.LogWarning("🟢 GET_FILES_END: Returning {Count} file(s) from regular session: {FileIds}", 
-                            files.Count, string.Join(", ", files.Select(f => f.Id)));
-                        return files.AsReadOnly();
+                            cleanFiles.Count, string.Join(", ", cleanFiles.Select(f => f.Id)));
+                        return cleanFiles.AsReadOnly();
                     }
                     catch (Exception ex)
                     {
@@ -3129,9 +3228,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                             try
                             {
                                 var files = JsonSerializer.Deserialize<List<UploadDto>>(fieldValueStr) ?? new List<UploadDto>();
+                                _logger.LogWarning("🟢 GET_FILES: Found {Count} file(s) from accumulated data fallback, applying blacklist filter", files.Count);
+                                var cleanFiles = FilterInfectedFilesFromList(files);
                                 _logger.LogWarning("🟢 GET_FILES_END: Returning {Count} file(s) from accumulated data fallback: {FileIds}", 
-                                    files.Count, string.Join(", ", files.Select(f => f.Id)));
-                                return files.AsReadOnly();
+                                    cleanFiles.Count, string.Join(", ", cleanFiles.Select(f => f.Id)));
+                                return cleanFiles.AsReadOnly();
                             }
                             catch (JsonException ex)
                             {
