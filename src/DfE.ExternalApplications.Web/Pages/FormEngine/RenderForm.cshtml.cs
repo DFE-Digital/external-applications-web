@@ -2867,6 +2867,9 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             var fileIdStr = Request.Form["FileId"].ToString();
             var fieldId = Request.Form["FieldId"].ToString();
             
+            _logger.LogWarning("🔴 DELETE_FILE_START: AppId={AppId}, FileId={FileId}, FieldId={FieldId}, IsCollectionFlow={IsCollection}", 
+                applicationId, fileIdStr, fieldId, IsCollectionFlow);
+            
             if (!Guid.TryParse(applicationId, out var appId))
                 return NotFound();
                 
@@ -2906,10 +2909,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             try
             {
                 await fileUploadService.DeleteFileAsync(fileId, appId);
+                _logger.LogWarning("🔴 DELETE_FILE: ✅ Physical file deleted from storage");
             }
             catch (Exception e)
             {
-                _logger.LogWarning("File doesn't exist to delete, perhaps removed already, ignoring the exception.{e}", e);
+                _logger.LogWarning("🔴 DELETE_FILE: ⚠️ File doesn't exist to delete, perhaps removed already, ignoring the exception.{e}", e);
             }
 
             
@@ -2918,13 +2922,28 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
 
             // Get current files for this field and remove the deleted one
+            _logger.LogWarning("🔴 DELETE_FILE: About to call GetFilesForFieldAsync...");
             var currentFieldFiles = (await GetFilesForFieldAsync(appId, fieldId)).ToList();
+            _logger.LogWarning("🔴 DELETE_FILE: BEFORE removal - Field has {Count} file(s): {FileIds}", 
+                currentFieldFiles.Count, 
+                string.Join(", ", currentFieldFiles.Select(f => f.Id)));
+            
             currentFieldFiles.RemoveAll(f => f.Id == fileId);
+            _logger.LogWarning("🔴 DELETE_FILE: AFTER removal - Field has {Count} file(s): {FileIds}", 
+                currentFieldFiles.Count, 
+                string.Join(", ", currentFieldFiles.Select(f => f.Id)));
             
 
             
+            _logger.LogWarning("🔴 DELETE_FILE: About to call UpdateSessionFileList...");
             UpdateSessionFileList(appId, fieldId, currentFieldFiles);
+            _logger.LogWarning("🔴 DELETE_FILE: ✅ UpdateSessionFileList completed");
+            
+            _logger.LogWarning("🔴 DELETE_FILE: About to call SaveUploadedFilesToResponseAsync...");
             await SaveUploadedFilesToResponseAsync(appId, fieldId, currentFieldFiles);
+            _logger.LogWarning("🔴 DELETE_FILE: ✅ SaveUploadedFilesToResponseAsync completed");
+            
+            _logger.LogWarning("🔴 DELETE_FILE_END: File deletion process completed. Redirecting to: {ReturnUrl}", returnUrl ?? "Page()");
             
             // If we have a return URL (from partial form), redirect back
             if (!string.IsNullOrEmpty(returnUrl))
@@ -2942,8 +2961,12 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         private async Task<IReadOnlyList<UploadDto>> GetFilesForFieldAsync(Guid appId, string fieldId)
         {
+            _logger.LogWarning("🟢 GET_FILES_START: FieldId={FieldId}, IsCollectionFlow={IsCollection}, FlowId={FlowId}, InstanceId={InstanceId}", 
+                fieldId, IsCollectionFlow, FlowId ?? "null", InstanceId ?? "null");
+            
             if (string.IsNullOrEmpty(fieldId))
             {
+                _logger.LogWarning("🟢 GET_FILES_END: Empty fieldId, returning empty list");
                 return new List<UploadDto>().AsReadOnly();
             }
 
@@ -2952,6 +2975,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
             if (IsCollectionFlow)
             {
+                _logger.LogWarning("🟢 GET_FILES: This is a collection flow, checking accumulated data...");
 
 
                 // CRITICAL FIX: Scan accumulated collection items to find this instance's item,
@@ -2959,6 +2983,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 try
                 {
                     var accumulatedData = applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
+                    _logger.LogWarning("🟢 GET_FILES: Got {Count} accumulated field(s)", accumulatedData.Count);
 
 
                     foreach (var kvp in accumulatedData)
@@ -2975,9 +3000,12 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                             var existingItem = items.FirstOrDefault(item => item.TryGetValue("id", out var idVal) && idVal?.ToString() == InstanceId);
                             if (existingItem != null)
                             {
+                                _logger.LogWarning("🟢 GET_FILES: Found existing item in collection for InstanceId={InstanceId}", InstanceId);
 
                                 if (existingItem.TryGetValue(fieldId, out var innerValue) && innerValue != null)
                                 {
+                                    _logger.LogWarning("🟢 GET_FILES: Found field {FieldId} in existing item", fieldId);
+                                    
                                     // Handle JsonElement array
                                     if (innerValue is JsonElement innerElem)
                                     {
@@ -2986,12 +3014,13 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                             try
                                             {
                                                 var files = JsonSerializer.Deserialize<List<UploadDto>>(innerElem.GetRawText()) ?? new List<UploadDto>();
-
+                                                _logger.LogWarning("🟢 GET_FILES_END: Returning {Count} file(s) from JsonElement array: {FileIds}", 
+                                                    files.Count, string.Join(", ", files.Select(f => f.Id)));
                                                 return files.AsReadOnly();
                                             }
                                             catch (JsonException ex)
                                             {
-
+                                                _logger.LogWarning("🟢 GET_FILES: Failed to parse JsonElement array: {Error}", ex.Message);
                                             }
                                         }
                                     }
@@ -3001,7 +3030,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                         try
                                         {
                                             var files = JsonSerializer.Deserialize<List<UploadDto>>(innerJson) ?? new List<UploadDto>();
-
+                                            _logger.LogWarning("🟢 GET_FILES_END: Returning {Count} file(s) from string JSON: {FileIds}", 
+                                                files.Count, string.Join(", ", files.Select(f => f.Id)));
                                             return files.AsReadOnly();
                                         }
                                         catch (JsonException ex)
@@ -3058,6 +3088,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             else
             {
                 // For regular forms, get files from session
+                _logger.LogWarning("🟢 GET_FILES: This is a regular form, checking session key UploadedFiles_{AppId}_{FieldId}", appId, fieldId);
                 var sessionKey = $"UploadedFiles_{appId}_{fieldId}";
                 var sessionFilesJson = HttpContext.Session.GetString(sessionKey);
 
@@ -3067,17 +3098,63 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     try
                     {
                         var files = JsonSerializer.Deserialize<List<UploadDto>>(sessionFilesJson) ?? new List<UploadDto>();
-
+                        _logger.LogWarning("🟢 GET_FILES_END: Returning {Count} file(s) from regular session: {FileIds}", 
+                            files.Count, string.Join(", ", files.Select(f => f.Id)));
                         return files.AsReadOnly();
                     }
                     catch (Exception ex)
                     {
-
+                        _logger.LogError(ex, "🟢 GET_FILES: Failed to deserialize regular session files for key {Key}", sessionKey);
                     }
+                }
+                else
+                {
+                    _logger.LogWarning("🟢 GET_FILES: No files found in regular session for key {Key}, checking accumulated data as fallback", sessionKey);
+                }
+                
+                // CRITICAL FIX: Fallback to accumulated form data (which contains database data)
+                // This handles the case where session is empty after app restart but DB has files
+                try
+                {
+                    var accumulatedData = applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
+                    _logger.LogWarning("🟢 GET_FILES: Fallback - Got {Count} accumulated field(s)", accumulatedData.Count);
+                    
+                    if (accumulatedData.TryGetValue(fieldId, out var fieldValue))
+                    {
+                        var fieldValueStr = fieldValue?.ToString();
+                        _logger.LogWarning("🟢 GET_FILES: Fallback - Found field {FieldId} in accumulated data", fieldId);
+                        
+                        if (!string.IsNullOrWhiteSpace(fieldValueStr))
+                        {
+                            try
+                            {
+                                var files = JsonSerializer.Deserialize<List<UploadDto>>(fieldValueStr) ?? new List<UploadDto>();
+                                _logger.LogWarning("🟢 GET_FILES_END: Returning {Count} file(s) from accumulated data fallback: {FileIds}", 
+                                    files.Count, string.Join(", ", files.Select(f => f.Id)));
+                                return files.AsReadOnly();
+                            }
+                            catch (JsonException ex)
+                            {
+                                _logger.LogWarning(ex, "🟢 GET_FILES: Fallback - Failed to parse field value as file list for field {FieldId}", fieldId);
+                            }
+                        }
+                        else
+                        {
+                            _logger.LogWarning("🟢 GET_FILES: Fallback - Field {FieldId} has empty value in accumulated data", fieldId);
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogWarning("🟢 GET_FILES: Fallback - Field {FieldId} NOT found in accumulated data", fieldId);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "🟢 GET_FILES: Fallback - Error accessing accumulated form data");
                 }
             }
 
-
+            _logger.LogWarning("🟢 GET_FILES_END: No files found anywhere, returning empty list");
             return new List<UploadDto>().AsReadOnly();
         }
 

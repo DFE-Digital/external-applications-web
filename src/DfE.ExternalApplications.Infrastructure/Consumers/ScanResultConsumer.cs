@@ -1,6 +1,4 @@
-﻿using System.Text.Json;
-using DfE.ExternalApplications.Application.Interfaces;
-using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
+﻿using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Enums;
@@ -10,6 +8,7 @@ using GovUK.Dfe.ExternalApplications.Api.Client.Security;
 using MassTransit;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
+using System.Text.Json;
 
 namespace DfE.ExternalApplications.Infrastructure.Consumers
 {
