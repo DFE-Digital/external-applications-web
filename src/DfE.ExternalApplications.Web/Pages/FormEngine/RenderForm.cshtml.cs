@@ -2870,6 +2870,9 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             var fileIdStr = Request.Form["FileId"].ToString();
             var fieldId = Request.Form["FieldId"].ToString();
             
+            _logger.LogWarning("🔴 DELETE_FILE_START: AppId={AppId}, FileId={FileId}, FieldId={FieldId}, IsCollectionFlow={IsCollection}, FlowId={FlowId}, InstanceId={InstanceId}", 
+                applicationId, fileIdStr, fieldId, IsCollectionFlow, FlowId, InstanceId);
+            
             if (!Guid.TryParse(applicationId, out var appId))
                 return NotFound();
                 
@@ -3011,15 +3014,22 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
             if (IsCollectionFlow)
             {
+                _logger.LogWarning("🔵 COLLECTION_GET_FILES_START: FlowId={FlowId}, InstanceId={InstanceId}, FieldId={FieldId}", 
+                    FlowId, InstanceId, fieldId);
+                
                 // CRITICAL FIX: Scan accumulated collection items to find this instance's item,
                 // then read the inner field value (matching 'fieldId') like GET does.
                 try
                 {
                     var accumulatedData = applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
+                    _logger.LogWarning("🔵 COLLECTION: Got {Count} accumulated field(s): {Keys}", 
+                        accumulatedData.Count, 
+                        string.Join(", ", accumulatedData.Keys));
 
 
                     foreach (var kvp in accumulatedData)
                     {
+                        _logger.LogWarning("🔵 COLLECTION: Checking key {Key}", kvp.Key);
                         var collectionJson = kvp.Value?.ToString();
                         if (string.IsNullOrWhiteSpace(collectionJson))
                         {
@@ -3029,25 +3039,60 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         try
                         {
                             var items = JsonSerializer.Deserialize<List<Dictionary<string, object>>>(collectionJson) ?? new();
+                            _logger.LogWarning("🔵 COLLECTION: Key {Key} has {Count} items", kvp.Key, items.Count);
+                            
                             var existingItem = items.FirstOrDefault(item => item.TryGetValue("id", out var idVal) && idVal?.ToString() == InstanceId);
                             if (existingItem != null)
                             {
+                                _logger.LogWarning("🔵 COLLECTION: Found item with InstanceId={InstanceId}, has {FieldCount} fields: {Fields}", 
+                                    InstanceId, 
+                                    existingItem.Count, 
+                                    string.Join(", ", existingItem.Keys));
+                                
                                 if (existingItem.TryGetValue(fieldId, out var innerValue) && innerValue != null)
                                 {
-                                    // Handle JsonElement array
+                                    _logger.LogWarning("🔵 COLLECTION: Found field {FieldId}, value type: {Type}", 
+                                        fieldId, 
+                                        innerValue.GetType().Name);
+                                    
+                                    // Handle JsonElement (could be array or string)
                                     if (innerValue is JsonElement innerElem)
                                     {
+                                        _logger.LogWarning("🔵 COLLECTION: JsonElement ValueKind: {ValueKind}", innerElem.ValueKind);
+                                        
                                         if (innerElem.ValueKind == JsonValueKind.Array)
                                         {
                                             try
                                             {
                                                 var files = JsonSerializer.Deserialize<List<UploadDto>>(innerElem.GetRawText()) ?? new List<UploadDto>();
+                                                _logger.LogWarning("🔵 COLLECTION: Found {Count} file(s) from JsonElement array, returning after filter", files.Count);
                                                 var cleanFiles = FilterInfectedFilesFromList(files);
                                                 return cleanFiles.AsReadOnly();
                                             }
-                                            catch (JsonException)
+                                            catch (JsonException ex)
                                             {
-                                                // Failed to parse, continue to next source
+                                                _logger.LogWarning("🔵 COLLECTION: Failed to parse JsonElement array: {Error}", ex.Message);
+                                            }
+                                        }
+                                        else if (innerElem.ValueKind == JsonValueKind.String)
+                                        {
+                                            // CRITICAL FIX: JsonElement can also be a STRING containing JSON
+                                            var stringValue = innerElem.GetString();
+                                            _logger.LogWarning("🔵 COLLECTION: JsonElement is a string, value: {Value}", stringValue?.Substring(0, Math.Min(100, stringValue?.Length ?? 0)));
+                                            
+                                            if (!string.IsNullOrWhiteSpace(stringValue))
+                                            {
+                                                try
+                                                {
+                                                    var files = JsonSerializer.Deserialize<List<UploadDto>>(stringValue) ?? new List<UploadDto>();
+                                                    _logger.LogWarning("🔵 COLLECTION: Found {Count} file(s) from JsonElement string, returning after filter", files.Count);
+                                                    var cleanFiles = FilterInfectedFilesFromList(files);
+                                                    return cleanFiles.AsReadOnly();
+                                                }
+                                                catch (JsonException ex)
+                                                {
+                                                    _logger.LogWarning("🔵 COLLECTION: Failed to parse JsonElement string: {Error}", ex.Message);
+                                                }
                                             }
                                         }
                                     }
@@ -3057,20 +3102,26 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                         try
                                         {
                                             var files = JsonSerializer.Deserialize<List<UploadDto>>(innerJson) ?? new List<UploadDto>();
+                                            _logger.LogWarning("🔵 COLLECTION: Found {Count} file(s) from string JSON, returning after filter", files.Count);
                                             var cleanFiles = FilterInfectedFilesFromList(files);
                                             return cleanFiles.AsReadOnly();
                                         }
-                                        catch (JsonException)
+                                        catch (JsonException ex)
                                         {
-                                            // Failed to parse, continue to next source
+                                            _logger.LogWarning("🔵 COLLECTION: Failed to parse string JSON: {Error}", ex.Message);
                                         }
                                     }
                                     // Handle direct list
                                     else if (innerValue is List<UploadDto> uploadList)
                                     {
+                                        _logger.LogWarning("🔵 COLLECTION: Found {Count} file(s) from direct list, returning after filter", uploadList.Count);
                                         var cleanFiles = FilterInfectedFilesFromList(uploadList);
                                         return cleanFiles.AsReadOnly();
                                     }
+                                }
+                                else
+                                {
+                                    _logger.LogWarning("🔵 COLLECTION: Field {FieldId} NOT found in item", fieldId);
                                 }
                             }
                         }
@@ -3086,26 +3137,38 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 }
 
                 // FALLBACK: Check session flow progress
+                _logger.LogWarning("🔵 COLLECTION: Checking session flow progress fallback");
                 var progressData = LoadFlowProgress(FlowId, InstanceId);
+                _logger.LogWarning("🔵 COLLECTION: Session flow progress has {Count} fields: {Keys}", 
+                    progressData.Count, 
+                    string.Join(", ", progressData.Keys));
 
                 if (progressData.TryGetValue(fieldId, out var progressValue))
                 {
                     var sessionFilesJson = progressValue?.ToString();
+                    _logger.LogWarning("🔵 COLLECTION: Found field {FieldId} in session flow progress", fieldId);
 
                     if (!string.IsNullOrWhiteSpace(sessionFilesJson))
                     {
                         try
                         {
                             var files = JsonSerializer.Deserialize<List<UploadDto>>(sessionFilesJson) ?? new List<UploadDto>();
+                            _logger.LogWarning("🔵 COLLECTION: Found {Count} file(s) from session flow progress, returning after filter", files.Count);
                             var cleanFiles = FilterInfectedFilesFromList(files);
                             return cleanFiles.AsReadOnly();
                         }
-                        catch (JsonException)
+                        catch (JsonException ex)
                         {
-                            // Failed to parse, continue to next source
+                            _logger.LogWarning("🔵 COLLECTION: Failed to parse session flow progress: {Error}", ex.Message);
                         }
                     }
                 }
+                else
+                {
+                    _logger.LogWarning("🔵 COLLECTION: Field {FieldId} NOT found in session flow progress", fieldId);
+                }
+                
+                _logger.LogWarning("🔵 COLLECTION_GET_FILES_END: No files found anywhere, returning empty list");
             }
             else
             {
@@ -3309,6 +3372,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
     }
 }
+
 
 
 
