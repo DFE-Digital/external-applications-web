@@ -5,6 +5,8 @@
     var maxLengthRule = Model.Field.Validations?.Where(v => v.Type == "maxLength").FirstOrDefault()?.Rule.ToString();
     int.TryParse(maxLengthRule, out var maxLengthValue);
     var labelClasses = Model.Field.Label.IsVisible ? "" : "govuk-visually-hidden";
+    var maxLengthMessage = Model.Field.Validations?.Where(v => v.Type == "maxLength").FirstOrDefault()?.Message
+        ?? "You have entered too many characters";
 }
 <govuk-character-count id="@Model.Id" name="Data[@Model.Field.FieldId]" max-length="@maxLengthValue">
     <govuk-character-count-label class="@labelClasses" asp-for="@Model.Field.FieldId">@Model.Field.Label</govuk-character-count-label>
@@ -17,8 +19,189 @@
 
     @if (Model.ErrorMessage != String.Empty)
     {
-        <govuk-character-count-error-message>@Model.ErrorMessage
+        <govuk-character-count-error-message>
+            <span class="govuk-visually-hidden">Error: </span>
+            @Model.ErrorMessage
         </govuk-character-count-error-message>
     }
     <govuk-character-count-value>@Model.CurrentValue</govuk-character-count-value>
 </govuk-character-count>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        function bindOne(textarea) {
+            if (!textarea || textarea.dataset.liveMaxlengthBound === 'true') return;
+
+            // Resolve wrapper and form group
+            var wrapper = textarea.closest('.govuk-character-count') || textarea.parentElement;
+            var formGroup = (wrapper && wrapper.closest('.govuk-form-group')) || textarea.closest('.govuk-form-group') || wrapper || textarea.parentElement;
+
+            // Resolve max: textarea maxlength, wrapper data-maxlength, or server fallback
+            var max = parseInt(textarea.getAttribute('maxlength'), 10);
+            if (!max || isNaN(max)) {
+                max = wrapper ? parseInt(wrapper.getAttribute('data-maxlength'), 10) : NaN;
+            }
+            if (!max || isNaN(max)) {
+                max = @maxLengthValue; // from validations.rule
+            }
+            if (!max || isNaN(max)) return;
+
+            var templateMsg = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Field.Validations?.FirstOrDefault(v => v.Type == "maxLength")?.Message ?? "You must enter fewer characters"));
+
+            function ensureErrorEl() {
+                var err = formGroup.querySelector('.govuk-error-message[data-live-maxlength]');
+                if (!err) {
+                    err = document.createElement('div');
+                    err.className = 'govuk-error-message';
+                    err.setAttribute('data-live-maxlength', 'true');
+                    err.setAttribute('role', 'alert');
+                    // Insert below the field hint but above the textarea/character count
+                    var hintEl = wrapper ? wrapper.querySelector('.govuk-hint') : null;
+                    if (hintEl && hintEl.parentNode) {
+                        hintEl.insertAdjacentElement('afterend', err);
+                    } else if (wrapper && wrapper.parentNode) {
+                        wrapper.parentNode.insertBefore(err, wrapper); // fallback: above component
+                    } else {
+                        formGroup.insertBefore(err, formGroup.firstChild); // final fallback
+                    }
+                }
+                return err;
+            }
+
+            function setGovUkErrorState(show) {
+                if (!wrapper) return;
+                if (show) {
+                    wrapper.classList.add('govuk-character-count--error');
+                    textarea.classList.add('govuk-textarea--error');
+                    // If the component has its own message element, keep it aligned
+                    var msgEl = wrapper.querySelector('.govuk-character-count__message');
+                    if (msgEl) { try { msgEl.setAttribute('role', 'alert'); } catch {} }
+                } else {
+                    wrapper.classList.remove('govuk-character-count--error');
+                    textarea.classList.remove('govuk-textarea--error');
+                    var msgEl2 = wrapper.querySelector('.govuk-character-count__message');
+                    if (msgEl2) { try { msgEl2.removeAttribute('role'); } catch {} }
+                }
+            }
+
+            function clearError() {
+                var err = formGroup.querySelector('.govuk-error-message[data-live-maxlength]');
+                if (err) err.remove();
+                textarea.setAttribute('aria-invalid', 'false');
+            removeSummaryError();
+                setGovUkErrorState(false);
+            }
+
+            function setInlineError(message) {
+                var err = ensureErrorEl();
+                // Clear and prepend visually hidden prefix
+                err.textContent = '';
+                var vh = document.createElement('span');
+                vh.className = 'govuk-visually-hidden';
+                vh.textContent = 'Error: ';
+                err.appendChild(vh);
+                err.appendChild(document.createTextNode(message));
+                return err;
+            }
+
+            function update() {
+                var len = (textarea.value || '').length;
+                if (len > max) {
+                    setInlineError(templateMsg);
+                    textarea.setAttribute('aria-invalid', 'true');
+                addSummaryError();
+                    setGovUkErrorState(true);
+                } else {
+                    clearError();
+                }
+            }
+
+            textarea.addEventListener('input', update);
+            textarea.addEventListener('change', update);
+            textarea.addEventListener('paste', function () { setTimeout(update, 0); });
+            textarea.dataset.liveMaxlengthBound = 'true';
+            update();
+
+        function ensureSummary() {
+            var summary = document.querySelector('.govuk-error-summary');
+            if (!summary) {
+                // Create a minimal error summary if none exists
+                summary = document.createElement('div');
+                summary.className = 'govuk-error-summary';
+                summary.setAttribute('role', 'alert');
+                summary.setAttribute('tabindex', '-1');
+                summary.setAttribute('data-live-summary', 'true');
+                var title = document.createElement('h2');
+                title.className = 'govuk-error-summary__title';
+                title.textContent = 'There is a problem';
+                var body = document.createElement('div');
+                body.className = 'govuk-error-summary__body';
+                var list = document.createElement('ul');
+                list.className = 'govuk-list govuk-error-summary__list';
+                body.appendChild(list);
+                summary.appendChild(title);
+                summary.appendChild(body);
+                var form = textarea.closest('form') || document.body;
+                form.insertBefore(summary, form.firstChild);
+            }
+            // Ensure visible if previously hidden
+            try { summary.removeAttribute('hidden'); } catch {}
+            var listEl = summary.querySelector('.govuk-error-summary__list');
+            if (!listEl) {
+                listEl = document.createElement('ul');
+                listEl.className = 'govuk-list govuk-error-summary__list';
+                var body = summary.querySelector('.govuk-error-summary__body') || summary;
+                body.appendChild(listEl);
+            }
+            return { summary: summary, list: listEl };
+        }
+
+        function addSummaryError() {
+            var parts = ensureSummary();
+            var list = parts.list;
+            var existing = list.querySelector('li[data-live-maxlength="true"][data-field-id="' + textarea.id + '"]');
+            if (!existing) {
+                existing = document.createElement('li');
+                existing.setAttribute('data-live-maxlength', 'true');
+                existing.setAttribute('data-field-id', textarea.id);
+                var a = document.createElement('a');
+                a.setAttribute('href', '#' + textarea.id);
+                a.textContent = templateMsg;
+                existing.appendChild(a);
+                list.appendChild(existing);
+            } else {
+                var link = existing.querySelector('a');
+                if (link) link.textContent = templateMsg;
+            }
+        }
+
+        function removeSummaryError() {
+            var summary = document.querySelector('.govuk-error-summary');
+            if (!summary) return;
+            var list = summary.querySelector('.govuk-error-summary__list');
+            if (!list) return;
+            var existing = list.querySelector('li[data-live-maxlength="true"][data-field-id="' + textarea.id + '"]');
+            if (existing) existing.remove();
+
+            // If no items remain, tidy up
+            var anyItemsLeft = list.querySelector('li');
+            if (!anyItemsLeft) {
+                if (summary.getAttribute('data-live-summary') === 'true') {
+                    // We created this summary; remove entirely
+                    summary.remove();
+                } else {
+                    // Hide server-rendered summary if it is now empty
+                    summary.setAttribute('hidden', 'true');
+                }
+            }
+        }
+        }
+
+        // Bind all character-count textareas on the page
+        document.querySelectorAll('.govuk-character-count textarea').forEach(bindOne);
+
+        // Fallback: try by name if needed (in case markup deviates)
+        var fallback = document.querySelector('textarea[name="Data[@Model.Field.FieldId]"]');
+        if (fallback) bindOne(fallback);
+    });
+</script>

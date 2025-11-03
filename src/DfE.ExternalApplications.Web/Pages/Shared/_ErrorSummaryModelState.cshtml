@@ -15,7 +15,7 @@
                         {
                             if (!string.IsNullOrWhiteSpace(anchorId))
                             {
-                                <li><a href="#@anchorId">@err.ErrorMessage</a></li>
+                                <li><a href="#@anchorId"><span class="govuk-visually-hidden">Error: </span>@err.ErrorMessage</a></li>
                             }
                             else
                             {

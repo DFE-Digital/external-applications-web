@@ -18,7 +18,7 @@
         </div>
         <div class="govuk-notification-banner__content">
             <p class="govuk-notification-banner__heading">
-                @Model.SuccessMessage
+                @DisplayHelpers.UnsanitiseHtmlInput(Model.SuccessMessage)
             </p>
         </div>
     </div>
@@ -35,7 +35,7 @@
                     @foreach (var errorMsg in error.Value.Errors)
                     {
                         <govuk-error-summary-item>
-                            @errorMsg.ErrorMessage
+                            <span class="govuk-visually-hidden">Error: </span>@errorMsg.ErrorMessage
                         </govuk-error-summary-item>
                     }
                 }

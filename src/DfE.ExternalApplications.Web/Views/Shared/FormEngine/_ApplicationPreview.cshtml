@@ -25,7 +25,7 @@
             <govuk-error-summary>
                 @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
                 {
-                    <govuk-error-summary-item>@error.ErrorMessage</govuk-error-summary-item>
+                    <govuk-error-summary-item><span class="govuk-visually-hidden">Error: </span>@error.ErrorMessage</govuk-error-summary-item>
                 }
             </govuk-error-summary>
         }

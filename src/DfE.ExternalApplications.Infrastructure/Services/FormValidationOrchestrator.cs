@@ -174,11 +174,15 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             
             if (template != null && !hasExplicitRequiredRule && _fieldRequirementService.IsFieldRequired(field, template))
             {
-                if (string.IsNullOrWhiteSpace(stringValue))
+                var hasExplicitRequired = field.Validations?.Any(v => string.Equals(v.Type, "required", StringComparison.OrdinalIgnoreCase)) == true;
+                if (!hasExplicitRequired && _fieldRequirementService.IsFieldRequired(field, template))
                 {
-                    var fieldLabel = field.Label?.Value ?? field.FieldId;
-                    modelState.AddModelError(fieldKey, $"{fieldLabel} is required");
-                    isValid = false;
+                    if (string.IsNullOrWhiteSpace(stringValue))
+                    {
+                        var fieldLabel = field.Label?.Value ?? field.FieldId;
+                        modelState.AddModelError(fieldKey, $"{fieldLabel} is required");
+                        isValid = false;
+                    }
                 }
             }
 
@@ -187,9 +191,29 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             {
                 if (!string.IsNullOrWhiteSpace(stringValue))
                 {
-                    if (!DateTime.TryParseExact(stringValue, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
+                    // Detect missing date parts (day/month/year) from the composed value
+                    // We compose values as "YYYY-M-D" when parts are incomplete or invalid
+                    var fieldLabel = field.Label?.Value ?? field.FieldId;
+                    var missingParts = false;
+
+                    if (stringValue.Contains('-'))
                     {
-                        modelState.AddModelError(fieldKey, "Enter a valid date");
+                        var bits = stringValue.Split('-', StringSplitOptions.TrimEntries);
+                        if (bits.Length == 3)
+                        {
+                            missingParts = string.IsNullOrWhiteSpace(bits[0]) || string.IsNullOrWhiteSpace(bits[1]) || string.IsNullOrWhiteSpace(bits[2]);
+                        }
+                    }
+
+                    if (missingParts)
+                    {
+                        modelState.AddModelError(fieldKey, $"{fieldLabel} must include a day, month and year");
+                        isValid = false;
+                    }
+                    else if (!DateTime.TryParseExact(stringValue, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
+                    {
+                        // All parts present and numeric but not a real calendar date
+                        modelState.AddModelError(fieldKey, $"{fieldLabel} must be a real date");
                         isValid = false;
                     }
                 }
@@ -203,7 +227,22 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                     var emailAttr = new EmailAddressAttribute();
                     if (!emailAttr.IsValid(stringValue))
                     {
-                        modelState.AddModelError(fieldKey, "Enter an email address in the correct format");
+                        modelState.AddModelError(fieldKey, "Enter an email address in the correct format, for example, name@example.com");
+                        isValid = false;
+                    }
+                }
+            }
+            
+            var fieldTypesWithOptions = new List<string> { "radios", "checkboxes" };
+            if (fieldTypesWithOptions.Contains(field.Type, StringComparer.OrdinalIgnoreCase))
+            {
+                if (!string.IsNullOrWhiteSpace(stringValue))
+                {
+                    var isValidOption = field.Options?.Select(o => o.Value).Contains(stringValue) ?? false;
+                    if (!isValidOption)
+                    {
+                        var message = GetCustomRequiredMessage(field) ?? "Select an option from the list";
+                        modelState.AddModelError(fieldKey, message);
                         isValid = false;
                     }
                 }
@@ -403,10 +442,14 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                         if (!isUploadField && !string.IsNullOrWhiteSpace(stringValue))
                         {
                             var pattern = rule.Rule?.ToString();
-                            if (!string.IsNullOrEmpty(pattern) && !Regex.IsMatch(stringValue, pattern, RegexOptions.None, TimeSpan.FromMilliseconds(200)))
+                            if (!string.IsNullOrEmpty(pattern))
                             {
-                                modelState.AddModelError(fieldKey, rule.Message);
-                                isValid = false;
+                                var target = ExtractAutocompleteDisplayText(stringValue);
+                                if (!Regex.IsMatch(target, pattern, RegexOptions.None, TimeSpan.FromMilliseconds(200)))
+                                {
+                                    modelState.AddModelError(fieldKey, rule.Message);
+                                    isValid = false;
+                                }
                             }
                         }
                         break;
@@ -492,6 +535,61 @@ namespace DfE.ExternalApplications.Infrastructure.Services
 
             // If not JSON or parsing failed, treat non-empty as having files (except for known placeholders)
             return !string.IsNullOrWhiteSpace(value);
+        }
+
+        /// <summary>
+        /// Attempts to extract a human-readable display text from an autocomplete value.
+        /// Values are often JSON objects like { "name": "Trust A", "ukprn": "123" }.
+        /// If parsing fails, returns the raw value.
+        /// </summary>
+        private static string ExtractAutocompleteDisplayText(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            try
+            {
+                using var doc = JsonDocument.Parse(value);
+                if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                {
+                    // Prefer typical display properties
+                    var displayProps = new[] { "name", "title", "label", "displayName", "groupName", "text", "value" };
+                    foreach (var p in displayProps)
+                    {
+                        if (doc.RootElement.TryGetProperty(p, out var prop) && prop.ValueKind == JsonValueKind.String)
+                        {
+                            var s = prop.GetString();
+                            if (!string.IsNullOrWhiteSpace(s)) return s!;
+                        }
+                    }
+
+                    // Otherwise, return a key identifier if present
+                    var idProps = new[] { "ukprn", "urn", "id", "companiesHouseNumber", "companieshousenumber", "companies_house_number", "code" };
+                    foreach (var p in idProps)
+                    {
+                        if (doc.RootElement.TryGetProperty(p, out var prop))
+                        {
+                            if (prop.ValueKind == JsonValueKind.String)
+                            {
+                                var s = prop.GetString();
+                                if (!string.IsNullOrWhiteSpace(s)) return s!;
+                            }
+                            else if (prop.ValueKind == JsonValueKind.Number)
+                            {
+                                return prop.GetInt64().ToString(CultureInfo.InvariantCulture);
+                            }
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Not JSON; fall through
+            }
+
+            return value;
         }
 
         #endregion

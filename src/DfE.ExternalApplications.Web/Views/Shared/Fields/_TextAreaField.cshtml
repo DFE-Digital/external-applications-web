@@ -7,7 +7,7 @@
     var labelClasses = Model.Field.Label.IsVisible ? "" : "govuk-visually-hidden";
 }
 
-<govuk-error-message for="@Model.Id">@Model.ErrorMessage</govuk-error-message>
+<govuk-error-message for="@Model.Id"><span class="govuk-visually-hidden">Error: </span>@Model.ErrorMessage</govuk-error-message>
 <govuk-textarea
              id="@Model.Id"
              name="Data[@Model.Field.FieldId]"
@@ -23,7 +23,8 @@
 
     @if (Model.ErrorMessage != String.Empty)
     {
-        <govuk-textarea-error-message>@Model.ErrorMessage
+        <govuk-textarea-error-message>
+            <span class="govuk-visually-hidden">Error: </span>@Model.ErrorMessage
         </govuk-textarea-error-message>
     }
     <govuk-textarea-value>@Model.CurrentValue</govuk-textarea-value>

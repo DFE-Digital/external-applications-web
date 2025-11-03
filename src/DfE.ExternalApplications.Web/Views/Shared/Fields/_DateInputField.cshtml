@@ -28,6 +28,187 @@
 	}
 }
 
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // Find the component wrapper first
+    var wrapperRoot = document.getElementById('@Model.Id')
+        || document.querySelector('.govuk-date-input[name-prefix="Data[@Model.Field.FieldId]"]')
+        || document.querySelector('[data-name-prefix="Data[@Model.Field.FieldId]"]')
+        || document.querySelector('.govuk-date-input');
+
+    // Scope queries to the nearest wrapper to avoid cross-field matching
+    var wrapper = (wrapperRoot && wrapperRoot.classList && wrapperRoot.classList.contains('govuk-date-input'))
+        ? wrapperRoot
+        : (wrapperRoot ? wrapperRoot.closest('.govuk-date-input') : null);
+
+    if (!wrapper) return;
+
+    // Resolve inputs inside this wrapper by common suffixes (covers .day and -day naming)
+    function q(sel) { return wrapper.querySelector(sel); }
+    var day   = q('input[name$=".day"],   input[name$="-day"],   input[id$="-day"],   input[name$=".Day"],   input[name$="-Day"],   input[id$=".Day"],   input[id$="-Day"]');
+    var month = q('input[name$=".month"], input[name$="-month"], input[id$="-month"], input[name$=".Month"], input[name$="-Month"], input[id$=".Month"], input[id$="-Month"]');
+    var year  = q('input[name$=".year"],  input[name$="-year"],  input[id$="-year"],  input[name$=".Year"],  input[name$="-Year"],  input[id$=".Year"],  input[id$="-Year"]');
+    if (!day || !month || !year) return;
+
+    if (wrapper.dataset.liveDateBound === 'true') return;
+    wrapper.dataset.liveDateBound = 'true';
+
+    var fieldLabel = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Field.Label?.Value ?? Model.Field.FieldId));
+    var missingMsg = @Html.Raw(System.Text.Json.JsonSerializer.Serialize((Model.Field.Label?.Value ?? Model.Field.FieldId) + " must include a day, month and year"));
+    var invalidMsg = @Html.Raw(System.Text.Json.JsonSerializer.Serialize((Model.Field.Label?.Value ?? Model.Field.FieldId) + " must be a real date"));
+
+    function setInputsError(show) {
+        var cls = 'govuk-input--error';
+        [day, month, year].forEach(function (el) {
+            if (!el) return;
+            if (show) el.classList.add(cls); else el.classList.remove(cls);
+            el.setAttribute('aria-invalid', show ? 'true' : 'false');
+        });
+    }
+
+    function ensureErrorEl() {
+        var err = wrapper.querySelector('.govuk-error-message[data-live-date]');
+        if (!err) {
+            err = document.createElement('div');
+            err.className = 'govuk-error-message';
+            err.setAttribute('data-live-date', 'true');
+            err.setAttribute('role', 'alert');
+            var hintEl = wrapper.querySelector('.govuk-hint');
+            if (hintEl && hintEl.parentNode) {
+                hintEl.insertAdjacentElement('afterend', err);
+            } else {
+                wrapper.insertBefore(err, wrapper.firstChild);
+            }
+        }
+        return err;
+    }
+
+    function ensureSummary() {
+        var summary = document.querySelector('.govuk-error-summary');
+        if (!summary) {
+            summary = document.createElement('div');
+            summary.className = 'govuk-error-summary';
+            summary.setAttribute('role', 'alert');
+            summary.setAttribute('tabindex', '-1');
+            summary.setAttribute('data-live-summary', 'true');
+            var title = document.createElement('h2');
+            title.className = 'govuk-error-summary__title';
+            title.textContent = 'There is a problem';
+            var body = document.createElement('div');
+            body.className = 'govuk-error-summary__body';
+            var list = document.createElement('ul');
+            list.className = 'govuk-list govuk-error-summary__list';
+            body.appendChild(list);
+            summary.appendChild(title);
+            summary.appendChild(body);
+            var form = wrapper.closest('form') || document.body;
+            form.insertBefore(summary, form.firstChild);
+        }
+        try { summary.removeAttribute('hidden'); } catch {}
+        var listEl = summary.querySelector('.govuk-error-summary__list');
+        if (!listEl) {
+            listEl = document.createElement('ul');
+            listEl.className = 'govuk-list govuk-error-summary__list';
+            (summary.querySelector('.govuk-error-summary__body') || summary).appendChild(listEl);
+        }
+        return { summary: summary, list: listEl };
+    }
+
+    function addSummaryError(message) {
+        var parts = ensureSummary();
+        var list = parts.list;
+        var anchorId = day.id || (wrapper.id ? wrapper.id + '-day' : '');
+        var existing = list.querySelector('li[data-live-date="true"][data-field-id="' + anchorId + '"]');
+        if (!existing) {
+            existing = document.createElement('li');
+            existing.setAttribute('data-live-date', 'true');
+            existing.setAttribute('data-field-id', anchorId);
+            var a = document.createElement('a');
+            a.setAttribute('href', '#' + anchorId);
+            a.textContent = message;
+            existing.appendChild(a);
+            list.appendChild(existing);
+        } else {
+            var link = existing.querySelector('a');
+            if (link) link.textContent = message;
+        }
+    }
+
+    function removeSummaryError() {
+        var summary = document.querySelector('.govuk-error-summary');
+        if (!summary) return;
+        var list = summary.querySelector('.govuk-error-summary__list');
+        if (!list) return;
+        var anchorId = day.id || (wrapper.id ? wrapper.id + '-day' : '');
+        var existing = list.querySelector('li[data-live-date="true"][data-field-id="' + anchorId + '"]');
+        if (existing) existing.remove();
+        var anyLeft = list.querySelector('li');
+        if (!anyLeft) {
+            if (summary.getAttribute('data-live-summary') === 'true') summary.remove(); else summary.setAttribute('hidden', 'true');
+        }
+    }
+
+    function allPresent(vd, vm, vy) {
+        return vd.length > 0 && vm.length > 0 && vy.length > 0;
+    }
+
+    function isRealDate(y, m, d) {
+        // Match server behaviour (yyyy-MM-dd): require 4-digit year and a real calendar date
+        if (!/^\d{4}$/.test(y)) return false;
+        if (!/^\d{1,2}$/.test(m) || !/^\d{1,2}$/.test(d)) return false;
+        var yi = parseInt(y, 10), mi = parseInt(m, 10), di = parseInt(d, 10);
+        if (mi < 1 || mi > 12 || di < 1 || di > 31) return false;
+        var dt = new Date(yi, mi - 1, di);
+        return dt.getFullYear() === yi && (dt.getMonth() + 1) === mi && dt.getDate() === di;
+    }
+
+    function update() {
+        var vd = (day.value || '').trim();
+        var vm = (month.value || '').trim();
+        var vy = (year.value || '').trim();
+
+        if (vd || vm || vy) {
+            if (!allPresent(vd, vm, vy)) {
+                var err1 = ensureErrorEl();
+                err1.textContent = '';
+                var vh1 = document.createElement('span');
+                vh1.className = 'govuk-visually-hidden';
+                vh1.textContent = 'Error: ';
+                err1.appendChild(vh1);
+                err1.appendChild(document.createTextNode(missingMsg));
+                setInputsError(true);
+                addSummaryError(missingMsg);
+                return;
+            }
+            if (!isRealDate(vy, vm, vd)) {
+                var err2 = ensureErrorEl();
+                err2.textContent = '';
+                var vh2 = document.createElement('span');
+                vh2.className = 'govuk-visually-hidden';
+                vh2.textContent = 'Error: ';
+                err2.appendChild(vh2);
+                err2.appendChild(document.createTextNode(invalidMsg));
+                setInputsError(true);
+                addSummaryError(invalidMsg);
+                return;
+            }
+        }
+        // Clear if no parts or valid full date
+        var err = wrapper.querySelector('.govuk-error-message[data-live-date]');
+        if (err) err.remove();
+        setInputsError(false);
+        removeSummaryError();
+    }
+
+    [day, month, year].forEach(function (el) {
+        el.addEventListener('input', update);
+        el.addEventListener('keyup', update);
+        el.addEventListener('change', update);
+        el.addEventListener('paste', function () { setTimeout(update, 0); });
+    });
+    update();
+});
+</script>
 @if (hasPostedParts || hasPersistedParts)
 {
     <govuk-date-input id="@Model.Id" name-prefix="Data[@Model.Field.FieldId]">
@@ -44,6 +225,7 @@
             @if (Model.ErrorMessage != String.Empty)
             {
                 <govuk-date-input-error-message>
+                    <span class="govuk-visually-hidden">Error: </span>
                     @Model.ErrorMessage
                 </govuk-date-input-error-message>
             }

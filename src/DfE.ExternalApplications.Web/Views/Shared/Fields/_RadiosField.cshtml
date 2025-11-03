@@ -25,6 +25,7 @@
         @if (Model.ErrorMessage != String.Empty)
         {
             <govuk-radios-error-message ignore-modelstate-errors>
+                <span class="govuk-visually-hidden">Error: </span>
                 @Model.ErrorMessage
             </govuk-radios-error-message>
         }

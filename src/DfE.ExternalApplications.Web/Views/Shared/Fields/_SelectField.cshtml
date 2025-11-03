@@ -27,7 +27,7 @@
         </govuk-select-hint>
         @if (Model.ErrorMessage != String.Empty)
         {
-            <govuk-select-error-message>@Model.ErrorMessage</govuk-select-error-message>
+        <govuk-select-error-message><span class="govuk-visually-hidden">Error: </span>@Model.ErrorMessage</govuk-select-error-message>
         }
         @foreach (var opt in options)
         {

@@ -15,6 +15,7 @@
     List<Dictionary<string, object>> items = new();
     try { items = System.Text.Json.JsonSerializer.Deserialize<List<Dictionary<string, object>>>(json) ?? new(); } catch { }
     var itemLabel = flow.ItemTitleBinding ?? "Item";
+    var itemLabelPlural = flow.ItemTitleBindingPlural ?? $"{itemLabel}s";
 }
 
 <div class="govuk-!-margin-bottom-8">
@@ -387,7 +388,7 @@
                                                 }
                                                 else if (isAutocompleteField)
                                                 {
-                                                    var html = RenderAutocompleteSummary(value);
+                                                    var html = RenderAutocompleteSummary(DisplayHelpers.UnsanitiseHtmlInput(value));
                                                     @Html.Raw(html)
                                                 }
                                                 else
@@ -471,7 +472,7 @@
         var noItemsHintId = flow.FlowId + "-no-items-added-hint";
 
         <div class="govuk-inset-text" id="@noItemsHintId">
-            No @(itemLabel.ToLowerInvariant())s have been added.
+            No @(itemLabelPlural.ToLowerInvariant()) have been added.
         </div>
     }
 

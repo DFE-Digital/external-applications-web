@@ -15,6 +15,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{F62DE500
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Dfe.ExternalApplications.Web.UnitTests", "src\Tests\Dfe.ExternalApplications.Web.UnitTests\Dfe.ExternalApplications.Web.UnitTests.csproj", "{A5568E05-5568-49E3-BF8A-08EA7AB74960}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DfE.ExternalApplications.Infrastructure.UnitTests", "src\Tests\DfE.ExternalApplications.Infrastructure.UnitTests\DfE.ExternalApplications.Infrastructure.UnitTests.csproj", "{FB4D1E39-01AB-47D4-8394-270993A56B0D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -41,12 +43,17 @@ Global
 		{A5568E05-5568-49E3-BF8A-08EA7AB74960}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A5568E05-5568-49E3-BF8A-08EA7AB74960}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A5568E05-5568-49E3-BF8A-08EA7AB74960}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FB4D1E39-01AB-47D4-8394-270993A56B0D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FB4D1E39-01AB-47D4-8394-270993A56B0D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FB4D1E39-01AB-47D4-8394-270993A56B0D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FB4D1E39-01AB-47D4-8394-270993A56B0D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{A5568E05-5568-49E3-BF8A-08EA7AB74960} = {F62DE500-90E9-431D-B84C-8DF4CB166F54}
+		{FB4D1E39-01AB-47D4-8394-270993A56B0D} = {F62DE500-90E9-431D-B84C-8DF4CB166F54}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {F20FD7F1-3208-45E6-B45D-AF2EBDF28903}

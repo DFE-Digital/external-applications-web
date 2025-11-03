@@ -28,7 +28,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
         </legend>
         {(string.IsNullOrEmpty(tooltip) ? "" : $@"<div class=""govuk-hint"">{tooltip}</div>")}
         
-        {(string.IsNullOrEmpty(errorMessage) ? "" : $@"<div class=""govuk-error-message"">{errorMessage}</div>")}
+        {(string.IsNullOrEmpty(errorMessage) ? "" : $@"<div class=""govuk-error-message""><span class=""govuk-visually-hidden"">Error: </span>{errorMessage}</div>")}
         
     <input class=""govuk-input"" id=""{nameId}"" name=""{nameId}"" type=""text"" placeholder=""File name (optional)"" />
     <input class=""govuk-input"" id=""{descId}"" name=""{descId}"" type=""text"" placeholder=""Description (optional)"" />

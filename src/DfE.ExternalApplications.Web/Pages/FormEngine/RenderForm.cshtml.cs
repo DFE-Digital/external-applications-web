@@ -14,6 +14,7 @@ using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using DfE.ExternalApplications.Web.Interfaces;
 using StackExchange.Redis;
+using static DfE.ExternalApplications.Web.Pages.FormEngine.DisplayHelpers;
 
 namespace DfE.ExternalApplications.Web.Pages.FormEngine
 {
@@ -648,7 +649,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     // Convert StringValues to a simple string or array based on count
                     if (formValue.Count == 1)
                     {
-                        var val = formValue.ToString();
+                        var val = SanitiseHtmlInput(formValue.ToString());
                         Data[fieldId] = val;
                         if (!string.Equals(fieldId, normalisedFieldId, StringComparison.Ordinal))
                         {
@@ -658,7 +659,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     }
                     else if (formValue.Count > 1)
                     {
-                        var arr = formValue.ToArray();
+                        var arr = formValue.Select(SanitiseHtmlInput).ToArray();
                         Data[fieldId] = arr;
                         if (!string.Equals(fieldId, normalisedFieldId, StringComparison.Ordinal))
                         {
@@ -822,11 +823,24 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     {
                         try
                         {
-                            var dt = new DateTime(y, m, d);
-                            var iso = dt.ToString("yyyy-MM-dd");
-                            var normalisedFieldId = fieldId.StartsWith("Data_", StringComparison.Ordinal) ? fieldId.Substring(5) : fieldId;
-                            Data[fieldId] = iso;
-                            if (!string.Equals(fieldId, normalisedFieldId, StringComparison.Ordinal)) Data[normalisedFieldId] = iso;
+                            // Enforce four-digit year: if not 4 digits, do not normalise to ISO,
+                            // leave as joined parts so validation can raise an error
+                            var yearText = parts.Year?.Trim() ?? string.Empty;
+                            if (yearText.Length != 4)
+                            {
+                                var joinedInvalid = $"{parts.Year}-{parts.Month}-{parts.Day}";
+                                var normalisedFieldId = fieldId.StartsWith("Data_", StringComparison.Ordinal) ? fieldId.Substring(5) : fieldId;
+                                Data[fieldId] = joinedInvalid;
+                                if (!string.Equals(fieldId, normalisedFieldId, StringComparison.Ordinal)) Data[normalisedFieldId] = joinedInvalid;
+                            }
+                            else
+                            {
+                                var dt = new DateTime(y, m, d);
+                                var iso = dt.ToString("yyyy-MM-dd");
+                                var normalisedFieldId = fieldId.StartsWith("Data_", StringComparison.Ordinal) ? fieldId.Substring(5) : fieldId;
+                                Data[fieldId] = iso;
+                                if (!string.Equals(fieldId, normalisedFieldId, StringComparison.Ordinal)) Data[normalisedFieldId] = iso;
+                            }
                         }
                         catch
                         {
@@ -1153,11 +1167,30 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                 // Use the accumulated data (all fields from the item)
                                 if (isNewItem)
                                 {
+                                    accumulated = ExpandEncodedJson(accumulated);
                                     SuccessMessage = GenerateSuccessMessage(flow.AddItemMessage, "add", accumulated, flow.Title);
                                 }
                                 else
                                 {
-                                    SuccessMessage = GenerateSuccessMessage(flow.UpdateItemMessage, "update", accumulated, flow.Title);
+                                    // When a collection item is updated, the user can press the "Change" button on any
+                                    // of the fields. If they click (for example) the third button, the values for the
+                                    // first two fields aren't included in `accumulated`, which results in a bug where
+                                    // success messages show placeholders instead of the interpolated values.
+                                    // Merging in the original values using `TryAdd` ensures that all fields are
+                                    // available regardless of whether they were changed or not.
+                                    var itemData = accumulated;
+                                    var existingData = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
+                                    if (existingData.TryGetValue(flowFieldId, out var existingValue))
+                                    {
+                                        var contents = JsonSerializer.Deserialize<List<Dictionary<string, object>>>(existingValue.ToString() ?? "[]") ?? [];
+                                        foreach (var (key, value) in contents.FirstOrDefault() ?? new Dictionary<string, object>())
+                                        {
+                                            itemData.TryAdd(key, value);
+                                        }
+                                    }
+                                    itemData = ExpandEncodedJson(itemData);
+                                    
+                                    SuccessMessage = GenerateSuccessMessage(flow.UpdateItemMessage, "update", itemData, flow.Title);
                                 }
                             }
                             
@@ -1643,6 +1676,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     }
                     
                     // Generate success message using custom message or fallback
+                    itemData = ExpandEncodedJson(itemData);
                     SuccessMessage = GenerateSuccessMessage(flow.DeleteItemMessage, "delete", itemData, flowTitle);
                 }
             }
@@ -2338,72 +2372,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
                 }
             }
-        }
-
-        /// <summary>
-        /// Generates a success message using custom template or fallback default
-        /// </summary>
-        /// <param name="customMessage">Custom message template from configuration</param>
-        /// <param name="operation">Operation type: "add", "update", or "delete"</param>
-        /// <param name="itemData">Dictionary containing all field values for the item</param>
-        /// <param name="flowTitle">Title of the flow</param>
-        /// <returns>Formatted success message</returns>
-        private string GenerateSuccessMessage(string? customMessage, string operation, Dictionary<string, object>? itemData, string? flowTitle)
-        {
-            // If custom message is provided, use it with placeholder substitution
-            if (!string.IsNullOrEmpty(customMessage))
-            {
-                var message = customMessage;
-                
-                // Replace {flowTitle} placeholder
-                message = message.Replace("{flowTitle}", flowTitle ?? "collection");
-                
-                // Replace field-based placeholders like {firstName}, {gender}, etc.
-                if (itemData != null)
-                {
-                    foreach (var kvp in itemData)
-                    {
-                        var placeholder = $"{{{kvp.Key}}}";
-                        var value = kvp.Value?.ToString() ?? "";
-                        message = message.Replace(placeholder, value);
-                    }
-                }
-                
-                return message;
-            }
-
-            // Fallback to default messages - try to use itemTitleBinding or first available field
-            string displayName = "Item";
-            if (itemData != null && itemData.Any())
-            {
-                // Try common name fields first, then fall back to any non-empty value
-                var nameFields = new[] { "firstName", "name", "title", "label" };
-                var nameField = nameFields.FirstOrDefault(field => itemData.ContainsKey(field) && !string.IsNullOrEmpty(itemData[field]?.ToString()));
-                
-                if (nameField != null)
-                {
-                    displayName = itemData[nameField]?.ToString() ?? "Item";
-                }
-                else
-                {
-                    // Use the first non-empty field value
-                    var firstValue = itemData.Values.FirstOrDefault(v => !string.IsNullOrEmpty(v?.ToString()));
-                    if (firstValue != null)
-                    {
-                        displayName = firstValue.ToString() ?? "Item";
-                    }
-                }
-            }
-
-            var lowerFlowTitle = flowTitle?.ToLowerInvariant() ?? "collection";
-
-            return operation switch
-            {
-                "add" => $"{displayName} has been added to {lowerFlowTitle}",
-                "update" => $"{displayName} has been updated",
-                "delete" => $"{displayName} has been removed from {lowerFlowTitle}",
-                _ => $"{displayName} has been processed"
-            };
         }
 
         /// <summary>
