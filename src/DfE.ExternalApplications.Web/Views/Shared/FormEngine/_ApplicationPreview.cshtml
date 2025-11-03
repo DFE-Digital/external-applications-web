@@ -154,18 +154,18 @@
                                                                 else if (field.Type == "radios" && field.Options != null)
                                                                 {
                                                                     var selectedOption = field.Options.FirstOrDefault(o => o.Value == fieldValue);
-                                                                    @(selectedOption?.Label ?? fieldValue)
+                                                                    @Html.Raw(selectedOption?.Label ?? fieldValue)
                                                                 }
                                                                 else if (field.Type == "select" && field.Options != null)
                                                                 {
                                                                     var selectedOption = field.Options.FirstOrDefault(o => o.Value == fieldValue);
-                                                                    @(selectedOption?.Label ?? fieldValue)
+                                                                    @Html.Raw(selectedOption?.Label ?? fieldValue)
                                                                 }
                                                                 else if (field.Type == "checkboxes" && field.Options != null)
                                                                 {
                                                                     var selectedValues = fieldValue.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).ToList();
                                                                     var selectedLabels = field.Options.Where(o => selectedValues.Contains(o.Value)).Select(o => o.Label).ToList();
-                                                                    @(selectedLabels.Any() ? string.Join(", ", selectedLabels) : fieldValue)
+                                                                    @Html.Raw(selectedLabels.Any() ? string.Join(", ", selectedLabels) : fieldValue)
                                                                 }
                                                                 else
                                                                 {

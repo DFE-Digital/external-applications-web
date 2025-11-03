@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using System.Globalization;
 using System.ComponentModel.DataAnnotations;
+using System.Web;
 using Task = DfE.ExternalApplications.Domain.Models.Task;
 
 namespace DfE.ExternalApplications.Infrastructure.Services
@@ -238,7 +239,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             {
                 if (!string.IsNullOrWhiteSpace(stringValue))
                 {
-                    var isValidOption = field.Options?.Select(o => o.Value).Contains(stringValue) ?? false;
+                    var isValidOption = field.Options?.Select(o => o.Value).Contains(HttpUtility.HtmlDecode(stringValue)) ?? false;
                     if (!isValidOption)
                     {
                         var message = GetCustomRequiredMessage(field) ?? "Select an option from the list";
