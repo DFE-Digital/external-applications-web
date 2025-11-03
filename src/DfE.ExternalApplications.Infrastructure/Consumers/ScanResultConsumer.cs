@@ -138,6 +138,10 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
                     // Clean up infected file from database and clear Redis cache
                     await RemoveInfectedFileFromDatabaseAndCacheAsync(reference, applicationId, fileId, scanResult.FileName, userId);
 
+                    // clean up collection flow sessions in Redis
+                    // This ensures infected files are removed from FlowProgress_* session keys
+                    await CleanupCollectionFlowSessionsAsync(applicationId ?? Guid.Empty, fileId);
+
                     // Create user notification about the infected file
                     await CreateMalwareNotificationAsync(
                         fileId,
@@ -360,6 +364,103 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
         }
 
         /// <summary>
+        /// Clears infected files from all collection flow session data in Redis.
+        /// This ensures infected files are removed from FlowProgress_* keys so they don't get re-saved.
+        /// </summary>
+        private async Task CleanupCollectionFlowSessionsAsync(Guid applicationId, Guid fileId)
+        {
+            try
+            {
+                var db = redis.GetDatabase();
+                var server = redis.GetServer(redis.GetEndPoints().First());
+
+                // Find all FlowProgress session keys (collection flows)
+                var flowProgressKeys = server.Keys(pattern: "*FlowProgress_*").ToList();
+
+                logger.LogInformation(
+                    "Found {Count} FlowProgress session key(s) to check for infected file {FileId}",
+                    flowProgressKeys.Count,
+                    fileId);
+
+                int cleanedCount = 0;
+
+                foreach (var sessionKey in flowProgressKeys)
+                {
+                    var sessionData = await db.StringGetAsync(sessionKey);
+                    if (sessionData.IsNullOrEmpty)
+                        continue;
+
+                    try
+                    {
+                        // Parse the flow progress data
+                        var flowData = JsonSerializer.Deserialize<Dictionary<string, object>>(sessionData!);
+                        if (flowData == null)
+                            continue;
+
+                        bool modified = false;
+
+                        // Check each field in the flow progress
+                        foreach (var fieldKey in flowData.Keys.ToList())
+                        {
+                            var fieldValue = flowData[fieldKey]?.ToString();
+                            if (string.IsNullOrEmpty(fieldValue))
+                                continue;
+
+                            try
+                            {
+                                // Try to parse as file list
+                                var files = JsonSerializer.Deserialize<List<UploadDto>>(fieldValue);
+                                if (files?.Any(f => f.Id == fileId) == true)
+                                {
+                                    // Remove the infected file
+                                    files.RemoveAll(f => f.Id == fileId);
+                                    
+                                    // Update the field
+                                    flowData[fieldKey] = JsonSerializer.Serialize(files);
+                                    modified = true;
+
+                                    logger.LogInformation(
+                                        "Removed infected file {FileId} from field {FieldKey} in session {SessionKey}",
+                                        fileId,
+                                        fieldKey,
+                                        sessionKey);
+                                }
+                            }
+                            catch (JsonException)
+                            {
+                                // Not a file list, skip
+                            }
+                        }
+
+                        // Save back to Redis if modified
+                        if (modified)
+                        {
+                            var updatedSessionData = JsonSerializer.Serialize(flowData);
+                            await db.StringSetAsync(sessionKey, updatedSessionData);
+                            cleanedCount++;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(ex, "Error processing session key {SessionKey}", sessionKey);
+                    }
+                }
+
+                logger.LogInformation(
+                    "Cleaned infected file {FileId} from {Count} collection flow session(s)",
+                    fileId,
+                    cleanedCount);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex,
+                    "Error cleaning collection flow sessions for infected file {FileId}",
+                    fileId);
+                // Don't re-throw - session cleanup failure shouldn't fail the entire process
+            }
+        }
+
+        /// <summary>
         /// Creates a user notification about the infected file
         /// </summary>
         private async Task CreateMalwareNotificationAsync(
@@ -376,7 +477,7 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
                     Message = $"The selected file '{fileName}' contains a virus called [{malwareName}]. We have deleted the file. Upload a new one.",
                     Category = "malware-detection",
                     Context = $"file-{fileId}",
-                    Type = NotificationType.Warning,
+                    Type = NotificationType.Error,
                     AutoDismiss = false,
                     Metadata = new Dictionary<string, object>
                     {

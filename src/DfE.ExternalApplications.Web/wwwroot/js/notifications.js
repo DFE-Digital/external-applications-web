@@ -65,7 +65,7 @@ function renderSingleNotification(notification) {
             <div role="alert">
                 <h2 class="govuk-error-summary__title">${map.title}</h2>
                 <div class="govuk-error-summary__body">
-                    <p class="govuk-body">${notification.message ?? ''}</p>
+                    <p class="govuk-notification-banner__heading">${notification.message ?? ''}</p>
                 </div>
             </div>
         `;
