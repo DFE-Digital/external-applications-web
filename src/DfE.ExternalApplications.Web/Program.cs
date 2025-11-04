@@ -233,12 +233,12 @@ builder.Services.AddScoped<IComplexFieldRenderer, AutocompleteComplexFieldRender
 builder.Services.AddScoped<IComplexFieldRenderer, CompositeComplexFieldRenderer>();
 builder.Services.AddScoped<IComplexFieldRenderer, UploadComplexFieldRenderer>();
 
-builder.Services.AddSingleton<ITemplateStore, ApiTemplateStore>();
+builder.Services.AddSingleton<ITemplateStore, ApiTemplateStore>(); 
+builder.Services.AddUserTokenService(configuration);
 
 // Add test token handler and services when test authentication or Cypress is enabled
 if (isTestAuthEnabled || allowCypressToggle)
 {
-    builder.Services.AddUserTokenService(configuration);
     builder.Services.AddScoped<ITestAuthenticationService, TestAuthenticationService>();
 }
 
