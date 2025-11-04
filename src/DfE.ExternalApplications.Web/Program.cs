@@ -262,12 +262,15 @@ builder.Services.AddDfEMassTransit(
     {
         // Configure topic names for message types
         cfg.Message<ScanResultEvent>(m => m.SetEntityName(TopicNames.ScanResult));
+        cfg.UseJsonSerializer();
     },
     configureAzureServiceBus: (context, cfg) =>
     {
+        cfg.UseJsonSerializer();
         // Azure Service Bus specific configuration
         cfg.SubscriptionEndpoint<ScanResultEvent>("extweb", e =>
-        {
+        {        
+            e.UseMessageRetry(r => r.Interval(3, TimeSpan.FromSeconds(2)));
             e.ConfigureConsumeTopology = false;
             e.ConfigureConsumer<ScanResultConsumer>(context);
         });

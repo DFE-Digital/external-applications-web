@@ -1,4 +1,6 @@
-﻿using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
+﻿using DfE.ExternalApplications.Application.Interfaces;
+using DfE.ExternalApplications.Infrastructure.Services;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Enums;
@@ -21,13 +23,12 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
         IApplicationsClient applicationsClient,
         INotificationsClient notificationsClient,
         IConnectionMultiplexer redis,
+        IFileUploadService fileUploadService,
         ILogger<ScanResultConsumer> logger) : IConsumer<ScanResultEvent>
     {
         public async Task Consume(ConsumeContext<ScanResultEvent> context)
         {
             var scanResult = context.Message;
-
-            //Thread.Sleep(15000);
 
             logger.LogInformation(
                 "Received scan result - FileName: {FileName}, FileId: {FileId}, Status: {Status}, Outcome: {Outcome}, MalwareName: {MalwareName}",
@@ -135,6 +136,16 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
                 // Use service-to-service authentication for all API calls (database cleanup + notification)
                 using (AuthenticationContext.UseServiceToServiceAuthScope())
                 {
+                    // Delete the file from Azure File Share and database
+                    try
+                    {
+                        await fileUploadService.DeleteFileAsync(fileId, applicationId!.Value);
+                    }
+                    catch (Exception e)
+                    {
+                        logger.LogWarning("File doesn't exist to delete, perhaps removed already. Error: {Error}", e.Message);
+                    }
+
                     // Clean up infected file from database and clear Redis cache
                     await RemoveInfectedFileFromDatabaseAndCacheAsync(reference, applicationId, fileId, scanResult.FileName, userId);
 
