@@ -1,13 +1,15 @@
 ﻿using DfE.ExternalApplications.Application.Interfaces;
-using DfE.ExternalApplications.Infrastructure.Services;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
+using GovUK.Dfe.CoreLibs.Messaging.Contracts.Exceptions;
 using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Enums;
 using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Events;
+using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Helpers;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using GovUK.Dfe.ExternalApplications.Api.Client.Security;
 using MassTransit;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 using System.Text.Json;
@@ -24,6 +26,7 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
         INotificationsClient notificationsClient,
         IConnectionMultiplexer redis,
         IFileUploadService fileUploadService,
+        IConfiguration configuration,
         ILogger<ScanResultConsumer> logger) : IConsumer<ScanResultEvent>
     {
         public async Task Consume(ConsumeContext<ScanResultEvent> context)
@@ -37,6 +40,31 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
                 scanResult.Status,
                 scanResult.Outcome,
                 scanResult.MalwareName);
+
+            // LOCAL ENVIRONMENT ONLY: Check if this message is for this instance
+            // This allows developers to run locally without interfering with each other
+            if (InstanceIdentifierHelper.IsLocalEnvironment())
+            {
+                var messageInstanceId = scanResult.Metadata?.ContainsKey("InstanceIdentifier") == true 
+                    ? scanResult.Metadata["InstanceIdentifier"]?.ToString() 
+                    : null;
+                
+                var localInstanceId = InstanceIdentifierHelper.GetInstanceIdentifier(configuration);
+                
+                if (!InstanceIdentifierHelper.IsMessageForThisInstance(messageInstanceId, localInstanceId))
+                {
+                    logger.LogDebug(
+                        "Message {FileId} not for this instance (MessageInstanceId: '{MessageInstanceId}', LocalInstanceId: '{LocalInstanceId}') - throwing exception to requeue for other consumers",
+                        scanResult.FileId,
+                        messageInstanceId ?? "none",
+                        localInstanceId ?? "none");
+                    
+                    // Throw exception to prevent acknowledgment and allow other consumers to process
+                    // Service Bus will redeliver this message to another consumer instance
+                    throw new MessageNotForThisInstanceException(
+                        $"Message InstanceIdentifier '{messageInstanceId}' doesn't match local instance '{localInstanceId}'");
+                }
+            }
 
             // Check if the file is infected
             if (IsInfected(scanResult))
@@ -516,5 +544,6 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
                 // Don't re-throw - notification failure shouldn't fail the entire process
             }
         }
+
     }
 }
