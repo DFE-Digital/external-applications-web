@@ -3,6 +3,7 @@ using DfE.ExternalApplications.Domain.Models;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Web;
 
 namespace DfE.ExternalApplications.Infrastructure.Services
 {
@@ -215,7 +216,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                             // Try to extract autocomplete data from the field value
                             if (kvp.Value != null)
                             {
-                                var fieldValue = kvp.Value.ToString();
+                                var fieldValue = HttpUtility.HtmlDecode(kvp.Value.ToString());
                                 if (!string.IsNullOrEmpty(fieldValue) && fieldValue.StartsWith("{"))
                                 {
                                     try

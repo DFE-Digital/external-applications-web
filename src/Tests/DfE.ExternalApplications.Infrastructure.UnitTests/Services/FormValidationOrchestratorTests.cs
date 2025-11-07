@@ -19,6 +19,38 @@ public class FormValidationOrchestratorTests
         
         _orchestrator = _fixture.Create<FormValidationOrchestrator>();
     }
+
+    [Theory]
+    [InlineData("radios", "I <em>haven't</em> eaten the cookie", "I &lt;em&gt;haven&#39;t&lt;/em&gt; eaten the cookie")]
+    [InlineData("checkboxes", "I have eaten the cookie", "I have eaten the cookie")]
+    public void ValidateField_when_required_field_with_options_and_submittedValue_is_in_options_then_returns_true(string fieldType, string optionValue, string submittedValue)
+    {
+        var option1 = _fixture.Build<Option>()
+            .With(o => o.Value, optionValue)
+            .Create();
+        var option2 = _fixture.Build<Option>()
+            .With(o => o.Value, "something-else")
+            .Create();
+        var validation = _fixture.Build<ValidationRule>()
+            .With(v => v.Type, "required")
+            .Without(v => v.Condition)
+            .With(v => v.Message, "This field is required")
+            .Create();
+        var field = _fixture.Build<Field>()
+            .With(f => f.Type, fieldType)
+            .With(f => f.Options, [option1, option2])
+            .With(f => f.Validations, [validation])
+            .Create();
+        
+        var formData = _fixture.Create<Dictionary<string, object>?>();
+        var modelState = _fixture.Create<ModelStateDictionary>();
+        var fieldKey = field.FieldId;
+        var formTemplate = _fixture.Create<FormTemplate>();
+
+        var result = _orchestrator.ValidateField(field, submittedValue, formData, modelState, fieldKey, formTemplate);
+        
+        Assert.True(result);
+    }
     
     [Theory]
     [InlineData("radios", "not-an-option")]

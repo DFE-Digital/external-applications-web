@@ -66,6 +66,28 @@ public class DisplayHelpersTests
         Assert.Equal(result["quux"], true);
         Assert.Equivalent(result["json"], JsonSerializer.Deserialize<JsonElement>("{\"isJsonString\":true}"));
     }
+    
+    
+
+    [Fact]
+    public void ExpandEncodedJson_when_itemData_has_JsonElement_values_then_parse_html_encoded_json_strings_into_JsonElements()
+    {
+        var itemData = new Dictionary<string, object>
+        {
+            {"foo", "bar"},
+            {"baz", 123},
+            {"quux", true},
+            {"json", JsonSerializer.Deserialize<JsonElement>("\"{&quot;isJsonString&quot;:true}\"")}
+        };
+        
+        var result = DisplayHelpers.ExpandEncodedJson(itemData);
+
+        Assert.NotNull(result);
+        Assert.Equal(result["foo"], "bar");
+        Assert.Equal(result["baz"], 123);
+        Assert.Equal(result["quux"], true);
+        Assert.Equivalent(result["json"], JsonSerializer.Deserialize<JsonElement>("{\"isJsonString\":true}"));
+    }
 
     [Fact]
     public void ExpandEncodedJson_when_itemData_has_JsonElement_values_then_return_unparseable_strings_unchanged()
@@ -403,6 +425,102 @@ public class DisplayHelpersTests
         var result = DisplayHelpers.GenerateSuccessMessage(customMessage, operation, itemData, flowTitle);
         
         Assert.Equal(expected, result);
+    }
+    
+    [Theory]
+    [InlineData("{foo} was successful", new[] {"foo"}, new[] {"bar"}, "bar was successful")]
+    [InlineData("Successfully did {bar} to {quux}", new[] {"bar", "quux"}, new[] {"xyzzy", "bleeb"}, "Successfully did xyzzy to bleeb")]
+    public void InterpolateMessage_when_customMessage_has_interpolation_and_itemData_is_not_null_then_return_interpolated_message(string message, string[] interpolationKeys, string[] interpolationValues, string expected)
+    {
+        var itemData = new Dictionary<string, object>();
+        for (var i = 0; i < interpolationKeys.Length; i++)
+        {
+            itemData.Add(interpolationKeys[i], interpolationValues[i]);
+        }
+        
+        var result = DisplayHelpers.InterpolateMessage(message, itemData);
+        
+        Assert.Equal(expected, result);
+    }
+    
+    [Theory]
+    [InlineData("{foo} was successful")]
+    [InlineData("Successfully did {bar} to {quux}")]
+    public void InterpolateMessage_when_customMessage_has_interpolation_and_itemData_is_null_then_return_message_with_no_interpolation(string message)
+    {
+        Dictionary<string, object>? itemData = null;
+        
+        var result = DisplayHelpers.InterpolateMessage(message, itemData);
+        
+        Assert.Equal(message, result);
+    }
+
+    [Fact]
+    public void InterpolateMessage_when_itemData_has_a_key_with_a_JsonElement_value_then_return_interpolated_message()
+    {
+        var message = "{foo} was successful";
+        var obj = new
+        {
+            bar = "bar"
+        };
+
+        var itemData = new Dictionary<string, object>()
+        {
+            { "foo", JsonSerializer.SerializeToElement(obj) }
+        };
+        
+        var result = DisplayHelpers.InterpolateMessage(message, itemData);
+        
+        Assert.Equal("{\"bar\":\"bar\"} was successful", result);
+    }
+
+    [Fact]
+    public void InterpolateMessage_when_itemData_has_a_key_with_a_JsonElement_value_then_subkeys_can_be_interpolated()
+    {
+        var message = "{foo.bar.baz} was {foo.xyzzy}";
+        var obj = new
+        {
+            bar = new
+            {
+                baz = "quux",
+                nope = "nope"
+            },
+            xyzzy = "bleeb",
+            nope = "nope"
+        };
+
+        var itemData = new Dictionary<string, object>()
+        {
+            { "foo", JsonSerializer.SerializeToElement(obj) }
+        };
+        
+        var result = DisplayHelpers.InterpolateMessage(message, itemData);
+        
+        Assert.Equal("quux was bleeb", result);
+    }
+
+    [Fact]
+    public void InterpolateMessage_when_itemData_has_a_key_with_a_JsonElement_value_then_missing_subkeys_are_not_interpolated()
+    {
+        var message = "{foo.bar.baz} was {foo.xyzzy}";
+        
+        var obj = new
+        {
+            bar = new
+            {
+                nope = "nope"
+            },
+            nope = "nope"
+        };
+
+        var itemData = new Dictionary<string, object>()
+        {
+            { "foo", JsonSerializer.SerializeToElement(obj) }
+        };
+        
+        var result = DisplayHelpers.InterpolateMessage(message, itemData);
+        
+        Assert.Equal("{foo.bar.baz} was {foo.xyzzy}", result);
     }
     
     [Fact]

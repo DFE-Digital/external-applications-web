@@ -29,7 +29,7 @@ public static partial class DisplayHelpers
             case JsonElement { ValueKind: JsonValueKind.String } jsonString:
                 try
                 {
-                    return JsonSerializer.Deserialize<JsonElement>(jsonString.GetString() ?? "");
+                    return JsonSerializer.Deserialize<JsonElement>(UnsanitiseHtmlInput(jsonString.GetString() ?? ""));
                 }
                 catch (JsonException)
                 {
@@ -52,7 +52,8 @@ public static partial class DisplayHelpers
     {
         if (!string.IsNullOrEmpty(customMessage))
         {
-            return InterpolateCustomMessage(customMessage, itemData, flowTitle);
+            customMessage = customMessage.Replace("{flowTitle}", flowTitle ?? "collection");
+            return InterpolateMessage(customMessage, itemData);
         }
 
         var displayName = GetDisplayNameFromItemData(itemData);
@@ -68,10 +69,22 @@ public static partial class DisplayHelpers
         };
     }
 
-    private static string InterpolateCustomMessage(string message, Dictionary<string, object>? itemData, string? flowTitle)
+    /// <summary>
+    /// <para>
+    /// Replaces placeholders in the given message with values from <c>itemData</c>.
+    /// </para>
+    /// <para>
+    /// Placeholders are in the form of <c>{key}</c> or <c>{key.subkey}</c> where <c>key</c> is the name of a field in
+    /// <c>itemData</c>.
+    /// Subkeys can be used to index into properties of <c>key</c> if <c>key</c> is a JSON object.
+    /// </para>
+    /// </summary>
+    /// <param name="message">The message to interpolate.</param>
+    /// <param name="itemData">A <see cref="Dictionary&lt;string, object&gt;"/> containing properties to interpolate
+    /// into the message.</param>
+    /// <returns></returns>
+    public static string InterpolateMessage(string message, Dictionary<string, object>? itemData)
     {
-        message = message.Replace("{flowTitle}", flowTitle ?? "collection");
-
         if (itemData == null) return message;
 
         foreach (var (key, value) in itemData)
