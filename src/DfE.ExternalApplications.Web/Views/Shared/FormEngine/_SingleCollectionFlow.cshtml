@@ -165,6 +165,8 @@
                                             try
                                             {
                                                 var uploadFiles = System.Text.Json.JsonSerializer.Deserialize<List<GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>>(value);
+                                                // CRITICAL: Filter out infected files using Redis blacklist
+                                                uploadFiles = renderModel.FilterInfectedFilesFromList(uploadFiles ?? new List<GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>());
                                                 if (uploadFiles != null && uploadFiles.Any())
                                                 {
                                                     var file = uploadFiles.First();
@@ -204,6 +206,8 @@
                                             try
                                             {
                                                 var uploadFiles = System.Text.Json.JsonSerializer.Deserialize<List<GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>>(value);
+                                                // CRITICAL: Filter out infected files using Redis blacklist
+                                                uploadFiles = renderModel.FilterInfectedFilesFromList(uploadFiles ?? new List<GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>());
                                                 if (uploadFiles != null && uploadFiles.Any())
                                                 {
                                                     @foreach (var file in uploadFiles)
@@ -359,6 +363,8 @@
                                                     try
                                                     {
                                                         var uploadFiles = System.Text.Json.JsonSerializer.Deserialize<List<GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>>(value);
+                                                        // CRITICAL: Filter out infected files using Redis blacklist
+                                                        uploadFiles = renderModel.FilterInfectedFilesFromList(uploadFiles ?? new List<GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>());
                                                         if (uploadFiles != null && uploadFiles.Any())
                                                         {
                                                             var file = uploadFiles.First();
@@ -398,6 +404,8 @@
                                                     try
                                                     {
                                                         var uploadFiles = System.Text.Json.JsonSerializer.Deserialize<List<GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>>(value);
+                                                        // CRITICAL: Filter out infected files using Redis blacklist
+                                                        uploadFiles = renderModel.FilterInfectedFilesFromList(uploadFiles ?? new List<GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>());
                                                         if (uploadFiles != null && uploadFiles.Any())
                                                         {
                                                             @foreach (var file in uploadFiles)

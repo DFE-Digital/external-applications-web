@@ -3,6 +3,7 @@ using DfE.ExternalApplications.Application.Interfaces;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using StackExchange.Redis;
 using System.Text.Json;
 using Task = System.Threading.Tasks.Task;
 
@@ -10,6 +11,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services;
 
 public class ApplicationResponseService(
     IApplicationsClient applicationsClient,
+    IConnectionMultiplexer redis,
     ILogger<ApplicationResponseService> logger)
     : IApplicationResponseService
 {
@@ -19,7 +21,7 @@ public class ApplicationResponseService(
     {
         try
         {
-            // Accumulate the new data with existing data
+            // Accumulate the new data with existing data (infected files filtered by blacklist)
             AccumulateFormData(formData, session);
             
             // Get all accumulated data
@@ -83,6 +85,7 @@ public class ApplicationResponseService(
 
     public void AccumulateFormData(Dictionary<string, object> newData, ISession session)
     {
+        // Get existing data (infected files will be filtered by blacklist)
         var existingData = GetAccumulatedFormData(session);
         
         foreach (var kvp in newData)
@@ -130,6 +133,9 @@ public class ApplicationResponseService(
         return fieldName;
     }
 
+    /// <summary>
+    /// Gets accumulated form data with infected file filtering
+    /// </summary>
     public Dictionary<string, object> GetAccumulatedFormData(ISession session)
     {
         var jsonString = session.GetString(SessionKeyFormData);
@@ -144,8 +150,11 @@ public class ApplicationResponseService(
             var rawData = JsonSerializer.Deserialize<Dictionary<string, object>>(jsonString) 
                          ?? new Dictionary<string, object>();
             
+            // Filter out any infected files from the data
+            var filteredData = FilterInfectedFilesFromData(rawData);
+            
             var cleanedData = new Dictionary<string, object>();
-            foreach (var kvp in rawData)
+            foreach (var kvp in filteredData)
             {
                 cleanedData[kvp.Key] = CleanFormValue(kvp.Value);
             }
@@ -205,6 +214,122 @@ public class ApplicationResponseService(
     {
         session.Remove(SessionKeyFormData);
         logger.LogInformation("Cleared accumulated form data from session");
+    }
+
+    /// <summary>
+    /// Filters out infected files from form data using Redis blacklist
+    /// </summary>
+    private Dictionary<string, object> FilterInfectedFilesFromData(Dictionary<string, object> data)
+    {
+        try
+        {
+            var db = redis.GetDatabase();
+            var server = redis.GetServer(redis.GetEndPoints().First());
+            
+            // Get all infected file keys
+            var infectedFileKeys = server.Keys(pattern: "DfE:InfectedFile:*").ToList();
+            
+            if (!infectedFileKeys.Any())
+            {
+                return data; // No infected files to filter
+            }
+            
+            // Get all infected file IDs
+            var infectedFileIds = new HashSet<Guid>();
+            foreach (var key in infectedFileKeys)
+            {
+                var fileDataJson = db.StringGet(key);
+                if (!fileDataJson.IsNullOrEmpty)
+                {
+                    try
+                    {
+                        var fileData = JsonSerializer.Deserialize<JsonElement>(fileDataJson!);
+                        if (fileData.TryGetProperty("FileId", out var fileIdProp) && 
+                            Guid.TryParse(fileIdProp.GetString(), out var fileId))
+                        {
+                            infectedFileIds.Add(fileId);
+                        }
+                    }
+                    catch
+                    {
+                        // Skip invalid entries
+                    }
+                }
+            }
+            
+            if (!infectedFileIds.Any())
+            {
+                return data; // No valid infected file IDs found
+            }
+            
+            logger.LogInformation(
+                "Filtering {Count} infected file(s) from form data",
+                infectedFileIds.Count);
+            
+            // Filter infected files from each field
+            var filteredData = new Dictionary<string, object>();
+            foreach (var kvp in data)
+            {
+                var fieldValue = kvp.Value?.ToString();
+                if (string.IsNullOrEmpty(fieldValue))
+                {
+                    filteredData[kvp.Key] = kvp.Value;
+                    continue;
+                }
+                
+                // Try to parse as file list
+                try
+                {
+                    var files = JsonSerializer.Deserialize<List<JsonElement>>(fieldValue);
+                    if (files != null)
+                    {
+                        // Filter out infected files
+                        var cleanFiles = new List<JsonElement>();
+                        foreach (var file in files)
+                        {
+                            if (file.TryGetProperty("id", out var idProp) && 
+                                Guid.TryParse(idProp.GetString(), out var fileId))
+                            {
+                                if (!infectedFileIds.Contains(fileId))
+                                {
+                                    cleanFiles.Add(file);
+                                }
+                                else
+                                {
+                                    logger.LogWarning(
+                                        "Filtered infected file {FileId} from field {FieldKey}",
+                                        fileId,
+                                        kvp.Key);
+                                }
+                            }
+                            else
+                            {
+                                // Keep files without valid ID (might not be file uploads)
+                                cleanFiles.Add(file);
+                            }
+                        }
+                        
+                        // Update with cleaned list
+                        filteredData[kvp.Key] = JsonSerializer.Serialize(cleanFiles);
+                        continue;
+                    }
+                }
+                catch
+                {
+                    // Not a file list, keep as-is
+                }
+                
+                // Not a file list, keep original value
+                filteredData[kvp.Key] = kvp.Value;
+            }
+            
+            return filteredData;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error filtering infected files from data");
+            return data; // Return original data if filtering fails
+        }
     }
 
     public string TransformToResponseJson(Dictionary<string, object> formData, Dictionary<string, string> taskStatusData)
@@ -282,4 +407,5 @@ public class ApplicationResponseService(
     {
         session.SetString("CurrentAccumulatedApplicationId", applicationId.ToString());
     }
+
 } 

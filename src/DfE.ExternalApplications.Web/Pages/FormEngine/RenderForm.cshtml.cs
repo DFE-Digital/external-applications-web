@@ -13,6 +13,7 @@ using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using DfE.ExternalApplications.Web.Interfaces;
+using StackExchange.Redis;
 using static DfE.ExternalApplications.Web.Pages.FormEngine.DisplayHelpers;
 
 namespace DfE.ExternalApplications.Web.Pages.FormEngine
@@ -38,6 +39,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         IComplexFieldConfigurationService complexFieldConfigurationService,
         IDerivedCollectionFlowService derivedCollectionFlowService,
         IFieldRequirementService fieldRequirementService,
+        IConnectionMultiplexer redis,
         ILogger<RenderFormModel> logger,
         INavigationHistoryService navigationHistoryService)
         : BaseFormEngineModel(renderer, applicationResponseService, fieldFormattingService, templateManagementService,
@@ -49,6 +51,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         private readonly IFormErrorStore _formErrorStore = formErrorStore;
         private readonly IComplexFieldConfigurationService _complexFieldConfigurationService = complexFieldConfigurationService;
         private readonly IDerivedCollectionFlowService _derivedCollectionFlowService = derivedCollectionFlowService;
+        private readonly IConnectionMultiplexer _redis = redis;
         private readonly IFieldRequirementService _fieldRequirementService = fieldRequirementService;
         private readonly INavigationHistoryService _navigationHistoryService = navigationHistoryService;
 
@@ -255,6 +258,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             if (string.IsNullOrEmpty(CurrentPageId) || !CurrentPageId.Contains("flow/"))
             {
                 await LoadAccumulatedDataFromSessionAsync();
+                
+                // For upload fields, populate Data from session so they display on GET
+                // This ensures files appear in the list after upload
+                await PopulateUploadFieldsFromSessionAsync();
+                
                 await ApplyConditionalLogicAsync();
                 ModelState.Clear();
                 RestoreFormErrors();
@@ -264,6 +272,9 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
             else
             {
+                //  For upload fields in collection flows, populate Data from session
+                await PopulateUploadFieldsFromSessionAsync();
+                
                 await ApplyConditionalLogicAsync();
                 ModelState.Clear();
                 RestoreFormErrors();
@@ -343,7 +354,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         Trigger = "task_summary_validation"
                     };
 
-                    // CRITICAL FIX: Use FormData (session data) instead of Data (empty on task summary POST)
+                    //Use FormData (session data) instead of Data (empty on task summary POST)
                     ConditionalState = await _conditionalLogicOrchestrator.ApplyConditionalLogicAsync(Template, FormData, context);
                 }
             }
@@ -411,7 +422,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         
                         IsTaskCompleted = false; // Reset the checkbox state
                         
-                        // CRITICAL: Set CurrentFormState so the view knows to render the task summary
+                        //  Set CurrentFormState so the view knows to render the task summary
                         CurrentFormState = FormState.TaskSummary;
                         
                         // DON'T save ModelState errors to FormErrorStore - they should only appear once
@@ -707,15 +718,59 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             if (IsCollectionFlow)
             {
                 var flowProgress = LoadFlowProgress(FlowId, InstanceId);
+                var accumulatedData = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
+                
                 foreach (var key in Data.Keys.ToList())
                 {
                     if (Data[key]?.ToString() == "UPLOAD_FIELD_SESSION_DATA")
                     {
-                        // Replace with actual data from session
+                        //  FIX: Try session first, then fall back to database
+                        //  Filter infected files BEFORE saving to database
                         if (flowProgress.TryGetValue(key, out var sessionValue))
                         {
-                            Data[key] = sessionValue;
-
+                            // Filter infected files from session data before saving
+                            var filteredValue = FilterInfectedFilesFromUploadData(sessionValue?.ToString());
+                            Data[key] = filteredValue;
+                            _logger.LogInformation("Collection flow: Replaced upload placeholder for field {FieldId} with filtered session data", key);
+                        }
+                        else
+                        {
+                            // Fall back to database data if session is empty
+                            // This handles the case where user clicks Continue without making changes
+                            _logger.LogWarning("Collection flow: Session empty for field {FieldId}, falling back to database", key);
+                            
+                            // Try to get from accumulated data (database)
+                            // Need to look inside the collection items
+                            try
+                            {
+                                foreach (var kvp in accumulatedData)
+                                {
+                                    var collectionJson = kvp.Value?.ToString();
+                                    if (string.IsNullOrWhiteSpace(collectionJson))
+                                        continue;
+                                    
+                                    var items = JsonSerializer.Deserialize<List<Dictionary<string, object>>>(collectionJson);
+                                    if (items == null) continue;
+                                    
+                                    var existingItem = items.FirstOrDefault(item => item.TryGetValue("id", out var idVal) && idVal?.ToString() == InstanceId);
+                                    if (existingItem != null && existingItem.TryGetValue(key, out var fieldValue))
+                                    {
+                                        var fieldValueStr = fieldValue?.ToString();
+                                        if (!string.IsNullOrWhiteSpace(fieldValueStr))
+                                        {
+                                            // Filter infected files from database data before saving
+                                            var filteredValue = FilterInfectedFilesFromUploadData(fieldValueStr);
+                                            Data[key] = filteredValue;
+                                            _logger.LogInformation("Collection flow: Replaced upload placeholder for field {FieldId} with filtered database data", key);
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogError(ex, "Collection flow: Error getting database data for field {FieldId}", key);
+                            }
                         }
                     }
                 }
@@ -723,16 +778,21 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             else
             {
                 // For regular (non-collection) forms, also replace upload placeholders with session data
-                var accumulatedData = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
                 foreach (var key in Data.Keys.ToList())
                 {
                     if (Data[key]?.ToString() == "UPLOAD_FIELD_SESSION_DATA")
                     {
-                        // Replace with actual data from session
-                        if (accumulatedData.TryGetValue(key, out var sessionValue))
+                        //  Read from upload-specific session key, not from AccumulatedFormData
+                        // Uploads are stored in: UploadedFiles_{appId}_{fieldId}
+                        var sessionKey = $"UploadedFiles_{ApplicationId}_{key}";
+                        var sessionFilesJson = HttpContext.Session.GetString(sessionKey);
+                        
+                        if (!string.IsNullOrWhiteSpace(sessionFilesJson))
                         {
-                            Data[key] = sessionValue;
-                            _logger.LogInformation("Replaced upload placeholder for field {FieldId} with session data", key);
+                            // Filter infected files before saving
+                            var filteredValue = FilterInfectedFilesFromUploadData(sessionFilesJson);
+                            Data[key] = filteredValue;
+                            _logger.LogInformation("Replaced upload placeholder for field {FieldId} with filtered session data from upload key", key);
                         }
                         else
                         {
@@ -1024,7 +1084,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                             {
                                 _logger.LogDebug("Sub-flow navigation: checking conditional logic for pages. Current page: {CurrentPageId}, Flow: {FlowId}", CurrentPage.PageId, flowId);
                                 
-                                // CRITICAL FIX: Re-evaluate conditional logic with complete flow data for navigation
+                                // Re-evaluate conditional logic with complete flow data for navigation
                                 var mergedData = LoadFlowProgress(FlowId, InstanceId);
                                 foreach (var kvp in Data)
                                 {
@@ -1481,10 +1541,10 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                             }
                             IsTaskCompleted = false;
                             
-                            // CRITICAL: Ensure CurrentFormState is set correctly for the view to render properly
+                            //  Ensure CurrentFormState is set correctly for the view to render properly
                             CurrentFormState = FormState.DerivedCollectionFlowSummary;
                             
-                            // CRITICAL: Load FormData from session so the view can render the derived flow sections
+                            //  Load FormData from session so the view can render the derived flow sections
                             LoadFormDataFromSession();
                             
                             return Page();
@@ -2122,6 +2182,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         private async Task LoadAccumulatedDataFromSessionAsync()
         {
             // Get accumulated form data from session and populate the Data dictionary
+            // Infected files are automatically filtered by the blacklist
             var accumulatedData = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
 
             if (accumulatedData.Any())
@@ -2665,49 +2726,53 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 await fileUploadService.UploadFileAsync(appId, file.FileName, uploadDescription, fileParam);
 
                 
-                // SUCCESS PATH: Only execute this code if API call succeeds
+                // Only execute this code if API call succeeds
 
                 
-                // Get and update files
+                // Get existing files for this field/collection instance
                 var currentFieldFiles = (await GetFilesForFieldAsync(appId, fieldId)).ToList();
-                // Ensure we include files the UI already had (if backend lookup missed due to context)
-                if (existingFileIds != null && existingFileIds.Length > 0)
-                {
-                    try
-                    {
-                        var allDbFilesForApp = await fileUploadService.GetFilesForApplicationAsync(appId);
-                        var byId = new HashSet<string>(currentFieldFiles.Select(x => x.Id.ToString()));
-                        foreach (var idStr in existingFileIds)
-                        {
-                            if (Guid.TryParse(idStr, out var guid) && !byId.Contains(guid.ToString()))
-                            {
-                                var match = allDbFilesForApp.FirstOrDefault(x => x.Id == guid);
-                                if (match != null)
-                                {
-                                    currentFieldFiles.Add(match);
-                                    byId.Add(guid.ToString());
-                                }
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-
-                    }
-                }
+                
+                // Find the newly uploaded file by matching the original filename
+                // We get ALL files without filtering to avoid race conditions with the virus scanner
+                // The file needs to appear in the list first, then the consumer will remove it if infected
                 var allDbFiles = await fileUploadService.GetFilesForApplicationAsync(appId);
                 var newlyUploadedFile = allDbFiles
-                    .Where(f => !currentFieldFiles.Any(cf => cf.Id == f.Id))
+                    .Where(f => f.OriginalFileName == file.FileName)
                     .OrderByDescending(f => f.UploadedOn)
                     .FirstOrDefault();
                 
-                if (newlyUploadedFile != null)
+                if (newlyUploadedFile != null && !currentFieldFiles.Any(cf => cf.Id == newlyUploadedFile.Id))
                 {
+                    _logger.LogInformation(
+                        "Adding newly uploaded file {FileId} ({FileName}) to field {FieldId}",
+                        newlyUploadedFile.Id,
+                        newlyUploadedFile.OriginalFileName,
+                        fieldId);
                     currentFieldFiles.Add(newlyUploadedFile);
                 }
+                else if (newlyUploadedFile == null)
+                {
+                    _logger.LogWarning(
+                        "Could not find newly uploaded file with name {FileName} for field {FieldId}",
+                        file.FileName,
+                        fieldId);
+                }
+                else
+                {
+                    _logger.LogInformation(
+                        "Newly uploaded file {FileId} ({FileName}) already exists in list for field {FieldId}",
+                        newlyUploadedFile.Id,
+                        newlyUploadedFile.OriginalFileName,
+                        fieldId);
+                }
+                
+                //  Filter infected files AFTER adding the newly uploaded file
+                // This ensures the file appears briefly, then gets removed by the consumer
+                currentFieldFiles = FilterInfectedFilesFromList(currentFieldFiles);
                 
                 UpdateSessionFileList(appId, fieldId, currentFieldFiles);
-                await SaveUploadedFilesToResponseAsync(appId, fieldId, currentFieldFiles);
+                //  Do NOT save to database on upload! Files are saved when user clicks "Continue"
+                // This gives the virus scanner time to process and blacklist infected files
                 
                 // 1. Field-level key (used by the view partial)
                 _formErrorStore.Clear(fieldId);
@@ -2855,32 +2920,31 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             if (!isConfirmed)
             {
                 _logger.LogInformation("DeleteFile handler executing for validation - file will not be deleted yet");
-                
                 return Redirect(returnUrl);
             }
-            
-            _logger.LogInformation("DeleteFile handler executing confirmed deletion for file {FileId}", fileId);
             
             var addRequest = new AddNotificationRequest
             {
                 Message = string.Empty, // set later when known
                 Category = "file-upload",
                 Context = fieldId + "FileDeletion",
-                Type = NotificationType.Success
+                Type = NotificationType.Success,
+                AutoDismiss = false,
             };
 
-            await fileUploadService.DeleteFileAsync(fileId, appId);
-
+            try
+            {
+                await fileUploadService.DeleteFileAsync(fileId, appId);
+            }
+            catch (Exception e)
+            {
+                _logger.LogWarning("File doesn't exist to delete, perhaps removed already. Error: {Error}", e.Message);
+            }
             
-            // CRITICAL: Set success message for delete operation
             SuccessMessage = "File deleted.";
 
-
-            // Get current files for this field and remove the deleted one
             var currentFieldFiles = (await GetFilesForFieldAsync(appId, fieldId)).ToList();
             currentFieldFiles.RemoveAll(f => f.Id == fileId);
-            
-
             
             UpdateSessionFileList(appId, fieldId, currentFieldFiles);
             await SaveUploadedFilesToResponseAsync(appId, fieldId, currentFieldFiles);
@@ -2888,7 +2952,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             // If we have a return URL (from partial form), redirect back
             if (!string.IsNullOrEmpty(returnUrl))
             {
-                // CRITICAL: Send notification for successful delete
+                //  Send notification for successful delete
                 addRequest.Message = SuccessMessage;
                 await _notificationsClient.CreateNotificationAsync(addRequest);
 
@@ -2899,22 +2963,133 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             return Page();
         }
 
+        /// <summary>
+        /// Filters out any infected files from the given list using the Redis blacklist.
+        ///  This ensures infected files are never shown or re-saved, regardless of where they come from.
+        /// </summary>
+        public List<UploadDto> FilterInfectedFilesFromList(List<UploadDto> files)
+        {
+            if (files == null || files.Count == 0)
+                return files ?? new List<UploadDto>();
+            
+            try
+            {
+                var db = _redis.GetDatabase();
+                var server = _redis.GetServer(_redis.GetEndPoints().First());
+                
+                // Get all infected file keys from Redis blacklist
+                var infectedFileKeys = server.Keys(pattern: "DfE:InfectedFile:*").ToList();
+                
+                if (!infectedFileKeys.Any())
+                    return files; // No infected files to filter
+                
+                // Get all infected file IDs from blacklist
+                var infectedFileIds = new HashSet<Guid>();
+                foreach (var key in infectedFileKeys)
+                {
+                    var fileDataJson = db.StringGet(key);
+                    if (!fileDataJson.IsNullOrEmpty)
+                    {
+                        try
+                        {
+                            var fileData = JsonSerializer.Deserialize<JsonElement>(fileDataJson!);
+                            if (fileData.TryGetProperty("FileId", out var fileIdProp) && 
+                                Guid.TryParse(fileIdProp.GetString(), out var fileId))
+                            {
+                                infectedFileIds.Add(fileId);
+                            }
+                        }
+                        catch
+                        {
+                            // Skip invalid entries
+                        }
+                    }
+                }
+                
+                if (!infectedFileIds.Any())
+                    return files;
+                
+                // Filter out infected files
+                var cleanFiles = files.Where(f => !infectedFileIds.Contains(f.Id)).ToList();
+                
+                if (cleanFiles.Count < files.Count)
+                {
+                    _logger.LogInformation(
+                        "Filtered out {RemovedCount} infected file(s) from list",
+                        files.Count - cleanFiles.Count);
+                }
+                
+                return cleanFiles;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error filtering infected files from list, returning original list");
+                return files; // Return original list if filtering fails
+            }
+        }
+
+        /// <summary>
+        /// Filters infected files from JSON-encoded upload data (used when saving form data)
+        /// </summary>
+        private string FilterInfectedFilesFromUploadData(string? uploadDataJson)
+        {
+            if (string.IsNullOrWhiteSpace(uploadDataJson))
+                return uploadDataJson ?? string.Empty;
+            
+            try
+            {
+                // Try to deserialize as file list
+                var files = JsonSerializer.Deserialize<List<UploadDto>>(uploadDataJson);
+                if (files != null)
+                {
+                    // Filter infected files
+                    var cleanFiles = FilterInfectedFilesFromList(files);
+                    
+                    // Serialize back to JSON
+                    return JsonSerializer.Serialize(cleanFiles);
+                }
+            }
+            catch (JsonException ex)
+            {
+                // Not a file list, return as-is
+                _logger.LogDebug(ex, "Failed to parse upload data as file list, returning original value");
+            }
+            
+            return uploadDataJson;
+        }
+
         private async Task<IReadOnlyList<UploadDto>> GetFilesForFieldAsync(Guid appId, string fieldId)
         {
             if (string.IsNullOrEmpty(fieldId))
-            {
                 return new List<UploadDto>().AsReadOnly();
-            }
-
-
-
 
             if (IsCollectionFlow)
             {
+                //  FIX: For collection flows, check SESSION flow progress FIRST!
+                // Session has the latest data (including recent deletes), database data is stale.
+                var progressData = LoadFlowProgress(FlowId, InstanceId);
 
+                if (progressData.TryGetValue(fieldId, out var progressValue))
+                {
+                    var sessionFilesJson = progressValue?.ToString();
 
-                // CRITICAL FIX: Scan accumulated collection items to find this instance's item,
-                // then read the inner field value (matching 'fieldId') like GET does.
+                    if (!string.IsNullOrWhiteSpace(sessionFilesJson))
+                    {
+                        try
+                        {
+                            var files = JsonSerializer.Deserialize<List<UploadDto>>(sessionFilesJson) ?? new List<UploadDto>();
+                            var cleanFiles = FilterInfectedFilesFromList(files);
+                            return cleanFiles.AsReadOnly();
+                        }
+                        catch (JsonException ex)
+                        {
+                            _logger.LogWarning("Failed to parse session flow progress: {Error}", ex.Message);
+                        }
+                    }
+                }
+                
+                // FALLBACK: Only check accumulated data (database) if session is empty
+                // This handles the initial load or page refresh scenarios
                 try
                 {
                     var accumulatedData = applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
@@ -2924,94 +3099,82 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     {
                         var collectionJson = kvp.Value?.ToString();
                         if (string.IsNullOrWhiteSpace(collectionJson))
-                        {
                             continue;
-                        }
 
                         try
                         {
                             var items = JsonSerializer.Deserialize<List<Dictionary<string, object>>>(collectionJson) ?? new();
+                            
                             var existingItem = items.FirstOrDefault(item => item.TryGetValue("id", out var idVal) && idVal?.ToString() == InstanceId);
-                            if (existingItem != null)
+                            if (existingItem != null && existingItem.TryGetValue(fieldId, out var innerValue) && innerValue != null)
                             {
-
-                                if (existingItem.TryGetValue(fieldId, out var innerValue) && innerValue != null)
+                                // Handle JsonElement (could be array or string)
+                                if (innerValue is JsonElement innerElem)
                                 {
-                                    // Handle JsonElement array
-                                    if (innerValue is JsonElement innerElem)
-                                    {
-                                        if (innerElem.ValueKind == JsonValueKind.Array)
-                                        {
-                                            try
-                                            {
-                                                var files = JsonSerializer.Deserialize<List<UploadDto>>(innerElem.GetRawText()) ?? new List<UploadDto>();
-
-                                                return files.AsReadOnly();
-                                            }
-                                            catch (JsonException ex)
-                                            {
-
-                                            }
-                                        }
-                                    }
-                                    // Handle string JSON
-                                    else if (innerValue is string innerJson && !string.IsNullOrWhiteSpace(innerJson))
+                                    if (innerElem.ValueKind == JsonValueKind.Array)
                                     {
                                         try
                                         {
-                                            var files = JsonSerializer.Deserialize<List<UploadDto>>(innerJson) ?? new List<UploadDto>();
-
-                                            return files.AsReadOnly();
+                                            var files = JsonSerializer.Deserialize<List<UploadDto>>(innerElem.GetRawText()) ?? new List<UploadDto>();
+                                            var cleanFiles = FilterInfectedFilesFromList(files);
+                                            return cleanFiles.AsReadOnly();
                                         }
-                                        catch (JsonException ex)
+                                        catch (JsonException)
                                         {
-
+                                            // Failed to parse, continue
                                         }
                                     }
-                                    // Handle direct list
-                                    else if (innerValue is List<UploadDto> uploadList)
+                                    else if (innerElem.ValueKind == JsonValueKind.String)
                                     {
-
-                                        return uploadList.AsReadOnly();
+                                        //  FIX: JsonElement can also be a STRING containing JSON
+                                        var stringValue = innerElem.GetString();
+                                        
+                                        if (!string.IsNullOrWhiteSpace(stringValue))
+                                        {
+                                            try
+                                            {
+                                                var files = JsonSerializer.Deserialize<List<UploadDto>>(stringValue) ?? new List<UploadDto>();
+                                                var cleanFiles = FilterInfectedFilesFromList(files);
+                                                return cleanFiles.AsReadOnly();
+                                            }
+                                            catch (JsonException)
+                                            {
+                                                // Failed to parse, continue
+                                            }
+                                        }
                                     }
+                                }
+                                // Handle string JSON
+                                else if (innerValue is string innerJson && !string.IsNullOrWhiteSpace(innerJson))
+                                {
+                                    try
+                                    {
+                                        var files = JsonSerializer.Deserialize<List<UploadDto>>(innerJson) ?? new List<UploadDto>();
+                                        var cleanFiles = FilterInfectedFilesFromList(files);
+                                        return cleanFiles.AsReadOnly();
+                                    }
+                                    catch (JsonException)
+                                    {
+                                        // Failed to parse, continue
+                                    }
+                                }
+                                // Handle direct list
+                                else if (innerValue is List<UploadDto> uploadList)
+                                {
+                                    var cleanFiles = FilterInfectedFilesFromList(uploadList);
+                                    return cleanFiles.AsReadOnly();
                                 }
                             }
                         }
-                        catch (Exception ex)
+                        catch (Exception)
                         {
                             // Ignore parse errors for non-collection fields
-
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-
-                }
-
-                // FALLBACK: Check session flow progress
-
-                var progressData = LoadFlowProgress(FlowId, InstanceId);
-
-
-                if (progressData.TryGetValue(fieldId, out var progressValue))
-                {
-                    var sessionFilesJson = progressValue?.ToString();
-
-
-                    if (!string.IsNullOrWhiteSpace(sessionFilesJson))
-                    {
-                        try
-                        {
-                            var files = JsonSerializer.Deserialize<List<UploadDto>>(sessionFilesJson);
-
-                            return (files ?? new List<UploadDto>()).AsReadOnly();
-                        }
-                        catch (JsonException ex)
-                        {
-
-                        }
-                    }
+                    _logger.LogError(ex, "Error processing accumulated data for collection flow");
                 }
             }
             else
@@ -3020,70 +3183,77 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 var sessionKey = $"UploadedFiles_{appId}_{fieldId}";
                 var sessionFilesJson = HttpContext.Session.GetString(sessionKey);
 
-
                 if (!string.IsNullOrWhiteSpace(sessionFilesJson))
                 {
                     try
                     {
                         var files = JsonSerializer.Deserialize<List<UploadDto>>(sessionFilesJson) ?? new List<UploadDto>();
-
-                        return files.AsReadOnly();
+                        var cleanFiles = FilterInfectedFilesFromList(files);
+                        return cleanFiles.AsReadOnly();
                     }
                     catch (Exception ex)
                     {
-
+                        _logger.LogError(ex, "Failed to deserialize session files for key {Key}", sessionKey);
                     }
                 }
+                
+                // Fallback to accumulated form data (which contains database data)
+                // This handles the case where session is empty after app restart but DB has files
+                try
+                {
+                    var accumulatedData = applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
+                    
+                    if (accumulatedData.TryGetValue(fieldId, out var fieldValue))
+                    {
+                        var fieldValueStr = fieldValue?.ToString();
+                        
+                        if (!string.IsNullOrWhiteSpace(fieldValueStr))
+                        {
+                            try
+                            {
+                                var files = JsonSerializer.Deserialize<List<UploadDto>>(fieldValueStr) ?? new List<UploadDto>();
+                                var cleanFiles = FilterInfectedFilesFromList(files);
+                                return cleanFiles.AsReadOnly();
+                            }
+                            catch (JsonException)
+                            {
+                                // Failed to parse, continue
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error accessing accumulated form data");
+                }
             }
-
 
             return new List<UploadDto>().AsReadOnly();
         }
 
         private void UpdateSessionFileList(Guid appId, string fieldId, IReadOnlyList<UploadDto> files)
         {
-
-
-            foreach (var file in files)
-            {
-
-            }
-            
             if (IsCollectionFlow)
             {
                 // For collection flows, store in flow progress system
                 var progressKey = GetFlowProgressSessionKey(FlowId, InstanceId);
-
-
                 
-                // Debug: List all session keys before calling LoadFlowProgress
-                var sessionKeysBefore = HttpContext.Session.Keys.ToList();
-
-                
-                // CRITICAL FIX: Use same method as page load for consistency
+                //  FIX: Use same method as page load for consistency
                 var existingProgress = LoadFlowProgress(FlowId, InstanceId);
-
                 
-                // CRITICAL FIX: The 'files' parameter contains ALL files (existing + new), so just save it directly
+                // The 'files' parameter contains ALL files (existing + new), so just save it directly
                 // No need to merge because GetFilesForFieldAsync already combined existing and new files
                 var serializedFiles = JsonSerializer.Serialize(files);
-
                 existingProgress[fieldId] = serializedFiles;
                 
                 // Force session to commit immediately
                 var progressJson = JsonSerializer.Serialize(existingProgress);
                 HttpContext.Session.SetString(progressKey, progressJson);
-                
-
-                
-                // Flow progress saved successfully
-
             }
             else
             {
                 // For regular forms, use the original session key
                 var key = $"UploadedFiles_{appId}_{fieldId}";
-
                 HttpContext.Session.SetString(key, JsonSerializer.Serialize(files));
             }
         }
@@ -3095,17 +3265,44 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 return;
             }
 
-            if (IsCollectionFlow)
-            {
-                // For collection flows, files are saved via flow progress system
-                // This happens in UpdateSessionFileList, no need to save to main application response here
-                return;
-            }
-
+            // Save files to database
+            // NOTE: This is called by DELETE handler to persist deletions
+            // It is NOT called by UPLOAD handler (to give scanner time to process)
             var json = JsonSerializer.Serialize(files);
             var data = new Dictionary<string, object> { { fieldId, json } };
 
-            await applicationResponseService.SaveApplicationResponseAsync(appId, data, HttpContext.Session);
+            await _applicationResponseService.SaveApplicationResponseAsync(appId, data, HttpContext.Session);
+        }
+
+        /// <summary>
+        /// Populates Data dictionary with files from session for upload fields so they display on GET
+        /// </summary>
+        private async Task PopulateUploadFieldsFromSessionAsync()
+        {
+            if (CurrentPage == null || !ApplicationId.HasValue)
+                return;
+
+            // Find all upload fields on the current page
+            var uploadFields = CurrentPage.Fields
+                .Where(f => f.Type == "complexField" 
+                    && f.ComplexField != null 
+                    && _complexFieldConfigurationService.GetConfiguration(f.ComplexField.Id).FieldType.Equals("upload", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            foreach (var field in uploadFields)
+            {
+                var fieldId = field.FieldId;
+                
+                // Get files from session
+                var files = await GetFilesForFieldAsync(ApplicationId.Value, fieldId);
+                
+                if (files.Any())
+                {
+                    // Serialize files to JSON and populate Data so the view can display them
+                    var filesJson = JsonSerializer.Serialize(files);
+                    Data[fieldId] = filesJson;
+                }
+            }
         }
 
         #endregion
@@ -3188,6 +3385,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
     }
 }
+
 
 
 

@@ -102,17 +102,17 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             var currentFieldFiles = (await GetFilesForFieldAsync(appId, FieldId)).ToList();
 
             
-            // Get the latest file list from database to find the newly uploaded file
+            // CRITICAL FIX: Find the newly uploaded file by matching the original filename
+            // We get ALL files without filtering to avoid race conditions with the virus scanner
             var allDbFiles = await fileUploadService.GetFilesForApplicationAsync(appId);
             var newlyUploadedFile = allDbFiles
-                .Where(f => !currentFieldFiles.Any(cf => cf.Id == f.Id))
+                .Where(f => f.OriginalFileName == file.FileName)
                 .OrderByDescending(f => f.UploadedOn)
                 .FirstOrDefault();
             
-            // Add the newly uploaded file to our field's file list
-            if (newlyUploadedFile != null)
+            // Add the newly uploaded file to our field's file list (if not already there)
+            if (newlyUploadedFile != null && !currentFieldFiles.Any(cf => cf.Id == newlyUploadedFile.Id))
             {
-
                 currentFieldFiles.Add(newlyUploadedFile);
             }
             
