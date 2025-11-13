@@ -2,6 +2,19 @@ const { defineConfig } = require("cypress");
 
 module.exports = defineConfig({
   e2e: {
+    experimentalRunAllSpecs: true,
+    reporter: 'cypress-multi-reporters',
+    reporterOptions: {
+      reporterEnabled: 'mochawesome',
+      mochawesomeReporterOptions: {
+        reportDir: 'cypress/reports/mocha',
+        quite: true,
+        overwrite: false,
+        html: false,
+        json: true,
+      }
+    },
+
     setupNodeEvents(on, config) {
       // Accept self-signed certificates
       on('before:browser:launch', (browser, launchOptions) => {
