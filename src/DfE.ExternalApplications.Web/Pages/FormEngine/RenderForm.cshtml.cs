@@ -402,7 +402,16 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                 var flowTitle = string.IsNullOrWhiteSpace(flow.Title)
                                     ? (string.IsNullOrWhiteSpace(CurrentTask?.TaskName) ? "this section" : CurrentTask!.TaskName)
                                     : flow.Title;
-                                errorLines.Add($"• Add at least {requiredMin} item(s) to {flowTitle}");
+                                var flowMessage = $"• Add at least {requiredMin} item(s) to {flowTitle}";
+                                errorLines.Add(flowMessage);
+                                if (!string.IsNullOrWhiteSpace(flow.FieldId))
+                                {
+                                    ModelState.AddModelError(flow.FieldId, flowMessage);
+                                }
+                                else
+                                {
+                                    ModelState.AddModelError(string.Empty, flowMessage);
+                                }
                                 _logger.LogInformation("Collection flow '{FlowId}' requires at least {MinItems} items but has {Count}", flow.FlowId, requiredMin, itemCount);
                             }
 
@@ -413,6 +422,17 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     {
                         // Cannot complete task - required fields are missing
                         ModelState.Clear();
+
+                        // Add per-field errors so the task summary can link to each field
+                        foreach (var kv in missingFieldsWithMessages)
+                        {
+                            var fieldId = kv.Key;
+                            var message = kv.Value;
+                            if (!string.IsNullOrWhiteSpace(fieldId) && !string.IsNullOrWhiteSpace(message))
+                            {
+                                ModelState.AddModelError(fieldId, message);
+                            }
+                        }
 
                         // Create error message with bullet points
                         var errorMessage = "You cannot mark this section as complete because some required questions have not been answered:\n" +

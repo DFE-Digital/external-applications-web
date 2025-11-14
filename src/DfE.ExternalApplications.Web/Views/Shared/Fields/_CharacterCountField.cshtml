@@ -68,31 +68,50 @@
                 return err;
             }
 
+            function hasServerRenderedError() {
+                // Detect an existing server-rendered error for this field to avoid duplicating inline messages
+                if (!formGroup) return false;
+                var err = formGroup.querySelector('.govuk-error-message:not([data-live-maxlength])');
+                if (err) return true;
+                // Also consider pre-applied error class as a server-rendered error signal
+                if (formGroup.classList.contains('govuk-form-group--error')) return true;
+                return false;
+            }
+
             function setGovUkErrorState(show) {
                 if (!wrapper) return;
                 if (show) {
                     wrapper.classList.add('govuk-character-count--error');
                     textarea.classList.add('govuk-textarea--error');
+                    if (formGroup) { try { formGroup.classList.add('govuk-form-group--error'); } catch {} }
                     // If the component has its own message element, keep it aligned
                     var msgEl = wrapper.querySelector('.govuk-character-count__message');
                     if (msgEl) { try { msgEl.setAttribute('role', 'alert'); } catch {} }
                 } else {
                     wrapper.classList.remove('govuk-character-count--error');
                     textarea.classList.remove('govuk-textarea--error');
+                    if (formGroup) { try { formGroup.classList.remove('govuk-form-group--error'); } catch {} }
                     var msgEl2 = wrapper.querySelector('.govuk-character-count__message');
                     if (msgEl2) { try { msgEl2.removeAttribute('role'); } catch {} }
                 }
             }
 
             function clearError() {
+                // Remove any live maxlength error
                 var err = formGroup.querySelector('.govuk-error-message[data-live-maxlength]');
                 if (err) err.remove();
+                // Also remove any server-rendered error message within this form group to reflect current valid state
+                formGroup.querySelectorAll('.govuk-error-message:not([data-live-maxlength])').forEach(function (el) {
+                    el.remove();
+                });
                 textarea.setAttribute('aria-invalid', 'false');
-            removeSummaryError();
+                removeSummaryError();
                 setGovUkErrorState(false);
             }
 
             function setInlineError(message) {
+                // Do not add a live inline error if a server-rendered error already exists for this field
+                if (hasServerRenderedError()) return null;
                 var err = ensureErrorEl();
                 // Clear and prepend visually hidden prefix
                 err.textContent = '';
@@ -107,9 +126,12 @@
             function update() {
                 var len = (textarea.value || '').length;
                 if (len > max) {
-                    setInlineError(templateMsg);
-                    textarea.setAttribute('aria-invalid', 'true');
-                addSummaryError();
+                    // If server has already rendered an error for this field, only ensure error styling; do not duplicate messages
+                    if (!hasServerRenderedError()) {
+                        setInlineError(templateMsg);
+                        textarea.setAttribute('aria-invalid', 'true');
+                        addSummaryError();
+                    }
                     setGovUkErrorState(true);
                 } else {
                     clearError();
@@ -121,6 +143,40 @@
             textarea.addEventListener('paste', function () { setTimeout(update, 0); });
             textarea.dataset.liveMaxlengthBound = 'true';
             update();
+
+        // On form submit, wipe live validation artefacts so server-calculated errors don't duplicate
+        var owningForm = textarea.closest('form');
+        if (owningForm && owningForm.dataset.liveMaxlengthSubmitBound !== 'true') {
+            owningForm.addEventListener('submit', function () {
+                try {
+                    // Remove all live maxlength inline errors in this form
+                    owningForm.querySelectorAll('.govuk-error-message[data-live-maxlength]').forEach(function (el) { el.remove(); });
+                    // Remove error styles added by live validation
+                    owningForm.querySelectorAll('.govuk-character-count').forEach(function (cc) { cc.classList.remove('govuk-character-count--error'); });
+                    owningForm.querySelectorAll('.govuk-textarea--error').forEach(function (ta) { ta.classList.remove('govuk-textarea--error'); });
+                    owningForm.querySelectorAll('.govuk-form-group--error').forEach(function (fg) {
+                        // Only remove where we previously added an inline live message
+                        if (fg.querySelector('.govuk-error-message[data-live-maxlength]')) {
+                            fg.classList.remove('govuk-form-group--error');
+                        }
+                    });
+                    // Remove any live-added summary entries
+                    var summary = owningForm.querySelector('.govuk-error-summary');
+                    if (summary) {
+                        var list = summary.querySelector('.govuk-error-summary__list');
+                        if (list) {
+                            list.querySelectorAll('li[data-live-maxlength="true"]').forEach(function (li) { li.remove(); });
+                        }
+                        // If the summary was created by this script and is now empty, remove it
+                        if (summary.getAttribute('data-live-summary') === 'true') {
+                            var anyLeft = list && list.querySelector('li');
+                            if (!anyLeft) { summary.remove(); }
+                        }
+                    }
+                } catch { }
+            });
+            owningForm.dataset.liveMaxlengthSubmitBound = 'true';
+        }
 
         function ensureSummary() {
             var summary = document.querySelector('.govuk-error-summary');
@@ -159,7 +215,10 @@
         function addSummaryError() {
             var parts = ensureSummary();
             var list = parts.list;
+            // If there is already a server-rendered entry linking to this field, don't add a live one
+            var existingServerLinked = list.querySelector('a[href="#' + textarea.id + '"]');
             var existing = list.querySelector('li[data-live-maxlength="true"][data-field-id="' + textarea.id + '"]');
+            if (existingServerLinked) { return; }
             if (!existing) {
                 existing = document.createElement('li');
                 existing.setAttribute('data-live-maxlength', 'true');
@@ -180,8 +239,15 @@
             if (!summary) return;
             var list = summary.querySelector('.govuk-error-summary__list');
             if (!list) return;
+            // Remove live-added entry
             var existing = list.querySelector('li[data-live-maxlength="true"][data-field-id="' + textarea.id + '"]');
             if (existing) existing.remove();
+            // Also remove any server-rendered entry that links to this field
+            var serverLink = list.querySelector('a[href="#' + textarea.id + '"]');
+            if (serverLink) {
+                var li = serverLink.closest('li');
+                if (li) li.remove();
+            }
 
             // If no items remain, tidy up
             var anyItemsLeft = list.querySelector('li');

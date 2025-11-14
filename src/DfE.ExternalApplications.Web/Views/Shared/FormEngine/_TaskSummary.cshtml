@@ -5,13 +5,46 @@
 
 @if (!ViewData.ModelState.IsValid)
 {
-    var errorMessages = ViewData.ModelState.Values
-        .SelectMany(v => v.Errors)
-        .Where(e => !string.IsNullOrEmpty(e.ErrorMessage))
-        .Select(e => e.ErrorMessage)
+    // Build a lookup of visible fields across all non-hidden pages in the current task
+    var visibleFieldsById = ((Model.CurrentTask.Pages ?? new List<DfE.ExternalApplications.Domain.Models.Page>())
+        .Where(p => !Model.IsPageHidden(p.PageId))
+        .SelectMany(p => p.Fields) ?? Enumerable.Empty<DfE.ExternalApplications.Domain.Models.Field>())
+        .Where(f => !Model.IsFieldHidden(f.FieldId))
+        .ToDictionary(f => f.FieldId, f => f);
+
+    var errorEntries = ViewData.ModelState
+        .Where(m => m.Value?.Errors?.Any() == true)
         .ToList();
-    
-    if (errorMessages.Any())
+
+    // Map individual field error messages to their anchors so we can turn the global bullet items into links
+    var linkByMessage = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    foreach (var entry in errorEntries)
+    {
+        var keyForEntry = entry.Key?.ToString() ?? string.Empty;
+        if (string.IsNullOrEmpty(keyForEntry)) { continue; }
+        if (!visibleFieldsById.TryGetValue(keyForEntry, out var fieldForLink)) { continue; }
+        var hrefForField = $"#field-{fieldForLink.FieldId.Replace(" ", "-").ToLower()}";
+        foreach (var msg in (entry.Value?.Errors?.Select(e => e.ErrorMessage) ?? Enumerable.Empty<string>()).Where(m => !string.IsNullOrWhiteSpace(m)))
+        {
+            var parts = msg.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            foreach (var part in parts)
+            {
+                var normalized = part.TrimStart('•', ' ');
+                if (!linkByMessage.ContainsKey(normalized))
+                {
+                    linkByMessage[normalized] = hrefForField;
+                }
+            }
+        }
+    }
+
+    // Prefer the combined global message (first multi-line message on the empty key)
+    var globalCombinedMessage = errorEntries
+        .Where(e => string.IsNullOrEmpty(e.Key?.ToString() ?? string.Empty))
+        .SelectMany(e => e.Value?.Errors?.Select(er => er.ErrorMessage) ?? Enumerable.Empty<string>())
+        .FirstOrDefault(m => m?.Contains('\n') == true);
+
+    if (errorEntries.Any() && !string.IsNullOrWhiteSpace(globalCombinedMessage))
     {
         <div class="govuk-error-summary" data-module="govuk-error-summary">
             <div role="alert">
@@ -19,24 +52,66 @@
                     There is a problem
                 </h2>
                 <div class="govuk-error-summary__body">
-                    @foreach (var errorMsg in errorMessages)
-                    {
-                        var lines = errorMsg.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-                        if (lines.Length > 1)
-                        {
-                            <p>@lines[0]</p>
-                            <ul class="govuk-list govuk-list--bullet">
-                                @foreach (var line in lines.Skip(1))
-                                {
-                                    <li><span class="govuk-visually-hidden">Error: </span>@line.TrimStart('•', ' ')</li>
-                                }
-                            </ul>
-                        }
-                        else
-                        {
-                            <p>@errorMsg</p>
-                        }
+                    @{
+                        var lines = globalCombinedMessage.Split('\n', StringSplitOptions.RemoveEmptyEntries).ToList();
                     }
+                    @if (lines.Count > 0)
+                    {
+                        <p class="govuk-error-message"><span class="govuk-visually-hidden">Error: </span>@lines[0]</p>
+                        <ul class="govuk-list govuk-error-summary__list">
+                            @foreach (var line in lines.Skip(1))
+                            {
+                                var text = line.TrimStart('•', ' ');
+                                if (linkByMessage.TryGetValue(text, out var href))
+                                {
+                                    <li><a class="govuk-link" href="@href">@text</a></li>
+                                }
+                                else
+                                {
+                                    <li><span class="govuk-visually-hidden">Error: </span>@text</li>
+                                }
+                            }
+                        </ul>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+    else if (errorEntries.Any())
+    {
+        // Fallback: no combined global message available. Render individual entries (with links where possible) using GOV.UK error list styling.
+        <div class="govuk-error-summary" data-module="govuk-error-summary">
+            <div role="alert">
+                <h2 class="govuk-error-summary__title">
+                    There is a problem
+                </h2>
+                <div class="govuk-error-summary__body">
+                    <ul class="govuk-list govuk-error-summary__list">
+                        @foreach (var entry in errorEntries)
+                        {
+                            var key = entry.Key?.ToString() ?? string.Empty;
+                        var messages = (entry.Value?.Errors?.Select(e => e.ErrorMessage) ?? Enumerable.Empty<string>())
+                                .Where(msg => !string.IsNullOrWhiteSpace(msg))
+                                .ToList();
+                            if (!messages.Any()) { continue; }
+
+                            if (!string.IsNullOrEmpty(key) && visibleFieldsById.TryGetValue(key, out var fieldForLink))
+                            {
+                                var href = $"#field-{fieldForLink.FieldId.Replace(" ", "-").ToLower()}";
+                                foreach (var errorMsg in messages)
+                                {
+                                    <li><a class="govuk-link" href="@href">@errorMsg</a></li>
+                                }
+                            }
+                            else
+                            {
+                                foreach (var errorMsg in messages)
+                                {
+                                    <li>@errorMsg</li>
+                                }
+                            }
+                        }
+                    </ul>
                 </div>
             </div>
         </div>
@@ -95,7 +170,17 @@
                     // Show main field header with change link for single-select only
                     <div class="govuk-summary-list__row" id="field-@fieldIdHyphenated" data-testid="field-@fieldIdHyphenated">
                         <dt class="govuk-summary-list__key">
-                            @field.Label.Value
+                            @{
+                                var hasFieldError = ViewData.ModelState.ContainsKey(field.FieldId) && ViewData.ModelState[field.FieldId]!.Errors.Any();
+                            }
+                            @if (hasFieldError)
+                            {
+                                <span class="govuk-error-message"><span class="govuk-visually-hidden">Error: </span>@field.Label.Value</span>
+                            }
+                            else
+                            {
+                                @field.Label.Value
+                            }
                         </dt>
                         <dd class="govuk-summary-list__value">
                             @if (formattedValues.Count == 0)
@@ -379,7 +464,17 @@
             {
                 <div class="govuk-summary-list__row" id="field-@fieldIdHyphenated" data-testid="field-@fieldIdHyphenated">
                     <dt class="govuk-summary-list__key">
-                        @field.Label.Value
+                        @{
+                            var hasFieldError = ViewData.ModelState.ContainsKey(field.FieldId) && ViewData.ModelState[field.FieldId]!.Errors.Any();
+                        }
+                        @if (hasFieldError)
+                        {
+                            <span class="govuk-error-message"><span class="govuk-visually-hidden">Error: </span>@field.Label.Value</span>
+                        }
+                        else
+                        {
+                            @field.Label.Value
+                        }
                     </dt>
                     <dd class="govuk-summary-list__value">
                         @if (hasValue)

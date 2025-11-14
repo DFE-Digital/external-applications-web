@@ -4,7 +4,15 @@
     var isRequired = Model.Field.Required ?? true;
     var validationAttributes = new HtmlString(Model.ValidationAttributes);
     var labelClasses = Model.Field.Label.IsVisible ? "" : "govuk-visually-hidden";
-	DateTime? parsedDate = DateTime.TryParse(Model.CurrentValue, out DateTime dt) ? dt : (DateTime?)null;
+	// Parse only strict ISO-like formats to avoid culture-based swapping of day/year
+	var _formats = new[] { "yyyy-M-d", "yyyy-MM-dd", "yyyy-M-dd", "yyyy-MM-d" };
+	DateTime? parsedDate = System.DateTime.TryParseExact(
+		Model.CurrentValue,
+		_formats,
+		System.Globalization.CultureInfo.InvariantCulture,
+		System.Globalization.DateTimeStyles.None,
+		out DateTime dt
+	) ? dt : (DateTime?)null;
 	var request = ViewContext?.HttpContext?.Request;
 	var hasForm = request?.HasFormContentType == true && string.Equals(request.Method, "POST", StringComparison.OrdinalIgnoreCase);
 	var postedDay = hasForm ? request!.Form[$"Data[{Model.Field.FieldId}].day"].ToString() : string.Empty;
@@ -53,6 +61,9 @@ document.addEventListener('DOMContentLoaded', function () {
     if (wrapper.dataset.liveDateBound === 'true') return;
     wrapper.dataset.liveDateBound = 'true';
 
+    // Determine form group for error styling
+    var formGroup = wrapper.closest('.govuk-form-group') || wrapper.parentElement;
+
     var fieldLabel = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Field.Label?.Value ?? Model.Field.FieldId));
     var missingMsg = @Html.Raw(System.Text.Json.JsonSerializer.Serialize((Model.Field.Label?.Value ?? Model.Field.FieldId) + " must include a day, month and year"));
     var invalidMsg = @Html.Raw(System.Text.Json.JsonSerializer.Serialize((Model.Field.Label?.Value ?? Model.Field.FieldId) + " must be a real date"));
@@ -64,6 +75,15 @@ document.addEventListener('DOMContentLoaded', function () {
             if (show) el.classList.add(cls); else el.classList.remove(cls);
             el.setAttribute('aria-invalid', show ? 'true' : 'false');
         });
+    }
+
+    function setGovUkErrorState(show) {
+        if (!formGroup) return;
+        if (show) {
+            try { formGroup.classList.add('govuk-form-group--error'); } catch {}
+        } else {
+            try { formGroup.classList.remove('govuk-form-group--error'); } catch {}
+        }
     }
 
     function ensureErrorEl() {
@@ -81,6 +101,21 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
         return err;
+    }
+
+    // Anchor used by server-side error summary links on form pages
+    var fieldAnchorId = '@Model.Id';
+
+    function hasServerRenderedError() {
+        // Detect server-rendered error within the same form group (excluding live version)
+        if (!formGroup) return false;
+        var existing = formGroup.querySelector('.govuk-error-message:not([data-live-date])');
+        if (existing) return true;
+        if (formGroup.classList.contains('govuk-form-group--error')) return true;
+        // Or if error summary already has a link to this field's anchor
+        var summary = document.querySelector('.govuk-error-summary');
+        if (summary && summary.querySelector('a[href="#' + fieldAnchorId + '"]')) return true;
+        return false;
     }
 
     function ensureSummary() {
@@ -117,14 +152,16 @@ document.addEventListener('DOMContentLoaded', function () {
     function addSummaryError(message) {
         var parts = ensureSummary();
         var list = parts.list;
-        var anchorId = day.id || (wrapper.id ? wrapper.id + '-day' : '');
-        var existing = list.querySelector('li[data-live-date="true"][data-field-id="' + anchorId + '"]');
+        // If a server-rendered entry already links to this field, skip adding live item
+        var existingServerLink = list.querySelector('a[href="#' + fieldAnchorId + '"]');
+        var existing = list.querySelector('li[data-live-date="true"][data-field-id="' + fieldAnchorId + '"]');
+        if (existingServerLink) { return; }
         if (!existing) {
             existing = document.createElement('li');
             existing.setAttribute('data-live-date', 'true');
-            existing.setAttribute('data-field-id', anchorId);
+            existing.setAttribute('data-field-id', fieldAnchorId);
             var a = document.createElement('a');
-            a.setAttribute('href', '#' + anchorId);
+            a.setAttribute('href', '#' + fieldAnchorId);
             a.textContent = message;
             existing.appendChild(a);
             list.appendChild(existing);
@@ -139,9 +176,15 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!summary) return;
         var list = summary.querySelector('.govuk-error-summary__list');
         if (!list) return;
-        var anchorId = day.id || (wrapper.id ? wrapper.id + '-day' : '');
-        var existing = list.querySelector('li[data-live-date="true"][data-field-id="' + anchorId + '"]');
+        // Remove live-added error
+        var existing = list.querySelector('li[data-live-date="true"][data-field-id="' + fieldAnchorId + '"]');
         if (existing) existing.remove();
+        // Also remove any server-rendered entry for this field when inputs are valid
+        var serverLink = list.querySelector('a[href="#' + fieldAnchorId + '"]');
+        if (serverLink) {
+            var li = serverLink.closest('li');
+            if (li) li.remove();
+        }
         var anyLeft = list.querySelector('li');
         if (!anyLeft) {
             if (summary.getAttribute('data-live-summary') === 'true') summary.remove(); else summary.setAttribute('hidden', 'true');
@@ -169,35 +212,70 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (vd || vm || vy) {
             if (!allPresent(vd, vm, vy)) {
-                var err1 = ensureErrorEl();
-                err1.textContent = '';
-                var vh1 = document.createElement('span');
-                vh1.className = 'govuk-visually-hidden';
-                vh1.textContent = 'Error: ';
-                err1.appendChild(vh1);
-                err1.appendChild(document.createTextNode(missingMsg));
+                if (!hasServerRenderedError()) {
+                    var err1 = ensureErrorEl();
+                    err1.textContent = '';
+                    var vh1 = document.createElement('span');
+                    vh1.className = 'govuk-visually-hidden';
+                    vh1.textContent = 'Error: ';
+                    err1.appendChild(vh1);
+                    err1.appendChild(document.createTextNode(missingMsg));
+                    addSummaryError(missingMsg);
+                }
                 setInputsError(true);
-                addSummaryError(missingMsg);
+                setGovUkErrorState(true);
                 return;
             }
             if (!isRealDate(vy, vm, vd)) {
-                var err2 = ensureErrorEl();
-                err2.textContent = '';
-                var vh2 = document.createElement('span');
-                vh2.className = 'govuk-visually-hidden';
-                vh2.textContent = 'Error: ';
-                err2.appendChild(vh2);
-                err2.appendChild(document.createTextNode(invalidMsg));
+                if (!hasServerRenderedError()) {
+                    var err2 = ensureErrorEl();
+                    err2.textContent = '';
+                    var vh2 = document.createElement('span');
+                    vh2.className = 'govuk-visually-hidden';
+                    vh2.textContent = 'Error: ';
+                    err2.appendChild(vh2);
+                    err2.appendChild(document.createTextNode(invalidMsg));
+                    addSummaryError(invalidMsg);
+                }
                 setInputsError(true);
-                addSummaryError(invalidMsg);
+                setGovUkErrorState(true);
                 return;
             }
         }
-        // Clear if no parts or valid full date
-        var err = wrapper.querySelector('.govuk-error-message[data-live-date]');
-        if (err) err.remove();
-        setInputsError(false);
-        removeSummaryError();
+        // Distinguish between "no parts" and "valid full date"
+        var anyEntered = (vd || vm || vy);
+        if (!anyEntered) {
+            // No parts entered: do not remove server-rendered errors (avoid flicker).
+            // Only clear LIVE artefacts if any exist.
+            var liveErr = wrapper.querySelector('.govuk-error-message[data-live-date]');
+            if (liveErr) liveErr.remove();
+            // Remove ONLY the live-added summary item, leave any server-linked item intact
+            (function removeLiveOnly() {
+                var summary = document.querySelector('.govuk-error-summary');
+                if (!summary) return;
+                var list = summary.querySelector('.govuk-error-summary__list');
+                if (!list) return;
+                var liveLi = list.querySelector('li[data-live-date="true"][data-field-id="' + fieldAnchorId + '"]');
+                if (liveLi) liveLi.remove();
+                // If no items remain at all, hide the server-rendered summary container
+                var anyLeft = list.querySelector('li');
+                if (!anyLeft) { summary.setAttribute('hidden', 'true'); }
+            })();
+            // Only clear client-added classes if there is no server error
+            if (!hasServerRenderedError()) {
+                setInputsError(false);
+                setGovUkErrorState(false);
+            }
+        } else {
+            // Valid full date: clear both live and server-rendered errors and styles
+            var liveErr2 = wrapper.querySelector('.govuk-error-message[data-live-date]');
+            if (liveErr2) liveErr2.remove();
+            var serverErr = formGroup ? formGroup.querySelector('.govuk-error-message:not([data-live-date])') : null;
+            if (serverErr) { try { serverErr.remove(); } catch {} }
+            setInputsError(false);
+            setGovUkErrorState(false);
+            removeSummaryError();
+        }
     }
 
     [day, month, year].forEach(function (el) {
@@ -206,6 +284,38 @@ document.addEventListener('DOMContentLoaded', function () {
         el.addEventListener('change', update);
         el.addEventListener('paste', function () { setTimeout(update, 0); });
     });
+
+    // On form submit, remove live artefacts so server validation does not duplicate messages
+    var owningForm = wrapper.closest('form');
+    if (owningForm && owningForm.dataset.liveDateSubmitBound !== 'true') {
+        owningForm.addEventListener('submit', function () {
+            try {
+                // Remove live inline errors
+                owningForm.querySelectorAll('.govuk-error-message[data-live-date]').forEach(function (el) { el.remove(); });
+                // Remove live-added summary items
+                var summary = owningForm.querySelector('.govuk-error-summary');
+                if (summary) {
+                    var list = summary.querySelector('.govuk-error-summary__list');
+                    if (list) {
+                        list.querySelectorAll('li[data-live-date="true"]').forEach(function (li) { li.remove(); });
+                    }
+                    if (summary.getAttribute('data-live-summary') === 'true') {
+                        var anyLeft = list && list.querySelector('li');
+                        if (!anyLeft) { summary.remove(); }
+                    }
+                }
+                // Remove error classes added by live validation
+                owningForm.querySelectorAll('.govuk-input--error').forEach(function (el) { el.classList.remove('govuk-input--error'); });
+                owningForm.querySelectorAll('.govuk-form-group--error').forEach(function (fg) {
+                    if (fg.querySelector('.govuk-error-message[data-live-date]')) {
+                        fg.classList.remove('govuk-form-group--error');
+                    }
+                });
+            } catch {}
+        });
+        owningForm.dataset.liveDateSubmitBound = 'true';
+    }
+
     update();
 });
 </script>
