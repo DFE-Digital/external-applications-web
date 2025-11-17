@@ -24,7 +24,7 @@
       "collectionMapping": {
         "sourceCollectionFieldId": "detailsOfOutgoingTrusts",
         "extractFirst": true,
-        "nestedPath": "trustsSearch-field-flow.groupName"
+        "nestedPath": "trustsSearch-field-flow.name"
       }
     },
     "IsFormAMAT": {
@@ -45,13 +45,15 @@
       "collectionMapping": {
         "sourceCollectionFieldId": "detailsOfAcademies",
         "itemMappings": {
+          "OutgoingAcademyName": {
+            "sourceType": "ComplexFieldProperty",
+            "sourceFieldId": "academiesSearch",
+            "nestedPath": "name"
+          },
           "OutgoingAcademyUkprn": {
-            "sourceType": "Collection",
-            "collectionMapping": {
-              "sourceCollectionFieldId": "detailsOfAcademies",
-              "extractFirst": true,
-              "nestedPath": "academiesSearch-field-flow.ukprn"
-            }
+            "sourceType": "ComplexFieldProperty",
+            "sourceFieldId": "academiesSearch",
+            "nestedPath": "ukprn"
           },
           "IncomingTrustUkprn": {
             "sourceType": "Collection",
@@ -66,24 +68,18 @@
             "collectionMapping": {
               "sourceCollectionFieldId": "detailsOfIncomingTrust",
               "extractFirst": true,
-              "nestedPath": "incomingTrustsSearch-field-flow.groupName"
+              "nestedPath": "incomingTrustsSearch-field-flow.name"
             }
           },
           "Region": {
-            "sourceType": "Collection",
-            "collectionMapping": {
-              "sourceCollectionFieldId": "detailsOfAcademies",
-              "extractFirst": true,
-              "nestedPath": "academiesSearch-field-flow.gor"
-            }
+            "sourceType": "ComplexFieldProperty",
+            "sourceFieldId": "academiesSearch",
+            "nestedPath": "gor"
           },
           "LocalAuthority": {
-            "sourceType": "Collection",
-            "collectionMapping": {
-              "sourceCollectionFieldId": "detailsOfAcademies",
-              "extractFirst": true,
-              "nestedPath": "academiesSearch-field-flow.localAuthorityName"
-            }
+            "sourceType": "ComplexFieldProperty",
+            "sourceFieldId": "academiesSearch",
+            "nestedPath": "localAuthorityName"
           },
           "Metadata": {
             "sourceType": "Static",

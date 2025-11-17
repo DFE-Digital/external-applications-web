@@ -48,6 +48,15 @@ public class EventDataMapper(
             try
             {
                 var value = ExtractValue(fieldMapping, formData, template, applicationId, applicationReference);
+                
+                // Skip null/empty values for optional properties to allow deserializer to use defaults
+                // This prevents type conversion errors for complex types like Dictionary<string, object>
+                if (value == null || (value is string str && string.IsNullOrEmpty(str)))
+                {
+                    logger.LogTrace("Skipping property {PropertyName} - null or empty value", propertyName);
+                    continue;
+                }
+                
                 eventData[propertyName] = value;
                 
                 logger.LogTrace("Mapped property {PropertyName} = {Value}", propertyName, value);
@@ -168,7 +177,6 @@ public class EventDataMapper(
     {
         if (!formData.TryGetValue(fieldId, out var fieldValue))
         {
-            logger.LogDebug("Complex field {FieldId} not found in form data", fieldId);
             return string.Empty;
         }
 
@@ -186,9 +194,31 @@ public class EventDataMapper(
 
             if (complexData?.TryGetValue(propertyPath, out var propertyValue) == true)
             {
-                return propertyValue.ValueKind == JsonValueKind.String
-                    ? propertyValue.GetString() ?? string.Empty
-                    : propertyValue.ToString();
+                if (propertyValue.ValueKind == JsonValueKind.String)
+                {
+                    var result = propertyValue.GetString() ?? string.Empty;
+                    logger.LogDebug("Extracted string value: {Value}", result);
+                    return result;
+                }
+                else if (propertyValue.ValueKind == JsonValueKind.Object)
+                {
+                    // Handle nested objects (e.g. gor: { name: "...", code: "..." })
+                    // Try to extract the "name" property from nested object
+                    if (propertyValue.TryGetProperty("name", out var nameProperty) && 
+                        nameProperty.ValueKind == JsonValueKind.String)
+                    {
+                        var result = nameProperty.GetString() ?? string.Empty;
+                        logger.LogDebug("Extracted nested name value: {Value}", result);
+                        return result;
+                    }
+                    // If no name property, return the JSON representation
+                    logger.LogDebug("Nested object has no 'name' property, returning JSON");
+                    return propertyValue.ToString();
+                }
+                else
+                {
+                    return propertyValue.ToString();
+                }
             }
 
             logger.LogDebug(
@@ -267,6 +297,14 @@ public class EventDataMapper(
                     foreach (var (propertyName, itemMapping) in collectionMapping.ItemMappings)
                     {
                         var value = ExtractValue(itemMapping, mergedData, null!, Guid.Empty, string.Empty);
+                        
+                        // Skip null/empty values for optional properties to allow deserializer to use defaults
+                        if (value == null || (value is string str && string.IsNullOrEmpty(str)))
+                        {
+                            // Don't add the property - let the deserializer use null/default
+                            continue;
+                        }
+                        
                         mappedItem[propertyName] = value;
                     }
 

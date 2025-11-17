@@ -237,6 +237,11 @@ namespace DfE.ExternalApplications.Web.Services
                 // If we found a display name and at least one other field, return the object
                 if (!string.IsNullOrEmpty(displayName) && result.Count > 1)
                 {
+                    _logger.LogDebug(
+                        "Autocomplete result for {DisplayName}: {Properties}, Full Object: {FullObject}",
+                        displayName,
+                        string.Join(", ", result.Keys),
+                        JsonSerializer.Serialize(result));
                     return result;
                 }
                 

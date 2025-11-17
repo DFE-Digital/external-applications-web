@@ -267,6 +267,8 @@ builder.Services.AddDfEMassTransit(
     {
         // Configure topic names for message types
         cfg.Message<ScanResultEvent>(m => m.SetEntityName(TopicNames.ScanResult));
+        cfg.Message<TransferApplicationSubmittedEvent>(m => m.SetEntityName(TopicNames.TransferApplicationSubmitted));
+
         cfg.UseJsonSerializer();
     },
     configureAzureServiceBus: (context, cfg) =>

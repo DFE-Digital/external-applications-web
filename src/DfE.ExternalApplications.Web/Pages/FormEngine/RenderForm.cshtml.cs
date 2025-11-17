@@ -13,10 +13,13 @@ using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using DfE.ExternalApplications.Web.Interfaces;
+using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Events;
+using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Interfaces;
 using StackExchange.Redis;
 using static DfE.ExternalApplications.Web.Pages.FormEngine.DisplayHelpers;
-using DfE.ExternalApplications.Domain.Events;
 using MassTransit;
+using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Models;
+using System.Threading;
 
 namespace DfE.ExternalApplications.Web.Pages.FormEngine
 {
@@ -45,7 +48,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         ILogger<RenderFormModel> logger,
         INavigationHistoryService navigationHistoryService,
         IEventDataMapper eventDataMapper,
-        IPublishEndpoint publishEndpoint)
+        IEventPublisher publishEndpoint)
         : BaseFormEngineModel(renderer, applicationResponseService, fieldFormattingService, templateManagementService,
             applicationStateService, formStateManager, formNavigationService, formDataManager, formValidationOrchestrator, formConfigurationService, logger)
     {
@@ -59,7 +62,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         private readonly IFieldRequirementService _fieldRequirementService = fieldRequirementService;
         private readonly INavigationHistoryService _navigationHistoryService = navigationHistoryService;
         private readonly IEventDataMapper _eventDataMapper = eventDataMapper;
-        private readonly IPublishEndpoint _publishEndpoint = publishEndpoint;
+        private readonly IEventPublisher _publishEndpoint = publishEndpoint;
 
         [BindProperty(SupportsGet = false)] public Dictionary<string, object> Data { get; set; } = new();
 
@@ -3415,8 +3418,18 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     application.ApplicationId,
                     application.ApplicationReference);
 
-                // Publish the event to the service bus
-                await _publishEndpoint.Publish(eventData);
+
+                // Build Azure Service Bus message properties
+                var messageProperties = AzureServiceBusMessagePropertiesBuilder
+                    .Create()
+                    .AddCustomProperty("serviceName", "extweb")
+                    .Build();
+
+                // Publish to Azure Service Bus via MassTransit
+                await publishEndpoint.PublishAsync(
+                    eventData,
+                    messageProperties,
+                    CancellationToken.None);
 
                 _logger.LogInformation(
                     "Successfully published TransferApplicationSubmittedEvent for application {ApplicationId} with reference {ApplicationReference}",
