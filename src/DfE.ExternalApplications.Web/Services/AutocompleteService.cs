@@ -199,11 +199,12 @@ namespace DfE.ExternalApplications.Web.Services
                 }
                 
                 // Try to get UKPRN or other identifier fields (support common casing variants)
-                var identifierProperties = new[] { "ukprn", "id", "urn", "companiesHouseNumber", "companieshousenumber", "companies_house_number", "code" };
+                var identifierProperties = new[] { "ukprn", "id", "urn", "companiesHouseNumber", "companieshousenumber", "companies_house_number", "code", "localAuthorityName", "gor" };
                 foreach (var propertyName in identifierProperties)
                 {
                     if (item.TryGetProperty(propertyName, out var property))
                     {
+
                         if (property.ValueKind == JsonValueKind.String)
                         {
                             var value = property.GetString();
@@ -215,6 +216,20 @@ namespace DfE.ExternalApplications.Web.Services
                         else if (property.ValueKind == JsonValueKind.Number)
                         {
                             result[propertyName] = property.GetInt64().ToString();
+                        }
+                        else if (property.ValueKind == JsonValueKind.Object)
+                        {
+                            // Handle nested objects (e.g. gor: { name: "...", code: "..." })
+                            // Try to extract the "name" property from the nested object
+                            if (property.TryGetProperty("name", out var nameProperty) && 
+                                nameProperty.ValueKind == JsonValueKind.String)
+                            {
+                                var nameValue = nameProperty.GetString();
+                                if (!string.IsNullOrEmpty(nameValue))
+                                {
+                                    result[propertyName] = nameValue;
+                                }
+                            }
                         }
                     }
                 }

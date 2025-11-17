@@ -15,6 +15,8 @@ using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using DfE.ExternalApplications.Web.Interfaces;
 using StackExchange.Redis;
 using static DfE.ExternalApplications.Web.Pages.FormEngine.DisplayHelpers;
+using DfE.ExternalApplications.Domain.Events;
+using MassTransit;
 
 namespace DfE.ExternalApplications.Web.Pages.FormEngine
 {
@@ -41,7 +43,9 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         IFieldRequirementService fieldRequirementService,
         IConnectionMultiplexer redis,
         ILogger<RenderFormModel> logger,
-        INavigationHistoryService navigationHistoryService)
+        INavigationHistoryService navigationHistoryService,
+        IEventDataMapper eventDataMapper,
+        IPublishEndpoint publishEndpoint)
         : BaseFormEngineModel(renderer, applicationResponseService, fieldFormattingService, templateManagementService,
             applicationStateService, formStateManager, formNavigationService, formDataManager, formValidationOrchestrator, formConfigurationService, logger)
     {
@@ -54,6 +58,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         private readonly IConnectionMultiplexer _redis = redis;
         private readonly IFieldRequirementService _fieldRequirementService = fieldRequirementService;
         private readonly INavigationHistoryService _navigationHistoryService = navigationHistoryService;
+        private readonly IEventDataMapper _eventDataMapper = eventDataMapper;
+        private readonly IPublishEndpoint _publishEndpoint = publishEndpoint;
 
         [BindProperty(SupportsGet = false)] public Dictionary<string, object> Data { get; set; } = new();
 
@@ -503,6 +509,9 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     HttpContext.Session.SetString(statusKey, submittedApplication.Status?.ToString() ?? "Submitted");
                     _logger.LogInformation("Successfully submitted application {ApplicationId} with reference {ReferenceNumber}", 
                         ApplicationId.Value, ReferenceNumber);
+                    
+                    // Publish event to service bus
+                    await PublishApplicationSubmittedEventAsync(submittedApplication);
                 }
                 else
                 {
@@ -3379,6 +3388,53 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
 
             return null;
+        }
+
+        #endregion
+
+        #region Event Publishing
+
+        /// <summary>
+        /// Publishes the TransferApplicationSubmittedEvent to the service bus
+        /// Uses the event data mapper to extract and transform form data according to the configured mapping
+        /// </summary>
+        /// <param name="application">The submitted application</param>
+        private async Task PublishApplicationSubmittedEventAsync(ApplicationDto application)
+        {
+            try
+            {
+                _logger.LogInformation(
+                    "Starting event publishing for application {ApplicationId}",
+                    application.ApplicationId);
+
+                // Map form data to event using the configured mapping
+                var eventData = await _eventDataMapper.MapToEventAsync<TransferApplicationSubmittedEvent>(
+                    FormData,
+                    Template,
+                    "transfer-application-submitted-v1",
+                    application.ApplicationId,
+                    application.ApplicationReference);
+
+                // Publish the event to the service bus
+                await _publishEndpoint.Publish(eventData);
+
+                _logger.LogInformation(
+                    "Successfully published TransferApplicationSubmittedEvent for application {ApplicationId} with reference {ApplicationReference}",
+                    application.ApplicationId,
+                    application.ApplicationReference);
+            }
+            catch (Exception ex)
+            {
+                // Log the error but don't fail the submission
+                // The application has already been successfully submitted to the database
+                _logger.LogError(
+                    ex,
+                    "Failed to publish TransferApplicationSubmittedEvent for application {ApplicationId}. " +
+                    "Application was successfully submitted, but event publishing failed.",
+                    application.ApplicationId);
+                
+                // Don't throw - we don't want to fail the user's submission because event publishing failed
+            }
         }
 
         #endregion
