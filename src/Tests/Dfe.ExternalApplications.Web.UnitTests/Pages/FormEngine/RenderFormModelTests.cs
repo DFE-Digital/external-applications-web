@@ -1,4 +1,3 @@
-using System.Text;
 using AutoFixture;
 using AutoFixture.AutoNSubstitute;
 using DfE.ExternalApplications.Application.Interfaces;
@@ -7,6 +6,7 @@ using DfE.ExternalApplications.Web.Pages.FormEngine;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Primitives;
 using NSubstitute;
 using Task = System.Threading.Tasks.Task;
 using PageModel = DfE.ExternalApplications.Domain.Models.Page;
@@ -213,5 +213,20 @@ public class RenderFormModelTests
         Assert.DoesNotContain("{firstField}", _model.SuccessMessage);
         Assert.NotEqual("Some Data has been added", _model.SuccessMessage);
         Assert.Equal("Some Data has been updated", _model.SuccessMessage);
+    }
+
+    [Theory]
+    [InlineData("some text", "some text")]
+    [InlineData("👍", "&#x1F44D;")]
+    [InlineData("<script>alert('hello')</script>", "&lt;script&gt;alert(&#x27;hello&#x27;)&lt;/script&gt;")]
+    public async Task OnPostPageAsync_sanitises_form_data(string formValue, string expectedSavedData)
+    {
+        var request = _fixture.Create<HttpRequest>();
+        request.Form = new FormCollection(new Dictionary<string, StringValues> { { "Data[someField]", formValue } });
+        _fixture.Register(() => request);
+
+        await _model.OnPostPageAsync();
+
+        Assert.Equal(expectedSavedData, _model.Data["someField"]);
     }
 }

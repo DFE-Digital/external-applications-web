@@ -39,6 +39,12 @@ namespace DfE.ExternalApplications.Web.Filters
             if (context.HttpContext.Request.Method != "POST")
                 return;
 
+            if (context.ActionDescriptor.RouteValues.TryGetValue("controller", out var controller))
+            {
+                _logger.LogDebug("Skipping confirmation interception for API controller: {Controller}", controller);
+                return;
+            }
+
             // Skip if this is already a confirmed action coming back from confirmation page
             if (context.HttpContext.Request.Query.ContainsKey("confirmed") &&
                 context.HttpContext.Request.Query["confirmed"] == "true")

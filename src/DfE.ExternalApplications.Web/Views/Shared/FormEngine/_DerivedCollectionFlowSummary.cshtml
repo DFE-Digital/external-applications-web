@@ -18,7 +18,7 @@
         </div>
         <div class="govuk-notification-banner__content">
             <p class="govuk-notification-banner__heading">
-                @Model.SuccessMessage
+                @DisplayHelpers.UnsanitiseHtmlInput(Model.SuccessMessage)
             </p>
         </div>
     </div>

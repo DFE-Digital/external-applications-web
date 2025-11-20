@@ -66,5 +66,3 @@ namespace DfE.ExternalApplications.Web.Controllers
         }
     }
 }
-
-

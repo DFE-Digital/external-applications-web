@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using System.Globalization;
 using System.ComponentModel.DataAnnotations;
+using System.Web;
 using Task = DfE.ExternalApplications.Domain.Models.Task;
 
 namespace DfE.ExternalApplications.Infrastructure.Services
@@ -228,6 +229,21 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                     if (!emailAttr.IsValid(stringValue))
                     {
                         modelState.AddModelError(fieldKey, "Enter an email address in the correct format, for example, name@example.com");
+                        isValid = false;
+                    }
+                }
+            }
+            
+            var fieldTypesWithOptions = new List<string> { "radios", "checkboxes" };
+            if (fieldTypesWithOptions.Contains(field.Type, StringComparer.OrdinalIgnoreCase))
+            {
+                if (!string.IsNullOrWhiteSpace(stringValue))
+                {
+                    var isValidOption = field.Options?.Select(o => o.Value).Contains(HttpUtility.HtmlDecode(stringValue)) ?? false;
+                    if (!isValidOption)
+                    {
+                        var message = GetCustomRequiredMessage(field) ?? "Select an option from the list";
+                        modelState.AddModelError(fieldKey, message);
                         isValid = false;
                     }
                 }

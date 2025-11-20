@@ -27,7 +27,13 @@ using Microsoft.AspNetCore.ResponseCompression;
 using System.Diagnostics.CodeAnalysis;
 using GovUK.Dfe.CoreLibs.Security.TokenRefresh.Extensions;
 using System.IO.Compression;
+using DfE.ExternalApplications.Infrastructure.Consumers;
+using GovUK.Dfe.CoreLibs.Messaging.Contracts.Entities.Topics;
+using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Events;
+using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Extensions;
 using Microsoft.AspNetCore.Authentication;
+using MassTransit;
+using GovUK.Dfe.CoreLibs.Messaging.Contracts.Exceptions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -114,7 +120,9 @@ builder.Services.Configure<Microsoft.AspNetCore.Mvc.MvcOptions>(options =>
 {
     options.Filters.Add<DfE.ExternalApplications.Web.Filters.ConfirmationInterceptorFilter>();
 });
-builder.Services.AddDistributedMemoryCache();
+
+// Add hybrid caching (Memory + Redis) with automatic session support
+builder.Services.AddHybridCaching(builder.Configuration);
 
 // Configure session with timeout settings to prevent hanging/blocking
 builder.Services.AddSession(options =>
@@ -124,8 +132,6 @@ builder.Services.AddSession(options =>
     options.Cookie.IsEssential = true;
     options.IOTimeout = TimeSpan.FromSeconds(5); // Prevent indefinite blocking on session I/O
 });
-
-builder.Services.AddMemoryCache();
 
 builder.Services.AddResponseCompression(options =>
 {
@@ -233,20 +239,55 @@ builder.Services.AddScoped<IComplexFieldRenderer, AutocompleteComplexFieldRender
 builder.Services.AddScoped<IComplexFieldRenderer, CompositeComplexFieldRenderer>();
 builder.Services.AddScoped<IComplexFieldRenderer, UploadComplexFieldRenderer>();
 
-builder.Services.AddSingleton<ITemplateStore, ApiTemplateStore>();
+builder.Services.AddSingleton<ITemplateStore, ApiTemplateStore>(); 
+builder.Services.AddUserTokenService(configuration);
 
 // Add test token handler and services when test authentication or Cypress is enabled
 if (isTestAuthEnabled || allowCypressToggle)
 {
-    builder.Services.AddUserTokenService(configuration);
     builder.Services.AddScoped<ITestAuthenticationService, TestAuthenticationService>();
 }
 
 builder.Services.AddServiceCaching(configuration);
 
-
 builder.Services.AddSingleton<IFormTemplateParser, JsonFormTemplateParser>();
 builder.Services.AddScoped<IFormTemplateProvider, FormTemplateProvider>();
+
+builder.Services.AddDfEMassTransit(
+    configuration,
+    configureConsumers: x =>
+    {
+        x.AddConsumer<ScanResultConsumer>();
+    },
+    configureBus: (context, cfg) =>
+    {
+        // Configure topic names for message types
+        cfg.Message<ScanResultEvent>(m => m.SetEntityName(TopicNames.ScanResult));
+        cfg.UseJsonSerializer();
+    },
+    configureAzureServiceBus: (context, cfg) =>
+    {
+        cfg.UseJsonSerializer();
+        // Azure Service Bus specific configuration
+        cfg.SubscriptionEndpoint<ScanResultEvent>("extweb", e =>
+        {
+            e.UseMessageRetry(r =>
+            {
+                // For MessageNotForThisInstanceException (instance filtering in Local env)
+                // Retry immediately and frequently so other consumers pick it up fast
+                r.Handle<MessageNotForThisInstanceException>();
+                r.Immediate(10); // Try 10 times (supports up to 10 concurrent local developers)
+
+                // For all OTHER exceptions (real errors)
+                // Retry with delay for transient issues
+                r.Ignore<MessageNotForThisInstanceException>(); // Don't apply interval retry to this
+                r.Interval(3, TimeSpan.FromSeconds(5)); // 3 retries, 5 seconds apart for real errors
+            });
+
+            e.ConfigureConsumeTopology = false;
+            e.ConfigureConsumer<ScanResultConsumer>(context);
+        });
+    });
 
 // Add global exception handler to log crashes before app dies
 AppDomain.CurrentDomain.UnhandledException += (sender, args) =>

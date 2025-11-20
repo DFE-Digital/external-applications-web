@@ -36,22 +36,36 @@ function ensureElement(id) {
 }
 
 window.renderOrUpdate = function (n) {
-    if (!n || !n.id) return;
-    const map = mapTypeToCss(n.type);
-    const id = `notification-${n.id}`;
+    // Handle case where notifications might be in an array (from SignalR)
+    // If it's an array, render each notification
+    if (Array.isArray(n)) {
+        n.forEach(notification => renderSingleNotification(notification));
+        return;
+    }
+    
+    // Otherwise render the single notification
+    renderSingleNotification(n);
+};
+
+function renderSingleNotification(notification) {
+    if (!notification || !notification.id) return;
+    
+    const map = mapTypeToCss(notification.type);
+    const id = `notification-${notification.id}`;
     const wrapper = ensureElement(id);
     wrapper.className = `govuk-${map.banner} ${map.css} notification-item`;
     wrapper.setAttribute('role', 'alert');
     wrapper.setAttribute('data-module', `govuk-${map.banner}`);
-    wrapper.setAttribute('data-notification-id', n.id);
-    wrapper.setAttribute('data-auto-dismiss', (n.autoDismiss ? 'true' : 'false'));
-    wrapper.setAttribute('data-auto-dismiss-seconds', (n.autoDismissSeconds ?? 0));
+    wrapper.setAttribute('data-notification-id', notification.id);
+    wrapper.setAttribute('data-auto-dismiss', (notification.autoDismiss ? 'true' : 'false'));
+    wrapper.setAttribute('data-auto-dismiss-seconds', (notification.autoDismissSeconds ?? 0));
 
     if (map.banner === 'error-summary') {
         wrapper.innerHTML = `
             <div role="alert">
                 <h2 class="govuk-error-summary__title">${map.title}</h2>
                 <div class="govuk-error-summary__body">
+                    <p class="govuk-notification-banner__heading">${notification.message ?? ''}</p>
                     <p class="govuk-body"><span class="govuk-visually-hidden">Error: </span>${n.message ?? ''}</p>
                 </div>
             </div>
@@ -62,7 +76,7 @@ window.renderOrUpdate = function (n) {
                 <h2 class="govuk-notification-banner__title">${map.title}</h2>
             </div>
             <div class="govuk-notification-banner__content">
-                <p class="govuk-notification-banner__heading">${n.message ?? ''}</p>
+                <p class="govuk-notification-banner__heading">${notification.message ?? ''}</p>
             </div>
         `;
     }
@@ -71,19 +85,17 @@ window.renderOrUpdate = function (n) {
     if (closeBtn) {
         closeBtn.onclick = async (e) => {
             e.preventDefault();
-            await dismiss(n.id);
+            await dismiss(notification.id);
         };
     }
 
-    // Mark as read immediately on render
-    void markAsRead(n.id);
 
     // Auto-dismiss if configured
-    if (n.autoDismiss) {
-        const secs = Number(n.autoDismissSeconds ?? 5);
-        setTimeout(() => dismiss(n.id), secs * 1000);
+    if (notification.autoDismiss) {
+        const secs = Number(notification.autoDismissSeconds ?? 5);
+        setTimeout(() => dismiss(notification.id), secs * 1000);
     }
-};
+}
 
 window.removeFromUi = function (id) {
     const el = document.getElementById(`notification-${id}`);
@@ -193,23 +205,34 @@ document.addEventListener("DOMContentLoaded", startHub);
 
 async function markAsRead(id) {
     try {
-        await fetch(`/notifications/read/${encodeURIComponent(id)}`, {
+        const response = await fetch(`/notifications/read/${encodeURIComponent(id)}`, {
             method: 'POST',
             credentials: 'include',
             headers: { 'RequestVerificationToken': antiForgeryToken() ?? '' }
         });
-    } catch { }
+        if (!response.ok) {
+            console.error('Failed to mark notification as read:', response.status, response.statusText);
+        }
+    } catch (error) {
+        console.error('Error marking notification as read:', error);
+    }
 }
 
 async function dismiss(id) {
     try {
-        const ok = await fetch(`/notifications/remove/${encodeURIComponent(id)}`, {
+        const response = await fetch(`/notifications/remove/${encodeURIComponent(id)}`, {
             method: 'POST',
             credentials: 'include',
             headers: { 'RequestVerificationToken': antiForgeryToken() ?? '' }
         });
-        if (ok?.ok) window.removeFromUi(id);
-    } catch { }
+        if (!response.ok) {
+            console.error('Failed to dismiss notification:', response.status, response.statusText);
+        } else {
+            window.removeFromUi(id);
+        }
+    } catch (error) {
+        console.error('Error dismissing notification:', error);
+    }
     await refreshUnreadCount();
 }
 

@@ -14,8 +14,8 @@
     
     List<Dictionary<string, object>> items = new();
     try { items = System.Text.Json.JsonSerializer.Deserialize<List<Dictionary<string, object>>>(json) ?? new(); } catch { }
-    var itemLabel = flow.ItemTitleBinding ?? "Item";
-    var itemLabelPlural = flow.ItemTitleBindingPlural ?? $"{itemLabel}s";
+    var itemLabel = flow.ItemKind ?? "Item";
+    var itemLabelPlural = flow.ItemKindPlural ?? $"{itemLabel}s";
 }
 
 <div class="govuk-!-margin-bottom-8">
@@ -39,8 +39,8 @@
                 @foreach (var (item, index) in items.Select((item, i) => (item, i)))
                 {
                     var memberNumber = index + 1;
-                    var memberTitle = item.TryGetValue(flow.ItemTitleBinding ?? "id", out var titleValue) && !string.IsNullOrEmpty(titleValue?.ToString())
-                                    ? titleValue.ToString()
+                    var memberTitle = !string.IsNullOrEmpty(flow.ItemTitleBinding)
+                                    ? DisplayHelpers.InterpolateMessage($"{{{flow.ItemTitleBinding}}}", DisplayHelpers.ExpandEncodedJson(item))
                                     : $"{itemLabel} {memberNumber}";
                     
                     @* Add separator header for each item (except first) *@
@@ -165,6 +165,8 @@
                                             try
                                             {
                                                 var uploadFiles = System.Text.Json.JsonSerializer.Deserialize<List<GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>>(value);
+                                                // CRITICAL: Filter out infected files using Redis blacklist
+                                                uploadFiles = renderModel.FilterInfectedFilesFromList(uploadFiles ?? new List<GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>());
                                                 if (uploadFiles != null && uploadFiles.Any())
                                                 {
                                                     var file = uploadFiles.First();
@@ -204,6 +206,8 @@
                                             try
                                             {
                                                 var uploadFiles = System.Text.Json.JsonSerializer.Deserialize<List<GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>>(value);
+                                                // CRITICAL: Filter out infected files using Redis blacklist
+                                                uploadFiles = renderModel.FilterInfectedFilesFromList(uploadFiles ?? new List<GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>());
                                                 if (uploadFiles != null && uploadFiles.Any())
                                                 {
                                                     @foreach (var file in uploadFiles)
@@ -268,8 +272,8 @@
             @foreach (var (item, index) in items.Select((item, i) => (item, i)))
             {
                 var memberNumber = index + 1;
-                var memberTitle = item.TryGetValue(flow.ItemTitleBinding ?? "id", out var titleValue) && !string.IsNullOrEmpty(titleValue?.ToString())
-                                ? titleValue.ToString()
+                var memberTitle = !string.IsNullOrEmpty(flow.ItemTitleBinding)
+                                ? DisplayHelpers.InterpolateMessage($"{{{flow.ItemTitleBinding}}}", DisplayHelpers.ExpandEncodedJson(item))
                                 : $"{itemLabel} {memberNumber}";
                 
                 <div class="govuk-summary-card govuk-!-margin-bottom-6">
@@ -359,6 +363,8 @@
                                                     try
                                                     {
                                                         var uploadFiles = System.Text.Json.JsonSerializer.Deserialize<List<GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>>(value);
+                                                        // CRITICAL: Filter out infected files using Redis blacklist
+                                                        uploadFiles = renderModel.FilterInfectedFilesFromList(uploadFiles ?? new List<GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>());
                                                         if (uploadFiles != null && uploadFiles.Any())
                                                         {
                                                             var file = uploadFiles.First();
@@ -382,7 +388,7 @@
                                                 }
                                                 else if (isAutocompleteField)
                                                 {
-                                                    var html = RenderAutocompleteSummary(value);
+                                                    var html = RenderAutocompleteSummary(DisplayHelpers.UnsanitiseHtmlInput(value));
                                                     @Html.Raw(html)
                                                 }
                                                 else
@@ -398,6 +404,8 @@
                                                     try
                                                     {
                                                         var uploadFiles = System.Text.Json.JsonSerializer.Deserialize<List<GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>>(value);
+                                                        // CRITICAL: Filter out infected files using Redis blacklist
+                                                        uploadFiles = renderModel.FilterInfectedFilesFromList(uploadFiles ?? new List<GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response.UploadDto>());
                                                         if (uploadFiles != null && uploadFiles.Any())
                                                         {
                                                             @foreach (var file in uploadFiles)

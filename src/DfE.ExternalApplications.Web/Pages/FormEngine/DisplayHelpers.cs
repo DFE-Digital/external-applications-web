@@ -1,9 +1,13 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Web;
+using Microsoft.AspNetCore.Html;
+using Microsoft.AspNetCore.Mvc.Rendering;
 
 namespace DfE.ExternalApplications.Web.Pages.FormEngine;
 
-public static class DisplayHelpers
+public static partial class DisplayHelpers
 {
     /// <summary>
     /// Expands JSON strings encoded within a dictionary's values into their corresponding JSON objects.
@@ -25,7 +29,7 @@ public static class DisplayHelpers
             case JsonElement { ValueKind: JsonValueKind.String } jsonString:
                 try
                 {
-                    return JsonSerializer.Deserialize<JsonElement>(jsonString.GetString() ?? "");
+                    return JsonSerializer.Deserialize<JsonElement>(UnsanitiseHtmlInput(jsonString.GetString() ?? ""));
                 }
                 catch (JsonException)
                 {
@@ -48,7 +52,8 @@ public static class DisplayHelpers
     {
         if (!string.IsNullOrEmpty(customMessage))
         {
-            return InterpolateCustomMessage(customMessage, itemData, flowTitle);
+            customMessage = customMessage.Replace("{flowTitle}", flowTitle ?? "collection");
+            return InterpolateMessage(customMessage, itemData);
         }
 
         var displayName = GetDisplayNameFromItemData(itemData);
@@ -64,10 +69,22 @@ public static class DisplayHelpers
         };
     }
 
-    private static string InterpolateCustomMessage(string message, Dictionary<string, object>? itemData, string? flowTitle)
+    /// <summary>
+    /// <para>
+    /// Replaces placeholders in the given message with values from <c>itemData</c>.
+    /// </para>
+    /// <para>
+    /// Placeholders are in the form of <c>{key}</c> or <c>{key.subkey}</c> where <c>key</c> is the name of a field in
+    /// <c>itemData</c>.
+    /// Subkeys can be used to index into properties of <c>key</c> if <c>key</c> is a JSON object.
+    /// </para>
+    /// </summary>
+    /// <param name="message">The message to interpolate.</param>
+    /// <param name="itemData">A <see cref="Dictionary&lt;string, object&gt;"/> containing properties to interpolate
+    /// into the message.</param>
+    /// <returns></returns>
+    public static string InterpolateMessage(string message, Dictionary<string, object>? itemData)
     {
-        message = message.Replace("{flowTitle}", flowTitle ?? "collection");
-
         if (itemData == null) return message;
 
         foreach (var (key, value) in itemData)
@@ -136,4 +153,34 @@ public static class DisplayHelpers
 
         return displayName;
     }
+
+    /// <summary>
+    /// <para>
+    /// Sanitises a string containing HTML by encoding its content to prevent XSS attacks.
+    /// </para>
+    /// <para>
+    /// Removes line breaks and normalises them to the <c>&lt;br&gt;</c> tag, and encodes any HTML content or characters
+    /// outside of the ASCII range.
+    /// </para>
+    /// </summary>
+    /// <param name="input">The input string containing potentially unsafe text.</param>
+    /// <returns>A sanitised string with HTML encoded content and normalised line breaks.</returns>
+    public static string SanitiseHtmlInput(string input)
+    {
+        var lines = input.Split("\r\n").SelectMany(s => s.Split('\r')).SelectMany(s => s.Split('\n'));
+
+        return string.Join("<br>", lines.Select(HtmlEncoder.Default.Encode));
+    }
+
+    /// <summary>
+    /// Converts a sanitised HTML input string back to its original form by decoding HTML entities
+    /// and replacing <c>&lt;br&gt;</c> tags with newline characters.
+    /// </summary>
+    /// <param name="sanitisedInput">The HTML-encoded input string with <c>&lt;br&gt;</c> used as newline indicators.</param>
+    /// <returns>The original unsanitised string with HTML entities decoded and <c>&lt;br&gt;</c> replaced with newlines.</returns>
+    public static string UnsanitiseHtmlInput(string sanitisedInput) =>
+        HttpUtility.HtmlDecode(LineBreakTagRegex().Replace(sanitisedInput, "\n"));
+    
+    [GeneratedRegex(@"<br\s*/?>")]
+    private static partial Regex LineBreakTagRegex();
 }

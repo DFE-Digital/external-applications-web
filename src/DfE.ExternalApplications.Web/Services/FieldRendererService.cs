@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.ViewEngines;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using System.Diagnostics.CodeAnalysis;
+using DfE.ExternalApplications.Web.Pages.FormEngine;
 
 namespace DfE.ExternalApplications.Web.Services
 {
@@ -28,7 +29,7 @@ namespace DfE.ExternalApplications.Web.Services
 
             var viewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary())
             {
-                Model = new FieldViewModel(field, prefix, currentValue, errorMessage, taskName)
+                Model = new FieldViewModel(field, prefix, DisplayHelpers.UnsanitiseHtmlInput(currentValue), errorMessage, taskName)
             };
 
             // Pass route parameters to ViewData for use in partial views
