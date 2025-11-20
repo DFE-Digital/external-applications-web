@@ -517,8 +517,6 @@ document.addEventListener('DOMContentLoaded', function() {
                                         }
                                         if (inputEl) inputEl.setAttribute('aria-expanded', 'false');
                                     } catch {}
-                                    // Show summary error as well
-                                    addSummaryError(hiddenInput.getAttribute('data-val-regex') || 'Enter a value in the correct format');
                                     return;
                                 }
                             }
@@ -773,38 +771,6 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Attach event listeners to existing remove buttons (for server-rendered items)
         attachRemoveButtonListeners();
-
-        // Shared helpers for error summary
-        function ensureSummary() {
-            var summary = document.querySelector('.govuk-error-summary');
-            if (!summary) {
-                summary = document.createElement('div');
-                summary.className = 'govuk-error-summary';
-                summary.setAttribute('role', 'alert');
-                summary.setAttribute('tabindex', '-1');
-                summary.setAttribute('data-live-summary', 'true');
-                var title = document.createElement('h2');
-                title.className = 'govuk-error-summary__title';
-                title.textContent = 'There is a problem';
-                var body = document.createElement('div');
-                body.className = 'govuk-error-summary__body';
-                var list = document.createElement('ul');
-                list.className = 'govuk-list govuk-error-summary__list';
-                body.appendChild(list);
-                summary.appendChild(title);
-                summary.appendChild(body);
-                var form = container.closest('form') || document.body;
-                form.insertBefore(summary, form.firstChild);
-            }
-            try { summary.removeAttribute('hidden'); } catch {}
-            var listEl = summary.querySelector('.govuk-error-summary__list');
-            if (!listEl) {
-                listEl = document.createElement('ul');
-                listEl.className = 'govuk-list govuk-error-summary__list';
-                (summary.querySelector('.govuk-error-summary__body') || summary).appendChild(listEl);
-            }
-            return { summary: summary, list: listEl };
-        }
         
         // Check initial selection limit state
         const initialValues = getCurrentValues();
