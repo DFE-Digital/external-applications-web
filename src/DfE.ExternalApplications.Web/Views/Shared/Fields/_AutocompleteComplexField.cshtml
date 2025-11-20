@@ -797,19 +797,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                         console.log('Applied GovUK styling to autocomplete complex field input');
                         console.log('Set input ID to:', autocompleteInput.id);
-                        // Copy data-val* validation attributes from hidden input to the visible input (so client-side regex applies)
-                        try {
-                            Array.from(hiddenInput.attributes)
-                                .filter(function(a) { return a.name && a.name.indexOf('data-val') === 0; })
-                                .forEach(function(a) { autocompleteInput.setAttribute(a.name, a.value); });
-                        } catch {}
-                        // Re-parse unobtrusive validation so dynamically added attributes take effect
-                        try {
-                            if (window.jQuery && jQuery.validator && jQuery.validator.unobtrusive && autocompleteInput.form) {
-                                jQuery.validator.unobtrusive.parse(autocompleteInput.form);
-                            }
-                        } catch {}
-
                         // Pre-populate input for single-select if a value already exists
                         if (!allowMultiple && hiddenInput.value) {
                             try {
@@ -1030,10 +1017,6 @@ document.addEventListener('DOMContentLoaded', function() {
             var existing = list.querySelector('li[data-autocomplete-error="true"][data-field-id="' + anchorId + '"]');
             if (existing) existing.remove();
             // Also remove any server-rendered required entry that targets the hidden input anchor
-            try {
-                var serverLi = list.querySelector('a[href="#' + hiddenInput.id + '"]');
-                if (serverLi && serverLi.parentElement) serverLi.parentElement.remove();
-            } catch {}
             var anyLeft = list.querySelector('li');
             if (!anyLeft) {
                 if (summary.getAttribute('data-live-summary') === 'true') summary.remove(); else summary.setAttribute('hidden', 'true');
