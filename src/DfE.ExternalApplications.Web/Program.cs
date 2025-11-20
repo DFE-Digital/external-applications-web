@@ -28,6 +28,7 @@ using System.Diagnostics.CodeAnalysis;
 using GovUK.Dfe.CoreLibs.Security.TokenRefresh.Extensions;
 using System.IO.Compression;
 using DfE.ExternalApplications.Infrastructure.Consumers;
+using DfE.ExternalApplications.Web.Models;
 using GovUK.Dfe.CoreLibs.Messaging.Contracts.Entities.Topics;
 using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Events;
 using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Extensions;
@@ -63,6 +64,13 @@ if ((isTestAuthEnabled || allowCypressToggle) && testAuthOptions != null)
         options.TokenLifetimeMinutes = 60; // 1 hour default
     });
 }
+
+builder.Services.AddUserTokenServiceFactory(
+    builder.Configuration,
+    new Dictionary<string, string>
+    {
+        { "InternalService", "InternalServiceAuth" },
+    });
 
 // Add services to the container.
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
@@ -177,6 +185,9 @@ builder.Services
     })
     .AddScheme<TestAuthenticationSchemeOptions, TestAuthenticationHandler>(
         TestAuthenticationHandler.SchemeName,
+        options => { })
+    .AddScheme<InternalServiceAuthenticationSchemeOptions, InternalServiceAuthenticationHandler>(
+        InternalServiceAuthenticationHandler.SchemeName,
         options => { });
 
 // Replace default scheme provider with dynamic provider
@@ -247,6 +258,13 @@ if (isTestAuthEnabled || allowCypressToggle)
 {
     builder.Services.AddScoped<ITestAuthenticationService, TestAuthenticationService>();
 }
+
+// Configure Internal Service Auth settings
+builder.Services.Configure<InternalServiceAuthConfig>(
+    builder.Configuration.GetSection("InternalServiceAuth"));
+
+// Add internal service authentication service (always available)
+builder.Services.AddScoped<IInternalServiceAuthenticationService, InternalServiceAuthenticationService>();
 
 builder.Services.AddServiceCaching(configuration);
 
