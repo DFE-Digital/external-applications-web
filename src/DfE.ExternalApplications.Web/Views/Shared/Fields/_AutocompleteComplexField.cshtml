@@ -140,7 +140,7 @@ else
 
         @if (!string.IsNullOrEmpty(Model.Field.Tooltip))
         {
-            <div class="govuk-hint" style="@(isSingle ? null : "color: var(--govuk-text-colour);")">@Html.Raw(content))</div>
+            <div class="govuk-hint" style="@(isSingle ? null : "color: var(--govuk-text-colour);")">@Html.Raw(content)</div>
         }
         
         @if (!string.IsNullOrEmpty(Model.ErrorMessage))
@@ -445,81 +445,6 @@ document.addEventListener('DOMContentLoaded', function() {
         // Initialize accessible autocomplete on the container element
         if (typeof accessibleAutocomplete !== 'undefined') {
             try {
-                    // Fallback submit enforcement attached immediately (in case input is created later)
-                    try {
-                        const formEl = container.closest('form');
-                        if (formEl) {
-                            formEl.addEventListener('submit', function(e) {
-                                // Only enforce when no selection was made
-                                if (!hiddenInput || hiddenInput.value) return;
-                                const autocompleteInput = container.querySelector('.autocomplete__input');
-                                const formGroup = container.closest('.govuk-form-group');
-
-                                const clearClientError = () => {
-                                    if (formGroup) formGroup.classList.remove('govuk-form-group--error');
-                                    // Remove any inline errors within this form group (both client and server-rendered)
-                                    if (formGroup) {
-                                        formGroup.querySelectorAll('.govuk-error-message').forEach(function(el){ el.remove(); });
-                                    }
-                                    if (autocompleteInput) autocompleteInput.setAttribute('aria-invalid', 'false');
-                                };
-                                const setClientError = (message) => {
-                                    if (!formGroup || !autocompleteInput) return;
-                                    // Prefer template-provided validation message when available
-                                    let msg = message;
-                                    if (!msg) {
-                                        msg = hiddenInput.getAttribute('data-val-regex')
-                                            || hiddenInput.getAttribute('data-val-required')
-                                            || hiddenInput.getAttribute('data-val-maxlength')
-                                            || 'Enter a value in the correct format';
-                                    }
-                                    formGroup.classList.add('govuk-form-group--error');
-                                    let err = formGroup.querySelector('.govuk-error-message[data-autocomplete-error="true"]');
-                                    if (!err) {
-                                        err = document.createElement('div');
-                                        err.className = 'govuk-error-message';
-                                        err.setAttribute('data-autocomplete-error', 'true');
-                                        formGroup.insertBefore(err, formGroup.firstChild);
-                                    }
-                                    // Prepend visually hidden Error: prefix
-                                    err.textContent = '';
-                                    const vh = document.createElement('span');
-                                    vh.className = 'govuk-visually-hidden';
-                                    vh.textContent = 'Error: ';
-                                    err.appendChild(vh);
-                                    err.appendChild(document.createTextNode(msg));
-                                    autocompleteInput.setAttribute('aria-invalid', 'true');
-
-                                    // Add/update error summary
-                                    addSummaryError(msg);
-                                };
-
-                                const q = autocompleteInput && autocompleteInput.value ? autocompleteInput.value.trim() : '';
-                                if (!q) { clearClientError(); return; }
-                                if (q.length < minLength) {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    setClientError();
-                                    try { autocompleteInput && autocompleteInput.focus(); } catch {}
-                                    return;
-                                }
-                                const pattern = hiddenInput.getAttribute('data-val-regex-pattern');
-                                if (pattern) {
-                                    try {
-                                        const re = new RegExp(pattern);
-                                        if (!re.test(q)) {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            setClientError();
-                                            try { autocompleteInput && autocompleteInput.focus(); } catch {}
-                                            return;
-                                        }
-                                    } catch {}
-                                }
-                                clearClientError();
-                            });
-                        }
-                    } catch {}
 
                 accessibleAutocomplete({
                     element: complexFieldContainer,
@@ -592,8 +517,6 @@ document.addEventListener('DOMContentLoaded', function() {
                                         }
                                         if (inputEl) inputEl.setAttribute('aria-expanded', 'false');
                                     } catch {}
-                                    // Show summary error as well
-                                    addSummaryError(hiddenInput.getAttribute('data-val-regex') || 'Enter a value in the correct format');
                                     return;
                                 }
                             }
@@ -797,19 +720,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                         console.log('Applied GovUK styling to autocomplete complex field input');
                         console.log('Set input ID to:', autocompleteInput.id);
-                        // Copy data-val* validation attributes from hidden input to the visible input (so client-side regex applies)
-                        try {
-                            Array.from(hiddenInput.attributes)
-                                .filter(function(a) { return a.name && a.name.indexOf('data-val') === 0; })
-                                .forEach(function(a) { autocompleteInput.setAttribute(a.name, a.value); });
-                        } catch {}
-                        // Re-parse unobtrusive validation so dynamically added attributes take effect
-                        try {
-                            if (window.jQuery && jQuery.validator && jQuery.validator.unobtrusive && autocompleteInput.form) {
-                                jQuery.validator.unobtrusive.parse(autocompleteInput.form);
-                            }
-                        } catch {}
-
                         // Pre-populate input for single-select if a value already exists
                         if (!allowMultiple && hiddenInput.value) {
                             try {
