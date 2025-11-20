@@ -347,12 +347,21 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                 }
                 else
                 {
-                    // For other complex fields (autocomplete), check if value is empty
+                    // For other complex fields (autocomplete): required only if NO selected value AND NO typed query
                     if (string.IsNullOrWhiteSpace(stringValue))
                     {
-                        var fieldLabel = field.Label?.Value ?? field.FieldId;
-                        modelState.AddModelError(fieldKey, $"{fieldLabel} is required");
-                        isValid = false;
+                        var query = string.Empty;
+                        if (formData != null && formData.TryGetValue($"{field.FieldId}_query", out var qObj))
+                        {
+                            query = qObj?.ToString() ?? string.Empty;
+                        }
+
+                        if (string.IsNullOrWhiteSpace(query))
+                        {
+                            var fieldLabel = field.Label?.Value ?? field.FieldId;
+                            modelState.AddModelError(fieldKey, $"{fieldLabel} is required");
+                            isValid = false;
+                        }
                     }
                 }
             }
@@ -423,14 +432,20 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                         }
                         break;
                     case "regex":
-                        // Regex validation doesn't apply to upload fields, skip for uploads
-                        if (!isUploadField && !string.IsNullOrWhiteSpace(stringValue))
+                        // Apply regex to selected value OR to the typed query when no selection was made
+                        if (!isUploadField)
                         {
                             var pattern = rule.Rule?.ToString();
                             if (!string.IsNullOrEmpty(pattern))
                             {
-                                var target = ExtractAutocompleteDisplayText(stringValue);
-                                if (!Regex.IsMatch(target, pattern, RegexOptions.None, TimeSpan.FromMilliseconds(200)))
+                                var target = !string.IsNullOrWhiteSpace(stringValue)
+                                    ? ExtractAutocompleteDisplayText(stringValue) // selected value
+                                    : (formData != null && formData.TryGetValue($"{field.FieldId}_query", out var q)
+                                        ? q?.ToString() ?? string.Empty           // typed query (e.g. trusts search)
+                                        : string.Empty);
+
+                                if (!string.IsNullOrWhiteSpace(target) &&
+                                    !Regex.IsMatch(target, pattern, RegexOptions.None, TimeSpan.FromMilliseconds(200)))
                                 {
                                     modelState.AddModelError(fieldKey, rule.Message);
                                     isValid = false;
