@@ -24,7 +24,7 @@ public interface ICypressAuthenticationService
 [ExcludeFromCodeCoverage]
 public class CypressAuthenticationService(
     IOptions<TestAuthenticationOptions> testAuthOptions,
-    ICustomRequestChecker requestChecker)
+    [FromKeyedServices("cypress")] ICustomRequestChecker requestChecker)
     : ICypressAuthenticationService
 {
     private readonly TestAuthenticationOptions _testAuthOptions = testAuthOptions.Value;

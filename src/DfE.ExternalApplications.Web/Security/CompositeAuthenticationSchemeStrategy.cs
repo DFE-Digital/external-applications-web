@@ -20,7 +20,10 @@ public class CompositeAuthenticationSchemeStrategy(
     IConfiguration configuration,
     OidcAuthenticationStrategy oidcStrategy,
     TestAuthenticationStrategy testStrategy,
-    ICustomRequestChecker? requestChecker = null) : IAuthenticationSchemeStrategy
+    InternalAuthenticationStrategy internalStrategy,
+    [FromKeyedServices("cypress")] ICustomRequestChecker cypressRequestChecker,
+    [FromKeyedServices("internal")] ICustomRequestChecker internalRequestChecker
+    ) : IAuthenticationSchemeStrategy
 {
     private bool IsTestEnabled() => testAuthOptions.Value.Enabled;
     private bool AllowToggle() => configuration.GetValue<bool>("CypressAuthentication:AllowToggle");
@@ -30,7 +33,15 @@ public class CompositeAuthenticationSchemeStrategy(
         var ctx = httpContextAccessor.HttpContext;
         if (ctx == null || !AllowToggle()) return false;
         // Request checker may be null in some DI graphs; treat as not Cypress in that case
-        return requestChecker != null && requestChecker.IsValidRequest(ctx);
+        return cypressRequestChecker != null && cypressRequestChecker.IsValidRequest(ctx);
+    }
+
+    private bool IsInternalAuthRequest()
+    {
+        var ctx = httpContextAccessor.HttpContext;
+        if (ctx == null) return false;
+        // Request checker may be null in some DI graphs; treat as false
+        return internalRequestChecker != null && internalRequestChecker.IsValidRequest(ctx);
     }
 
     private IAuthenticationSchemeStrategy Select()
@@ -39,7 +50,16 @@ public class CompositeAuthenticationSchemeStrategy(
         var path = ctx?.Request.Path.ToString() ?? "unknown";
         var isTestEnabled = IsTestEnabled();
         var isCypress = IsCypressRequest();
-        
+        var isInternalAuth = IsInternalAuthRequest();
+
+        if (isInternalAuth)
+        {
+            logger.LogDebug(
+                "Selecting InternalAuthenticationStrategy for {Path}.",
+                path);
+            return internalStrategy;
+        }
+
         if (isTestEnabled || isCypress)
         {
             logger.LogDebug(

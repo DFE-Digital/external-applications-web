@@ -1,8 +1,8 @@
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using GovUK.Dfe.CoreLibs.Security.Configurations;
 using GovUK.Dfe.CoreLibs.Security.Interfaces;
-using DfE.ExternalApplications.Web.Models;
 using Microsoft.Extensions.Options;
 
 namespace DfE.ExternalApplications.Web.Services;
@@ -13,12 +13,13 @@ namespace DfE.ExternalApplications.Web.Services;
 /// with added API key security
 /// </summary>
 public class InternalServiceAuthenticationService(
+    IUserTokenServiceFactory factory,
     IUserTokenService userTokenService,
-    IOptions<InternalServiceAuthConfig> config,
+    IOptions<InternalServiceAuthOptions> config,
     ILogger<InternalServiceAuthenticationService> logger) : IInternalServiceAuthenticationService
 {
-    private readonly IUserTokenService _userTokenService = userTokenService;
-    private readonly InternalServiceAuthConfig _config = config.Value;
+    private readonly IUserTokenService _userTokenService = factory.GetService("InternalService");
+    private readonly InternalServiceAuthOptions _config = config.Value;
     private readonly ILogger<InternalServiceAuthenticationService> _logger = logger;
 
     public bool ValidateServiceCredentials(string serviceEmail, string apiKey)
@@ -84,8 +85,8 @@ public class InternalServiceAuthenticationService(
             new Claim("sub", serviceEmail),
             new Claim("email", serviceEmail),
             new Claim("service_type", "internal"),
-            // Add 5-minute expiration claim
-            new Claim("exp", DateTimeOffset.UtcNow.AddMinutes(5).ToUnixTimeSeconds().ToString())
+            // Add 10-minute expiration claim
+            new Claim("exp", DateTimeOffset.UtcNow.AddMinutes(10).ToUnixTimeSeconds().ToString())
         };
     }
 

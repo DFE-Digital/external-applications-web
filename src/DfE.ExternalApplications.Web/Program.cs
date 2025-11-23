@@ -28,7 +28,6 @@ using System.Diagnostics.CodeAnalysis;
 using GovUK.Dfe.CoreLibs.Security.TokenRefresh.Extensions;
 using System.IO.Compression;
 using DfE.ExternalApplications.Infrastructure.Consumers;
-using DfE.ExternalApplications.Web.Models;
 using GovUK.Dfe.CoreLibs.Messaging.Contracts.Entities.Topics;
 using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Events;
 using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Extensions;
@@ -120,7 +119,9 @@ builder.Services.AddControllers(options =>
 builder.Services.AddHttpContextAccessor();
 
 // Register Cypress authentication services using CoreLibs pattern
-builder.Services.AddScoped<ICustomRequestChecker, ExternalAppsCypressRequestChecker>();
+builder.Services.AddKeyedScoped<ICustomRequestChecker, ExternalAppsCypressRequestChecker>("cypress");
+builder.Services.AddKeyedScoped<ICustomRequestChecker, InternalAuthRequestChecker>("internal");
+
 builder.Services.AddScoped<ICypressAuthenticationService, CypressAuthenticationService>();
 
 // Add confirmation interceptor filter globally for all MVC actions
@@ -190,7 +191,9 @@ builder.Services
         InternalServiceAuthenticationHandler.SchemeName,
         options => { });
 
-// Replace default scheme provider with dynamic provider
+// Use DynamicAuthenticationSchemeProvider to route per request
+// Checks for Internal Service Auth (forwarder pattern)
+// Then Test Auth, then OIDC
 builder.Services.AddSingleton<IAuthenticationSchemeProvider, DynamicAuthenticationSchemeProvider>();
 
 builder.Services
@@ -218,6 +221,7 @@ builder.Services.AddExternalApplicationsApiClients(configuration);
 // Register authentication strategies and composite selector (per-request)
 builder.Services.AddScoped<OidcAuthenticationStrategy>();
 builder.Services.AddScoped<TestAuthenticationStrategy>();
+builder.Services.AddScoped<InternalAuthenticationStrategy>();
 builder.Services.AddScoped<IAuthenticationSchemeStrategy, CompositeAuthenticationSchemeStrategy>();
 
 builder.Services.AddGovUkFrontend(options => options.Rebrand = true);
@@ -260,7 +264,7 @@ if (isTestAuthEnabled || allowCypressToggle)
 }
 
 // Configure Internal Service Auth settings
-builder.Services.Configure<InternalServiceAuthConfig>(
+builder.Services.Configure<InternalServiceAuthOptions>(
     builder.Configuration.GetSection("InternalServiceAuth"));
 
 // Add internal service authentication service (always available)

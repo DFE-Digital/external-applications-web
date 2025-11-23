@@ -18,13 +18,18 @@ public class InternalServiceAuthenticationHandler(
     ISystemClock clock,
     IInternalServiceAuthenticationService internalServiceAuth) : AuthenticationHandler<InternalServiceAuthenticationSchemeOptions>(options, logger, encoder, clock)
 {
+    private static class SessionKeys
+    {
+        public const string Email = "InternalAuth:Email";
+        public const string Token = "InternalAuth:Token";
+    }
+
     public const string SchemeName = "InternalServiceAuth";
     
     private static class HeaderNames
     {
-        public const string ServiceEmail = "X-Service-Email";
-        public const string ServiceApiKey = "X-Service-Api-Key";
-        public const string ServiceToken = "X-Service-Token";
+        public const string ServiceEmail = "x-service-email";
+        public const string ServiceApiKey = "x-service-api-key";
     }
     
     private static class TokenNames
@@ -35,7 +40,7 @@ public class InternalServiceAuthenticationHandler(
     
     private readonly IInternalServiceAuthenticationService _internalServiceAuth = internalServiceAuth;
 
-    protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+    protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         var path = Context.Request.Path;
         
@@ -46,22 +51,21 @@ public class InternalServiceAuthenticationHandler(
         {
             // No service header = not an internal service request
             // Return NoResult immediately without logging (better performance)
-            return Task.FromResult(AuthenticateResult.NoResult());
+            return AuthenticateResult.NoResult();
         }
 
         Logger.LogDebug("InternalServiceAuth checking request for {Email} on {Path}", serviceEmail, path);
 
-        // Get API key and token from headers
+        // Get API key from headers
         var apiKey = Context.Request.Headers[HeaderNames.ServiceApiKey].FirstOrDefault();
-        var serviceToken = Context.Request.Headers[HeaderNames.ServiceToken].FirstOrDefault();
 
-        // Validate all required headers are present
-        if (string.IsNullOrEmpty(apiKey) || string.IsNullOrEmpty(serviceToken))
+        // Validate required headers are present
+        if (string.IsNullOrEmpty(apiKey))
         {
             Logger.LogWarning(
-                "InternalServiceAuth missing required headers for {Email}. HasApiKey: {HasApiKey}, HasToken: {HasToken}",
-                serviceEmail, !string.IsNullOrEmpty(apiKey), !string.IsNullOrEmpty(serviceToken));
-            return Task.FromResult(AuthenticateResult.Fail("Missing required authentication headers"));
+                "InternalServiceAuth missing API key for {Email}",
+                serviceEmail);
+            return AuthenticateResult.Fail("Missing X-Service-Api-Key header");
         }
 
         // SECURITY: Validate service credentials (email + API key)
@@ -71,20 +75,26 @@ public class InternalServiceAuthenticationHandler(
                 "Unauthorized service authentication attempt: {Email} from {IP}", 
                 serviceEmail, 
                 Context.Connection.RemoteIpAddress);
-            return Task.FromResult(AuthenticateResult.Fail("Invalid service credentials"));
+            return AuthenticateResult.Fail("Invalid service credentials");
         }
+
+        // Create short-lived token automatically (no manual endpoint needed)
+        var token = await _internalServiceAuth.GenerateServiceTokenAsync(serviceEmail);
+
+        Context.Session.SetString(InternalServiceAuthenticationHandler.SessionKeys.Email, serviceEmail);
+        Context.Session.SetString(InternalServiceAuthenticationHandler.SessionKeys.Token, token);
 
         // Create claims and ticket (exactly like Test Auth)
         var claims = CreateServiceClaims(serviceEmail);
         var identity = new ClaimsIdentity(claims, SchemeName);
         var principal = new ClaimsPrincipal(identity);
-        var ticket = new AuthenticationTicket(principal, CreateAuthenticationProperties(serviceToken), SchemeName);
+        var ticket = new AuthenticationTicket(principal, CreateAuthenticationProperties(token), SchemeName);
 
         Logger.LogInformation(
             "InternalServiceAuth successful for {Email} on path {Path}",
             serviceEmail, path);
 
-        return Task.FromResult(AuthenticateResult.Success(ticket));
+        return AuthenticateResult.Success(ticket);
     }
 
     // Exactly like Test Auth
