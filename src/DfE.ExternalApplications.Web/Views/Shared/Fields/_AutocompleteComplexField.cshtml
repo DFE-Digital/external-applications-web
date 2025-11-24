@@ -140,7 +140,7 @@ else
 
         @if (!string.IsNullOrEmpty(Model.Field.Tooltip))
         {
-            <div class="govuk-hint" style="@(isSingle ? null : "color: var(--govuk-text-colour);")">@Html.Raw(content))</div>
+            <div class="govuk-hint" style="@(isSingle ? null : "color: var(--govuk-text-colour);")">@Html.Raw(content)</div>
         }
         
         @if (!string.IsNullOrEmpty(Model.ErrorMessage))
