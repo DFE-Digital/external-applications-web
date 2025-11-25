@@ -71,6 +71,20 @@
                                 {
                                     obj[property.Name] = property.Value.GetInt64().ToString();
                                 }
+                                else if (property.Value.ValueKind == JsonValueKind.Object)
+                                {
+                                    // Handle nested objects (e.g. gor: { name: "...", code: "..." })
+                                    // Extract the "name" property if it exists, otherwise serialize the whole object
+                                    if (property.Value.TryGetProperty("name", out var nameProperty) && 
+                                        nameProperty.ValueKind == JsonValueKind.String)
+                                    {
+                                        obj[property.Name] = nameProperty.GetString();
+                                    }
+                                    else
+                                    {
+                                        obj[property.Name] = property.Value.GetRawText();
+                                    }
+                                }
                             }
                             currentValues.Add(obj);
                         }
@@ -93,6 +107,20 @@
                         else if (property.Value.ValueKind == JsonValueKind.Number)
                         {
                             obj[property.Name] = property.Value.GetInt64().ToString();
+                        }
+                        else if (property.Value.ValueKind == JsonValueKind.Object)
+                        {
+                            // Handle nested objects (e.g. gor: { name: "...", code: "..." })
+                            // Extract the "name" property if it exists, otherwise serialize the whole object
+                            if (property.Value.TryGetProperty("name", out var nameProperty) && 
+                                nameProperty.ValueKind == JsonValueKind.String)
+                            {
+                                obj[property.Name] = nameProperty.GetString();
+                            }
+                            else
+                            {
+                                obj[property.Name] = property.Value.GetRawText();
+                            }
                         }
                     }
                     currentValues.Add(obj);
@@ -140,7 +168,7 @@ else
 
         @if (!string.IsNullOrEmpty(Model.Field.Tooltip))
         {
-            <div class="govuk-hint" style="@(isSingle ? null : "color: var(--govuk-text-colour);")">@Html.Raw(content))</div>
+            <div class="govuk-hint" style="@(isSingle ? null : "color: var(--govuk-text-colour);")">@Html.Raw(content)</div>
         }
         
         @if (!string.IsNullOrEmpty(Model.ErrorMessage))
@@ -521,6 +549,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     } catch {}
 
+                // Cache to store full API results with all properties
+                var cachedResults = [];
+
                 accessibleAutocomplete({
                     element: complexFieldContainer,
                     id: complexFieldContainer.id,
@@ -623,6 +654,11 @@ document.addEventListener('DOMContentLoaded', function() {
                                     return item && item.toString().trim() !== '';
                                 });
                                 console.log('Final filtered results:', results);
+                                
+                                // Cache the full results with all properties
+                                cachedResults = results;
+                                console.log('Cached', cachedResults.length, 'full result objects');
+                                
                                 populateResults(results);
                             })
                             .catch(error => {
@@ -636,11 +672,28 @@ document.addEventListener('DOMContentLoaded', function() {
                         console.log('Option confirmed:', option);
                         console.log('Option type:', typeof option);
                         console.log('Option details:', JSON.stringify(option));
+                        console.log('Option keys:', option && typeof option === 'object' ? Object.keys(option) : 'N/A');
 
                         if (!option) {
                             console.log('No option provided to onConfirm');
                             return;
                         }
+
+                        // Look up the full object from cache to ensure we have ALL properties
+                        var fullOption = option;
+                        if (typeof option === 'object' && option.name && cachedResults.length > 0) {
+                            var foundInCache = cachedResults.find(function(item) {
+                                return item.name === option.name;
+                            });
+                            if (foundInCache) {
+                                console.log('Found full object in cache with', Object.keys(foundInCache).length, 'properties');
+                                fullOption = foundInCache;
+                            } else {
+                                console.log('Option not found in cache, using original');
+                            }
+                        }
+                        option = fullOption;
+                        console.log('Final option to save:', JSON.stringify(option));
 
                         var isValidString = typeof option === 'string' && option.trim() !== '';
                         var isValidObject = typeof option === 'object' && option !== null && option.name;

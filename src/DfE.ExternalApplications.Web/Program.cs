@@ -275,6 +275,10 @@ builder.Services.AddServiceCaching(configuration);
 builder.Services.AddSingleton<IFormTemplateParser, JsonFormTemplateParser>();
 builder.Services.AddScoped<IFormTemplateProvider, FormTemplateProvider>();
 
+// Event mapping and publishing services
+builder.Services.AddSingleton<IEventMappingProvider, EventMappingProvider>();
+builder.Services.AddScoped<IEventDataMapper, EventDataMapper>();
+
 builder.Services.AddDfEMassTransit(
     configuration,
     configureConsumers: x =>
@@ -285,6 +289,8 @@ builder.Services.AddDfEMassTransit(
     {
         // Configure topic names for message types
         cfg.Message<ScanResultEvent>(m => m.SetEntityName(TopicNames.ScanResult));
+        cfg.Message<TransferApplicationSubmittedEvent>(m => m.SetEntityName(TopicNames.TransferApplicationSubmitted));
+
         cfg.UseJsonSerializer();
     },
     configureAzureServiceBus: (context, cfg) =>

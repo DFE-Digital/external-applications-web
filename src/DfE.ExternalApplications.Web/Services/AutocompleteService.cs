@@ -76,7 +76,7 @@ namespace DfE.ExternalApplications.Web.Services
                 var jsonResponse = await response.Content.ReadAsStringAsync();
                 _logger.LogDebug("Raw JSON response for complex field {ComplexFieldId}: {JsonResponse}", complexFieldId, jsonResponse);
                 
-                var results = ParseResponse(jsonResponse);
+                var results = ParseResponse(jsonResponse, complexFieldId);
 
                 // Normalise and de-duplicate results before sorting
                 results = DeduplicateAndNormalise(results);
@@ -117,7 +117,7 @@ namespace DfE.ExternalApplications.Web.Services
             }
         }
 
-        private List<object> ParseResponse(string jsonResponse)
+        private List<object> ParseResponse(string jsonResponse, string complexFieldId)
         {
             var results = new List<object>();
             
@@ -128,7 +128,7 @@ namespace DfE.ExternalApplications.Web.Services
                 // Handle direct array response
                 if (apiData.ValueKind == JsonValueKind.Array)
                 {
-                    ExtractObjectsFromArray(apiData, results);
+                    ExtractObjectsFromArray(apiData, results, complexFieldId);
                 }
                 // Handle object with nested array
                 else if (apiData.ValueKind == JsonValueKind.Object)
@@ -140,7 +140,7 @@ namespace DfE.ExternalApplications.Web.Services
                     {
                         if (apiData.TryGetProperty(propertyName, out var arrayProperty) && arrayProperty.ValueKind == JsonValueKind.Array)
                         {
-                            ExtractObjectsFromArray(arrayProperty, results);
+                            ExtractObjectsFromArray(arrayProperty, results, complexFieldId);
                             break;
                         }
                     }
@@ -154,11 +154,11 @@ namespace DfE.ExternalApplications.Web.Services
             return results;
         }
 
-        private void ExtractObjectsFromArray(JsonElement arrayElement, List<object> results)
+        private void ExtractObjectsFromArray(JsonElement arrayElement, List<object> results, string complexFieldId)
         {
             foreach (var item in arrayElement.EnumerateArray())
             {
-                var displayValue = ExtractDisplayValue(item);
+                var displayValue = ExtractDisplayValue(item, complexFieldId);
                 if (displayValue != null && !displayValue.Equals(string.Empty))
                 {
                     results.Add(displayValue);
@@ -166,7 +166,7 @@ namespace DfE.ExternalApplications.Web.Services
             }
         }
 
-        private object ExtractDisplayValue(JsonElement item)
+        private object ExtractDisplayValue(JsonElement item, string complexFieldId)
         {
             // If it's already a string, use it directly
             if (item.ValueKind == JsonValueKind.String)
@@ -177,6 +177,29 @@ namespace DfE.ExternalApplications.Web.Services
             // If it's an object, try to extract structured data
             if (item.ValueKind == JsonValueKind.Object)
             {
+                // For establishments, filter out results without UKPRN
+                if (complexFieldId == "EstablishmentComplexField")
+                {
+                    if (item.TryGetProperty("ukprn", out var ukprnProperty))
+                    {
+                        // Check if ukprn is null or empty
+                        if (ukprnProperty.ValueKind == JsonValueKind.Null || 
+                            (ukprnProperty.ValueKind == JsonValueKind.String && string.IsNullOrWhiteSpace(ukprnProperty.GetString())))
+                        {
+                            _logger.LogDebug("Filtering out establishment without UKPRN: {Name}", 
+                                item.TryGetProperty("name", out var nameProperty) ? nameProperty.GetString() : "Unknown");
+                            return string.Empty; // Return empty to filter out this result
+                        }
+                    }
+                    else
+                    {
+                        // No ukprn property at all
+                        _logger.LogDebug("Filtering out establishment with no UKPRN property: {Name}", 
+                            item.TryGetProperty("name", out var nameProperty) ? nameProperty.GetString() : "Unknown");
+                        return string.Empty; // Return empty to filter out this result
+                    }
+                }
+                
                 // For trust data, try to extract both name and URN
                 var result = new Dictionary<string, object>();
                 
@@ -199,11 +222,12 @@ namespace DfE.ExternalApplications.Web.Services
                 }
                 
                 // Try to get UKPRN or other identifier fields (support common casing variants)
-                var identifierProperties = new[] { "ukprn", "id", "urn", "companiesHouseNumber", "companieshousenumber", "companies_house_number", "code" };
+                var identifierProperties = new[] { "ukprn", "id", "urn", "companiesHouseNumber", "companieshousenumber", "companies_house_number", "code", "localAuthorityName", "gor" };
                 foreach (var propertyName in identifierProperties)
                 {
                     if (item.TryGetProperty(propertyName, out var property))
                     {
+
                         if (property.ValueKind == JsonValueKind.String)
                         {
                             var value = property.GetString();
@@ -216,12 +240,31 @@ namespace DfE.ExternalApplications.Web.Services
                         {
                             result[propertyName] = property.GetInt64().ToString();
                         }
+                        else if (property.ValueKind == JsonValueKind.Object)
+                        {
+                            // Handle nested objects (e.g. gor: { name: "...", code: "..." })
+                            // Try to extract the "name" property from the nested object
+                            if (property.TryGetProperty("name", out var nameProperty) && 
+                                nameProperty.ValueKind == JsonValueKind.String)
+                            {
+                                var nameValue = nameProperty.GetString();
+                                if (!string.IsNullOrEmpty(nameValue))
+                                {
+                                    result[propertyName] = nameValue;
+                                }
+                            }
+                        }
                     }
                 }
                 
                 // If we found a display name and at least one other field, return the object
                 if (!string.IsNullOrEmpty(displayName) && result.Count > 1)
                 {
+                    _logger.LogDebug(
+                        "Autocomplete result for {DisplayName}: {Properties}, Full Object: {FullObject}",
+                        displayName,
+                        string.Join(", ", result.Keys),
+                        JsonSerializer.Serialize(result));
                     return result;
                 }
                 

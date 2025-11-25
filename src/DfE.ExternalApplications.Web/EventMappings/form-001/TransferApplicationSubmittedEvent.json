@@ -1,0 +1,97 @@
+{
+  "mappingId": "transfer-application-submitted-v1",
+  "eventType": "TransferApplicationSubmittedEvent",
+  "description": "Maps transfer application form data to TransferApplicationSubmittedEvent for publishing to service bus",
+  "fieldMappings": {
+    "ApplicationId": {
+      "sourceType": "Metadata",
+      "sourceFieldId": "applicationId"
+    },
+    "ApplicationReference": {
+      "sourceType": "Metadata",
+      "sourceFieldId": "applicationReference"
+    },
+    "OutgoingTrustUkprn": {
+      "sourceType": "Collection",
+      "collectionMapping": {
+        "sourceCollectionFieldId": "detailsOfOutgoingTrusts",
+        "extractFirst": true,
+        "nestedPath": "trustsSearch-field-flow.ukprn"
+      }
+    },
+    "OutgoingTrustName": {
+      "sourceType": "Collection",
+      "collectionMapping": {
+        "sourceCollectionFieldId": "detailsOfOutgoingTrusts",
+        "extractFirst": true,
+        "nestedPath": "trustsSearch-field-flow.name"
+      }
+    },
+    "IsFormAMAT": {
+      "sourceType": "Computed",
+      "transformationType": "checkEquals",
+      "sourceFieldIds": ["incomingTrustTypeOfTrust"],
+      "transformationConfig": {
+        "compareValue": "Multi-academy trust"
+      },
+      "defaultValue": false
+    },
+    "SubmittedOn": {
+      "sourceType": "Static",
+      "transformationType": "currentDateTime"
+    },
+    "TransferringAcademies": {
+      "sourceType": "Collection",
+      "collectionMapping": {
+        "sourceCollectionFieldId": "detailsOfAcademies",
+        "itemMappings": {
+          "OutgoingAcademyName": {
+            "sourceType": "ComplexFieldProperty",
+            "sourceFieldId": "academiesSearch",
+            "nestedPath": "name"
+          },
+          "OutgoingAcademyUkprn": {
+            "sourceType": "ComplexFieldProperty",
+            "sourceFieldId": "academiesSearch",
+            "nestedPath": "ukprn"
+          },
+          "IncomingTrustUkprn": {
+            "sourceType": "Collection",
+            "collectionMapping": {
+              "sourceCollectionFieldId": "detailsOfIncomingTrust",
+              "extractFirst": true,
+              "nestedPath": "incomingTrustsSearch-field-flow.ukprn"
+            }
+          },
+          "IncomingTrustName": {
+            "sourceType": "Collection",
+            "collectionMapping": {
+              "sourceCollectionFieldId": "detailsOfIncomingTrust",
+              "extractFirst": true,
+              "nestedPath": "incomingTrustsSearch-field-flow.name"
+            }
+          },
+          "Region": {
+            "sourceType": "ComplexFieldProperty",
+            "sourceFieldId": "academiesSearch",
+            "nestedPath": "gor"
+          },
+          "LocalAuthority": {
+            "sourceType": "ComplexFieldProperty",
+            "sourceFieldId": "academiesSearch",
+            "nestedPath": "localAuthorityName"
+          },
+          "Metadata": {
+            "sourceType": "Static",
+            "defaultValue": null
+          }
+        }
+      }
+    },
+    "Metadata": {
+      "sourceType": "Static",
+      "defaultValue": null
+    }
+  }
+}
+
