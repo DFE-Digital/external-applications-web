@@ -64,6 +64,13 @@ if ((isTestAuthEnabled || allowCypressToggle) && testAuthOptions != null)
     });
 }
 
+builder.Services.AddUserTokenServiceFactory(
+    builder.Configuration,
+    new Dictionary<string, string>
+    {
+        { "InternalService", "InternalServiceAuth" },
+    });
+
 // Add services to the container.
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
 {
@@ -112,7 +119,9 @@ builder.Services.AddControllers(options =>
 builder.Services.AddHttpContextAccessor();
 
 // Register Cypress authentication services using CoreLibs pattern
-builder.Services.AddScoped<ICustomRequestChecker, ExternalAppsCypressRequestChecker>();
+builder.Services.AddKeyedScoped<ICustomRequestChecker, ExternalAppsCypressRequestChecker>("cypress");
+builder.Services.AddKeyedScoped<ICustomRequestChecker, InternalAuthRequestChecker>("internal");
+
 builder.Services.AddScoped<ICypressAuthenticationService, CypressAuthenticationService>();
 
 // Add confirmation interceptor filter globally for all MVC actions
@@ -177,9 +186,14 @@ builder.Services
     })
     .AddScheme<TestAuthenticationSchemeOptions, TestAuthenticationHandler>(
         TestAuthenticationHandler.SchemeName,
+        options => { })
+    .AddScheme<InternalServiceAuthenticationSchemeOptions, InternalServiceAuthenticationHandler>(
+        InternalServiceAuthenticationHandler.SchemeName,
         options => { });
 
-// Replace default scheme provider with dynamic provider
+// Use DynamicAuthenticationSchemeProvider to route per request
+// Checks for Internal Service Auth (forwarder pattern)
+// Then Test Auth, then OIDC
 builder.Services.AddSingleton<IAuthenticationSchemeProvider, DynamicAuthenticationSchemeProvider>();
 
 builder.Services
@@ -207,6 +221,7 @@ builder.Services.AddExternalApplicationsApiClients(configuration);
 // Register authentication strategies and composite selector (per-request)
 builder.Services.AddScoped<OidcAuthenticationStrategy>();
 builder.Services.AddScoped<TestAuthenticationStrategy>();
+builder.Services.AddScoped<InternalAuthenticationStrategy>();
 builder.Services.AddScoped<IAuthenticationSchemeStrategy, CompositeAuthenticationSchemeStrategy>();
 
 builder.Services.AddGovUkFrontend(options => options.Rebrand = true);
@@ -247,6 +262,13 @@ if (isTestAuthEnabled || allowCypressToggle)
 {
     builder.Services.AddScoped<ITestAuthenticationService, TestAuthenticationService>();
 }
+
+// Configure Internal Service Auth settings
+builder.Services.Configure<InternalServiceAuthOptions>(
+    builder.Configuration.GetSection("InternalServiceAuth"));
+
+// Add internal service authentication service (always available)
+builder.Services.AddScoped<IInternalServiceAuthenticationService, InternalServiceAuthenticationService>();
 
 builder.Services.AddServiceCaching(configuration);
 
