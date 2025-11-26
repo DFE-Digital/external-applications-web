@@ -1,0 +1,20 @@
+﻿@{
+
+    var label = "Cookies on Apply to transfer an academy into your trust";
+    var returnPath = Context.Request.Path;
+}
+
+<form asp-page="/Shared/Cookies" asp-page-handler="HideMessage">
+        <govuk-cookie-banner aria-label="@label">
+            <govuk-cookie-banner-message>
+                <govuk-cookie-banner-message-heading>@label</govuk-cookie-banner-message-heading>
+                <govuk-cookie-banner-message-content>
+                    <p class="govuk-body">We use some essential cookies to make this service work.</p>
+                </govuk-cookie-banner-message-content>
+                <govuk-cookie-banner-message-actions>
+                    <govuk-cookie-banner-message-action value="hide" name="cookies" text="Hide cookie message" type="submit" />
+                    @*<govuk-cookie-banner-message-action-link text="View cookies" asp-page="Cookies" /> *@
+                </govuk-cookie-banner-message-actions>
+            </govuk-cookie-banner-message>
+        </govuk-cookie-banner>
+</form>
