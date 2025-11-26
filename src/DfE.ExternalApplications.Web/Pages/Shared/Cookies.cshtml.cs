@@ -8,9 +8,14 @@ namespace DfE.ExternalApplications.Web.Pages.Shared
         public void OnGet()
         {
         }
-        public IActionResult OnPostHideMessage(string redirectPath)
+        public IActionResult OnPostHideMessage(string? redirectPath)
         {
             HttpContext.Session.SetString("CookieBannerHidden", "1");
+            if (string.IsNullOrWhiteSpace(redirectPath))
+            {
+                redirectPath = "/";
+            }
+
             return LocalRedirect(redirectPath);
         }
     }

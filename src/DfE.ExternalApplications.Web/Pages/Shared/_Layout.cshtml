@@ -125,12 +125,12 @@
             </div>
         </div>
     }
-    @using Microsoft.AspNetCore.Http
 
     @if (Context.Session.GetString("CookieBannerHidden") != "1")
     {
         <partial name="_CookiesBanner" />
     }
+
     <header class="govuk-header" data-module="govuk-header">
         <div class="govuk-header__container govuk-width-container">
             <div class="govuk-header__logo">
