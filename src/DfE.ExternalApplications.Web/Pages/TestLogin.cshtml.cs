@@ -16,7 +16,6 @@ public class TestLoginModel : PageModel
     private readonly IConfiguration _configuration;
     private readonly TestAuthenticationOptions _testAuthOptions;
     private readonly ITestAuthenticationService _testAuthenticationService;
-    private readonly ICypressAuthenticationService _cypressAuthService;
 
     [BindProperty]
     public InputModel Input { get; set; } = new();
@@ -35,13 +34,11 @@ public class TestLoginModel : PageModel
         _configuration = configuration;
         _testAuthOptions = testAuthOptions.Value;
         _testAuthenticationService = testAuthenticationService;
-        _cypressAuthService = cypressAuthService;
     }
 
     public IActionResult OnGet()
     {
-        // Allow access if test authentication is enabled OR Cypress toggle is enabled
-        if (!_cypressAuthService.ShouldEnableTestAuthentication(HttpContext))
+        if (!_testAuthOptions.Enabled)
         {
             return NotFound();
         }
@@ -51,11 +48,6 @@ public class TestLoginModel : PageModel
 
     public async Task<IActionResult> OnPostAsync()
     {
-        // Allow access if test authentication is enabled OR Cypress toggle is enabled
-        if (!_cypressAuthService.ShouldEnableTestAuthentication(HttpContext))
-        {
-            return NotFound();
-        }
 
         if (!ModelState.IsValid)
         {

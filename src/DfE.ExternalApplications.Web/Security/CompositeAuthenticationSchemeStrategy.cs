@@ -21,20 +21,10 @@ public class CompositeAuthenticationSchemeStrategy(
     OidcAuthenticationStrategy oidcStrategy,
     TestAuthenticationStrategy testStrategy,
     InternalAuthenticationStrategy internalStrategy,
-    [FromKeyedServices("cypress")] ICustomRequestChecker cypressRequestChecker,
     [FromKeyedServices("internal")] ICustomRequestChecker internalRequestChecker
     ) : IAuthenticationSchemeStrategy
 {
     private bool IsTestEnabled() => testAuthOptions.Value.Enabled;
-    private bool AllowToggle() => configuration.GetValue<bool>("CypressAuthentication:AllowToggle");
-
-    private bool IsCypressRequest()
-    {
-        var ctx = httpContextAccessor.HttpContext;
-        if (ctx == null || !AllowToggle()) return false;
-        // Request checker may be null in some DI graphs; treat as not Cypress in that case
-        return cypressRequestChecker != null && cypressRequestChecker.IsValidRequest(ctx);
-    }
 
     private bool IsInternalAuthRequest()
     {
@@ -49,7 +39,6 @@ public class CompositeAuthenticationSchemeStrategy(
         var ctx = httpContextAccessor.HttpContext;
         var path = ctx?.Request.Path.ToString() ?? "unknown";
         var isTestEnabled = IsTestEnabled();
-        var isCypress = IsCypressRequest();
         var isInternalAuth = IsInternalAuthRequest();
 
         if (isInternalAuth)
@@ -60,11 +49,11 @@ public class CompositeAuthenticationSchemeStrategy(
             return internalStrategy;
         }
 
-        if (isTestEnabled || isCypress)
+        if (isTestEnabled)
         {
             logger.LogDebug(
-                "Selecting TestAuthenticationStrategy for {Path}. TestEnabled: {TestEnabled}, IsCypress: {IsCypress}",
-                path, isTestEnabled, isCypress);
+                "Selecting TestAuthenticationStrategy for {Path}. TestEnabled: {TestEnabled}",
+                path, isTestEnabled);
             return testStrategy;
         }
         
