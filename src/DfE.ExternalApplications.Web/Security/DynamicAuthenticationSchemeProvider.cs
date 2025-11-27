@@ -31,31 +31,6 @@ public class DynamicAuthenticationSchemeProvider(
         return testAuthOptions.Value.Enabled;
     }
 
-    private bool IsCypressToggleAllowed()
-    {
-        // Only allow Cypress toggle if BOTH conditions are met:
-        // 1. Configuration setting is true
-        // 2. Running in GitHub Actions (GITHUB_ACTIONS environment variable is set)
-        var configAllowsToggle = configuration.GetValue<bool>("CypressAuthentication:AllowToggle");
-        if (!configAllowsToggle)
-        {
-            return false;
-        }
-
-        var isGitHubActions = Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true";
-        return isGitHubActions;
-    }
-
-    private bool IsCypressRequest()
-    {
-        var httpContext = httpContextAccessor.HttpContext;
-        if (httpContext == null) return false;
-        if (!IsCypressToggleAllowed()) return false;
-
-        var checker = httpContext.RequestServices.GetKeyedService<ICustomRequestChecker>("cypress");
-        return checker != null && checker.IsValidRequest(httpContext);
-    }
-
     private bool ShouldUseTestAuth()
     {
         // Always use test auth if globally enabled
@@ -64,8 +39,7 @@ public class DynamicAuthenticationSchemeProvider(
             return true;
         }
 
-        // Check if this is a Cypress request (only in GitHub Actions)
-        return IsCypressRequest();
+        return false;
     }
 
     private bool IsInternalServiceRequest()

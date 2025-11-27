@@ -14,7 +14,6 @@ public class TestAuthenticationService : ITestAuthenticationService
     private readonly IUserTokenService _userTokenService;
     private readonly TestAuthenticationOptions _options;
     private readonly ILogger<TestAuthenticationService> _logger;
-    private readonly ICypressAuthenticationService _cypressAuthService;
     
     private static class SessionKeys
     {
@@ -25,24 +24,16 @@ public class TestAuthenticationService : ITestAuthenticationService
     public TestAuthenticationService(
         IUserTokenService userTokenService,
         IOptions<TestAuthenticationOptions> options,
-        ILogger<TestAuthenticationService> logger,
-        ICypressAuthenticationService cypressAuthService)
+        ILogger<TestAuthenticationService> logger)
     {
         _userTokenService = userTokenService;
         _options = options.Value;
         _logger = logger;
-        _cypressAuthService = cypressAuthService;
     }
 
     public async Task<TestAuthenticationResult> AuthenticateAsync(string email, HttpContext httpContext)
     {
         _logger.LogInformation("TestAuthenticationService.AuthenticateAsync called for email: {Email}", email);
-        
-        if (!_cypressAuthService.ShouldEnableTestAuthentication(httpContext))
-        {
-            _logger.LogWarning("Test authentication is not enabled for this request");
-            return TestAuthenticationResult.Failure("Test authentication is not enabled.");
-        }
 
         try
         {

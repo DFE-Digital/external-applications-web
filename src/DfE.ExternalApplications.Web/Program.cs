@@ -48,12 +48,9 @@ builder.Services.Configure<TestAuthenticationOptions>(
 var testAuthOptions = configuration.GetSection(TestAuthenticationOptions.SectionName).Get<TestAuthenticationOptions>();
 var isTestAuthEnabled = testAuthOptions?.Enabled ?? false;
 
-// Check if Cypress toggle is allowed (for shared dev/test environments)
-var allowCypressToggle = configuration.GetValue<bool>("CypressAuthentication:AllowToggle");
-
 // Configure token settings for test authentication
-// This is needed when test auth is enabled OR when Cypress toggle is enabled
-if ((isTestAuthEnabled || allowCypressToggle) && testAuthOptions != null)
+// This is needed when test auth is enabled
+if ((isTestAuthEnabled) && testAuthOptions != null)
 {
     builder.Services.Configure<GovUK.Dfe.CoreLibs.Security.Configurations.TokenSettings>(options =>
     {
@@ -99,8 +96,8 @@ builder.Services.AddRazorPages(options =>
         options.Conventions.AllowAnonymousToPage("/TestError");
     }
     
-    // Allow anonymous access to test login page when test auth is enabled OR Cypress toggle is allowed
-    if (isTestAuthEnabled || allowCypressToggle)
+    // Allow anonymous access to test login page when test auth is enabled
+    if (isTestAuthEnabled)
     {
         options.Conventions.AllowAnonymousToPage("/TestLogin");
         options.Conventions.AllowAnonymousToPage("/TestLogout");
@@ -119,10 +116,10 @@ builder.Services.AddControllers(options =>
 builder.Services.AddHttpContextAccessor();
 
 // Register Cypress authentication services using CoreLibs pattern
-builder.Services.AddKeyedScoped<ICustomRequestChecker, ExternalAppsCypressRequestChecker>("cypress");
+//builder.Services.AddKeyedScoped<ICustomRequestChecker, ExternalAppsCypressRequestChecker>("cypress");
 builder.Services.AddKeyedScoped<ICustomRequestChecker, InternalAuthRequestChecker>("internal");
 
-builder.Services.AddScoped<ICypressAuthenticationService, CypressAuthenticationService>();
+//builder.Services.AddScoped<ICypressAuthenticationService, CypressAuthenticationService>();
 
 // Add confirmation interceptor filter globally for all MVC actions
 builder.Services.Configure<Microsoft.AspNetCore.Mvc.MvcOptions>(options =>
@@ -258,7 +255,7 @@ builder.Services.AddSingleton<ITemplateStore, ApiTemplateStore>();
 builder.Services.AddUserTokenService(configuration);
 
 // Add test token handler and services when test authentication or Cypress is enabled
-if (isTestAuthEnabled || allowCypressToggle)
+if (isTestAuthEnabled)
 {
     builder.Services.AddScoped<ITestAuthenticationService, TestAuthenticationService>();
 }

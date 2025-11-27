@@ -1,9 +1,8 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
-using System.Diagnostics.CodeAnalysis;
-using DfE.ExternalApplications.Web.Services;
 
 namespace DfE.ExternalApplications.Web.Authentication;
 
@@ -11,8 +10,6 @@ namespace DfE.ExternalApplications.Web.Authentication;
 public class TestAuthenticationHandler : AuthenticationHandler<TestAuthenticationSchemeOptions>
 {
     public const string SchemeName = "TestAuthentication";
-    
-    private readonly ICypressAuthenticationService _cypressAuthService;
     
     private static class SessionKeys
     {
@@ -30,28 +27,14 @@ public class TestAuthenticationHandler : AuthenticationHandler<TestAuthenticatio
         IOptionsMonitor<TestAuthenticationSchemeOptions> options,
         ILoggerFactory logger,
         UrlEncoder encoder,
-        ISystemClock clock,
-        ICypressAuthenticationService cypressAuthService)
+        ISystemClock clock)
         : base(options, logger, encoder, clock)
     {
-        _cypressAuthService = cypressAuthService;
     }
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         var path = Context.Request.Path;
-        var shouldEnable = _cypressAuthService.ShouldEnableTestAuthentication(Context);
-        
-        Logger.LogDebug(
-            "TestAuthenticationHandler.HandleAuthenticateAsync for path {Path}. ShouldEnable: {ShouldEnable}",
-            path, shouldEnable);
-        
-        // Check if test authentication should be enabled (either globally or via Cypress)
-        if (!shouldEnable)
-        {
-            Logger.LogDebug("TestAuthentication not enabled for {Path}, returning NoResult", path);
-            return Task.FromResult(AuthenticateResult.NoResult());
-        }
 
         var email = Context.Session.GetString(SessionKeys.Email);
         var token = Context.Session.GetString(SessionKeys.Token);
