@@ -201,7 +201,15 @@
                     @Configuration["Layout:PhaseBanner:PhaseText"]
                 </strong>
                 <span class="govuk-phase-banner__text">
-                    This is a new service – your <a class="govuk-link" href="@Configuration["Layout:PhaseBanner:FeedbackLink"]">feedback</a> will help us to improve it.
+                    @try
+                    {
+                        var referenceNumber = Model.ReferenceNumber;
+                        <a class="govuk-link" asp-page="/Feedback/Index" asp-route-referenceNumber="@referenceNumber" target="_blank" rel="noreferrer">Get help or give feedback on this service (opens in a new tab)</a>
+                    }
+                    catch
+                    {
+                        <a class="govuk-link" asp-page="/Feedback/Index" target="_blank" rel="noreferrer">Get help or give feedback on this service (opens in a new tab)</a>
+                    }
                 </span>
             </p>
         </div>

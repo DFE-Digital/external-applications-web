@@ -84,6 +84,13 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AllowAnonymousToPage("/Index");
     options.Conventions.AllowAnonymousToPage("/Logout");
     
+    // Allow anonymous access to feedback pages
+    options.Conventions.AllowAnonymousToPage("/Feedback/Index");
+    options.Conventions.AllowAnonymousToPage("/Feedback/BugReport");
+    options.Conventions.AllowAnonymousToPage("/Feedback/Support");
+    options.Conventions.AllowAnonymousToPage("/Feedback/General");
+    options.Conventions.AllowAnonymousToPage("/Feedback/ThankYou");
+    
     // Allow anonymous access to error pages
     options.Conventions.AllowAnonymousToPage("/Error/NotFound");
     options.Conventions.AllowAnonymousToPage("/Error/Forbidden");
