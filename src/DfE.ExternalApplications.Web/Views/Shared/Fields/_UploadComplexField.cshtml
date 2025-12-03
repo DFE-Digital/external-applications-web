@@ -129,16 +129,29 @@
         }
     }
 
-    // Create proper Continue button URL
-    var continueUrl = $"/applications/{referenceNumber}/{taskId}";
-    string continueButtonText = "Continue";
+    string continueButtonText;
     
-    if (isCollectionFlow)
+    // Check if we're in a sub-flow and if this is the last page
+    var isLastPageInFlow = false;
+    continueButtonText = !string.IsNullOrWhiteSpace(Model.CurrentPage.SaveButtonLabel)
+        ? Model.CurrentPage.SaveButtonLabel
+        : "Save and continue";
+
+    if (!string.IsNullOrEmpty(flowId))
     {
-        // For collection flows, we need to determine if this is the last page or if there's a next page
-        // This should trigger the normal form submission flow which will handle navigation properly
-        continueUrl = actualReturnUrl; // This will POST back to the collection flow, which handles next page logic
-        continueButtonText = "Continue";
+        var flow = Model.CurrentTask.Summary?.Flows?.FirstOrDefault(f => f.FlowId == flowId);
+        var flowPages = flow?.Pages;
+                        
+        if (flowPages != null)
+        {
+            var currentPageIndex = flowPages.FindIndex(p => p.PageId == Model.CurrentPage.PageId);
+            isLastPageInFlow = currentPageIndex == flowPages.Count - 1;
+        }
+                        
+        if (string.IsNullOrWhiteSpace(Model.CurrentPage.SaveButtonLabel))
+        {
+            continueButtonText = isLastPageInFlow ? "Save and continue" : "Continue";
+        }
     }
 }
 @* Rehydrate ModelState from the error store and render govuk summary *@
