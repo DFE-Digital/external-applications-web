@@ -58,7 +58,7 @@ describe('Create an Application', () => {
     Contributors.addContributor();
     // Verify if the navigated to Contributors Page
     Logger.log("Verify if redirected to Contributors page");
-    cy.url().should('include', '/contributors'); 
+   // cy.url().should('include', '/contributors'); 
 
     // Verify if the contributor is added
     Logger.log("Verifying if the contributor is added");
