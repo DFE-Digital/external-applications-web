@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using DfE.ExternalApplications.Domain.Models;
 using System.Diagnostics.CodeAnalysis;
+using Task = DfE.ExternalApplications.Domain.Models.Task;
 
 namespace DfE.ExternalApplications.Web.Services
 {
@@ -14,15 +15,18 @@ namespace DfE.ExternalApplications.Web.Services
         public string Prefix { get; }
         public string CurrentValue { get; }
         public string ErrorMessage { get; }
-        public string TaskName { get; }
+        public string TaskName => CurrentTask.TaskName;
+        public Page CurrentPage { get; }
+        public Task CurrentTask { get; }
 
-        public FieldViewModel(Field field, string prefix, string currentValue, string errorMessage, string taskName)
+        public FieldViewModel(Field field, string prefix, string currentValue, string errorMessage, Task currentTask, Page currentPage)
         {
             Field = field;
             Prefix = prefix;
             CurrentValue = currentValue;
             ErrorMessage = errorMessage;
-            TaskName = taskName;
+            CurrentTask = currentTask;
+            CurrentPage = currentPage;
         }
 
         public string Name => $"{Prefix}[{Field.FieldId}]";
