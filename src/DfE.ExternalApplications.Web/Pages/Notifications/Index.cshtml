@@ -49,7 +49,7 @@
                 <td class="govuk-table__cell">${n.message || ''}</td>
                 <td class="govuk-table__cell">${mapTypeTag(n.type)}</td>
                 <td class="govuk-table__cell">${dateStr}</td>
-                <td class="govuk-table__cell"><a class="govuk-link" data-id="${n.id}" href="#">Dismiss</a></td>
+                <td class="govuk-table__cell"><a class="govuk-link" data-id="${n.id}" href="#">Dismiss <span class="govuk-visually-hidden">this notification</span></a></td>
             `;
             tr.querySelector('a').onclick = async (e) => {
                 e.preventDefault();
@@ -61,7 +61,8 @@
                         headers: { 'RequestVerificationToken': antiForgeryToken() }
                     });
                     if (response.ok) {
-                        tr.remove();
+                        tr.innerHTML = '<td class="govuk-table__cell" aria-live="assertive" role="alert" colspan="4">Notification dismissed.</td>';
+                        setTimeout(() => tr.remove(), 3000);
                     } else {
                         console.error('Failed to dismiss notification:', response.status, await response.text());
                         alert('Failed to dismiss notification. Please try again.');
