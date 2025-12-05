@@ -216,6 +216,9 @@
 @section BeforeContent {
     @RenderSection("BeforeContent", required: false)
 }
+@{
+    var returnPath = Context.Request.Path;
+}
 @section Footer {
     <footer class="govuk-footer">
         <div class="govuk-width-container">
@@ -248,7 +251,7 @@
                             </a>
                         </li>
                         <li class="govuk-footer__inline-list-item">
-                            <a class="govuk-footer__link" href="/Cookies">
+                            <a class="govuk-footer__link" href="/Cookies?returnPath=@returnPath">
                                 Cookie policy
                             </a>
                         </li>
