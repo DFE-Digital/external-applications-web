@@ -125,6 +125,12 @@
             </div>
         </div>
     }
+
+    @if (Context.Session.GetString("CookieBannerHidden") != "1")
+    {
+        <partial name="_CookiesBanner" />
+    }
+
     <header class="govuk-header" data-module="govuk-header">
         <div class="govuk-header__container govuk-width-container">
             <div class="govuk-header__logo">
@@ -218,6 +224,9 @@
 @section BeforeContent {
     @RenderSection("BeforeContent", required: false)
 }
+@{
+    var returnPath = Context.Request.Path;
+}
 @section Footer {
     <footer class="govuk-footer">
         <div class="govuk-width-container">
@@ -250,22 +259,17 @@
                             </a>
                         </li>
                         <li class="govuk-footer__inline-list-item">
-                            <a class="govuk-footer__link" href="#">
-                                Cookies
+                            <a class="govuk-footer__link" href="/Cookies?returnPath=@returnPath">
+                                Cookie policy
                             </a>
                         </li>
                         <li class="govuk-footer__inline-list-item">
-                            <a class="govuk-footer__link" href="#">
-                                Contact
-                            </a>
-                        </li>
-                        <li class="govuk-footer__inline-list-item">
-                            <a class="govuk-footer__link" href="/terms-and-conditions">
+                            <a class="govuk-footer__link" href="/Terms">
                                 Terms and Conditions
                             </a>
                         </li>
                         <li class="govuk-footer__inline-list-item">
-                            <a class="govuk-footer__link" href="/privacy-notice">
+                            <a class="govuk-footer__link" href="/Privacy">
                                 Privacy
                             </a>
                         </li>

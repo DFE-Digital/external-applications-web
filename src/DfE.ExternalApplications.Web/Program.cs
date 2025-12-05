@@ -34,6 +34,7 @@ using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Extensions;
 using Microsoft.AspNetCore.Authentication;
 using MassTransit;
 using GovUK.Dfe.CoreLibs.Messaging.Contracts.Exceptions;
+using Microsoft.AspNetCore.Http;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -91,6 +92,8 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AllowAnonymousToPage("/Feedback/General");
     options.Conventions.AllowAnonymousToPage("/Feedback/ThankYou");
     
+    options.Conventions.AllowAnonymousToPage("/Cookies");
+
     // Allow anonymous access to error pages
     options.Conventions.AllowAnonymousToPage("/Error/NotFound");
     options.Conventions.AllowAnonymousToPage("/Error/Forbidden");
@@ -109,7 +112,8 @@ builder.Services.AddRazorPages(options =>
         options.Conventions.AllowAnonymousToPage("/TestLogin");
         options.Conventions.AllowAnonymousToPage("/TestLogout");
     }
-});
+})
+.AddSessionStateTempDataProvider();
 
 // Add controllers for API endpoints
 builder.Services.AddControllers(options =>
@@ -144,6 +148,13 @@ builder.Services.AddSession(options =>
     options.Cookie.HttpOnly = true;
     options.Cookie.IsEssential = true;
     options.IOTimeout = TimeSpan.FromSeconds(5); // Prevent indefinite blocking on session I/O
+});
+
+builder.Services.Configure<CookiePolicyOptions>(options =>
+{
+    options.CheckConsentNeeded = context => true;
+    options.MinimumSameSitePolicy = SameSiteMode.None;
+    options.Secure = CookieSecurePolicy.Always;
 });
 
 builder.Services.AddResponseCompression(options =>
@@ -362,6 +373,7 @@ app.UseStaticFiles(new StaticFileOptions
 });
 
 app.UseRouting();
+app.UseCookiePolicy();
 
 app.UseSession();
 app.UseHostTemplateResolution();
