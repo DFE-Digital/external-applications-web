@@ -20,17 +20,18 @@ public class CompositeAuthenticationSchemeStrategy(
     IConfiguration configuration,
     OidcAuthenticationStrategy oidcStrategy,
     TestAuthenticationStrategy testStrategy,
-    ICustomRequestChecker? requestChecker = null) : IAuthenticationSchemeStrategy
+    InternalAuthenticationStrategy internalStrategy,
+    [FromKeyedServices("internal")] ICustomRequestChecker internalRequestChecker
+    ) : IAuthenticationSchemeStrategy
 {
     private bool IsTestEnabled() => testAuthOptions.Value.Enabled;
-    private bool AllowToggle() => configuration.GetValue<bool>("CypressAuthentication:AllowToggle");
 
-    private bool IsCypressRequest()
+    private bool IsInternalAuthRequest()
     {
         var ctx = httpContextAccessor.HttpContext;
-        if (ctx == null || !AllowToggle()) return false;
-        // Request checker may be null in some DI graphs; treat as not Cypress in that case
-        return requestChecker != null && requestChecker.IsValidRequest(ctx);
+        if (ctx == null) return false;
+        // Request checker may be null in some DI graphs; treat as false
+        return internalRequestChecker != null && internalRequestChecker.IsValidRequest(ctx);
     }
 
     private IAuthenticationSchemeStrategy Select()
@@ -38,13 +39,21 @@ public class CompositeAuthenticationSchemeStrategy(
         var ctx = httpContextAccessor.HttpContext;
         var path = ctx?.Request.Path.ToString() ?? "unknown";
         var isTestEnabled = IsTestEnabled();
-        var isCypress = IsCypressRequest();
-        
-        if (isTestEnabled || isCypress)
+        var isInternalAuth = IsInternalAuthRequest();
+
+        if (isInternalAuth)
         {
             logger.LogDebug(
-                "Selecting TestAuthenticationStrategy for {Path}. TestEnabled: {TestEnabled}, IsCypress: {IsCypress}",
-                path, isTestEnabled, isCypress);
+                "Selecting InternalAuthenticationStrategy for {Path}.",
+                path);
+            return internalStrategy;
+        }
+
+        if (isTestEnabled)
+        {
+            logger.LogDebug(
+                "Selecting TestAuthenticationStrategy for {Path}. TestEnabled: {TestEnabled}",
+                path, isTestEnabled);
             return testStrategy;
         }
         

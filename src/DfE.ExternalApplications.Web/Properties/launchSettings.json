@@ -34,7 +34,8 @@
       "applicationUrl": "https://localhost:7020;http://localhost:5210",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Local",
-        "DOTNET_ENVIRONMENT": "Development"
+        "DOTNET_ENVIRONMENT": "Development",
+        "GITHUB_ACTIONS": "true"
       }
     },
     "IIS Express": {

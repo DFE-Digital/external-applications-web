@@ -23,6 +23,7 @@ namespace DfE.ExternalApplications.Web.Extensions
             services.AddExternalApplicationsApiClient<ITemplatesClient, TemplatesClient>(configuration);
             services.AddExternalApplicationsApiClient<IHubAuthClient, HubAuthClient>(configuration);
             services.AddExternalApplicationsApiClient<INotificationsClient, NotificationsClient>(configuration);
+            services.AddExternalApplicationsApiClient<IUserFeedbackClient, UserFeedbackClient>(configuration);
             return services;
         }
 
@@ -62,6 +63,9 @@ namespace DfE.ExternalApplications.Web.Extensions
             // Confirmation Services
             services.AddScoped<IButtonConfirmationService, ButtonConfirmationService>();
             services.AddScoped<IConfirmationDataService, ConfirmationDataService>();
+            
+            // Feedback services
+            services.AddScoped<IFeedbackService, FeedbackService>();
             
             return services;
         }

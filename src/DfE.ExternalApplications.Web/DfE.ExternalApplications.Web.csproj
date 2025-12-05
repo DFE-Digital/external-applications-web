@@ -8,16 +8,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-	  <PackageReference Include="GovUK.Dfe.CoreLibs.Security" Version="1.1.19-prerelease-8" />
+	  <PackageReference Include="GovUK.Dfe.CoreLibs.Security" Version="1.1.21-prerelease-15" />
 	  <PackageReference Include="GovUk.Frontend.AspNetCore" Version="3.2.2" />
 	  <PackageReference Include="HtmlSanitizer" Version="9.0.886" />
 	  <PackageReference Include="Markdig" Version="0.42.0" />
 	  <PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" Version="2.22.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Models\" />
   </ItemGroup>
 
   <ItemGroup>

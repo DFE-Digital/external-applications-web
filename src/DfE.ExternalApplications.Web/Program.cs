@@ -49,12 +49,9 @@ builder.Services.Configure<TestAuthenticationOptions>(
 var testAuthOptions = configuration.GetSection(TestAuthenticationOptions.SectionName).Get<TestAuthenticationOptions>();
 var isTestAuthEnabled = testAuthOptions?.Enabled ?? false;
 
-// Check if Cypress toggle is allowed (for shared dev/test environments)
-var allowCypressToggle = configuration.GetValue<bool>("CypressAuthentication:AllowToggle");
-
 // Configure token settings for test authentication
-// This is needed when test auth is enabled OR when Cypress toggle is enabled
-if ((isTestAuthEnabled || allowCypressToggle) && testAuthOptions != null)
+// This is needed when test auth is enabled
+if ((isTestAuthEnabled) && testAuthOptions != null)
 {
     builder.Services.Configure<GovUK.Dfe.CoreLibs.Security.Configurations.TokenSettings>(options =>
     {
@@ -64,6 +61,13 @@ if ((isTestAuthEnabled || allowCypressToggle) && testAuthOptions != null)
         options.TokenLifetimeMinutes = 60; // 1 hour default
     });
 }
+
+builder.Services.AddUserTokenServiceFactory(
+    builder.Configuration,
+    new Dictionary<string, string>
+    {
+        { "InternalService", "InternalServiceAuth" },
+    });
 
 // Add services to the container.
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
@@ -80,6 +84,14 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizeFolder("/", "OpenIdConnectPolicy");
     options.Conventions.AllowAnonymousToPage("/Index");
     options.Conventions.AllowAnonymousToPage("/Logout");
+    
+    // Allow anonymous access to feedback pages
+    options.Conventions.AllowAnonymousToPage("/Feedback/Index");
+    options.Conventions.AllowAnonymousToPage("/Feedback/BugReport");
+    options.Conventions.AllowAnonymousToPage("/Feedback/Support");
+    options.Conventions.AllowAnonymousToPage("/Feedback/General");
+    options.Conventions.AllowAnonymousToPage("/Feedback/ThankYou");
+    
     options.Conventions.AllowAnonymousToPage("/Cookies");
 
     // Allow anonymous access to error pages
@@ -94,8 +106,8 @@ builder.Services.AddRazorPages(options =>
         options.Conventions.AllowAnonymousToPage("/TestError");
     }
     
-    // Allow anonymous access to test login page when test auth is enabled OR Cypress toggle is allowed
-    if (isTestAuthEnabled || allowCypressToggle)
+    // Allow anonymous access to test login page when test auth is enabled
+    if (isTestAuthEnabled)
     {
         options.Conventions.AllowAnonymousToPage("/TestLogin");
         options.Conventions.AllowAnonymousToPage("/TestLogout");
@@ -115,8 +127,10 @@ builder.Services.AddControllers(options =>
 builder.Services.AddHttpContextAccessor();
 
 // Register Cypress authentication services using CoreLibs pattern
-builder.Services.AddScoped<ICustomRequestChecker, ExternalAppsCypressRequestChecker>();
-builder.Services.AddScoped<ICypressAuthenticationService, CypressAuthenticationService>();
+//builder.Services.AddKeyedScoped<ICustomRequestChecker, ExternalAppsCypressRequestChecker>("cypress");
+builder.Services.AddKeyedScoped<ICustomRequestChecker, InternalAuthRequestChecker>("internal");
+
+//builder.Services.AddScoped<ICypressAuthenticationService, CypressAuthenticationService>();
 
 // Add confirmation interceptor filter globally for all MVC actions
 builder.Services.Configure<Microsoft.AspNetCore.Mvc.MvcOptions>(options =>
@@ -187,9 +201,14 @@ builder.Services
     })
     .AddScheme<TestAuthenticationSchemeOptions, TestAuthenticationHandler>(
         TestAuthenticationHandler.SchemeName,
+        options => { })
+    .AddScheme<InternalServiceAuthenticationSchemeOptions, InternalServiceAuthenticationHandler>(
+        InternalServiceAuthenticationHandler.SchemeName,
         options => { });
 
-// Replace default scheme provider with dynamic provider
+// Use DynamicAuthenticationSchemeProvider to route per request
+// Checks for Internal Service Auth (forwarder pattern)
+// Then Test Auth, then OIDC
 builder.Services.AddSingleton<IAuthenticationSchemeProvider, DynamicAuthenticationSchemeProvider>();
 
 builder.Services
@@ -217,6 +236,7 @@ builder.Services.AddExternalApplicationsApiClients(configuration);
 // Register authentication strategies and composite selector (per-request)
 builder.Services.AddScoped<OidcAuthenticationStrategy>();
 builder.Services.AddScoped<TestAuthenticationStrategy>();
+builder.Services.AddScoped<InternalAuthenticationStrategy>();
 builder.Services.AddScoped<IAuthenticationSchemeStrategy, CompositeAuthenticationSchemeStrategy>();
 
 builder.Services.AddGovUkFrontend(options => options.Rebrand = true);
@@ -253,15 +273,26 @@ builder.Services.AddSingleton<ITemplateStore, ApiTemplateStore>();
 builder.Services.AddUserTokenService(configuration);
 
 // Add test token handler and services when test authentication or Cypress is enabled
-if (isTestAuthEnabled || allowCypressToggle)
+if (isTestAuthEnabled)
 {
     builder.Services.AddScoped<ITestAuthenticationService, TestAuthenticationService>();
 }
+
+// Configure Internal Service Auth settings
+builder.Services.Configure<InternalServiceAuthOptions>(
+    builder.Configuration.GetSection("InternalServiceAuth"));
+
+// Add internal service authentication service (always available)
+builder.Services.AddScoped<IInternalServiceAuthenticationService, InternalServiceAuthenticationService>();
 
 builder.Services.AddServiceCaching(configuration);
 
 builder.Services.AddSingleton<IFormTemplateParser, JsonFormTemplateParser>();
 builder.Services.AddScoped<IFormTemplateProvider, FormTemplateProvider>();
+
+// Event mapping and publishing services
+builder.Services.AddSingleton<IEventMappingProvider, EventMappingProvider>();
+builder.Services.AddScoped<IEventDataMapper, EventDataMapper>();
 
 builder.Services.AddDfEMassTransit(
     configuration,
@@ -273,6 +304,8 @@ builder.Services.AddDfEMassTransit(
     {
         // Configure topic names for message types
         cfg.Message<ScanResultEvent>(m => m.SetEntityName(TopicNames.ScanResult));
+        cfg.Message<TransferApplicationSubmittedEvent>(m => m.SetEntityName(TopicNames.TransferApplicationSubmitted));
+
         cfg.UseJsonSerializer();
     },
     configureAzureServiceBus: (context, cfg) =>
