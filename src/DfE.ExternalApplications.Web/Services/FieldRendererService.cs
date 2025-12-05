@@ -7,12 +7,13 @@ using Microsoft.AspNetCore.Mvc.ViewEngines;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using System.Diagnostics.CodeAnalysis;
 using DfE.ExternalApplications.Web.Pages.FormEngine;
+using TaskModel = DfE.ExternalApplications.Domain.Models.Task;
 
 namespace DfE.ExternalApplications.Web.Services
 {
     public class FieldRendererService(IServiceProvider serviceProvider) : IFieldRendererService
     {
-        public async Task<IHtmlContent> RenderFieldAsync(Field field, string prefix, string currentValue, string errorMessage, string taskName)
+        public async Task<IHtmlContent> RenderFieldAsync(Field field, string prefix, string currentValue, string errorMessage, TaskModel currentTask, Page currentPage)
         {
             if (serviceProvider.GetRequiredService<IHtmlHelper>() is not IViewContextAware htmlHelper)
             {
@@ -29,7 +30,7 @@ namespace DfE.ExternalApplications.Web.Services
 
             var viewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary())
             {
-                Model = new FieldViewModel(field, prefix, DisplayHelpers.UnsanitiseHtmlInput(currentValue), errorMessage, taskName)
+                Model = new FieldViewModel(field, prefix, DisplayHelpers.UnsanitiseHtmlInput(currentValue), errorMessage, currentTask, currentPage)
             };
 
             // Pass route parameters to ViewData for use in partial views

@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using NSubstitute;
 using Task = System.Threading.Tasks.Task;
+using TaskModel = DfE.ExternalApplications.Domain.Models.Task;
 
 namespace Dfe.ExternalApplications.Web.UnitTests.Services;
 
@@ -54,9 +55,10 @@ public class FieldRendererServiceTests
         var field = _fixture.Build<Field>().With(f => f.Type, "text").Create();
         var prefix = _fixture.Create<string>();
         var errorMessage = _fixture.Create<string>();
-        var taskName = _fixture.Create<string>();
+        var currentTask = _fixture.Create<TaskModel>();
+        var currentPage = _fixture.Create<Page>();
 
-        var result = await _service.RenderFieldAsync(field, prefix, currentValue, errorMessage, taskName);
+        var result = await _service.RenderFieldAsync(field, prefix, currentValue, errorMessage, currentTask, currentPage);
 
         Assert.NotNull(result);
 
@@ -72,6 +74,8 @@ public class FieldRendererServiceTests
         Assert.Equal(prefix, model.Prefix);
         Assert.Equal(expectedModelCurrentValue, model.CurrentValue);
         Assert.Equal(errorMessage, model.ErrorMessage);
+        Assert.Equal(currentTask, model.CurrentTask);
+        Assert.Equal(currentPage, model.CurrentPage);
     }
 
     [Theory]
@@ -93,9 +97,10 @@ public class FieldRendererServiceTests
         var prefix = _fixture.Create<string>();
         var currentValue = _fixture.Create<string>();
         var errorMessage = _fixture.Create<string>();
-        var taskName = _fixture.Create<string>();
+        var currentTask = _fixture.Create<TaskModel>();
+        var currentPage = _fixture.Create<Page>();
 
-        var result = await _service.RenderFieldAsync(field, prefix, currentValue, errorMessage, taskName);
+        var result = await _service.RenderFieldAsync(field, prefix, currentValue, errorMessage, currentTask, currentPage);
 
         Assert.NotNull(result);
 
@@ -116,10 +121,11 @@ public class FieldRendererServiceTests
         var prefix = _fixture.Create<string>();
         var currentValue = _fixture.Create<string>();
         var errorMessage = _fixture.Create<string>();
-        var taskName = _fixture.Create<string>();
+        var currentTask = _fixture.Create<TaskModel>();
+        var currentPage = _fixture.Create<Page>();
 
         await Assert.ThrowsAsync<NotSupportedException>(() =>
-            _service.RenderFieldAsync(field, prefix, currentValue, errorMessage, taskName));
+            _service.RenderFieldAsync(field, prefix, currentValue, errorMessage, currentTask, currentPage));
     }
 
     [Fact]
@@ -132,10 +138,11 @@ public class FieldRendererServiceTests
         var prefix = _fixture.Create<string>();
         var currentValue = _fixture.Create<string>();
         var errorMessage = _fixture.Create<string>();
-        var taskName = _fixture.Create<string>();
+        var currentTask = _fixture.Create<TaskModel>();
+        var currentPage = _fixture.Create<Page>();
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            _service.RenderFieldAsync(field, prefix, currentValue, errorMessage, taskName));
+            _service.RenderFieldAsync(field, prefix, currentValue, errorMessage, currentTask, currentPage));
     }
 
     [Fact]
@@ -153,9 +160,10 @@ public class FieldRendererServiceTests
         var prefix = _fixture.Create<string>();
         var currentValue = _fixture.Create<string>();
         var errorMessage = _fixture.Create<string>();
-        var taskName = _fixture.Create<string>();
+        var currentTask = _fixture.Create<TaskModel>();
+        var currentPage = _fixture.Create<Page>();
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            _service.RenderFieldAsync(field, prefix, currentValue, errorMessage, taskName));
+            _service.RenderFieldAsync(field, prefix, currentValue, errorMessage, currentTask, currentPage));
     }
 }
