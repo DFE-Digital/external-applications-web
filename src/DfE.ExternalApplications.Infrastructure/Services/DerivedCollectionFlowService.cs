@@ -211,7 +211,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                         foreach (var kvp in item)
                         {
                             // Skip metadata fields
-                            if (kvp.Key == "id" || kvp.Key == "_metadata") continue;
+                            if (kvp.Key == "id" || kvp.Key == "_metadata" || kvp.Key.StartsWith("Data[") || kvp.Key.StartsWith("Data_")) continue;
                             
                             // Try to extract autocomplete data from the field value
                             if (kvp.Value != null)
