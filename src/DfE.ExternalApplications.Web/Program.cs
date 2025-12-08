@@ -239,6 +239,9 @@ builder.Services.AddScoped<TestAuthenticationStrategy>();
 builder.Services.AddScoped<InternalAuthenticationStrategy>();
 builder.Services.AddScoped<IAuthenticationSchemeStrategy, CompositeAuthenticationSchemeStrategy>();
 
+// Register activity-based token refresh services
+builder.Services.AddScoped<IUserActivityTracker, UserActivityTracker>();
+
 builder.Services.AddGovUkFrontend(options => options.Rebrand = true);
 builder.Services.AddSingleton<IActionContextAccessor, ActionContextAccessor>();
 builder.Services.AddScoped<IHtmlHelper, HtmlHelper>();
@@ -391,6 +394,7 @@ app.UseStatusCodePages(ctx =>
 
 app.UseAuthentication();
 app.UseTokenManagementMiddleware();
+app.UseActivityBasedTokenRefresh(); // Activity-based token refresh (inactive 10min → refresh on navigation, active → refresh every 5min)
 app.UsePermissionsCache();
 app.UseAuthorization();
 
