@@ -394,7 +394,7 @@ app.UseStatusCodePages(ctx =>
 
 app.UseAuthentication();
 app.UseTokenManagementMiddleware();
-app.UseActivityBasedTokenRefresh(); // Activity-based token refresh (inactive 10min → refresh on navigation, active → refresh every 5min)
+app.UseActivityBasedTokenRefresh(); // Session management: idle timeout 30min, absolute timeout 8hr, token refresh at 30min remaining
 app.UsePermissionsCache();
 app.UseAuthorization();
 
