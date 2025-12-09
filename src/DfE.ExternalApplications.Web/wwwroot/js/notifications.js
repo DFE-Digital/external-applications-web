@@ -2,6 +2,7 @@
 
 const container = () => document.getElementById('notification-container');
 const unreadBadge = () => document.getElementById('notifications-unread-badge');
+const unreadSr = () => document.getElementById('notifications-unread-sr');
 const antiForgeryToken = () => {
     const input = document.querySelector('input[name="__RequestVerificationToken"]');
     return input?.value;
@@ -115,9 +116,12 @@ async function refreshUnreadCount() {
         const unread = await fetch(`/notifications/unread`, { credentials: 'include' }).then(r => r.ok ? r.json() : []);
         const count = Array.isArray(unread) ? unread.length : 0;
         const badge = unreadBadge();
+        const notificationsUnreadSr = unreadSr(); 
         if (!badge) return;
         if (count > 0) {
             badge.textContent = count > 99 ? '99+' : String(count);
+            const accessibleCount = count > 99 ? 'over 99' : String(count);
+            notificationsUnreadSr.textContent = `(You have ${accessibleCount} unread ${count === 1 ? 'notification' : 'notifications'})`;
             // Ensure visual badge even if CSS fails to load (24x24 circle)
             badge.style.display = 'inline-block';
             badge.style.position = 'absolute';
@@ -135,6 +139,7 @@ async function refreshUnreadCount() {
             badge.style.zIndex = '2';
         } else {
             badge.textContent = '';
+            notificationsUnreadSr.textContent = '(You have no unread notifications)';
             badge.style.display = 'none';
         }
     } catch { }
