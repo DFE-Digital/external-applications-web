@@ -34,9 +34,15 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine;
 /// <code>
 /// var message = "Hello, { user.firstName ?? World }!";
 /// 
-/// var data1 = new Dictionary&lt;string, object&gt; { { "user", new { firstName = "John" } } };
+/// var data1 = new Dictionary&lt;string, object&gt;
+/// {
+///     ["user"] = new Dictionary&lt;string, object&gt;
+///     {
+///         ["firstName"] = "John"
+///     }
+/// };
 /// var result1 = new InterpolatedString(message).Render(data); // "Hello, John!"
-///
+/// 
 /// var data2 = new Dictionary&lt;string, object&gt;();
 /// var result2 = new InterpolatedString(message).Render(data); // "Hello, World!"
 /// </code>

@@ -203,81 +203,20 @@ public class DisplayHelpersTests
         
         Assert.Equal(customMessage, result);
     }
-
-    [Fact]
-    public void GenerateSuccessMessage_when_itemData_has_a_key_with_a_JsonElement_value_then_return_interpolated_message()
+    
+    [Theory]
+    [InlineData("{foo??The operation} was successful", "The operation was successful")]
+    [InlineData("Successfully did { bar ?? something } to {quux  ??     another thing   }", "Successfully did something to another thing")]
+    public void GenerateSuccessMessage_when_customMessage_has_interpolation_with_default_value_and_itemData_is_null_then_return_message_with_default_value(string customMessage, string expectedMessage)
     {
-        var customMessage = "{foo} was successful";
         var operation = _fixture.Create<string>();
         var flowTitle = _fixture.Create<string?>();
         
-        var obj = new
-        {
-            bar = "bar"
-        };
-
-        var itemData = new Dictionary<string, object>()
-        {
-            { "foo", JsonSerializer.SerializeToElement(obj) }
-        };
+        Dictionary<string, object>? itemData = null;
         
         var result = DisplayHelpers.GenerateSuccessMessage(customMessage, operation, itemData, flowTitle);
         
-        Assert.Equal("{\"bar\":\"bar\"} was successful", result);
-    }
-
-    [Fact]
-    public void GenerateSuccessMessage_when_itemData_has_a_key_with_a_JsonElement_value_then_subkeys_can_be_interpolated()
-    {
-        var customMessage = "{foo.bar.baz} was {foo.xyzzy}";
-        var operation = _fixture.Create<string>();
-        var flowTitle = _fixture.Create<string?>();
-        
-        var obj = new
-        {
-            bar = new
-            {
-                baz = "quux",
-                nope = "nope"
-            },
-            xyzzy = "bleeb",
-            nope = "nope"
-        };
-
-        var itemData = new Dictionary<string, object>()
-        {
-            { "foo", JsonSerializer.SerializeToElement(obj) }
-        };
-        
-        var result = DisplayHelpers.GenerateSuccessMessage(customMessage, operation, itemData, flowTitle);
-        
-        Assert.Equal("quux was bleeb", result);
-    }
-
-    [Fact]
-    public void GenerateSuccessMessage_when_itemData_has_a_key_with_a_JsonElement_value_then_missing_subkeys_are_not_interpolated()
-    {
-        var customMessage = "{foo.bar.baz} was {foo.xyzzy}";
-        var operation = _fixture.Create<string>();
-        var flowTitle = _fixture.Create<string?>();
-        
-        var obj = new
-        {
-            bar = new
-            {
-                nope = "nope"
-            },
-            nope = "nope"
-        };
-
-        var itemData = new Dictionary<string, object>()
-        {
-            { "foo", JsonSerializer.SerializeToElement(obj) }
-        };
-        
-        var result = DisplayHelpers.GenerateSuccessMessage(customMessage, operation, itemData, flowTitle);
-        
-        Assert.Equal("{foo.bar.baz} was {foo.xyzzy}", result);
+        Assert.Equal(expectedMessage, result);
     }
 
     [Theory]
@@ -407,122 +346,7 @@ public class DisplayHelpersTests
         
         Assert.Equal(expected, result);
     }
-    
-    [Theory]
-    [InlineData("Data[incomingTrustsSearch-field-flow]", "Someone", "Someone was successfully added to the thing")]
-    [InlineData("CurrentTask.TaskName", "Some Task", "Some Task was successfully added to the thing")]
-    public void GenerateSuccessMessage_can_handle_itemData_with_weird_keys_and_json_values(string itemDataKey, string itemDataValue, string expected)
-    {
-        var customMessage = $"{{{itemDataKey}}} was successfully added to the thing";
-        var operation = _fixture.Create<string>();
-        var flowTitle = _fixture.Create<string?>();
-        
-        var itemData = new Dictionary<string, object>
-        {
-            {itemDataKey, JsonSerializer.SerializeToElement(itemDataValue)}
-        };
-        
-        var result = DisplayHelpers.GenerateSuccessMessage(customMessage, operation, itemData, flowTitle);
-        
-        Assert.Equal(expected, result);
-    }
-    
-    [Theory]
-    [InlineData("{foo} was successful", new[] {"foo"}, new[] {"bar"}, "bar was successful")]
-    [InlineData("Successfully did {bar} to {quux}", new[] {"bar", "quux"}, new[] {"xyzzy", "bleeb"}, "Successfully did xyzzy to bleeb")]
-    public void InterpolateMessage_when_customMessage_has_interpolation_and_itemData_is_not_null_then_return_interpolated_message(string message, string[] interpolationKeys, string[] interpolationValues, string expected)
-    {
-        var itemData = new Dictionary<string, object>();
-        for (var i = 0; i < interpolationKeys.Length; i++)
-        {
-            itemData.Add(interpolationKeys[i], interpolationValues[i]);
-        }
-        
-        var result = DisplayHelpers.InterpolateMessage(message, itemData);
-        
-        Assert.Equal(expected, result);
-    }
-    
-    [Theory]
-    [InlineData("{foo} was successful")]
-    [InlineData("Successfully did {bar} to {quux}")]
-    public void InterpolateMessage_when_customMessage_has_interpolation_and_itemData_is_null_then_return_message_with_no_interpolation(string message)
-    {
-        Dictionary<string, object>? itemData = null;
-        
-        var result = DisplayHelpers.InterpolateMessage(message, itemData);
-        
-        Assert.Equal(message, result);
-    }
 
-    [Fact]
-    public void InterpolateMessage_when_itemData_has_a_key_with_a_JsonElement_value_then_return_interpolated_message()
-    {
-        var message = "{foo} was successful";
-        var obj = new
-        {
-            bar = "bar"
-        };
-
-        var itemData = new Dictionary<string, object>()
-        {
-            { "foo", JsonSerializer.SerializeToElement(obj) }
-        };
-        
-        var result = DisplayHelpers.InterpolateMessage(message, itemData);
-        
-        Assert.Equal("{\"bar\":\"bar\"} was successful", result);
-    }
-
-    [Fact]
-    public void InterpolateMessage_when_itemData_has_a_key_with_a_JsonElement_value_then_subkeys_can_be_interpolated()
-    {
-        var message = "{foo.bar.baz} was {foo.xyzzy}";
-        var obj = new
-        {
-            bar = new
-            {
-                baz = "quux",
-                nope = "nope"
-            },
-            xyzzy = "bleeb",
-            nope = "nope"
-        };
-
-        var itemData = new Dictionary<string, object>()
-        {
-            { "foo", JsonSerializer.SerializeToElement(obj) }
-        };
-        
-        var result = DisplayHelpers.InterpolateMessage(message, itemData);
-        
-        Assert.Equal("quux was bleeb", result);
-    }
-
-    [Fact]
-    public void InterpolateMessage_when_itemData_has_a_key_with_a_JsonElement_value_then_missing_subkeys_are_not_interpolated()
-    {
-        var message = "{foo.bar.baz} was {foo.xyzzy}";
-        
-        var obj = new
-        {
-            bar = new
-            {
-                nope = "nope"
-            },
-            nope = "nope"
-        };
-
-        var itemData = new Dictionary<string, object>()
-        {
-            { "foo", JsonSerializer.SerializeToElement(obj) }
-        };
-        
-        var result = DisplayHelpers.InterpolateMessage(message, itemData);
-        
-        Assert.Equal("{foo.bar.baz} was {foo.xyzzy}", result);
-    }
-    
     [Fact]
     public void SanitiseHtmlInput_normalises_newlines_to_br_tags()
     {
