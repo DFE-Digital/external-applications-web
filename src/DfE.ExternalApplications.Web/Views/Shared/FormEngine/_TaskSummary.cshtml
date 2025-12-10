@@ -234,7 +234,7 @@
                                                         buttonText: "Remove",
                                                         handler: "RemoveFieldItem",
                                                         displayFields: "itemTitle",
-                                                        title:$"Please confirm removal of the following {itemLabel.ToLower()}",
+                                                        title: $"Are you sure you want to remove this {itemLabel.ToLower()}?",
                                                         requiredMessage: $"Select yes if you are sure you want to remove this {itemLabel.ToLower()}",
                                                         buttonId: $"remove-field-item-@itemId")
                                                 </form>
@@ -358,7 +358,7 @@
                                                 buttonText: "Remove",
                                                 handler: "RemoveFieldItem",
                                                 displayFields: displayFieldsForRemove,
-                                                title: $"Please confirm removal of the following {itemLabel.ToLower()}",
+                                                title: $"Are you sure you want to remove this {itemLabel.ToLower()}?",
                                                 requiredMessage: $"Select yes if you are sure you want to remove this {itemLabel.ToLower()}",
                                                 buttonId: $"remove-field-item-@itemId")
                                         </form>
