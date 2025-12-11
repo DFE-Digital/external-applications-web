@@ -264,8 +264,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 // Check if we need to clear session data for a new application
                 CheckAndClearSessionForNewApplication();
 
-            if (string.IsNullOrEmpty(CurrentPageId) || !CurrentPageId.Contains("flow/"))
-            {
                 await LoadAccumulatedDataFromSessionAsync();
                 
                 // For upload fields, populate Data from session so they display on GET
@@ -278,19 +276,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 
                 ViewData["ValidationErrors"] = ModelState.Where(m => m.Value.Errors.Any())
                     .ToDictionary(m => m.Key, m => m.Value.Errors.Select(e => e.ErrorMessage).ToList());
-            }
-            else
-            {
-                //  For upload fields in collection flows, populate Data from session
-                await PopulateUploadFieldsFromSessionAsync();
-                
-                await ApplyConditionalLogicAsync();
-                ModelState.Clear();
-                RestoreFormErrors();
-                
-                ViewData["ValidationErrors"] = ModelState.Where(m => m.Value.Errors.Any())
-                    .ToDictionary(m => m.Key, m => m.Value.Errors.Select(e => e.ErrorMessage).ToList());
-            }
 
                 // Initialize task completion status for summaries (standard or derived)
                 if (CurrentTask != null)

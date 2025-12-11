@@ -58,6 +58,21 @@ public class RenderFormModelTests
         _model = _fixture.Create<RenderFormModel>();
     }
 
+    [Theory]
+    [InlineData("flow/some-page")]
+    [InlineData("some-other-page")]
+    public async Task OnGetAsync_loads_accumulated_form_data_from_session(string currentPageId)
+    {
+        var expectedData = new Dictionary<string, object> { { "someField", "someValue" } };
+        _applicationResponseService.GetAccumulatedFormData(Arg.Any<ISession>()).Returns(expectedData);
+        _model.CurrentPageId = currentPageId;
+        
+        await _model.OnGetAsync();
+        
+        var actualData = Assert.Contains("someField", _model.Data);
+        Assert.Equal(expectedData["someField"], actualData);
+    }
+
     [Fact]
     public async Task OnPostPageAsync_when_last_form_in_task_is_submitted_then_clear_navigation_history_for_scope()
     {

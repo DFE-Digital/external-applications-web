@@ -85,47 +85,7 @@ public static partial class DisplayHelpers
     /// <returns></returns>
     public static string InterpolateMessage(string message, Dictionary<string, object>? itemData)
     {
-        if (itemData == null) return message;
-
-        foreach (var (key, value) in itemData)
-        {
-            message = value switch
-            {
-                JsonElement jsonElement => InterpolateJsonValue(message, key, jsonElement),
-                _ => InterpolateBasicValue(message, key, value)
-            };
-        }
-
-        return message;
-    }
-
-    private static string InterpolateJsonValue(string message, string key, JsonElement jsonElement)
-    {
-        // This regex matches interpolation expressions in the form of "{key.subkey}". It doesn't attempt to parse a
-        // valid JSON path from the subkey.
-        var matches = Regex.Matches(message, @$"\{{{Regex.Escape(key)}\.([^}}]+)}}");
-        
-        foreach (var subkey in matches.Select(c => c.Groups[1].Value))
-        {
-            var result = jsonElement.EvaluatePath(subkey);
-            
-            if (result is null) continue;
-            
-            var placeholder = $"{{{key}.{subkey}}}";
-            message = message.Replace(placeholder, result.Value.ToString());
-        }
-        
-        message = message.Replace($"{{{key}}}", jsonElement.ToString());
-
-        return message;
-    }
-
-    private static string InterpolateBasicValue(string message, string key, object value)
-    {
-        var placeholder = $"{{{key}}}";
-        var valueString = value.ToString() ?? "";
-        message = message.Replace(placeholder, valueString);
-        return message;
+        return new InterpolatedString(message).Render(itemData ?? new Dictionary<string, object>());
     }
 
     private static string GetDisplayNameFromItemData(Dictionary<string, object>? itemData)

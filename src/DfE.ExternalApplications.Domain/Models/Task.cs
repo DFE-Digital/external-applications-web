@@ -12,6 +12,9 @@ public class Task
     [JsonPropertyName("taskName")]
     public required string TaskName { get; set; }
 
+    [JsonPropertyName("caption")]
+    public string? Caption { get; set; }
+
     [JsonPropertyName("taskOrder")]
     public required int TaskOrder { get; set; }
 
