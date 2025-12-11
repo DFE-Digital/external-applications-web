@@ -10,4 +10,6 @@ public class Label
     public required string Value { get; set; }
     [JsonPropertyName("isVisible")]
     public bool IsVisible { get; set; } = false;
+    [JsonPropertyName("validationLabelValue")]
+    public string? ValidationLabelValue { get; set; }
 }

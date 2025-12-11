@@ -92,7 +92,7 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AllowAnonymousToPage("/Feedback/General");
     options.Conventions.AllowAnonymousToPage("/Feedback/ThankYou");
     
-    options.Conventions.AllowAnonymousToPage("/Cookies");
+    options.Conventions.AllowAnonymousToPage("/Shared/Cookies");
 
     // Allow anonymous access to error pages
     options.Conventions.AllowAnonymousToPage("/Error/NotFound");

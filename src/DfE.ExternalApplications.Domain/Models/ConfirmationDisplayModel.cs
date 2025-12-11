@@ -10,6 +10,11 @@ namespace DfE.ExternalApplications.Domain.Models
         /// </summary>
         public string Title { get; set; } = "Confirm your action";
 
+        /// <summary>
+        /// The error message that displays if the user tries to continue without selecting an option on the confirmation page
+        /// </summary>
+        public string? RequiredMessage { get; set; }
+
         // Message removed per latest requirements
 
         /// <summary>

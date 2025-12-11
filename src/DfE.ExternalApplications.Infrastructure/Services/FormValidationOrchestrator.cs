@@ -194,7 +194,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                 {
                     // Detect missing date parts (day/month/year) from the composed value
                     // We compose values as "YYYY-M-D" when parts are incomplete or invalid
-                    var fieldLabel = field.Label?.Value ?? field.FieldId;
+                    var validationLabel = field.Label!.ValidationLabelValue ?? field.Label.Value;
                     var missingParts = false;
 
                     if (stringValue.Contains('-'))
@@ -208,13 +208,13 @@ namespace DfE.ExternalApplications.Infrastructure.Services
 
                     if (missingParts)
                     {
-                        modelState.AddModelError(fieldKey, $"{fieldLabel} must include a day, month and year");
+                        modelState.AddModelError(fieldKey, $"{validationLabel} must include a day, month and year");
                         isValid = false;
                     }
                     else if (!DateTime.TryParseExact(stringValue, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
                     {
                         // All parts present and numeric but not a real calendar date
-                        modelState.AddModelError(fieldKey, $"{fieldLabel} must be a real date");
+                        modelState.AddModelError(fieldKey, $"{validationLabel} must be a real date");
                         isValid = false;
                     }
                 }

@@ -3,6 +3,7 @@
 @using System.Linq
 @{
     ViewData["Title"] = Model.DisplayModel.Title;
+    ViewData["RequiredMessage"] = Model.DisplayModel.RequiredMessage;
 
     var hasTaskName = Model.DisplayModel.OriginalFormData.ContainsKey("CurrentTask.TaskName");
     var taskName = hasTaskName ? Model.DisplayModel.OriginalFormData["CurrentTask.TaskName"] as string : null;

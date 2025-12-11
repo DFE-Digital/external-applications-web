@@ -85,7 +85,8 @@ namespace DfE.ExternalApplications.Web.Pages.Confirmation
                 // Rebuild display model and show server-side validation error
                 DisplayModel = _confirmationService.PrepareDisplayModel(token) ?? new ConfirmationDisplayModel();
                 ConfirmationToken = token;
-                ModelState.AddModelError("Confirmed", "Select yes if you want to continue");
+
+                ModelState.AddModelError("Confirmed", DisplayModel.RequiredMessage!);
                 return Page();
             }
 

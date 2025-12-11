@@ -72,7 +72,7 @@ namespace DfE.ExternalApplications.Web.Filters
                 confirmationInfo.Handler, string.Join(",", confirmationInfo.DisplayFields));
 
             // Create confirmation request
-            var (title, message) = ReadCustomMeta(form, confirmationInfo.Handler);
+            var (title, requiredMessage) = ReadCustomMeta(form, confirmationInfo.Handler);
 
             // Allow overriding the action path via hidden meta field
             var overrideActionKey = $"confirmation-action-{confirmationInfo.Handler}";
@@ -108,7 +108,8 @@ namespace DfE.ExternalApplications.Web.Filters
                 OriginalFormData = ExtractFormData(form),
                 DisplayFields = confirmationInfo.DisplayFields,
                 ReturnUrl = returnUrl,
-                Title = title
+                Title = title,
+                RequiredMessage = requiredMessage,
             };
 
             // Store confirmation context and redirect
@@ -194,7 +195,7 @@ namespace DfE.ExternalApplications.Web.Filters
             _logger.LogInformation("[Pages] Validation passed. Intercepting result ({ResultType}) for confirmation - Handler: {Handler}",
                 executedContext.Result?.GetType().Name ?? "null", confirmationInfo.Handler);
 
-            var (title2, message2) = ReadCustomMeta(form, confirmationInfo.Handler);
+            var (title2, requiredMessage2) = ReadCustomMeta(form, confirmationInfo.Handler);
 
             // Allow overriding the action path via hidden meta field
             var overrideActionKey2 = $"confirmation-action-{confirmationInfo.Handler}";
@@ -230,6 +231,7 @@ namespace DfE.ExternalApplications.Web.Filters
                 DisplayFields = confirmationInfo.DisplayFields,
                 ReturnUrl = returnUrl2,
                 Title = title2,
+                RequiredMessage = requiredMessage2,
             };
 
             try
@@ -324,17 +326,20 @@ namespace DfE.ExternalApplications.Web.Filters
             return formData;
         }
 
-        private static (string? Title, string? Message) ReadCustomMeta(IFormCollection form, string handler)
+        private static (string? Title, string? RequiredMessage) ReadCustomMeta(IFormCollection form, string handler)
         {
             try
             {
                 var titleKey = $"confirmation-title-{handler}";
                 var messageKey = $"confirmation-taskName-{handler}";
+                var requiredMessageKey = $"confirmation-requiredMessage-{handler}";
                 string? title = form.ContainsKey(titleKey) ? form[titleKey].ToString() : null;
                 string? message = form.ContainsKey(messageKey) ? form[messageKey].ToString() : null;
+                string? requiredMessage = form.ContainsKey(requiredMessageKey) ? form[requiredMessageKey].ToString() : null;
                 title = string.IsNullOrWhiteSpace(title) ? null : title;
                 message = string.IsNullOrWhiteSpace(message) ? null : message;
-                return (title, message);
+                requiredMessage = string.IsNullOrWhiteSpace(requiredMessage) ? null : requiredMessage;
+                return (title, requiredMessage);
             }
             catch
             {

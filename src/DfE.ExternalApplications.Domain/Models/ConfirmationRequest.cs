@@ -44,6 +44,12 @@ namespace DfE.ExternalApplications.Domain.Models
         public string? Title { get; set; }
 
         /// <summary>
+        /// Optional custom error message to show on the confirmation page if the user doesn't select a value
+        /// </summary>
+        [JsonPropertyName("requiredMessage")]
+        public string? RequiredMessage { get; set; }
+
+        /// <summary>
         /// The URL to return to if the user cancels
         /// </summary>
         [JsonPropertyName("returnUrl")]

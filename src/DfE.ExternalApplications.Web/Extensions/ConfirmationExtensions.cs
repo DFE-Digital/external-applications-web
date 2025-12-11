@@ -23,7 +23,8 @@ namespace DfE.ExternalApplications.Web.Extensions
             string buttonType = "submit",
             string? buttonId = null,
             object? additionalAttributes = null,
-            string? title = null)
+            string? title = null,
+            string? requiredMessage = null)
         {
             var html = new StringBuilder();
 
@@ -64,6 +65,10 @@ namespace DfE.ExternalApplications.Web.Extensions
                 {
                     html.AppendLine($"<input type=\"hidden\" name=\"confirmation-title-{handler}\" value=\"{System.Net.WebUtility.HtmlEncode(title)}\" />");
                 }
+                if (!string.IsNullOrWhiteSpace(requiredMessage))
+                {
+                    html.AppendLine($"<input type=\"hidden\" name=\"confirmation-requiredMessage-{handler}\" value=\"{System.Net.WebUtility.HtmlEncode(requiredMessage)}\" />");
+                }
                 // message removed
             }
 
@@ -76,7 +81,8 @@ namespace DfE.ExternalApplications.Web.Extensions
             string handler = "Page",
             string displayFields = "",
             string? buttonId = null,
-            string? title = null)
+            string? title = null,
+            string? requiredMessage = null)
         {
             return htmlHelper.RenderConfirmationButton(
                 buttonText: buttonText,
@@ -85,7 +91,8 @@ namespace DfE.ExternalApplications.Web.Extensions
                 requiresConfirmation: true,
                 displayFields: displayFields,
                 buttonId: buttonId,
-                title: title);
+                title: title,
+                requiredMessage: requiredMessage);
         }
 
         public static IHtmlContent RenderSecondaryConfirmationButton(
@@ -94,7 +101,8 @@ namespace DfE.ExternalApplications.Web.Extensions
             string handler = "Page",
             string displayFields = "",
             string? buttonId = null,
-            string? title = null)
+            string? title = null,
+            string? requiredMessage = null)
         {
             return htmlHelper.RenderConfirmationButton(
                 buttonText: buttonText,
@@ -103,7 +111,8 @@ namespace DfE.ExternalApplications.Web.Extensions
                 requiresConfirmation: true,
                 displayFields: displayFields,
                 buttonId: buttonId,
-                title: title);
+                title: title,
+                requiredMessage: requiredMessage);
         }
 
         public static IHtmlContent RenderWarningConfirmationButton(
@@ -112,7 +121,8 @@ namespace DfE.ExternalApplications.Web.Extensions
             string handler = "Page",
             string displayFields = "",
             string? buttonId = null,
-            string? title = null)
+            string? title = null,
+            string? requiredMessage = null)
         {
             return htmlHelper.RenderConfirmationButton(
                 buttonText: buttonText,
@@ -121,7 +131,8 @@ namespace DfE.ExternalApplications.Web.Extensions
                 requiresConfirmation: true,
                 displayFields: displayFields,
                 buttonId: buttonId,
-                title: title);
+                title: title,
+                requiredMessage: requiredMessage);
         }
 
         public static IHtmlContent RenderLinkConfirmationButton(
@@ -130,7 +141,8 @@ namespace DfE.ExternalApplications.Web.Extensions
             string handler = "Page",
             string displayFields = "",
             string? buttonId = null,
-            string? title = null)
+            string? title = null,
+            string? requiredMessage = null)
         {
             return htmlHelper.RenderConfirmationButton(
                 buttonText: buttonText,
@@ -144,7 +156,8 @@ namespace DfE.ExternalApplications.Web.Extensions
                 {
                     style = "background: none; border: 0; padding: 0; font: inherit; cursor: pointer; font-family: GDS Transport, arial, sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-decoration: underline; text-decoration-thickness: max(1px, .0625rem); text-underline-offset: .1578em; color: #1d70b8;"
                 },
-                title: title);
+                title: title,
+                requiredMessage: requiredMessage);
         }
     }
 }
