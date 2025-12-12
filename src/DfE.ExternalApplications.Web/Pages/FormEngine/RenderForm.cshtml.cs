@@ -2679,28 +2679,19 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             var file = Request.Form.Files["UploadFile"];
             // Read any existing file IDs posted by the view to preserve list
             var existingFileIds = Request.Form["ExistingFileIds"].ToArray();
-
             
             if (file == null || file.Length == 0)
             {
 
-                
-                ErrorMessage = "Please select a file to upload.";
+                ErrorMessage = "Please select a file to upload";
                 ModelState.AddModelError("UploadFile", ErrorMessage);
-                
 
-
-
-
-                
-
-
-                
-
-                
+                if (!string.IsNullOrEmpty(fieldId))
+                {
+                    _formErrorStore.Save(fieldId, ModelState);
+                }
 
                 Files = await GetFilesForFieldAsync(appId, fieldId);
-
                 
                 // Check if we have return URL
                 if (!string.IsNullOrEmpty(returnUrl))
@@ -2709,16 +2700,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     return Redirect(returnUrl);
                 }
                 
-
-
-
-
                 return Page();
             }
-            
-
-
-
             
             using var stream = file.OpenReadStream();
             var fileParam = new FileParameter(stream, file.FileName, file.ContentType);
