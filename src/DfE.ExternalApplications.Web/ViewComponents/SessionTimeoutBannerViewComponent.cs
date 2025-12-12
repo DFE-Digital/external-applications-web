@@ -1,40 +1,94 @@
 using System;
 using System.Threading.Tasks;
+using DfE.ExternalApplications.Web.Security;
 using GovUK.Dfe.ExternalApplications.Api.Client.Security;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace DfE.ExternalApplications.Web.ViewComponents
 {
-    public class SessionTimeoutBannerViewComponent(ITokenStateManager tokenStateManager) : ViewComponent
+    /// <summary>
+    /// View component that displays a session timeout warning banner.
+    /// Shows a warning when the user is close to being logged out due to inactivity or token expiry.
+    /// </summary>
+    public class SessionTimeoutBannerViewComponent(
+        ITokenStateManager tokenStateManager,
+        IUserActivityTracker activityTracker,
+        IHttpContextAccessor httpContextAccessor,
+        IOptions<TokenRefreshSettings> tokenRefreshSettings) : ViewComponent
     {
+        private readonly TokenRefreshSettings _settings = tokenRefreshSettings.Value;
+
+        /// <summary>
+        /// Warning window in minutes - show the overlay this many minutes before logout.
+        /// IMPORTANT: This must be LESS than InactivityThresholdMinutes, otherwise popup shows immediately!
+        /// For production (30 min threshold), use 5. For testing (2 min threshold), use 1.
+        /// </summary>
+        private const int WarningWindowMinutes = 5;
+
         public async Task<IViewComponentResult> InvokeAsync()
         {
             var model = new SessionTimeoutViewModel();
+            var context = httpContextAccessor.HttpContext;
 
-            var state = await tokenStateManager.GetCurrentTokenStateAsync();
-            if (!state.IsAuthenticated || !state.ExternalIdpToken.ExpiryTime.HasValue)
+            if (context?.User?.Identity?.IsAuthenticated != true)
             {
                 return View(model);
             }
 
-            // Time until we would force logout is time until 5-minute expiry threshold
-            var expiryUtc = state.ExternalIdpToken.ExpiryTime.Value;
-            var timeUntilForceLogout = expiryUtc - DateTime.UtcNow - TimeSpan.FromMinutes(5);
+            // Calculate time until idle timeout forces logout
+            var timeSinceActivity = activityTracker.GetTimeSinceLastActivity(context);
+            TimeSpan? timeUntilIdleLogout = null;
 
-            // If we are within 2 minutes of force logout, show overlay
-            if (timeUntilForceLogout > TimeSpan.Zero && timeUntilForceLogout <= TimeSpan.FromMinutes(2))
+            if (timeSinceActivity.HasValue)
+            {
+                var inactivityThreshold = TimeSpan.FromMinutes(_settings.InactivityThresholdMinutes);
+                timeUntilIdleLogout = inactivityThreshold - timeSinceActivity.Value;
+            }
+
+            // Also check token expiry as a fallback
+            var state = await tokenStateManager.GetCurrentTokenStateAsync();
+            TimeSpan? timeUntilTokenLogout = null;
+
+            if (state.IsAuthenticated && state.ExternalIdpToken.ExpiryTime.HasValue)
+            {
+                var expiryUtc = state.ExternalIdpToken.ExpiryTime.Value;
+                timeUntilTokenLogout = expiryUtc - DateTime.UtcNow - TimeSpan.FromMinutes(_settings.ForceLogoutAtMinutesRemaining);
+            }
+
+            // Use the smaller of the two timeouts (whichever comes first)
+            TimeSpan? timeUntilForceLogout = null;
+            if (timeUntilIdleLogout.HasValue && timeUntilTokenLogout.HasValue)
+            {
+                timeUntilForceLogout = timeUntilIdleLogout.Value < timeUntilTokenLogout.Value
+                    ? timeUntilIdleLogout.Value
+                    : timeUntilTokenLogout.Value;
+            }
+            else
+            {
+                timeUntilForceLogout = timeUntilIdleLogout ?? timeUntilTokenLogout;
+            }
+
+            if (!timeUntilForceLogout.HasValue)
+            {
+                return View(model);
+            }
+
+            // Show warning WarningWindowMinutes before logout
+            if (timeUntilForceLogout > TimeSpan.Zero && timeUntilForceLogout <= TimeSpan.FromMinutes(WarningWindowMinutes))
             {
                 model.Show = true;
-                model.AutoRedirectSeconds = (int)Math.Ceiling(timeUntilForceLogout.TotalSeconds);
-                model.DisplayTime = timeUntilForceLogout.TotalMinutes >= 1
-                    ? $"{(int)Math.Ceiling(timeUntilForceLogout.TotalMinutes)} minute{(timeUntilForceLogout.TotalMinutes >= 2 ? "s" : string.Empty)}"
+                model.AutoRedirectSeconds = (int)Math.Ceiling(timeUntilForceLogout.Value.TotalSeconds);
+                model.DisplayTime = timeUntilForceLogout.Value.TotalMinutes >= 1
+                    ? $"{(int)Math.Ceiling(timeUntilForceLogout.Value.TotalMinutes)} minute{(timeUntilForceLogout.Value.TotalMinutes >= 2 ? "s" : string.Empty)}"
                     : $"{model.AutoRedirectSeconds} seconds";
             }
-            else if (timeUntilForceLogout > TimeSpan.FromMinutes(2))
+            else if (timeUntilForceLogout > TimeSpan.FromMinutes(WarningWindowMinutes))
             {
                 // Not time to show overlay yet. Schedule a page refresh to the same URL
-                // exactly when the 2-minute window starts, so the overlay appears without user action.
-                var untilOverlay = timeUntilForceLogout - TimeSpan.FromMinutes(2);
+                // exactly when the warning window starts, so the overlay appears without user action.
+                var untilOverlay = timeUntilForceLogout.Value - TimeSpan.FromMinutes(WarningWindowMinutes);
                 model.PreOverlayRefreshSeconds = (int)Math.Ceiling(untilOverlay.TotalSeconds);
             }
 
@@ -42,13 +96,29 @@ namespace DfE.ExternalApplications.Web.ViewComponents
         }
     }
 
+    /// <summary>
+    /// View model for the session timeout banner
+    /// </summary>
     public class SessionTimeoutViewModel
     {
+        /// <summary>
+        /// Whether to show the timeout warning overlay
+        /// </summary>
         public bool Show { get; set; }
+
+        /// <summary>
+        /// Seconds until automatic redirect to logout
+        /// </summary>
         public int AutoRedirectSeconds { get; set; }
+
+        /// <summary>
+        /// Human-readable display of time remaining
+        /// </summary>
         public string DisplayTime { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Seconds until the page should refresh to show the overlay
+        /// </summary>
         public int PreOverlayRefreshSeconds { get; set; }
     }
 }
-
-

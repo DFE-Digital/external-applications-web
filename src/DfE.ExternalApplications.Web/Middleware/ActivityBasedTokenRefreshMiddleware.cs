@@ -99,10 +99,8 @@ public class ActivityBasedTokenRefreshMiddleware(
 
         var userId = authStrategy.GetUserId(context) ?? "Unknown";
 
-        // ═══════════════════════════════════════════════════════════════════
         // CHECK 1: ABSOLUTE TIMEOUT (8 hours)
         // Force re-authentication regardless of activity
-        // ═══════════════════════════════════════════════════════════════════
         if (activityTracker.HasSessionExpired(context, _settings.AbsoluteTimeoutHours))
         {
             logger.LogInformation(
@@ -114,10 +112,8 @@ public class ActivityBasedTokenRefreshMiddleware(
             return false;
         }
 
-        // ═══════════════════════════════════════════════════════════════════
         // CHECK 2: IDLE TIMEOUT (30 minutes)
         // Force re-authentication if user was inactive
-        // ═══════════════════════════════════════════════════════════════════
         if (activityTracker.IsUserInactive(context, _settings.InactivityThresholdMinutes))
         {
             logger.LogInformation(
@@ -129,17 +125,18 @@ public class ActivityBasedTokenRefreshMiddleware(
             return false;
         }
 
-        // ═══════════════════════════════════════════════════════════════════
         // CHECK 3: TOKEN REFRESH (when within 30 min of expiry)
         // Keep active users logged in by refreshing their token
-        // ═══════════════════════════════════════════════════════════════════
         await TryRefreshTokenIfNeededAsync(context, authStrategy, userId);
 
-        // ═══════════════════════════════════════════════════════════════════
         // RECORD ACTIVITY
         // Update last activity timestamp for idle timeout tracking
-        // ═══════════════════════════════════════════════════════════════════
-        activityTracker.RecordActivity(context);
+        // Skip if this is a timeout-check refresh (indicated by _tc query param)
+        var isTimeoutCheck = context.Request.Query.ContainsKey("_tc");
+        if (!isTimeoutCheck)
+        {
+            activityTracker.RecordActivity(context);
+        }
 
         return true;
     }

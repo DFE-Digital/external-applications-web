@@ -61,7 +61,11 @@
 }
 else if (Model.PreOverlayRefreshSeconds > 0)
 {
-    Context.Response.Headers["Refresh"] = Model.PreOverlayRefreshSeconds.ToString();
+    // Add _tc query parameter to indicate this is a timeout check (not user activity)
+    var currentUrl = Context.Request.Path + Context.Request.QueryString;
+    var separator = Context.Request.QueryString.HasValue ? "&" : "?";
+    var refreshUrl = $"{currentUrl}{separator}_tc=1";
+    Context.Response.Headers["Refresh"] = $"{Model.PreOverlayRefreshSeconds};url={refreshUrl}";
 }
 
 
