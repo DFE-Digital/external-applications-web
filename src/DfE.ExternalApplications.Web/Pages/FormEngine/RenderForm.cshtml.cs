@@ -156,6 +156,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     {
                         if (TryParseFlowRoute(CurrentPageId, out var flowId, out var instanceId, out var flowPageId))
                         {
+
+                            FlowId = flowId;
+                            InstanceId = instanceId;
+                            FlowPageId = flowPageId;
+                            
                             // Sub-flow: initialize task and resolve page from task's pages
                             var (group, task) = InitializeCurrentTask(TaskId);
                             CurrentGroup = group;
