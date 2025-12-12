@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using DfE.ExternalApplications.Web.Security;
 using GovUK.Dfe.ExternalApplications.Api.Client.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -9,22 +10,43 @@ using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 
 namespace DfE.ExternalApplications.Web.Controllers
 {
+    /// <summary>
+    /// Controller for session management operations including stay-signed-in and sign-out functionality
+    /// </summary>
     [Authorize]
     [Route("session")]
-    public class SessionController(ITokenStateManager tokenStateManager, ICacheManager cacheManager)
-        : Controller
+    public class SessionController(
+        ITokenStateManager tokenStateManager,
+        ICacheManager cacheManager,
+        IUserActivityTracker activityTracker,
+        IAuthenticationSchemeStrategy authStrategy) : Controller
     {
+        /// <summary>
+        /// Handles the "Stay Signed In" action from the session timeout warning.
+        /// Resets the user's activity timestamp and refreshes the authentication token.
+        /// </summary>
         [HttpPost("stay-signed-in")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> StaySignedIn()
         {
+            // Reset the activity timestamp - this is critical to prevent idle timeout!
+            activityTracker.RecordActivity(HttpContext);
+
             cacheManager.SetRequestScopedFlag("AllowRefreshDueToInactivity", true);
 
+            // Try to refresh token using the auth strategy (handles OIDC, Test, Internal auth)
+            await authStrategy.RefreshExternalIdpTokenAsync(HttpContext);
+
+            // Also call the token state manager for consistency
             await tokenStateManager.RefreshTokensIfPossibleAsync();
 
             return Redirect("/applications/dashboard");
         }
 
+        /// <summary>
+        /// Handles immediate sign-out request from the session timeout warning.
+        /// Clears all authentication state and redirects to home.
+        /// </summary>
         [HttpPost("sign-out")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> SignOutImmediately()
@@ -57,5 +79,3 @@ namespace DfE.ExternalApplications.Web.Controllers
         }
     }
 }
-
-

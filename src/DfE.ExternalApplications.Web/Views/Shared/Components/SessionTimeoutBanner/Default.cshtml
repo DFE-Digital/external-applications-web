@@ -1,23 +1,21 @@
 @model DfE.ExternalApplications.Web.ViewComponents.SessionTimeoutViewModel
-@if (Model.Show)
-{
-    // Fallback (no-JS) auto-redirect when countdown ends
-    Context.Response.Headers["Refresh"] = $"{Model.AutoRedirectSeconds};url=/Logout";
 
-    <div class="app-timeout-overlay" role="dialog" aria-modal="true" aria-labelledby="timeout-title">
+@if (Model.IsAuthenticated && Model.InactivityTimeoutSeconds > 0)
+{
+    <div id="app-timeout-overlay" class="app-timeout-overlay" role="dialog" aria-modal="true" aria-labelledby="timeout-title" style="display: none;">
         <div class="app-timeout-dialog">
             <h2 id="timeout-title" class="govuk-heading-m">You're about to be signed out</h2>
             <p class="govuk-body">For your security, we will sign you out in
-                <strong id="app-timeout-count">@Model.DisplayTime</strong>.
+                <strong id="app-timeout-count">--:--</strong>.
             </p>
 
-                <div class="app-timeout-progress">
-                    <div class="app-timeout-progress__bar" style="animation-duration:@(Model.AutoRedirectSeconds)s;"></div>
-                </div>
+            <div class="app-timeout-progress">
+                <div id="app-timeout-progress-bar" class="app-timeout-progress__bar"></div>
+            </div>
 
-            <form method="post" action="/session/stay-signed-in">
+            <form id="app-timeout-form" method="post" action="/session/stay-signed-in">
                 @Html.AntiForgeryToken()
-                <button class="govuk-button" data-module="govuk-button" type="submit">Stay signed in</button>
+                <button class="govuk-button" data-module="govuk-button" type="submit" id="app-stay-signed-in">Stay signed in</button>
                 <button class="govuk-link govuk-!-margin-left-4" formaction="/session/sign-out" formmethod="post" type="submit" style="background:none;border:none;padding:0;">Sign out</button>
             </form>
         </div>
@@ -27,41 +25,153 @@
         .app-timeout-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 9999; display: flex; align-items: center; justify-content: center; }
         .app-timeout-dialog { background: #fff; border: 4px solid #ffbf47; max-width: 520px; width: 90%; padding: 24px; box-shadow: 0 0 0 4px #0b0c0c; }
         .app-timeout-progress { height: 8px; background: #f3f2f1; margin: 12px 0 24px; overflow: hidden; }
-        .app-timeout-progress__bar { height: 100%; background: #00703c; width: 100%; animation-name: shrink; animation-timing-function: linear; animation-fill-mode: forwards; }
-        @@keyframes shrink { from { width: 100%; } to { width: 0%; } }
+        .app-timeout-progress__bar { height: 100%; background: #00703c; width: 100%; transition: width 1s linear; }
     </style>
 
     <script>
         (function () {
-            var seconds = @Model.AutoRedirectSeconds;
-            var el = document.getElementById('app-timeout-count');
-            if (!el || isNaN(seconds) || seconds <= 0) return;
+            'use strict';
 
-            function format(s) {
+            // Configuration from server
+            var inactivityTimeout = @Model.InactivityTimeoutSeconds; // Total seconds before logout
+            var warningBefore = @Model.WarningBeforeTimeoutSeconds;  // Seconds before timeout to show warning
+            var warningAt = inactivityTimeout - warningBefore;       // Seconds of inactivity when warning shows
+
+            // State
+            var lastActivity = Date.now();
+            var warningShown = false;
+            var countdownSeconds = 0;
+            var countdownInterval = null;
+
+            // DOM elements
+            var overlay = document.getElementById('app-timeout-overlay');
+            var countEl = document.getElementById('app-timeout-count');
+            var progressBar = document.getElementById('app-timeout-progress-bar');
+            var staySignedInBtn = document.getElementById('app-stay-signed-in');
+
+            if (!overlay || !countEl) return;
+
+            // Format seconds as M:SS
+            function formatTime(s) {
                 var m = Math.floor(s / 60);
                 var r = s % 60;
                 return m + ':' + (r < 10 ? '0' + r : r);
             }
 
-            function tick() {
-                seconds--;
-                if (seconds <= 0) {
-                    window.location.replace('/Logout');
+            // Record user activity - ONLY when warning is NOT showing
+            function recordActivity() {
+                // Do NOT reset activity if warning is already showing
+                // User must click "Stay signed in" to dismiss
+                if (warningShown) {
                     return;
                 }
-                el.textContent = format(seconds);
-                setTimeout(tick, 1000);
+                lastActivity = Date.now();
             }
 
-            // Initialize content immediately to avoid one-second lag
-            el.textContent = format(seconds);
-            setTimeout(tick, 1000);
+            // Show the warning overlay
+            function showWarning() {
+                if (warningShown) return;
+                
+                warningShown = true;
+                countdownSeconds = warningBefore;
+                
+                overlay.style.display = 'flex';
+                countEl.textContent = formatTime(countdownSeconds);
+                progressBar.style.width = '100%';
+                
+                // Start countdown
+                countdownInterval = setInterval(function () {
+                    countdownSeconds--;
+                    
+                    if (countdownSeconds <= 0) {
+                        // Time's up - redirect to logout
+                        clearInterval(countdownInterval);
+                        window.location.replace('/Logout');
+                        return;
+                    }
+                    
+                    countEl.textContent = formatTime(countdownSeconds);
+                    progressBar.style.width = ((countdownSeconds / warningBefore) * 100) + '%';
+                }, 1000);
+            }
+
+            // Hide the warning overlay - only called when user clicks "Stay signed in"
+            function hideWarning() {
+                warningShown = false;
+                overlay.style.display = 'none';
+                lastActivity = Date.now(); // Reset activity timer
+                
+                if (countdownInterval) {
+                    clearInterval(countdownInterval);
+                    countdownInterval = null;
+                }
+            }
+
+            // Check for inactivity
+            function checkInactivity() {
+                // Don't check if warning is already showing
+                if (warningShown) return;
+                
+                var secondsInactive = Math.floor((Date.now() - lastActivity) / 1000);
+                
+                if (secondsInactive >= warningAt) {
+                    showWarning();
+                }
+            }
+
+            // Handle "Stay signed in" button - this is the ONLY way to dismiss the warning
+            if (staySignedInBtn) {
+                staySignedInBtn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    
+                    // Hide warning and reset timer
+                    hideWarning();
+                    
+                    // Call the server to refresh session/token
+                    var form = document.getElementById('app-timeout-form');
+                    var formData = new FormData(form);
+                    
+                    fetch('/session/stay-signed-in', {
+                        method: 'POST',
+                        body: formData,
+                        credentials: 'same-origin'
+                    }).then(function (response) {
+                        if (response.ok || response.redirected) {
+                            console.log('Session extended successfully');
+                        } else {
+                            console.error('Failed to extend session');
+                        }
+                    }).catch(function (err) {
+                        console.error('Error extending session:', err);
+                    });
+                });
+            }
+
+            // Listen for user activity (only resets timer when warning is NOT showing)
+            var activityEvents = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click'];
+            var throttleTimeout = null;
+            
+            function throttledActivity() {
+                if (throttleTimeout) return;
+                
+                throttleTimeout = setTimeout(function () {
+                    throttleTimeout = null;
+                }, 1000); // Throttle to once per second
+                
+                recordActivity();
+            }
+            
+            activityEvents.forEach(function (event) {
+                document.addEventListener(event, throttledActivity, { passive: true });
+            });
+
+            // Check inactivity every 5 seconds
+            setInterval(checkInactivity, 5000);
+
+            // Initial activity record
+            recordActivity();
+
+            console.log('Session timeout tracker initialized. Warning after ' + warningAt + 's of inactivity, logout after ' + inactivityTimeout + 's.');
         })();
     </script>
 }
-else if (Model.PreOverlayRefreshSeconds > 0)
-{
-    Context.Response.Headers["Refresh"] = Model.PreOverlayRefreshSeconds.ToString();
-}
-
-
