@@ -156,6 +156,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     {
                         if (TryParseFlowRoute(CurrentPageId, out var flowId, out var instanceId, out var flowPageId))
                         {
+
+                            FlowId = flowId;
+                            InstanceId = instanceId;
+                            FlowPageId = flowPageId;
+                            
                             // Sub-flow: initialize task and resolve page from task's pages
                             var (group, task) = InitializeCurrentTask(TaskId);
                             CurrentGroup = group;
@@ -265,6 +270,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 CheckAndClearSessionForNewApplication();
 
                 await LoadAccumulatedDataFromSessionAsync();
+                MergeFlowProgressIntoFormDataForSummary();
                 
                 // For upload fields, populate Data from session so they display on GET
                 // This ensures files appear in the list after upload
@@ -2685,28 +2691,19 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             var file = Request.Form.Files["UploadFile"];
             // Read any existing file IDs posted by the view to preserve list
             var existingFileIds = Request.Form["ExistingFileIds"].ToArray();
-
             
             if (file == null || file.Length == 0)
             {
 
-                
-                ErrorMessage = "Please select a file to upload.";
+                ErrorMessage = "Please select a file to upload";
                 ModelState.AddModelError("UploadFile", ErrorMessage);
-                
 
-
-
-
-                
-
-
-                
-
-                
+                if (!string.IsNullOrEmpty(fieldId))
+                {
+                    _formErrorStore.Save(fieldId, ModelState);
+                }
 
                 Files = await GetFilesForFieldAsync(appId, fieldId);
-
                 
                 // Check if we have return URL
                 if (!string.IsNullOrEmpty(returnUrl))
@@ -2715,16 +2712,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     return Redirect(returnUrl);
                 }
                 
-
-
-
-
                 return Page();
             }
-            
-
-
-
             
             using var stream = file.OpenReadStream();
             var fileParam = new FileParameter(stream, file.FileName, file.ContentType);
@@ -3310,6 +3299,45 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     // Serialize files to JSON and populate Data so the view can display them
                     var filesJson = JsonSerializer.Serialize(files);
                     Data[fieldId] = filesJson;
+                }
+            }
+        }
+
+        private void MergeFlowProgressIntoFormDataForSummary()
+        {
+            if (CurrentTask?.Summary?.Mode?.Equals("multiCollectionFlow", StringComparison.OrdinalIgnoreCase) != true
+                || CurrentTask.Summary?.Flows == null)
+                return;
+
+            foreach (var flow in CurrentTask.Summary.Flows)
+            {
+                if (!FormData.TryGetValue(flow.FieldId, out var val) || string.IsNullOrWhiteSpace(val?.ToString()))
+                    continue;
+
+                var items = JsonSerializer.Deserialize<List<Dictionary<string, object>>>(val.ToString()!) ?? new();
+                var changed = false;
+
+                foreach (var item in items)
+                {
+                    if (!item.TryGetValue("id", out var idObj)) continue;
+                    var instanceId = idObj?.ToString();
+                    if (string.IsNullOrWhiteSpace(instanceId)) continue;
+
+                    var progress = LoadFlowProgress(flow.FlowId, instanceId);
+                    if (!progress.Any()) continue;
+
+                    foreach (var kv in progress)
+                    {
+                        item[kv.Key] = kv.Value;
+                    }
+                    changed = true;
+                }
+
+                if (changed)
+                {
+                    var updatedJson = JsonSerializer.Serialize(items);
+                    FormData[flow.FieldId] = updatedJson;
+                    Data[flow.FieldId] = updatedJson; // keep Data in sync for views
                 }
             }
         }
