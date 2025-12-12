@@ -1686,6 +1686,18 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 {
                     var items = JsonSerializer.Deserialize<List<Dictionary<string, object>>>(json) ?? new();
                     
+                    // Find the item to be removed so we can delete its associated files
+                    var itemToRemove = items.FirstOrDefault(item => 
+                        item.TryGetValue("id", out var id) && id?.ToString() == itemId);
+                    
+                    // Delete all files associated with this collection item before removing it
+                    if (itemToRemove != null && ApplicationId.HasValue)
+                    {
+                        // Expand any encoded JSON in the item data to ensure file data is properly parsed
+                        var expandedItem = ExpandEncodedJson(itemToRemove);
+                        await DeleteFilesFromCollectionItemAsync(ApplicationId.Value, expandedItem);
+                    }
+                    
                     // Remove the item with matching ID
                     items.RemoveAll(item => item.TryGetValue("id", out var id) && id?.ToString() == itemId);
                     
@@ -3348,6 +3360,92 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             {
                 _logger.LogWarning(ex, "Failed to restore form errors from session");
             }
+        }
+
+        #endregion
+
+        #region Collection Item File Cleanup Helper Methods
+
+        /// <summary>
+        /// Deletes all files associated with a collection item when the item is removed.
+        /// Iterates through all fields in the item data and deletes any files found.
+        /// </summary>
+        /// <param name="applicationId">The application ID</param>
+        /// <param name="itemData">The collection item data dictionary</param>
+        /// <returns>The number of files deleted</returns>
+        private async Task<int> DeleteFilesFromCollectionItemAsync(Guid applicationId, Dictionary<string, object>? itemData)
+        {
+            if (itemData == null)
+            {
+                return 0;
+            }
+
+            int deletedCount = 0;
+
+            foreach (var kvp in itemData)
+            {
+                // Skip the 'id' field and any non-string values
+                if (kvp.Key == "id" || kvp.Value == null)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var valueStr = kvp.Value?.ToString();
+                    
+                    // Skip empty values or values that don't look like JSON arrays
+                    if (string.IsNullOrEmpty(valueStr) || !valueStr.TrimStart().StartsWith("["))
+                    {
+                        continue;
+                    }
+
+                    // Try to parse as file list (UploadDto)
+                    var files = JsonSerializer.Deserialize<List<UploadDto>>(valueStr);
+                    if (files != null && files.Any())
+                    {
+                        foreach (var file in files)
+                        {
+                            try
+                            {
+                                await fileUploadService.DeleteFileAsync(file.Id, applicationId);
+                                deletedCount++;
+                                _logger.LogInformation(
+                                    "Deleted file {FileId} ({FileName}) from removed collection item in application {ApplicationId}",
+                                    file.Id,
+                                    file.OriginalFileName,
+                                    applicationId);
+                            }
+                            catch (Exception ex)
+                            {
+                                // Log but don't fail the entire operation - file may already be deleted
+                                _logger.LogWarning(
+                                    ex,
+                                    "Failed to delete file {FileId} from collection item - file may already be deleted",
+                                    file.Id);
+                            }
+                        }
+                    }
+                }
+                catch (JsonException)
+                {
+                    // Not a file list, skip this field
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Error processing field {FieldKey} for file cleanup", kvp.Key);
+                }
+            }
+
+            if (deletedCount > 0)
+            {
+                _logger.LogInformation(
+                    "Successfully deleted {DeletedCount} file(s) from removed collection item in application {ApplicationId}",
+                    deletedCount,
+                    applicationId);
+            }
+
+            return deletedCount;
         }
 
         #endregion
