@@ -1,25 +1,26 @@
 using DfE.ExternalApplications.Application.Interfaces;
 using DfE.ExternalApplications.Domain.Models;
+using DfE.ExternalApplications.Infrastructure.Services;
+using DfE.ExternalApplications.Web.Interfaces;
 using DfE.ExternalApplications.Web.Pages.Shared;
 using DfE.ExternalApplications.Web.Services;
-using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
-using Microsoft.AspNetCore.Mvc;
-using System.Diagnostics.CodeAnalysis;
-using System.Text.RegularExpressions;
-using Task = System.Threading.Tasks.Task;
-using DfE.ExternalApplications.Infrastructure.Services;
-using System.Text.Json;
-using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
-using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
-using DfE.ExternalApplications.Web.Interfaces;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Events;
 using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Interfaces;
-using StackExchange.Redis;
-using static DfE.ExternalApplications.Web.Pages.FormEngine.DisplayHelpers;
-using MassTransit;
 using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Models;
+using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
+using MassTransit;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.AspNetCore.Mvc;
+using StackExchange.Redis;
+using System.Diagnostics.CodeAnalysis;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
+using static DfE.ExternalApplications.Web.Pages.FormEngine.DisplayHelpers;
+using Task = System.Threading.Tasks.Task;
 
 namespace DfE.ExternalApplications.Web.Pages.FormEngine
 {
@@ -3267,12 +3268,35 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         private bool FileExistInSessionList(Guid appId, string fieldId, string fileName)
         {
+
+            if (IsCollectionFlow)
+            {
+                // For collection flows, store in flow progress system
+                var progressKey = GetFlowProgressSessionKey(FlowId, InstanceId);
+
+                //  FIX: Use same method as page load for consistency
+                var existingProgress = LoadFlowProgress(FlowId, InstanceId);
+
+                // Force session to commit immediately
+
+                var sessionFiles = HttpContext.Session.GetString(progressKey);
+
+                if (sessionFiles?.IndexOf(fileName, StringComparison.InvariantCultureIgnoreCase) >= 0)
+                    return true;
+                return false;
+
+            }
+            else
+            {
                 // For regular forms, use the original session key
                 var key = $"UploadedFiles_{appId}_{fieldId}";
                 var sessionFiles = HttpContext.Session.GetString(key);
                 if (sessionFiles?.IndexOf(fileName, StringComparison.InvariantCultureIgnoreCase) >= 0)
                     return true;
                 return false;
+            }
+
+            return false;
         }
 
         private async Task SaveUploadedFilesToResponseAsync(Guid appId, string fieldId, IReadOnlyList<UploadDto> files)
