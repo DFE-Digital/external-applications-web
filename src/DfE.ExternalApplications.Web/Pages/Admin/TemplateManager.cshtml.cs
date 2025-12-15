@@ -69,7 +69,7 @@ public class TemplateManagerModel : PageModel
             if (string.IsNullOrEmpty(templateId))
             {
                 _logger.LogWarning("TemplateId not found in session.");
-                return RedirectToPage("/Index");
+                return RedirectToPage("/Applications/Dashboard");
             }
 
             await LoadTemplateDataAsync(templateId);
@@ -100,7 +100,7 @@ public class TemplateManagerModel : PageModel
         if (string.IsNullOrEmpty(templateId))
         {
             _logger.LogWarning("TemplateId not found in session during post.");
-            return RedirectToPage("/Index");
+            return RedirectToPage("/Applications/Dashboard");
         }
 
         if (!ValidateInput())
@@ -216,7 +216,7 @@ public class TemplateManagerModel : PageModel
             _logger.LogInformation("Successfully cleared all sessions and caches from TemplateManager");
             
             // Redirect back to Index since session is cleared (TemplateId is gone)
-            return RedirectToPage("/Index");
+            return RedirectToPage("/Applications/Dashboard");
         }
         catch (Exception ex)
         {

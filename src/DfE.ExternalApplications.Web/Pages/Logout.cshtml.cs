@@ -34,7 +34,7 @@ public class LogoutModel : PageModel
         // Only show the page if user is authenticated
         if (!User.Identity?.IsAuthenticated ?? true)
         {
-            return RedirectToPage("/Index");
+            return RedirectToPage("/Applications/Dashboard");
         }
 
         return Page();
@@ -59,7 +59,7 @@ public class LogoutModel : PageModel
                 // Clear the existing OIDC cookie and redirect to DfE Sign-in for sign out
                 await HttpContext.SignOutAsync(OpenIdConnectDefaults.AuthenticationScheme, new AuthenticationProperties
                 {
-                    RedirectUri = Url.Page("/Index")
+                    RedirectUri = Url.Page("/Applications/Dashboard")
                 });
             }
 
@@ -67,7 +67,7 @@ public class LogoutModel : PageModel
             HttpContext.Session.Clear();
 
             _logger.LogInformation("User successfully signed out");
-            return RedirectToPage("/Index");
+            return RedirectToPage("/Applications/Dashboard");
         }
         catch (Exception ex)
         {

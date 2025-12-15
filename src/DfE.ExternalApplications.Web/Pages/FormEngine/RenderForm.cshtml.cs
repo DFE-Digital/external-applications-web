@@ -2635,7 +2635,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         public async Task<IActionResult> OnPostUploadFileAsync()
         {
-
             
             // Ensure Template is not null (required for RenderForm)
             if (Template == null)
@@ -2664,26 +2663,18 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             var applicationId = Request.Form["ApplicationId"].ToString();
             var fieldId = Request.Form["FieldId"].ToString();
             var returnUrl = Request.Form["ReturnUrl"].ToString();
-            var uploadName = Request.Form["UploadName"].ToString();
             var uploadDescription = Request.Form["UploadDescription"].ToString();
-            
-
-
-
-
             
             // Clear validation errors for FlowId/InstanceId if not in collection flow
             if (!IsCollectionFlow)
             {
                 ModelState.Remove("FlowId");
                 ModelState.Remove("InstanceId");
-
             }
             
             // Parse application ID
             if (!Guid.TryParse(applicationId, out var appId))
             {
-
                 return NotFound();
             }
             
@@ -2695,7 +2686,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             if (file == null || file.Length == 0)
             {
 
-                ErrorMessage = "Please select a file to upload";
+                ErrorMessage = "Select a file to upload";
                 ModelState.AddModelError("UploadFile", ErrorMessage);
 
                 if (!string.IsNullOrEmpty(fieldId))
@@ -2714,19 +2705,37 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 
                 return Page();
             }
-            
+
+            if (FileExistInSessionList(appId, fieldId, file.FileName))
+            {
+                ErrorMessage = "The selected file has already been uploaded. Upload a file with a different name.\n ";
+                ModelState.AddModelError("UploadFile", ErrorMessage);
+
+                if (!string.IsNullOrEmpty(fieldId))
+                {
+                    _formErrorStore.Save(fieldId, ModelState);
+                }
+
+                Files = await GetFilesForFieldAsync(appId, fieldId);
+
+                if (!string.IsNullOrEmpty(returnUrl))
+                {
+
+                    return Redirect(returnUrl);
+                }
+
+                return Page();
+            }
+
             using var stream = file.OpenReadStream();
             var fileParam = new FileParameter(stream, file.FileName, file.ContentType);
             
-
             try
             {
                 await fileUploadService.UploadFileAsync(appId, file.FileName, uploadDescription, fileParam);
 
                 
                 // Only execute this code if API call succeeds
-
-                
                 // Get existing files for this field/collection instance
                 var currentFieldFiles = (await GetFilesForFieldAsync(appId, fieldId)).ToList();
                 
@@ -3254,6 +3263,16 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 var key = $"UploadedFiles_{appId}_{fieldId}";
                 HttpContext.Session.SetString(key, JsonSerializer.Serialize(files));
             }
+        }
+
+        private bool FileExistInSessionList(Guid appId, string fieldId, string fileName)
+        {
+                // For regular forms, use the original session key
+                var key = $"UploadedFiles_{appId}_{fieldId}";
+                var sessionFiles = HttpContext.Session.GetString(key);
+                if (sessionFiles?.IndexOf(fileName, StringComparison.InvariantCultureIgnoreCase) >= 0)
+                    return true;
+                return false;
         }
 
         private async Task SaveUploadedFilesToResponseAsync(Guid appId, string fieldId, IReadOnlyList<UploadDto> files)

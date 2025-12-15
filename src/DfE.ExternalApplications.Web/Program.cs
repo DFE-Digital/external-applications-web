@@ -82,7 +82,6 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.ConfigureFilter(new ExternalApiPageExceptionFilter());
 
     options.Conventions.AuthorizeFolder("/", "OpenIdConnectPolicy");
-    options.Conventions.AllowAnonymousToPage("/Index");
     options.Conventions.AllowAnonymousToPage("/Logout");
     
     // Allow anonymous access to feedback pages
@@ -400,6 +399,13 @@ app.UseAuthorization();
 
 app.MapRazorPages();
 app.MapControllers();
+
+// Redirect root to Dashboard
+app.MapGet("/", context =>
+{
+    context.Response.Redirect("/applications/dashboard");
+    return Task.CompletedTask;
+});
 
 app.UseGovUkFrontend();
 
