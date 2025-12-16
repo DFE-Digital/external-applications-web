@@ -83,6 +83,8 @@ builder.Services.AddRazorPages(options =>
 
     options.Conventions.AuthorizeFolder("/", "OpenIdConnectPolicy");
     options.Conventions.AllowAnonymousToPage("/Logout");
+
+    options.Conventions.AuthorizePage("/Diagnostics");
     
     // Allow anonymous access to feedback pages
     options.Conventions.AllowAnonymousToPage("/Feedback/Index");
