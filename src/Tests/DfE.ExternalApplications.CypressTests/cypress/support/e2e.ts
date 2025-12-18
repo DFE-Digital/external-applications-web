@@ -57,8 +57,8 @@ beforeEach(() => {
         }
         
         // Add Cypress authentication headers
-        req.headers['x-cypress-test'] = 'true';
-        req.headers['x-cypress-secret'] = Cypress.env('cypress_secret') || '';
+        req.headers['x-service-email'] = Cypress.env('username') || '';
+        req.headers['x-service-api-key'] = Cypress.env('cypress_secret') || '';
     });
 });
 

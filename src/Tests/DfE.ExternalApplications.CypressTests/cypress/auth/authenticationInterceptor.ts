@@ -15,9 +15,9 @@ export class AuthenticationInterceptor {
                     "x-user-context-name": (Cypress.env('username')), // must be present, but not used
                     "x-user-context-id": "", // must be present for antiforgery claims
                     "x-user-ad-id": "",
-                    "x-cypress-user": "cypressUser",
+                    "x-service-email": Cypress.env('username'),
                     "x-cypress-test": "true",
-                    "x-cypress-secret": Cypress.env('cypress_secret')
+                    "x-service-api-key": Cypress.env('cypress_secret')
 
                 };
             },
