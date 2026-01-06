@@ -2,6 +2,7 @@
 @using Microsoft.AspNetCore.Authentication
 @using System.IdentityModel.Tokens.Jwt
 @inject IAuthorizationService AuthService
+@inject Microsoft.ApplicationInsights.AspNetCore.JavaScriptSnippet JavaScriptSnippet
 
 @{
     Layout = "_GovUkPageTemplate";
@@ -301,6 +302,15 @@
             </div>
         </div>
     </footer>
+}
+
+@* Application Insights JavaScript for client-side user tracking - respects cookie consent *@
+@{
+    var cookiesAccepted = Context.Request.Cookies[".AspNet.Consent"] == "yes";
+}
+@if (cookiesAccepted)
+{
+    @Html.Raw(JavaScriptSnippet.FullScript)
 }
 
 @await Html.PartialAsync("_NotificationDisplay")

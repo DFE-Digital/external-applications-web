@@ -35,12 +35,16 @@ using Microsoft.AspNetCore.Authentication;
 using MassTransit;
 using GovUK.Dfe.CoreLibs.Messaging.Contracts.Exceptions;
 using Microsoft.AspNetCore.Http;
+using DfE.ExternalApplications.Web.Telemetry;
 
 var builder = WebApplication.CreateBuilder(args);
 
 ConfigurationManager configuration = builder.Configuration;
 
 builder.Services.AddApplicationInsightsTelemetry(configuration);
+
+// Filter out health check endpoints from Application Insights telemetry
+builder.Services.AddApplicationInsightsTelemetryProcessor<HealthCheckTelemetryFilter>();
 // Configure test authentication options
 builder.Services.Configure<TestAuthenticationOptions>(
     configuration.GetSection(TestAuthenticationOptions.SectionName));
