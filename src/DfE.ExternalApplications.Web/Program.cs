@@ -1,9 +1,5 @@
-using GovUK.Dfe.CoreLibs.Security;
-using GovUK.Dfe.CoreLibs.Security.Authorization;
-using GovUK.Dfe.CoreLibs.Security.Configurations;
-using GovUK.Dfe.CoreLibs.Security.Interfaces;
-using GovUK.Dfe.CoreLibs.Security.OpenIdConnect;
 using DfE.ExternalApplications.Application.Interfaces;
+using DfE.ExternalApplications.Infrastructure.Consumers;
 using DfE.ExternalApplications.Infrastructure.Parsers;
 using DfE.ExternalApplications.Infrastructure.Providers;
 using DfE.ExternalApplications.Infrastructure.Services;
@@ -14,28 +10,33 @@ using DfE.ExternalApplications.Web.Filters;
 using DfE.ExternalApplications.Web.Middleware;
 using DfE.ExternalApplications.Web.Security;
 using DfE.ExternalApplications.Web.Services;
+using DfE.ExternalApplications.Web.Telemetry;
 using GovUk.Frontend.AspNetCore;
+using GovUK.Dfe.CoreLibs.Http.NoScriptDetection;
+using GovUK.Dfe.CoreLibs.Messaging.Contracts.Entities.Topics;
+using GovUK.Dfe.CoreLibs.Messaging.Contracts.Exceptions;
+using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Events;
+using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Extensions;
+using GovUK.Dfe.CoreLibs.Security;
+using GovUK.Dfe.CoreLibs.Security.Authorization;
+using GovUK.Dfe.CoreLibs.Security.Configurations;
+using GovUK.Dfe.CoreLibs.Security.Interfaces;
+using GovUK.Dfe.CoreLibs.Security.OpenIdConnect;
+using GovUK.Dfe.CoreLibs.Security.TokenRefresh.Extensions;
 using GovUK.Dfe.ExternalApplications.Api.Client.Extensions;
 using GovUK.Dfe.ExternalApplications.Api.Client.Security;
+using MassTransit;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
-using Microsoft.Extensions.Options;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.ResponseCompression;
+using Microsoft.Extensions.Options;
 using System.Diagnostics.CodeAnalysis;
-using GovUK.Dfe.CoreLibs.Security.TokenRefresh.Extensions;
 using System.IO.Compression;
-using DfE.ExternalApplications.Infrastructure.Consumers;
-using GovUK.Dfe.CoreLibs.Messaging.Contracts.Entities.Topics;
-using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Events;
-using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Extensions;
-using Microsoft.AspNetCore.Authentication;
-using MassTransit;
-using GovUK.Dfe.CoreLibs.Messaging.Contracts.Exceptions;
-using Microsoft.AspNetCore.Http;
-using DfE.ExternalApplications.Web.Telemetry;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -302,6 +303,8 @@ builder.Services.AddScoped<IFormTemplateProvider, FormTemplateProvider>();
 builder.Services.AddSingleton<IEventMappingProvider, EventMappingProvider>();
 builder.Services.AddScoped<IEventDataMapper, EventDataMapper>();
 
+builder.Services.AddNoScriptDetection();
+
 builder.Services.AddDfEMassTransit(
     configuration,
     configureConsumers: x =>
@@ -353,6 +356,8 @@ AppDomain.CurrentDomain.UnhandledException += (sender, args) =>
         GC.GetTotalMemory(false) / 1024 / 1024);
 };
 var app = builder.Build();
+
+app.UseNoScriptDetection(); // detect and log if the user is using a browser with no javascript enabled
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
