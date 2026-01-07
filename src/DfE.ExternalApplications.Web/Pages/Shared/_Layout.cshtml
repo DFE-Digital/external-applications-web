@@ -12,7 +12,10 @@
     var apiBase = (Configuration["ExternalApplicationsApiClient:BaseUrl"] ?? "").TrimEnd('/');
 }
 <meta name="api-base" content="@apiBase" />
+
 @section Header {
+
+    <noscript-detection />
     @{
         var currentEnvironment = ViewContext.HttpContext.RequestServices.GetService<IWebHostEnvironment>()?.EnvironmentName ?? "Unknown";
         
