@@ -6,7 +6,8 @@ module "azure_container_apps_hosting" {
   azure_location = local.azure_location
   tags           = local.tags
 
-  virtual_network_address_space = local.virtual_network_address_space
+  virtual_network_address_space                 = local.virtual_network_address_space
+  container_apps_infra_subnet_service_endpoints = local.container_apps_infra_subnet_service_endpoints
 
   enable_container_registry             = local.enable_container_registry
   registry_admin_enabled                = local.registry_admin_enabled

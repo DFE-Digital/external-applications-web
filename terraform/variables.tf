@@ -54,6 +54,12 @@ variable "virtual_network_address_space" {
   type        = string
 }
 
+variable "container_apps_infra_subnet_service_endpoints" {
+  description = "Endpoints to assign to infra subnet"
+  type        = list(string)
+  default     = []
+}
+
 variable "enable_container_registry" {
   description = "Set to true to create a container registry"
   type        = bool
