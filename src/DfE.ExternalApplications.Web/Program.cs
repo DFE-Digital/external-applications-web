@@ -320,7 +320,7 @@ builder.Services.AddDfEMassTransit(
     {
         cfg.UseJsonSerializer();
         // Azure Service Bus specific configuration
-        cfg.SubscriptionEndpoint<ScanResultEvent>("extweb", e =>
+        cfg.SubscriptionEndpoint<ScanResultEvent>("extweb-Transfers", e =>
         {
             e.UseMessageRetry(r =>
             {
