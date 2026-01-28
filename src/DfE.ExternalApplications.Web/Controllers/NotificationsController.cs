@@ -11,17 +11,19 @@ namespace DfE.ExternalApplications.Web.Controllers
     [Authorize]
     public class NotificationsController(INotificationsClient notificationsClient) : ControllerBase
     {
+        const string Context = "Transfers";
+
         [HttpGet("unread")]
         public async Task<ActionResult<IReadOnlyCollection<NotificationDto>>> GetUnreadAsync(CancellationToken cancellationToken)
         {
-            var items = await notificationsClient.GetUnreadNotificationsAsync(cancellationToken);
+            var items = await notificationsClient.GetUnreadNotificationsAsync(Context, null, cancellationToken);
             return Ok(items);
         }
 
         [HttpGet("all")]
         public async Task<ActionResult<IReadOnlyCollection<NotificationDto>>> GetAllAsync(CancellationToken cancellationToken)
         {
-            var items = await notificationsClient.GetAllNotificationsAsync(cancellationToken);
+            var items = await notificationsClient.GetAllNotificationsAsync(Context, null, cancellationToken);
             return Ok(items);
         }
 
@@ -37,7 +39,7 @@ namespace DfE.ExternalApplications.Web.Controllers
         [HttpPost("read-all")]
         public async Task<IActionResult> MarkAllAsReadAsync(CancellationToken cancellationToken)
         {
-            var ok = await notificationsClient.MarkAllNotificationsAsReadAsync(cancellationToken);
+            var ok = await notificationsClient.MarkAllNotificationsAsReadAsync(Context, null, cancellationToken);
             return ok ? Ok() : Problem(statusCode: 500);
         }
 
@@ -53,7 +55,7 @@ namespace DfE.ExternalApplications.Web.Controllers
         [HttpPost("clear")]
         public async Task<IActionResult> ClearAllAsync(CancellationToken cancellationToken)
         {
-            var ok = await notificationsClient.ClearAllNotificationsAsync(cancellationToken);
+            var ok = await notificationsClient.ClearNotificationsByContextAsync(Context, cancellationToken);
             return ok ? Ok() : Problem(statusCode: 500);
         }
 
@@ -61,6 +63,7 @@ namespace DfE.ExternalApplications.Web.Controllers
         [HttpPost("create")]
         public async Task<ActionResult<NotificationDto>> CreateAsync([FromBody] AddNotificationRequest request, CancellationToken cancellationToken)
         {
+            request.Context = Context;
             var created = await notificationsClient.CreateNotificationAsync(request, cancellationToken);
             return Ok(created);
         }
