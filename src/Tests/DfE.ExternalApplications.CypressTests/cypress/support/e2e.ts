@@ -79,6 +79,9 @@ declare global {
             SaveAndContinue(): Chainable<Element>;
             SaveTaskSummary(): Chainable<Element>;
             clickMarkCompleteCheckbox(): Chainable<Element>;
+            ClickContinue(): Chainable<Element>;
+            ReviewApplication():Chainable<Element>;
+            SubmitApplication():Chainable<Element>;
             loginWithCredentials(): Chainable<Element>;
             assertChildList(selector: string, values: string[]): Chainable<Element>;
             executeAccessibilityTests(ruleExclusions?: RuleObject): Chainable<Element>;
@@ -86,6 +89,7 @@ declare global {
             checkDate(idPrefix: string, day: string, month: string, year: string): Chainable<Element>;
             hasAddress(id: string, line1: string, line2: string, line3: string): Chainable<Element>;
             typeFast(text: string): Chainable<Element>;
+            attachFixtureFile(selector: string, fixtureRelativePath: string, fileName?: string, mimeType?: string): Chainable<Element>;
         }
     }
 }
