@@ -150,8 +150,11 @@ public class ApplicationResponseService(
             var rawData = JsonSerializer.Deserialize<Dictionary<string, object>>(jsonString) 
                          ?? new Dictionary<string, object>();
             
+            // Get applicationId from session for filename-based blacklist checking
+            var applicationId = session.GetString("ApplicationId");
+            
             // Filter out any infected files from the data
-            var filteredData = FilterInfectedFilesFromData(rawData);
+            var filteredData = FilterInfectedFilesFromData(rawData, applicationId);
             
             var cleanedData = new Dictionary<string, object>();
             foreach (var kvp in filteredData)
@@ -217,54 +220,16 @@ public class ApplicationResponseService(
     }
 
     /// <summary>
-    /// Filters out infected files from form data using Redis blacklist
+    /// Filters out infected files from form data using Redis blacklist.
+    /// Uses direct key lookup instead of KEYS command for better reliability and performance.
+    /// Checks both file ID-based and filename-based blacklists.
     /// </summary>
-    private Dictionary<string, object> FilterInfectedFilesFromData(Dictionary<string, object> data)
+    private Dictionary<string, object> FilterInfectedFilesFromData(Dictionary<string, object> data, string? applicationId)
     {
         try
         {
             var db = redis.GetDatabase();
-            var server = redis.GetServer(redis.GetEndPoints().First());
-            
-            // Get all infected file keys
-            var infectedFileKeys = server.Keys(pattern: "DfE:InfectedFile:*").ToList();
-            
-            if (!infectedFileKeys.Any())
-            {
-                return data; // No infected files to filter
-            }
-            
-            // Get all infected file IDs
-            var infectedFileIds = new HashSet<Guid>();
-            foreach (var key in infectedFileKeys)
-            {
-                var fileDataJson = db.StringGet(key);
-                if (!fileDataJson.IsNullOrEmpty)
-                {
-                    try
-                    {
-                        var fileData = JsonSerializer.Deserialize<JsonElement>(fileDataJson!);
-                        if (fileData.TryGetProperty("FileId", out var fileIdProp) && 
-                            Guid.TryParse(fileIdProp.GetString(), out var fileId))
-                        {
-                            infectedFileIds.Add(fileId);
-                        }
-                    }
-                    catch
-                    {
-                        // Skip invalid entries
-                    }
-                }
-            }
-            
-            if (!infectedFileIds.Any())
-            {
-                return data; // No valid infected file IDs found
-            }
-            
-            logger.LogInformation(
-                "Filtering {Count} infected file(s) from form data",
-                infectedFileIds.Count);
+            int filteredCount = 0;
             
             // Filter infected files from each field
             var filteredData = new Dictionary<string, object>();
@@ -283,22 +248,53 @@ public class ApplicationResponseService(
                     var files = JsonSerializer.Deserialize<List<JsonElement>>(fieldValue);
                     if (files != null)
                     {
-                        // Filter out infected files
+                        // Filter out infected files by checking each file against BOTH blacklist types
                         var cleanFiles = new List<JsonElement>();
                         foreach (var file in files)
                         {
+                            bool isInfected = false;
+                            string? originalFileName = null;
+                            
+                            // Get file properties
                             if (file.TryGetProperty("id", out var idProp) && 
                                 Guid.TryParse(idProp.GetString(), out var fileId))
                             {
-                                if (!infectedFileIds.Contains(fileId))
+                                // Check by file ID
+                                var fileIdBlacklistKey = $"DfE:InfectedFile:{fileId}";
+                                if (db.KeyExists(fileIdBlacklistKey))
+                                {
+                                    isInfected = true;
+                                }
+                                
+                                // Also check by filename if applicationId is available
+                                if (!isInfected && !string.IsNullOrEmpty(applicationId))
+                                {
+                                    if (file.TryGetProperty("originalFileName", out var fileNameProp))
+                                    {
+                                        originalFileName = fileNameProp.GetString();
+                                    }
+                                    
+                                    if (!string.IsNullOrEmpty(originalFileName))
+                                    {
+                                        var filenameBlacklistKey = $"DfE:InfectedFileName:{applicationId}:{originalFileName}";
+                                        if (db.KeyExists(filenameBlacklistKey))
+                                        {
+                                            isInfected = true;
+                                        }
+                                    }
+                                }
+                                
+                                if (!isInfected)
                                 {
                                     cleanFiles.Add(file);
                                 }
                                 else
                                 {
+                                    filteredCount++;
                                     logger.LogWarning(
-                                        "Filtered infected file {FileId} from field {FieldKey}",
+                                        "Filtered infected file {FileId} ({FileName}) from field {FieldKey}",
                                         fileId,
+                                        originalFileName ?? "unknown",
                                         kvp.Key);
                                 }
                             }
@@ -321,6 +317,13 @@ public class ApplicationResponseService(
                 
                 // Not a file list, keep original value
                 filteredData[kvp.Key] = kvp.Value;
+            }
+            
+            if (filteredCount > 0)
+            {
+                logger.LogInformation(
+                    "Filtered {Count} infected file(s) from form data",
+                    filteredCount);
             }
             
             return filteredData;
