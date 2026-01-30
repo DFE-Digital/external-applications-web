@@ -216,7 +216,7 @@
                        required />
             </div>
 
-            <button class="govuk-button" type="submit">Upload file</button>
+            <button class="govuk-button" type="submit" id="submit-upload-file-@fieldId">Upload file</button>
         </form>
     </div>
 </div>
@@ -248,7 +248,7 @@
                                         <input type="hidden" name="FlowId" value="@flowId" />
                                         <input type="hidden" name="InstanceId" value="@instanceId" />
                                     }
-                                    <button type="submit" class="govuk-link" style="border: none; background: none; padding: 0; color: #1d70b8; text-decoration: underline; cursor: pointer;">
+                                    <button type="submit" id="download-@file.OriginalFileName" class="govuk-link" style="border: none; background: none; padding: 0; color: #1d70b8; text-decoration: underline; cursor: pointer;">
                                         @file.OriginalFileName
                                     </button>
                                 </form>
@@ -273,8 +273,8 @@
                                         handler: "DeleteFile",
                                         displayFields: "fileName",
                                         title: "Are you sure you want to remove this file?",
-                                        requiredMessage: $"Select yes if you are sure you want to remove this file",
-                                        buttonId: $"delete-upload-@file.Id")
+                                        requiredMessage: "Select yes if you are sure you want to remove this file",
+                                        buttonId: $"delete-upload-{file.OriginalFileName}")
                                 </form>
                             </td>
                         </tr>
@@ -302,7 +302,7 @@
                 <input type="hidden" name="InstanceId" value="@instanceId" />
                 <input type="hidden" name="FlowPageId" value="@flowPageId" />
                 <input type="hidden" name="IsCollectionFlow" value="true" />
-                <button type="submit" class="govuk-button" data-module="govuk-button">@continueButtonText</button>
+                <button type="submit" id="submit-@fieldId" class="govuk-button" data-module="govuk-button">@continueButtonText</button>
             </form>
         }
         else
@@ -311,7 +311,7 @@
             <form method="post" asp-page="/FormEngine/RenderForm" asp-route-referenceNumber="@referenceNumber" asp-route-taskId="@taskId" asp-route-pageId="@actualPageId" asp-page-handler="Page">
                 <!-- Don't include large JSON data - rely on session storage instead -->
                 <input type="hidden" name="Data[@fieldId]" value="UPLOAD_FIELD_SESSION_DATA" />
-                <button type="submit" class="govuk-button" data-module="govuk-button">@continueButtonText</button>
+                <button type="submit" id="submit-@fieldId" class="govuk-button" data-module="govuk-button">@continueButtonText</button>
             </form>
         }
     </div>
