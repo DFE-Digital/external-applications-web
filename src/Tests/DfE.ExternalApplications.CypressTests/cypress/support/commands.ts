@@ -3,6 +3,7 @@ import "cypress-axe";
 import { Logger } from "../Common/logger";
 import { RuleObject } from "axe-core";
 import { AuthenticationInterceptor } from "../auth/authenticationInterceptor";
+import 'cypress-file-upload';
 
 // Override cy.visit to automatically add Cypress authentication headers
 Cypress.Commands.overwrite('visit', (originalFn, url, options) => {
@@ -18,8 +19,60 @@ Cypress.Commands.overwrite('visit', (originalFn, url, options) => {
         }
     };
     
-    return originalFn(url, visitOptions);
+    return originalFn({ url, ...visitOptions });
 });
+
+Cypress.Commands.add(
+  "attachFixtureFile",
+  (selector: string, fixtureRelativePath: string, fileName?: string, mimeType?: string) => {
+    // Infer MIME type if not provided
+    const MIME_MAP: Record<string, string> = {
+      pdf: "application/pdf",
+      docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      doc: "application/msword",
+      xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      xls: "application/vnd.ms-excel",
+      pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      ppt: "application/vnd.ms-powerpoint",
+      csv: "text/csv",
+      txt: "text/plain",
+      json: "application/json",
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      png: "image/png",
+      gif: "image/gif",
+      zip: "application/zip",
+    };
+
+    const basename = fixtureRelativePath.split("/").pop() ?? "file.bin";
+    const name = fileName ?? basename;
+    const ext = (name.split(".").pop() || "").toLowerCase();
+    const type = mimeType ?? MIME_MAP[ext] ?? "application/octet-stream";
+
+    return cy
+      .readFile(`cypress/fixtures/${fixtureRelativePath}`, null) // read raw bytes (Buffer/ArrayBuffer)
+      .then((buffer: any) => {
+        const arrayBuffer =
+          buffer instanceof ArrayBuffer
+            ? buffer
+            : buffer?.buffer ?? Uint8Array.from(buffer).buffer;
+
+        const blob = new Blob([arrayBuffer], { type });
+        const file = new File([blob], name, { type });
+
+        const dt = new DataTransfer();
+        dt.items.add(file);
+
+        cy.get(selector).then(($input) => {
+          const input = $input[0] as HTMLInputElement;
+          input.files = dt.files;
+          cy.wrap($input).trigger("change", { force: true });
+        });
+      });
+  }
+);
+
+
 
 
 Cypress.Commands.add("getByTestId", (id) => {
@@ -138,6 +191,20 @@ Cypress.Commands.add("SaveAndContinue", () => {
             Cypress.Commands.add("SaveTaskSummary", () => {
     cy.getById('save-task-summary-button').click();
             });
+// Custom command to Click Continue Button
+Cypress.Commands.add("ClickContinue", () => {
+    cy.getById('confirmation-continue').click();
+});
+//Custom Command to Click review Application
+ Cypress.Commands.add("ReviewApplication",() =>{
+    cy.getById('review-application-button').click()
+ })
+//Custom command to Click Submit Application
+Cypress.Commands.add("SubmitApplication",() =>{
+    cy.getById('submit-application-button').click()
+})
+
+
 // Custom command to execute accessibility tests using Axe
 Cypress.Commands.add("executeAccessibilityTests", () => {
     Logger.log("Executing the command");

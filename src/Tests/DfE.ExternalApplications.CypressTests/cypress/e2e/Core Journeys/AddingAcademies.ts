@@ -5,7 +5,7 @@ import Dashboardpage from '../../pages/Dashboardpage';
 import { Logger } from '../../Common/logger';
 import '../../support/commands';
 import Contributors from '../../pages/ContributorsPage';
-import ReasonsAndBenefits from '../../pages/TaskListPages/ReasonsAndBenefitsPage'; 
+import ReasonsAndBenefits from '../../pages/TaskListPages/ReasonsAndBenefitsPageOutgoing'; 
 import Academies from '../../pages/TaskListPages/DetailsofAcademies';
 
 describe('Create an Application', () => {

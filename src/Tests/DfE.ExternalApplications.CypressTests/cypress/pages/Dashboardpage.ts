@@ -2,7 +2,8 @@ export class Dashboardpage{
 
     static selectors = {
         startNewApplicationBtn: 'start-new-application-button',
-        referenceNumber: 'application-reference-number'
+        referenceNumber: 'application-reference-number',
+        
     }
 
     static clickStartBtn() {
@@ -25,6 +26,10 @@ export class Dashboardpage{
             // Store the value as an environment variable for later use;
             Cypress.env('applicationReferenceNumber', appRefNum);
         });
+    }
+
+    static verifyAllTasksAreCompleted(){
+
     }
 
 
