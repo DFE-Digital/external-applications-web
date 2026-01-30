@@ -672,7 +672,7 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
                 {
                     Message = $"The selected file '{fileName}' contains a virus called [{malwareName}]. We have deleted the file. Upload a new one.",
                     Category = "malware-detection",
-                    Context = $"file-{fileId}",
+                    Context = $"Transfers",
                     Type = NotificationType.Error,
                     AutoDismiss = false,
                     Metadata = new Dictionary<string, object>
