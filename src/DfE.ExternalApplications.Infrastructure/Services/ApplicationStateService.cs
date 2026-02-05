@@ -15,6 +15,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
     public class ApplicationStateService(
         IApplicationsClient applicationsClient,
         IApplicationResponseService applicationResponseService,
+        IFieldRequirementService fieldRequirementService,
         ILogger<ApplicationStateService> logger)
         : IApplicationStateService
     {
@@ -372,6 +373,41 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                 default:
                     return element.ToString();
             }
+        }
+
+        public Dictionary<string, List<string>> ValidateAllRequiredFieldsForSubmission(
+            FormTemplate template, 
+            Dictionary<string, object> formData, 
+            Func<string, bool>? isFieldHidden = null)
+        {
+            var tasksWithMissingFields = new Dictionary<string, List<string>>();
+
+            if (template?.TaskGroups == null)
+            {
+                return tasksWithMissingFields;
+            }
+
+            var allTasks = template.TaskGroups.SelectMany(g => g.Tasks).ToList();
+
+            foreach (var task in allTasks)
+            {
+                // Get missing required fields for this task
+                // This checks actual field values, not explicit task status
+                var missingFields = fieldRequirementService.GetMissingRequiredFields(task, template, formData, isFieldHidden);
+
+                if (missingFields.Any())
+                {
+                    tasksWithMissingFields[task.TaskId] = missingFields;
+                    logger.LogWarning(
+                        "Task {TaskId} ({TaskName}) has {Count} missing required field(s) for submission: {FieldIds}",
+                        task.TaskId,
+                        task.TaskName,
+                        missingFields.Count,
+                        string.Join(", ", missingFields));
+                }
+            }
+
+            return tasksWithMissingFields;
         }
     }
 } 

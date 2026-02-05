@@ -1,4 +1,4 @@
-﻿using DfE.ExternalApplications.Application.Interfaces;
+using DfE.ExternalApplications.Application.Interfaces;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
@@ -153,10 +153,15 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
                     applicationId = appId;
                 }
 
+                var originalFileName = scanResult.Metadata.ContainsKey("originalFileName") 
+                    ? scanResult.Metadata["originalFileName"]?.ToString() 
+                    : scanResult.FileName;
+
                 logger.LogWarning(
-                    "Processing infected file - FileId: {FileId}, FileName: {FileName}, Reference: {Reference}, UserId: {UserId}, MalwareName: {MalwareName}",
+                    "Processing infected file - FileId: {FileId}, FileName: {FileName}, OriginalFileName: {OriginalFileName}, Reference: {Reference}, UserId: {UserId}, MalwareName: {MalwareName}",
                     fileId,
                     scanResult.FileName,
+                    originalFileName,
                     reference,
                     userId,
                     scanResult.MalwareName);
@@ -164,7 +169,21 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
                 // Use service-to-service authentication for all API calls (database cleanup + notification)
                 using (AuthenticationContext.UseServiceToServiceAuthScope())
                 {
-                    // Delete the file from Azure File Share and database
+                    // IMPORTANT: The fileId from the scan result is the blob storage ID, not the database record ID.
+                    // The web app displays files using database record IDs, so we need to find those IDs
+                    // by looking up files by original filename for this application.
+                    var databaseRecordIds = await FindDatabaseRecordIdsByOriginalFileNameAsync(
+                        applicationId!.Value, 
+                        originalFileName);
+
+                    logger.LogInformation(
+                        "Found {Count} database record ID(s) matching original filename '{OriginalFileName}' for application {ApplicationId}: {Ids}",
+                        databaseRecordIds.Count,
+                        originalFileName,
+                        applicationId,
+                        string.Join(", ", databaseRecordIds));
+
+                    // Delete the file from Azure File Share and database using blob storage ID
                     try
                     {
                         await fileUploadService.DeleteFileAsync(fileId, applicationId!.Value);
@@ -175,17 +194,33 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
                     }
 
                     // Clean up infected file from database and clear Redis cache
-                    await RemoveInfectedFileFromDatabaseAndCacheAsync(reference, applicationId, fileId, scanResult.FileName, userId);
+                    // Pass the original filename so we can match files by name (not just by blob storage ID)
+                    await RemoveInfectedFileFromDatabaseAndCacheAsync(reference, applicationId, fileId, originalFileName, userId);
+
+                    // CRITICAL: Create blacklist entries for ALL database record IDs, not just the blob storage ID
+                    // This ensures the web app's FilterInfectedFilesFromList can find and filter these files
+                    foreach (var dbRecordId in databaseRecordIds)
+                    {
+                        await CreateBlacklistEntryAsync(dbRecordId, originalFileName, applicationId!.Value);
+                    }
+                    
+                    // Also blacklist the blob storage ID (in case it's used somewhere)
+                    await CreateBlacklistEntryAsync(fileId, originalFileName, applicationId!.Value);
+
+                    // FALLBACK: Also create a filename-based blacklist entry
+                    // This handles the case where the file was already deleted from the database
+                    // before we could look up its database record ID
+                    await CreateFilenameBlacklistEntryAsync(originalFileName, applicationId!.Value);
 
                     // clean up collection flow sessions in Redis
                     // This ensures infected files are removed from FlowProgress_* session keys
-                    await CleanupCollectionFlowSessionsAsync(applicationId ?? Guid.Empty, fileId);
+                    await CleanupCollectionFlowSessionsAsync(applicationId ?? Guid.Empty, fileId, originalFileName);
 
                     // Create user notification about the infected file
                     await CreateMalwareNotificationAsync(
                         fileId,
                         applicationId ?? Guid.Empty,
-                        scanResult.Metadata["originalFileName"].ToString(),
+                        originalFileName,
                         scanResult.MalwareName!,
                         new Guid(userId));
                 }
@@ -276,28 +311,42 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
                     {
                         // Try to parse as file list
                         var files = JsonSerializer.Deserialize<List<UploadDto>>(valueStr);
-                        if (files?.Any(f => f.Id == fileId) == true)
+                        if (files != null)
                         {
-                            // Remove the infected file
-                            files.RemoveAll(f => f.Id == fileId);
+                            // Check for infected files by BOTH file ID and original filename
+                            // The fileId from the scan result is the blob storage ID, which doesn't match database record IDs
+                            // So we also match by original filename to ensure we find and remove the infected file
+                            var infectedFiles = files.Where(f => 
+                                f.Id == fileId || 
+                                string.Equals(f.OriginalFileName, fileName, StringComparison.OrdinalIgnoreCase)
+                            ).ToList();
                             
-                            // Update the field
-                            var updatedValueJson = JsonSerializer.Serialize(files);
-                            var isCompleted = !string.IsNullOrWhiteSpace(updatedValueJson) && files.Count > 0;
-                            
-                            responseData[fieldKey] = JsonSerializer.SerializeToElement(new
+                            if (infectedFiles.Any())
                             {
-                                value = updatedValueJson,
-                                completed = isCompleted
-                            });
+                                // Remove all matching infected files
+                                foreach (var infectedFile in infectedFiles)
+                                {
+                                    files.Remove(infectedFile);
+                                    logger.LogInformation(
+                                        "Removed infected file {FileId} ({FileName}) from field {FieldKey} in application {Reference}",
+                                        infectedFile.Id,
+                                        infectedFile.OriginalFileName,
+                                        fieldKey,
+                                        reference);
+                                }
+                                
+                                // Update the field
+                                var updatedValueJson = JsonSerializer.Serialize(files);
+                                var isCompleted = !string.IsNullOrWhiteSpace(updatedValueJson) && files.Count > 0;
+                                
+                                responseData[fieldKey] = JsonSerializer.SerializeToElement(new
+                                {
+                                    value = updatedValueJson,
+                                    completed = isCompleted
+                                });
 
-                            dataModified = true;
-
-                            logger.LogInformation(
-                                "Removed infected file {FileId} from field {FieldKey} in application {Reference}",
-                                fileId,
-                                fieldKey,
-                                reference);
+                                dataModified = true;
+                            }
                         }
                     }
                     catch (JsonException)
@@ -403,10 +452,139 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
         }
 
         /// <summary>
+        /// Finds database record IDs by matching the original filename for an application.
+        /// The virus scanner returns a blob storage ID, but the web app uses database record IDs.
+        /// This method bridges the gap by looking up files by their original filename.
+        /// </summary>
+        private async Task<List<Guid>> FindDatabaseRecordIdsByOriginalFileNameAsync(Guid applicationId, string? originalFileName)
+        {
+            var result = new List<Guid>();
+            
+            if (string.IsNullOrWhiteSpace(originalFileName))
+            {
+                logger.LogWarning("Cannot find database record IDs: originalFileName is empty");
+                return result;
+            }
+
+            try
+            {
+                // Get all files for the application from the database
+                var allFiles = await fileUploadService.GetFilesForApplicationAsync(applicationId);
+                
+                // Find files with matching original filename
+                var matchingFiles = allFiles
+                    .Where(f => string.Equals(f.OriginalFileName, originalFileName, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+                result = matchingFiles.Select(f => f.Id).ToList();
+
+                if (!result.Any())
+                {
+                    logger.LogWarning(
+                        "No files found with original filename '{OriginalFileName}' for application {ApplicationId}",
+                        originalFileName,
+                        applicationId);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex,
+                    "Error finding database record IDs for original filename '{OriginalFileName}' in application {ApplicationId}",
+                    originalFileName,
+                    applicationId);
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Creates a blacklist entry in Redis for an infected file.
+        /// This allows the web app to filter out infected files before display or save.
+        /// </summary>
+        private async Task CreateBlacklistEntryAsync(Guid fileId, string? fileName, Guid applicationId)
+        {
+            try
+            {
+                var db = redis.GetDatabase();
+                
+                var infectedFileKey = $"DfE:InfectedFile:{fileId}";
+                var infectedFileData = JsonSerializer.Serialize(new
+                {
+                    FileId = fileId,
+                    FileName = fileName,
+                    ApplicationId = applicationId,
+                    MalwareName = "infected",
+                    RemovedAt = DateTimeOffset.UtcNow.ToString("o")
+                });
+                
+                await db.StringSetAsync(infectedFileKey, infectedFileData, TimeSpan.FromHours(24));
+                
+                logger.LogInformation(
+                    "Created blacklist entry for infected file {FileId} ({FileName})",
+                    fileId,
+                    fileName);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex,
+                    "Error creating blacklist entry for infected file {FileId}",
+                    fileId);
+                // Don't re-throw - blacklist failure shouldn't fail the entire process
+            }
+        }
+
+        /// <summary>
+        /// Creates a blacklist entry by original filename.
+        /// This is a fallback when we can't determine the database record ID.
+        /// The web app can filter files by checking if their original filename is blacklisted.
+        /// </summary>
+        private async Task CreateFilenameBlacklistEntryAsync(string originalFileName, Guid applicationId)
+        {
+            if (string.IsNullOrWhiteSpace(originalFileName))
+            {
+                logger.LogWarning("CreateFilenameBlacklistEntryAsync: originalFileName is null/empty, skipping");
+                return;
+            }
+
+            try
+            {
+                var db = redis.GetDatabase();
+                
+                // Create a key based on filename + application ID
+                // This allows the web app to filter by original filename
+                var blacklistKey = $"DfE:InfectedFileName:{applicationId}:{originalFileName}";
+                var blacklistData = JsonSerializer.Serialize(new
+                {
+                    OriginalFileName = originalFileName,
+                    ApplicationId = applicationId,
+                    MalwareName = "infected",
+                    RemovedAt = DateTimeOffset.UtcNow.ToString("o")
+                });
+                
+                await db.StringSetAsync(blacklistKey, blacklistData, TimeSpan.FromHours(24));
+                
+                // Verify the key was created
+                var keyExists = await db.KeyExistsAsync(blacklistKey);
+                
+                logger.LogWarning(
+                    "BLACKLIST CREATED: Key='{BlacklistKey}', Verified={KeyExists}",
+                    blacklistKey,
+                    keyExists);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex,
+                    "Error creating filename blacklist entry for '{OriginalFileName}'",
+                    originalFileName);
+            }
+        }
+
+        /// <summary>
         /// Clears infected files from all collection flow session data in Redis.
         /// This ensures infected files are removed from FlowProgress_* keys so they don't get re-saved.
+        /// Matches by both file ID and original filename.
         /// </summary>
-        private async Task CleanupCollectionFlowSessionsAsync(Guid applicationId, Guid fileId)
+        private async Task CleanupCollectionFlowSessionsAsync(Guid applicationId, Guid fileId, string? originalFileName)
         {
             try
             {
@@ -417,9 +595,10 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
                 var flowProgressKeys = server.Keys(pattern: "*FlowProgress_*").ToList();
 
                 logger.LogInformation(
-                    "Found {Count} FlowProgress session key(s) to check for infected file {FileId}",
+                    "Found {Count} FlowProgress session key(s) to check for infected file {FileId} ({OriginalFileName})",
                     flowProgressKeys.Count,
-                    fileId);
+                    fileId,
+                    originalFileName);
 
                 int cleanedCount = 0;
 
@@ -449,20 +628,32 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
                             {
                                 // Try to parse as file list
                                 var files = JsonSerializer.Deserialize<List<UploadDto>>(fieldValue);
-                                if (files?.Any(f => f.Id == fileId) == true)
+                                if (files != null)
                                 {
-                                    // Remove the infected file
-                                    files.RemoveAll(f => f.Id == fileId);
+                                    // Match by BOTH file ID and original filename
+                                    var infectedFiles = files.Where(f => 
+                                        f.Id == fileId || 
+                                        string.Equals(f.OriginalFileName, originalFileName, StringComparison.OrdinalIgnoreCase)
+                                    ).ToList();
                                     
-                                    // Update the field
-                                    flowData[fieldKey] = JsonSerializer.Serialize(files);
-                                    modified = true;
-
-                                    logger.LogInformation(
-                                        "Removed infected file {FileId} from field {FieldKey} in session {SessionKey}",
-                                        fileId,
-                                        fieldKey,
-                                        sessionKey);
+                                    if (infectedFiles.Any())
+                                    {
+                                        // Remove all matching infected files
+                                        foreach (var infectedFile in infectedFiles)
+                                        {
+                                            files.Remove(infectedFile);
+                                            logger.LogInformation(
+                                                "Removed infected file {FileId} ({FileName}) from field {FieldKey} in session {SessionKey}",
+                                                infectedFile.Id,
+                                                infectedFile.OriginalFileName,
+                                                fieldKey,
+                                                sessionKey);
+                                        }
+                                        
+                                        // Update the field
+                                        flowData[fieldKey] = JsonSerializer.Serialize(files);
+                                        modified = true;
+                                    }
                                 }
                             }
                             catch (JsonException)
@@ -515,7 +706,7 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
                 {
                     Message = $"The selected file '{fileName}' contains a virus called [{malwareName}]. We have deleted the file. Upload a new one.",
                     Category = "malware-detection",
-                    Context = $"file-{fileId}",
+                    Context = $"Transfers",
                     Type = NotificationType.Error,
                     AutoDismiss = false,
                     Metadata = new Dictionary<string, object>

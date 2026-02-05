@@ -46,6 +46,17 @@ namespace DfE.ExternalApplications.Application.Interfaces
         bool AreAllTasksCompleted(FormTemplate template, Dictionary<string, object> formData, Guid? applicationId, ISession session, string applicationStatus);
 
         /// <summary>
+        /// Validates all required fields across all tasks for submission.
+        /// Unlike AreAllTasksCompleted, this method checks actual field values rather than trusting explicit task status.
+        /// This ensures that if a file was removed (e.g., by virus scanner), the validation fails.
+        /// </summary>
+        /// <param name="template">The form template</param>
+        /// <param name="formData">The current form data</param>
+        /// <param name="isFieldHidden">Optional predicate to check if a field is hidden by conditional logic</param>
+        /// <returns>Dictionary of task IDs to their missing required field IDs</returns>
+        Dictionary<string, List<string>> ValidateAllRequiredFieldsForSubmission(FormTemplate template, Dictionary<string, object> formData, Func<string, bool>? isFieldHidden = null);
+
+        /// <summary>
         /// Converts JSON element to appropriate object type
         /// </summary>
         object GetJsonElementValue(System.Text.Json.JsonElement element);

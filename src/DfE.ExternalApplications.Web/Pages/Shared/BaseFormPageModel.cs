@@ -158,6 +158,17 @@ namespace DfE.ExternalApplications.Web.Pages.Shared
         }
 
         /// <summary>
+        /// Validates all required fields across all tasks for submission.
+        /// Unlike AreAllTasksCompleted, this method checks actual field values rather than trusting explicit task status.
+        /// </summary>
+        /// <param name="isFieldHidden">Optional predicate to check if a field is hidden by conditional logic</param>
+        /// <returns>Dictionary of task IDs to their missing required field IDs. Empty if all valid.</returns>
+        public Dictionary<string, List<string>> ValidateAllRequiredFieldsForSubmission(Func<string, bool>? isFieldHidden = null)
+        {
+            return _applicationStateService.ValidateAllRequiredFieldsForSubmission(Template, FormData, isFieldHidden);
+        }
+
+        /// <summary>
         /// Gets the CSS class for task status display
         /// </summary>
         public string GetTaskStatusDisplayClass(Domain.Models.TaskStatus status)

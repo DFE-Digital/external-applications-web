@@ -482,6 +482,32 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 return Page();
             }
 
+            // Additional validation: Check that all required fields actually have values
+            // This catches cases where files were removed by virus scanner after task was marked complete
+            var tasksWithMissingFields = ValidateAllRequiredFieldsForSubmission(IsFieldHidden);
+            if (tasksWithMissingFields.Any())
+            {
+                _logger.LogWarning(
+                    "Cannot submit application {ReferenceNumber} - {TaskCount} task(s) have missing required fields: {TaskIds}",
+                    ReferenceNumber,
+                    tasksWithMissingFields.Count,
+                    string.Join(", ", tasksWithMissingFields.Keys));
+                
+                // Override the form state for preview with errors
+                CurrentFormState = FormState.ApplicationPreview;
+                
+                // Find task names for better error message
+                var taskNames = tasksWithMissingFields.Keys
+                    .Select(taskId => Template?.TaskGroups?
+                        .SelectMany(g => g.Tasks)
+                        .FirstOrDefault(t => t.TaskId == taskId)?.TaskName ?? taskId)
+                    .ToList();
+                
+                ModelState.AddModelError("", 
+                    $"Some sections have missing required information and need to be completed again: {string.Join(", ", taskNames)}");
+                return Page();
+            }
+
             if (!ApplicationId.HasValue)
             {
                 _logger.LogError("ApplicationId not found during submission for reference {ReferenceNumber}", ReferenceNumber);
@@ -2802,7 +2828,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 {
                     Message = SuccessMessage,
                     Category = "file-upload",
-                    Context = fieldId + "FileUpload",
+                    Context = "Transfers",
                     Type = NotificationType.Success,
                     AutoDismiss = false,
                     AutoDismissSeconds = 5
@@ -2935,7 +2961,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             {
                 Message = string.Empty, // set later when known
                 Category = "file-upload",
-                Context = fieldId + "FileDeletion",
+                Context = "Transfers",
                 Type = NotificationType.Success,
                 AutoDismiss = false,
             };
@@ -2973,65 +2999,82 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         /// <summary>
         /// Filters out any infected files from the given list using the Redis blacklist.
-        ///  This ensures infected files are never shown or re-saved, regardless of where they come from.
+        /// This ensures infected files are never shown or re-saved, regardless of where they come from.
+        /// Uses direct key lookup instead of KEYS command for better reliability and performance.
+        /// Checks both file ID-based and filename-based blacklists.
         /// </summary>
         public List<UploadDto> FilterInfectedFilesFromList(List<UploadDto> files)
         {
             if (files == null || files.Count == 0)
+            {
+                _logger.LogDebug("FilterInfectedFilesFromList: No files to filter (null or empty)");
                 return files ?? new List<UploadDto>();
+            }
             
             try
             {
                 var db = _redis.GetDatabase();
-                var server = _redis.GetServer(_redis.GetEndPoints().First());
-                
-                // Get all infected file keys from Redis blacklist
-                var infectedFileKeys = server.Keys(pattern: "DfE:InfectedFile:*").ToList();
-                
-                if (!infectedFileKeys.Any())
-                    return files; // No infected files to filter
-                
-                // Get all infected file IDs from blacklist
                 var infectedFileIds = new HashSet<Guid>();
-                foreach (var key in infectedFileKeys)
+                var appId = ApplicationId?.ToString() ?? HttpContext.Session.GetString("ApplicationId");
+                
+                _logger.LogInformation(
+                    "FilterInfectedFilesFromList: Checking {FileCount} file(s) against blacklist for application {ApplicationId}",
+                    files.Count,
+                    appId);
+                
+                // Check each file against BOTH blacklist types:
+                // 1. By file ID (DfE:InfectedFile:{fileId})
+                // 2. By filename (DfE:InfectedFileName:{applicationId}:{originalFileName})
+                foreach (var file in files)
                 {
-                    var fileDataJson = db.StringGet(key);
-                    if (!fileDataJson.IsNullOrEmpty)
+                    // Check by file ID
+                    var fileIdBlacklistKey = $"DfE:InfectedFile:{file.Id}";
+                    var fileIdExists = db.KeyExists(fileIdBlacklistKey);
+                    
+                    // Check by filename (fallback when file ID doesn't match)
+                    var filenameBlacklistKey = $"DfE:InfectedFileName:{appId}:{file.OriginalFileName}";
+                    var filenameExists = db.KeyExists(filenameBlacklistKey);
+                    
+                    _logger.LogInformation(
+                        "FilterInfectedFilesFromList: File {FileId} ({FileName}) - FileIdKey='{FileIdKey}' exists={FileIdExists}, FilenameKey='{FilenameKey}' exists={FilenameExists}",
+                        file.Id,
+                        file.OriginalFileName,
+                        fileIdBlacklistKey,
+                        fileIdExists,
+                        filenameBlacklistKey,
+                        filenameExists);
+                    
+                    if (fileIdExists || filenameExists)
                     {
-                        try
-                        {
-                            var fileData = JsonSerializer.Deserialize<JsonElement>(fileDataJson!);
-                            if (fileData.TryGetProperty("FileId", out var fileIdProp) && 
-                                Guid.TryParse(fileIdProp.GetString(), out var fileId))
-                            {
-                                infectedFileIds.Add(fileId);
-                            }
-                        }
-                        catch
-                        {
-                            // Skip invalid entries
-                        }
+                        infectedFileIds.Add(file.Id);
+                        _logger.LogWarning(
+                            "FilterInfectedFilesFromList: INFECTED - File {FileId} ({FileName}) WILL BE FILTERED OUT",
+                            file.Id,
+                            file.OriginalFileName);
                     }
                 }
                 
                 if (!infectedFileIds.Any())
+                {
+                    _logger.LogInformation(
+                        "FilterInfectedFilesFromList: No infected files found, returning all {FileCount} files",
+                        files.Count);
                     return files;
+                }
                 
                 // Filter out infected files
                 var cleanFiles = files.Where(f => !infectedFileIds.Contains(f.Id)).ToList();
                 
-                if (cleanFiles.Count < files.Count)
-                {
-                    _logger.LogInformation(
-                        "Filtered out {RemovedCount} infected file(s) from list",
-                        files.Count - cleanFiles.Count);
-                }
+                _logger.LogWarning(
+                    "FilterInfectedFilesFromList: Filtered out {RemovedCount} infected file(s), returning {CleanCount} clean files",
+                    files.Count - cleanFiles.Count,
+                    cleanFiles.Count);
                 
                 return cleanFiles;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error filtering infected files from list, returning original list");
+                _logger.LogError(ex, "FilterInfectedFilesFromList: ERROR - returning original list of {FileCount} files", files.Count);
                 return files; // Return original list if filtering fails
             }
         }
@@ -3068,8 +3111,15 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         private async Task<IReadOnlyList<UploadDto>> GetFilesForFieldAsync(Guid appId, string fieldId)
         {
+            _logger.LogInformation(
+                "GetFilesForFieldAsync: START - AppId={AppId}, FieldId={FieldId}, IsCollectionFlow={IsCollectionFlow}",
+                appId, fieldId, IsCollectionFlow);
+            
             if (string.IsNullOrEmpty(fieldId))
+            {
+                _logger.LogDebug("GetFilesForFieldAsync: Empty fieldId, returning empty list");
                 return new List<UploadDto>().AsReadOnly();
+            }
 
             if (IsCollectionFlow)
             {
@@ -3086,7 +3136,13 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         try
                         {
                             var files = JsonSerializer.Deserialize<List<UploadDto>>(sessionFilesJson) ?? new List<UploadDto>();
+                            _logger.LogInformation(
+                                "GetFilesForFieldAsync: COLLECTION FLOW SESSION - Found {FileCount} files in session before filtering",
+                                files.Count);
                             var cleanFiles = FilterInfectedFilesFromList(files);
+                            _logger.LogInformation(
+                                "GetFilesForFieldAsync: COLLECTION FLOW SESSION - Returning {FileCount} files after filtering",
+                                cleanFiles.Count);
                             return cleanFiles.AsReadOnly();
                         }
                         catch (JsonException ex)
@@ -3190,13 +3246,24 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 // For regular forms, get files from session
                 var sessionKey = $"UploadedFiles_{appId}_{fieldId}";
                 var sessionFilesJson = HttpContext.Session.GetString(sessionKey);
+                
+                _logger.LogInformation(
+                    "GetFilesForFieldAsync: REGULAR FORM - SessionKey={SessionKey}, HasData={HasData}",
+                    sessionKey,
+                    !string.IsNullOrWhiteSpace(sessionFilesJson));
 
                 if (!string.IsNullOrWhiteSpace(sessionFilesJson))
                 {
                     try
                     {
                         var files = JsonSerializer.Deserialize<List<UploadDto>>(sessionFilesJson) ?? new List<UploadDto>();
+                        _logger.LogInformation(
+                            "GetFilesForFieldAsync: REGULAR FORM SESSION - Found {FileCount} files in session before filtering",
+                            files.Count);
                         var cleanFiles = FilterInfectedFilesFromList(files);
+                        _logger.LogInformation(
+                            "GetFilesForFieldAsync: REGULAR FORM SESSION - Returning {FileCount} files after filtering",
+                            cleanFiles.Count);
                         return cleanFiles.AsReadOnly();
                     }
                     catch (Exception ex)
@@ -3209,6 +3276,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 // This handles the case where session is empty after app restart but DB has files
                 try
                 {
+                    _logger.LogInformation("GetFilesForFieldAsync: REGULAR FORM - Falling back to accumulated data");
                     var accumulatedData = applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
                     
                     if (accumulatedData.TryGetValue(fieldId, out var fieldValue))
@@ -3220,7 +3288,13 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                             try
                             {
                                 var files = JsonSerializer.Deserialize<List<UploadDto>>(fieldValueStr) ?? new List<UploadDto>();
+                                _logger.LogInformation(
+                                    "GetFilesForFieldAsync: REGULAR FORM ACCUMULATED - Found {FileCount} files before filtering",
+                                    files.Count);
                                 var cleanFiles = FilterInfectedFilesFromList(files);
+                                _logger.LogInformation(
+                                    "GetFilesForFieldAsync: REGULAR FORM ACCUMULATED - Returning {FileCount} files after filtering",
+                                    cleanFiles.Count);
                                 return cleanFiles.AsReadOnly();
                             }
                             catch (JsonException)
@@ -3236,6 +3310,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 }
             }
 
+            _logger.LogInformation("GetFilesForFieldAsync: END - Returning empty list (no files found)");
             return new List<UploadDto>().AsReadOnly();
         }
 
@@ -3268,35 +3343,76 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         private bool FileExistInSessionList(Guid appId, string fieldId, string fileName)
         {
+            // First check if this filename is in the infected blacklist
+            // If it is, we should ALLOW re-upload (the old infected file should be replaced)
+            try
+            {
+                var db = _redis.GetDatabase();
+                var filenameBlacklistKey = $"DfE:InfectedFileName:{appId}:{fileName}";
+                if (db.KeyExists(filenameBlacklistKey))
+                {
+                    _logger.LogInformation(
+                        "File '{FileName}' is in infected blacklist, allowing re-upload",
+                        fileName);
+                    return false; // Allow re-upload of infected files
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error checking infected blacklist for file '{FileName}'", fileName);
+            }
 
             if (IsCollectionFlow)
             {
-                // For collection flows, store in flow progress system
-                var progressKey = GetFlowProgressSessionKey(FlowId, InstanceId);
-
-                //  FIX: Use same method as page load for consistency
+                // For collection flows, check the actual file list (not just string search)
                 var existingProgress = LoadFlowProgress(FlowId, InstanceId);
-
-                // Force session to commit immediately
-
-                var sessionFiles = HttpContext.Session.GetString(progressKey);
-
-                if (sessionFiles?.IndexOf(fileName, StringComparison.InvariantCultureIgnoreCase) >= 0)
-                    return true;
+                
+                if (existingProgress.TryGetValue(fieldId, out var filesJson) && !string.IsNullOrEmpty(filesJson?.ToString()))
+                {
+                    try
+                    {
+                        var files = JsonSerializer.Deserialize<List<UploadDto>>(filesJson.ToString()!);
+                        if (files != null)
+                        {
+                            // Filter out infected files before checking
+                            var cleanFiles = FilterInfectedFilesFromList(files);
+                            return cleanFiles.Any(f => string.Equals(f.OriginalFileName, fileName, StringComparison.OrdinalIgnoreCase));
+                        }
+                    }
+                    catch (JsonException)
+                    {
+                        // Fall back to string search if parsing fails
+                        return filesJson.ToString()?.IndexOf(fileName, StringComparison.InvariantCultureIgnoreCase) >= 0;
+                    }
+                }
                 return false;
-
             }
             else
             {
-                // For regular forms, use the original session key
+                // For regular forms, check the actual file list
                 var key = $"UploadedFiles_{appId}_{fieldId}";
-                var sessionFiles = HttpContext.Session.GetString(key);
-                if (sessionFiles?.IndexOf(fileName, StringComparison.InvariantCultureIgnoreCase) >= 0)
-                    return true;
+                var sessionFilesJson = HttpContext.Session.GetString(key);
+                
+                if (!string.IsNullOrEmpty(sessionFilesJson))
+                {
+                    try
+                    {
+                        var files = JsonSerializer.Deserialize<List<UploadDto>>(sessionFilesJson);
+                        if (files != null)
+                        {
+                            // Filter out infected files before checking
+                            var cleanFiles = FilterInfectedFilesFromList(files);
+                            return cleanFiles.Any(f => string.Equals(f.OriginalFileName, fileName, StringComparison.OrdinalIgnoreCase));
+                        }
+                    }
+                    catch (JsonException)
+                    {
+                        // Fall back to string search if parsing fails
+                        return sessionFilesJson.IndexOf(fileName, StringComparison.InvariantCultureIgnoreCase) >= 0;
+                    }
+                }
                 return false;
             }
-
-            return false;
         }
 
         private async Task SaveUploadedFilesToResponseAsync(Guid appId, string fieldId, IReadOnlyList<UploadDto> files)
@@ -3316,7 +3432,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         }
 
         /// <summary>
-        /// Populates Data dictionary with files from session for upload fields so they display on GET
+        /// Populates Data dictionary with files from session for upload fields so they display on GET.
+        /// Also cleans up session by removing any infected files that have been blacklisted.
         /// </summary>
         private async Task PopulateUploadFieldsFromSessionAsync()
         {
@@ -3334,8 +3451,12 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             {
                 var fieldId = field.FieldId;
                 
-                // Get files from session
+                // Get files from session (this already filters out infected files)
                 var files = await GetFilesForFieldAsync(ApplicationId.Value, fieldId);
+                
+                // Update session with the filtered list to remove infected files from session
+                // This ensures FileExistInSessionList won't find infected files
+                UpdateSessionFileList(ApplicationId.Value, fieldId, files.ToList());
                 
                 if (files.Any())
                 {
