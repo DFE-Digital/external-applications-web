@@ -9,7 +9,7 @@
         ?? "You have entered too many characters";
 }
 <govuk-character-count id="@Model.Id" name="Data[@Model.Field.FieldId]" max-length="@maxLengthValue">
-    <govuk-character-count-label class="@labelClasses" asp-for="@Model.Field.FieldId">@Model.Field.Label</govuk-character-count-label>
+    <govuk-character-count-label class="@labelClasses" asp-for="@Model.Field.FieldId">@Model.Field.Label.Value</govuk-character-count-label>
     @{
         var (hintHtml, hintClass) = MarkdownSafe.RenderHintWithClass(Model.Field.Tooltip);
     }
