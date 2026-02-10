@@ -4,7 +4,7 @@
 @{
     var maxLengthRule = Model.Field.Validations?.Where(v => v.Type == "maxLength").FirstOrDefault()?.Rule.ToString();
     int.TryParse(maxLengthRule, out var maxLengthValue);
-    var labelClasses = Model.Field.Label.IsVisible ? "" : "govuk-visually-hidden";
+    var labelClasses = Model.Field.Label.IsVisible ? "govuk-label govuk-label--m" : "govuk-visually-hidden";
     var maxLengthMessage = Model.Field.Validations?.Where(v => v.Type == "maxLength").FirstOrDefault()?.Message
         ?? "You have entered too many characters";
 }

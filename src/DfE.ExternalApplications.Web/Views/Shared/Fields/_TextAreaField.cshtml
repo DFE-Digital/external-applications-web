@@ -4,7 +4,7 @@
 @{
     var isRequired = Model.Field.Required ?? true;
     var validationAttributes = new HtmlString(Model.ValidationAttributes);
-    var labelClasses = Model.Field.Label.IsVisible ? "" : "govuk-visually-hidden";
+    var labelClasses = Model.Field.Label.IsVisible ? "govuk-label govuk-label--m" : "govuk-visually-hidden";
 }
 
 <govuk-error-message for="@Model.Id"><span class="govuk-visually-hidden">Error: </span>@Model.ErrorMessage</govuk-error-message>
