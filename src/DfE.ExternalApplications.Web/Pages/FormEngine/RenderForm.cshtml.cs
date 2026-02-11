@@ -49,7 +49,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         ILogger<RenderFormModel> logger,
         INavigationHistoryService navigationHistoryService,
         IEventDataMapper eventDataMapper,
-        IEventPublisher publishEndpoint)
+        IEventPublisher publishEndpoint,
+        IConfiguration configuration)
         : BaseFormEngineModel(renderer, applicationResponseService, fieldFormattingService, templateManagementService,
             applicationStateService, formStateManager, formNavigationService, formDataManager, formValidationOrchestrator, formConfigurationService, logger)
     {
@@ -64,6 +65,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         private readonly INavigationHistoryService _navigationHistoryService = navigationHistoryService;
         private readonly IEventDataMapper _eventDataMapper = eventDataMapper;
         private readonly IEventPublisher _publishEndpoint = publishEndpoint;
+        private readonly string _context = configuration["ApplicationName"] ?? "Transfers";
 
         [BindProperty(SupportsGet = false)] public Dictionary<string, object> Data { get; set; } = new();
 
@@ -2828,7 +2830,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 {
                     Message = SuccessMessage,
                     Category = "file-upload",
-                    Context = "Transfers",
+                    Context = _context,
                     Type = NotificationType.Success,
                     AutoDismiss = false,
                     AutoDismissSeconds = 5
@@ -2961,7 +2963,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             {
                 Message = string.Empty, // set later when known
                 Category = "file-upload",
-                Context = "Transfers",
+                Context = _context,
                 Type = NotificationType.Success,
                 AutoDismiss = false,
             };

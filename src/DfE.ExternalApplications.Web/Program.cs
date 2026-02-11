@@ -39,6 +39,98 @@ using DfE.ExternalApplications.Web.Telemetry;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Load application-specific configuration from configurations/{APPLICATION_NAME}/ folder
+var applicationName = Environment.GetEnvironmentVariable("APPLICATION_NAME") ?? "Transfers";
+var environment = builder.Environment.EnvironmentName;
+
+// Determine the configurations folder path
+// The configurations folder is inside the Web project: src/DfE.ExternalApplications.Web/configurations/{APPLICATION_NAME}
+var configurationsPath = Path.Combine(builder.Environment.ContentRootPath, "configurations", applicationName);
+
+var baseAppsettingsPath = Path.Combine(configurationsPath, "appsettings.json");
+var envAppsettingsPath = Path.Combine(configurationsPath, $"appsettings.{environment}.json");
+
+if (Directory.Exists(configurationsPath) && File.Exists(baseAppsettingsPath))
+{
+    // Clear existing JSON configuration sources and use folder-based configs
+    // This ensures folder-based configs REPLACE default appsettings, not merge with them
+    var sourcesToRemove = builder.Configuration.Sources
+        .Where(s => s.GetType().Name.Contains("Json"))
+        .ToList();
+    
+    foreach (var source in sourcesToRemove)
+    {
+        builder.Configuration.Sources.Remove(source);
+    }
+    
+    // Add folder-based configuration
+    builder.Configuration
+        .AddJsonFile(baseAppsettingsPath, optional: false, reloadOnChange: true)
+        .AddJsonFile(envAppsettingsPath, optional: true, reloadOnChange: true);
+    
+    Console.WriteLine($"[Configuration] Application: {applicationName}");
+    Console.WriteLine($"[Configuration] Environment: {environment}");
+    Console.WriteLine($"[Configuration] Path: {configurationsPath}");
+}
+else
+{
+    Console.WriteLine($"[Configuration] WARNING: Folder-based configuration not found at {configurationsPath}");
+    Console.WriteLine($"[Configuration] Using default appsettings from project directory.");
+}
+
+// Load application-specific user secrets in Development environment
+// User secrets are stored in the standard location using the project's UserSecretsId
+// The secrets.json file should have sections per application: { "Transfers": {...}, "Lsrp": {...} }
+// Right-click project -> "Manage User Secrets" in Visual Studio to edit
+if (builder.Environment.IsDevelopment())
+{
+    // Add standard user secrets (uses UserSecretsId from .csproj)
+    builder.Configuration.AddUserSecrets(typeof(Program).Assembly, optional: true);
+    
+    // Check if there's an application-specific section in user secrets
+    var appSecretsSection = builder.Configuration.GetSection(applicationName);
+    if (appSecretsSection.Exists())
+    {
+        // Bind the application-specific section to the root configuration
+        var appSecrets = appSecretsSection.GetChildren();
+        foreach (var secret in appSecrets)
+        {
+            // Add each setting from the app section to the root configuration
+            builder.Configuration[secret.Key] = secret.Value;
+            
+            // Handle nested sections (e.g., "DfESignIn:ClientSecret")
+            foreach (var child in secret.GetChildren())
+            {
+                BindNestedConfiguration(builder.Configuration, secret.Key, child);
+            }
+        }
+        Console.WriteLine($"[Configuration] User secrets loaded for application: {applicationName}");
+    }
+    else
+    {
+        Console.WriteLine($"[Configuration] No application-specific secrets found for: {applicationName}");
+        Console.WriteLine($"[Configuration] Add a \"{applicationName}\" section to your secrets.json");
+        Console.WriteLine($"[Configuration] Right-click project -> 'Manage User Secrets' in Visual Studio");
+    }
+}
+
+// Helper method to bind nested configuration sections
+static void BindNestedConfiguration(ConfigurationManager config, string parentKey, IConfigurationSection section)
+{
+    var fullKey = $"{parentKey}:{section.Key}";
+    if (section.Value != null)
+    {
+        config[fullKey] = section.Value;
+    }
+    foreach (var child in section.GetChildren())
+    {
+        BindNestedConfiguration(config, fullKey, child);
+    }
+}
+
+// Environment variables always override JSON configuration
+builder.Configuration.AddEnvironmentVariables();
+
 ConfigurationManager configuration = builder.Configuration;
 
 builder.Services.AddApplicationInsightsTelemetry(configuration);
@@ -320,7 +412,7 @@ builder.Services.AddDfEMassTransit(
     {
         cfg.UseJsonSerializer();
         // Azure Service Bus specific configuration
-        cfg.SubscriptionEndpoint<ScanResultEvent>("extweb-Transfers", e =>
+        cfg.SubscriptionEndpoint<ScanResultEvent>($"extweb-{configuration["ApplicationName"]}", e =>
         {
             e.UseMessageRetry(r =>
             {
