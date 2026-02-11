@@ -1,27 +1,34 @@
 name: Deploy to environment
 
+# Manual deployment only - user must select application and environment
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
     inputs:
+      application:
+        type: choice
+        description: "Choose an application to deploy"
+        required: true
+        options:
+          - Transfers
+          - Lsrp
       environment:
-        type: environment
+        type: choice
         description: "Choose an environment to deploy to"
         required: true
+        options:
+          - development
+          - test
+          - production
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.inputs.environment }}-${{ github.run_number }}
-
-env:
-  IMAGE_NAME: extapp-app
+  group: ${{ github.workflow }}-${{ github.event.inputs.application }}-${{ github.event.inputs.environment }}-${{ github.run_number }}
 
 jobs:
   set-env:
     name: Preflight
     runs-on: ubuntu-24.04
     outputs:
+      application: ${{ steps.var.outputs.application }}
       environment: ${{ steps.var.outputs.environment }}
       branch: ${{ steps.var.outputs.branch }}
       checked-out-sha: ${{ steps.var.outputs.checked-out-sha }}
@@ -34,18 +41,28 @@ jobs:
         run: |
           GIT_REF=${{ github.ref_name }}
           GIT_BRANCH=${GIT_REF##*/}
-          INPUT=${{ github.event.inputs.environment }}
-          ENVIRONMENT=${INPUT:-"development"}
+          
+          # Get application and environment from workflow inputs (required)
+          APPLICATION="${{ github.event.inputs.application }}"
+          ENVIRONMENT="${{ github.event.inputs.environment }}"
+          
+          # Construct GitHub Environment name: transfers-development, lsrp-production, etc.
+          GITHUB_ENVIRONMENT="${APPLICATION,,}-${ENVIRONMENT,,}"
+          
+          # Construct image name: extapp-transfers, extapp-lsrp, etc.
+          IMAGE_NAME="extapp-${APPLICATION,,}"
+          
           CHECKED_OUT_SHA="$(git log -1 '--format=format:%H')"
-          TIME="$(date)"
-          echo "environment=${ENVIRONMENT,,}" >> $GITHUB_OUTPUT
+          
+          echo "application=${APPLICATION}" >> $GITHUB_OUTPUT
+          echo "environment=${GITHUB_ENVIRONMENT}" >> $GITHUB_OUTPUT
           echo "branch=$GIT_BRANCH" >> $GITHUB_OUTPUT
           echo "checked-out-sha=${CHECKED_OUT_SHA}" >> $GITHUB_OUTPUT
-          echo "image-name=${{ env.IMAGE_NAME }}" >> $GITHUB_OUTPUT
+          echo "image-name=${IMAGE_NAME}" >> $GITHUB_OUTPUT
 
 
   build-import-deploy:
-    name: Deploy to ${{ needs.set-env.outputs.environment }}
+    name: Deploy ${{ needs.set-env.outputs.application }} to ${{ needs.set-env.outputs.environment }}
     runs-on: ubuntu-24.04
     needs: [ set-env ]
     environment: ${{ needs.set-env.outputs.environment }}
@@ -64,6 +81,7 @@ jobs:
           image-name: ${{ needs.set-env.outputs.image-name }}
           build-args: |
             CI=true
+            APPLICATION=${{ needs.set-env.outputs.application }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Import
