@@ -4,12 +4,12 @@
 @{
     var maxLengthRule = Model.Field.Validations?.Where(v => v.Type == "maxLength").FirstOrDefault()?.Rule.ToString();
     int.TryParse(maxLengthRule, out var maxLengthValue);
-    var labelClasses = Model.Field.Label.IsVisible ? "" : "govuk-visually-hidden";
+    var labelClasses = Model.Field.Label.IsVisible ? "govuk-label govuk-label--m" : "govuk-visually-hidden";
     var maxLengthMessage = Model.Field.Validations?.Where(v => v.Type == "maxLength").FirstOrDefault()?.Message
         ?? "You have entered too many characters";
 }
 <govuk-character-count id="@Model.Id" name="Data[@Model.Field.FieldId]" max-length="@maxLengthValue">
-    <govuk-character-count-label class="@labelClasses" asp-for="@Model.Field.FieldId">@Model.Field.Label</govuk-character-count-label>
+    <govuk-character-count-label class="@labelClasses" asp-for="@Model.Field.FieldId">@Model.Field.Label.Value</govuk-character-count-label>
     @{
         var (hintHtml, hintClass) = MarkdownSafe.RenderHintWithClass(Model.Field.Tooltip);
     }

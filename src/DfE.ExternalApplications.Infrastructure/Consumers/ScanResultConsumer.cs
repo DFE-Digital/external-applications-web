@@ -29,6 +29,8 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
         IConfiguration configuration,
         ILogger<ScanResultConsumer> logger) : IConsumer<ScanResultEvent>
     {
+        private readonly string _applicationName = configuration["ApplicationName"] ?? "Transfers";
+
         public async Task Consume(ConsumeContext<ScanResultEvent> context)
         {
             var scanResult = context.Message;
@@ -706,7 +708,7 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
                 {
                     Message = $"The selected file '{fileName}' contains a virus called [{malwareName}]. We have deleted the file. Upload a new one.",
                     Category = "malware-detection",
-                    Context = $"Transfers",
+                    Context = _applicationName,
                     Type = NotificationType.Error,
                     AutoDismiss = false,
                     Metadata = new Dictionary<string, object>

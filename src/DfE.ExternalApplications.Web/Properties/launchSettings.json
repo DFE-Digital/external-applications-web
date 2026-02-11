@@ -9,22 +9,44 @@
     }
   },
   "profiles": {
-    "http": {
+    "Transfers-http": {
       "commandName": "Project",
       "dotnetRunMessages": true,
       "launchBrowser": true,
       "applicationUrl": "http://localhost:5210",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "APPLICATION_NAME": "Transfers"
       }
     },
-    "https": {
+    "Transfers-https": {
       "commandName": "Project",
       "dotnetRunMessages": true,
       "launchBrowser": true,
       "applicationUrl": "https://localhost:7020;http://localhost:5210",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "APPLICATION_NAME": "Transfers"
+      }
+    },
+    "Lsrp-http": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "applicationUrl": "http://localhost:5211",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "APPLICATION_NAME": "Lsrp"
+      }
+    },
+    "Lsrp-https": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "applicationUrl": "https://localhost:7020;http://localhost:5211",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "APPLICATION_NAME": "Lsrp"
       }
     },
     "https-Local": {
@@ -35,6 +57,7 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Local",
         "DOTNET_ENVIRONMENT": "Development",
+        "APPLICATION_NAME": "Transfers",
         "GITHUB_ACTIONS": "true"
       }
     },
@@ -42,7 +65,8 @@
       "commandName": "IISExpress",
       "launchBrowser": true,
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "APPLICATION_NAME": "Transfers"
       }
     }
   }

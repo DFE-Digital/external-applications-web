@@ -7,9 +7,10 @@
 @addTagHelper *, GovUK.Dfe.CoreLibs.Security
 @model DfE.ExternalApplications.Web.Pages.Applications.DashboardModel
 @inject IAuthorizationService AuthService
+@inject IConfiguration Configuration
 
 @{
-    ViewData["Title"] = "Transfer academies to another academy trust";
+    ViewData["Title"] = Configuration["Layout:ServiceName"];
 }
 
 <div class="govuk-grid-row">
