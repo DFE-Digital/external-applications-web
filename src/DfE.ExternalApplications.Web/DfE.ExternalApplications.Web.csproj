@@ -5,15 +5,15 @@
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<UserSecretsId>8051c984-585b-4a5e-b6d7-833e5dd4afe7</UserSecretsId>
-		<Version>1.1.0</Version>
-		<InformationalVersion>1.1.0</InformationalVersion>
+		<Version>1.2.0</Version>
+		<InformationalVersion>1.2.0</InformationalVersion>
 		<IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
 	</PropertyGroup>
 
 	<ItemGroup>
 		<PackageReference Include="GovUK.Dfe.CoreLibs.Security" Version="1.1.21-prerelease-15" />
 		<PackageReference Include="GovUk.Frontend.AspNetCore" Version="3.2.2" />
-		<PackageReference Include="HtmlSanitizer" Version="9.0.886" />
+		<PackageReference Include="HtmlSanitizer" Version="9.0.892" />
 		<PackageReference Include="Markdig" Version="0.42.0" />
 		<PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" Version="2.22.0" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />

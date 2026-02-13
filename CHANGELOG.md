@@ -13,3 +13,8 @@ All notable changes to this service will be documented in this file.
 ## [1.1.0] – Public Beta
 ### Notes
 - Added Support for Multi-Tenancy. This service is now a Tenant of EAT API.
+
+## [1.2.0] – Public Beta
+### Notes
+- As part of the Multi-Tenancy, we have now converted EAT Web to a single repository deployed to multiple services
+- Each service will have it's own set of appsettings.json files, and it is decided at the time of the deployment which one is deployed to the container.
