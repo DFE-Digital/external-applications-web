@@ -18,3 +18,7 @@ All notable changes to this service will be documented in this file.
 ### Notes
 - As part of the Multi-Tenancy, we have now converted EAT Web to a single repository deployed to multiple services
 - Each service will have it's own set of appsettings.json files, and it is decided at the time of the deployment which one is deployed to the container.
+
+## [1.2.1] – Public Beta
+### Notes
+- Updated LSRP Test env appsettings with an update DSI auth details and Front-Door URL.
