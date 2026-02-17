@@ -4,6 +4,7 @@ using GovUK.Dfe.CoreLibs.Security.Configurations;
 using GovUK.Dfe.CoreLibs.Security.Interfaces;
 using GovUK.Dfe.CoreLibs.Security.OpenIdConnect;
 using DfE.ExternalApplications.Application.Interfaces;
+using DfE.ExternalApplications.Application.Options;
 using DfE.ExternalApplications.Infrastructure.Parsers;
 using DfE.ExternalApplications.Infrastructure.Providers;
 using DfE.ExternalApplications.Infrastructure.Services;
@@ -390,9 +391,19 @@ builder.Services.AddServiceCaching(configuration);
 builder.Services.AddSingleton<IFormTemplateParser, JsonFormTemplateParser>();
 builder.Services.AddScoped<IFormTemplateProvider, FormTemplateProvider>();
 
+// Application submission configuration (mapper key and handlers per application)
+builder.Services.Configure<ApplicationSubmissionOptions>(configuration.GetSection("ApplicationSubmission"));
+
 // Event mapping and publishing services
 builder.Services.AddSingleton<IEventMappingProvider, EventMappingProvider>();
-builder.Services.AddScoped<IEventDataMapper, EventDataMapper>();
+builder.Services.AddKeyedScoped<IEventDataMapper, EventDataMapper>("Default");
+builder.Services.AddScoped<IEventDataMapperFactory, EventDataMapperFactory>();
+builder.Services.AddSingleton<IEventTypeRegistry, EventTypeRegistry>();
+
+// Application submission handlers (resolved by key from ApplicationSubmission:Handlers)
+builder.Services.AddKeyedScoped<IApplicationSubmittedHandler, PublishEventApplicationSubmittedHandler>("PublishEvent");
+builder.Services.AddKeyedScoped<IApplicationSubmittedHandler, NoOpApplicationSubmittedHandler>("NoOp");
+builder.Services.AddScoped<IApplicationSubmissionOrchestrator, ApplicationSubmissionOrchestrator>();
 
 builder.Services.AddDfEMassTransit(
     configuration,
