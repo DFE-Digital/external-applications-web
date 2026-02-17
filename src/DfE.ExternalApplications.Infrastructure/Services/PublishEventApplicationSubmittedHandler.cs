@@ -67,7 +67,7 @@ public class PublishEventApplicationSubmittedHandler(
                     .AddCustomProperty("serviceName", "extweb")
                     .Build();
 
-                await publishEndpoint.PublishAsync(eventData, messageProperties, cancellationToken);
+                await PublishAsync(publishEndpoint, eventType, eventData, messageProperties, cancellationToken);
 
                 logger.LogInformation(
                     "Successfully published {EventType} for application {ApplicationId} with reference {ApplicationReference}",
@@ -84,6 +84,26 @@ public class PublishEventApplicationSubmittedHandler(
                     applicationId);
             }
         }
+    }
+
+    /// <summary>
+    /// Calls IEventPublisher.PublishAsync with the concrete event type so MassTransit routes to the correct topic
+    /// (publishing as object would cause "Messages types must not be in the System namespace: System.Object").
+    /// </summary>
+    private static async Task PublishAsync(
+        IEventPublisher publishEndpoint,
+        Type eventType,
+        object eventData,
+        object messageProperties,
+        CancellationToken cancellationToken)
+    {
+        var publishMethod = typeof(IEventPublisher)
+            .GetMethods()
+            .First(m => m.Name == nameof(IEventPublisher.PublishAsync) && m.IsGenericMethodDefinition && m.GetParameters().Length == 3);
+        var genericPublish = publishMethod.MakeGenericMethod(eventType);
+        var task = genericPublish.Invoke(publishEndpoint, [eventData, messageProperties, cancellationToken]);
+        if (task is Task t)
+            await t.ConfigureAwait(false);
     }
 
     private static async Task<object?> MapToEventAsync(
