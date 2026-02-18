@@ -7,11 +7,7 @@ using DfE.ExternalApplications.Web.Services;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
-using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Events;
-using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Interfaces;
-using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Models;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
-using MassTransit;
 using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.AspNetCore.Mvc;
 using StackExchange.Redis;
@@ -48,8 +44,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         IConnectionMultiplexer redis,
         ILogger<RenderFormModel> logger,
         INavigationHistoryService navigationHistoryService,
-        IEventDataMapper eventDataMapper,
-        IEventPublisher publishEndpoint,
+        IApplicationSubmissionOrchestrator applicationSubmissionOrchestrator,
         IConfiguration configuration)
         : BaseFormEngineModel(renderer, applicationResponseService, fieldFormattingService, templateManagementService,
             applicationStateService, formStateManager, formNavigationService, formDataManager, formValidationOrchestrator, formConfigurationService, logger)
@@ -63,8 +58,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         private readonly IConnectionMultiplexer _redis = redis;
         private readonly IFieldRequirementService _fieldRequirementService = fieldRequirementService;
         private readonly INavigationHistoryService _navigationHistoryService = navigationHistoryService;
-        private readonly IEventDataMapper _eventDataMapper = eventDataMapper;
-        private readonly IEventPublisher _publishEndpoint = publishEndpoint;
+        private readonly IApplicationSubmissionOrchestrator _applicationSubmissionOrchestrator = applicationSubmissionOrchestrator;
         private readonly string _context = configuration["ApplicationName"] ?? "Transfers";
 
         [BindProperty(SupportsGet = false)] public Dictionary<string, object> Data { get; set; } = new();
@@ -533,8 +527,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     _logger.LogInformation("Successfully submitted application {ApplicationId} with reference {ReferenceNumber}", 
                         ApplicationId.Value, ReferenceNumber);
                     
-                    // Publish event to service bus
-                    await PublishApplicationSubmittedEventAsync(submittedApplication);
+                    await _applicationSubmissionOrchestrator.ExecuteOnSubmittedAsync(submittedApplication, FormData, Template!, CancellationToken.None);
                 }
                 else
                 {
@@ -3668,63 +3661,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
 
             return null;
-        }
-
-        #endregion
-
-        #region Event Publishing
-
-        /// <summary>
-        /// Publishes the TransferApplicationSubmittedEvent to the service bus
-        /// Uses the event data mapper to extract and transform form data according to the configured mapping
-        /// </summary>
-        /// <param name="application">The submitted application</param>
-        private async Task PublishApplicationSubmittedEventAsync(ApplicationDto application)
-        {
-            try
-            {
-                _logger.LogInformation(
-                    "Starting event publishing for application {ApplicationId}",
-                    application.ApplicationId);
-
-                // Map form data to event using the configured mapping
-                var eventData = await _eventDataMapper.MapToEventAsync<TransferApplicationSubmittedEvent>(
-                    FormData,
-                    Template,
-                    "transfer-application-submitted-v1",
-                    application.ApplicationId,
-                    application.ApplicationReference);
-
-
-                // Build Azure Service Bus message properties
-                var messageProperties = AzureServiceBusMessagePropertiesBuilder
-                    .Create()
-                    .AddCustomProperty("serviceName", "extweb")
-                    .Build();
-
-                // Publish to Azure Service Bus via MassTransit
-                await publishEndpoint.PublishAsync(
-                    eventData,
-                    messageProperties,
-                    CancellationToken.None);
-
-                _logger.LogInformation(
-                    "Successfully published TransferApplicationSubmittedEvent for application {ApplicationId} with reference {ApplicationReference}",
-                    application.ApplicationId,
-                    application.ApplicationReference);
-            }
-            catch (Exception ex)
-            {
-                // Log the error but don't fail the submission
-                // The application has already been successfully submitted to the database
-                _logger.LogError(
-                    ex,
-                    "Failed to publish TransferApplicationSubmittedEvent for application {ApplicationId}. " +
-                    "Application was successfully submitted, but event publishing failed.",
-                    application.ApplicationId);
-                
-                // Don't throw - we don't want to fail the user's submission because event publishing failed
-            }
         }
 
         #endregion
