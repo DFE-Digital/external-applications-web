@@ -1,6 +1,7 @@
 using DfE.ExternalApplications.Application.Interfaces;
 using Microsoft.Extensions.Logging;
 using System.Globalization;
+using System.Text.Json;
 
 namespace DfE.ExternalApplications.Infrastructure.Services
 {
@@ -32,6 +33,10 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                 return result;
             }
 
+            // Enrich form data from any JSON object values (e.g. complex field "Data[EstablishmentComplexField]")
+            // so that trustname, ukprn, postcode etc. are available for display, same as UKPRN.
+            AugmentFormDataFromJsonValues(formData);
+
             // If no specific display fields are specified, show all non-system fields
             var fieldsToShow = displayFields?.Any() == true 
                 ? displayFields 
@@ -57,6 +62,107 @@ namespace DfE.ExternalApplications.Infrastructure.Services
 
             _logger.LogInformation("Formatted {Count} fields for confirmation display", result.Count);
             return result;
+        }
+
+        /// <summary>
+        /// Enriches form data by parsing any JSON object values (e.g. complex autocomplete field values)
+        /// and adding trustname, ukprn, postcode so they can be displayed on the confirmation page,
+        /// matching how UKPRN is sourced from the same JSON.
+        /// </summary>
+        private void AugmentFormDataFromJsonValues(Dictionary<string, object> formData)
+        {
+            if (formData == null) return;
+
+            foreach (var kvp in formData.ToList())
+            {
+                var value = kvp.Value;
+                if (value == null) continue;
+
+                if (value is string s && s.TrimStart().StartsWith("{"))
+                {
+                    TryExtractDisplayFieldsFromJson(s, formData);
+                    continue;
+                }
+
+                if (value is JsonElement je && je.ValueKind == JsonValueKind.Object)
+                {
+                    TryExtractDisplayFieldsFromJsonElement(je, formData);
+                }
+            }
+        }
+
+        private static void TryExtractDisplayFieldsFromJson(string value, Dictionary<string, object> sink)
+        {
+            if (string.IsNullOrWhiteSpace(value) || !value.Trim().StartsWith("{")) return;
+            try
+            {
+                using var doc = JsonDocument.Parse(value);
+                if (doc.RootElement.ValueKind != JsonValueKind.Object) return;
+                ExtractDisplayFieldsFromRoot(doc.RootElement, sink);
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+
+        private static void TryExtractDisplayFieldsFromJsonElement(JsonElement root, Dictionary<string, object> sink)
+        {
+            if (root.ValueKind != JsonValueKind.Object) return;
+            try
+            {
+                ExtractDisplayFieldsFromRoot(root, sink);
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+
+        private static void ExtractDisplayFieldsFromRoot(JsonElement root, Dictionary<string, object> sink)
+        {
+            string? name = null;
+            string? ukprn = null;
+            string? postcode = null;
+            string? chNo = null;
+
+            if (root.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String)
+                name = n.GetString();
+            if (root.TryGetProperty("ukprn", out var u) && (u.ValueKind == JsonValueKind.String || u.ValueKind == JsonValueKind.Number))
+                ukprn = u.ToString();
+            if (root.TryGetProperty("postcode", out var pc) && pc.ValueKind == JsonValueKind.String)
+                postcode = pc.GetString();
+            if (string.IsNullOrWhiteSpace(postcode) && root.TryGetProperty("postCode", out var pc2) && pc2.ValueKind == JsonValueKind.String)
+                postcode = pc2.GetString();
+            if (string.IsNullOrWhiteSpace(postcode) && root.TryGetProperty("postalCode", out var pc3) && pc3.ValueKind == JsonValueKind.String)
+                postcode = pc3.GetString();
+            if (root.TryGetProperty("companiesHouseNumber", out var c) && c.ValueKind == JsonValueKind.String)
+                chNo = c.GetString();
+            if (string.IsNullOrWhiteSpace(chNo) && root.TryGetProperty("companiesHousenumber", out var c2) && c2.ValueKind == JsonValueKind.String)
+                chNo = c2.GetString();
+
+            if (root.TryGetProperty("address", out var addr) && addr.ValueKind == JsonValueKind.Object)
+            {
+                if (string.IsNullOrWhiteSpace(postcode) && addr.TryGetProperty("postcode", out var apc) && apc.ValueKind == JsonValueKind.String)
+                    postcode = apc.GetString();
+                if (string.IsNullOrWhiteSpace(postcode) && addr.TryGetProperty("postCode", out var apc2) && apc2.ValueKind == JsonValueKind.String)
+                    postcode = apc2.GetString();
+                if (string.IsNullOrWhiteSpace(postcode) && addr.TryGetProperty("postalCode", out var apc3) && apc3.ValueKind == JsonValueKind.String)
+                    postcode = apc3.GetString();
+            }
+
+            void AddIfMissing(string key, string? val)
+            {
+                if (string.IsNullOrWhiteSpace(val)) return;
+                if (!sink.ContainsKey(key)) sink[key] = val;
+            }
+
+            AddIfMissing("trustName", name);
+            AddIfMissing("trustname", name);
+            AddIfMissing("ukprn", ukprn);
+            AddIfMissing("postcode", postcode);
+            AddIfMissing("companiesHouseNumber", chNo);
+            AddIfMissing("companiesHousenumber", chNo);
         }
 
         /// <summary>

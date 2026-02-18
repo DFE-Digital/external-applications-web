@@ -221,8 +221,8 @@ namespace DfE.ExternalApplications.Web.Services
                     }
                 }
                 
-                // Try to get UKPRN or other identifier fields (support common casing variants)
-                var identifierProperties = new[] { "ukprn", "id", "urn", "companiesHouseNumber", "companieshousenumber", "companies_house_number", "code", "localAuthorityName", "gor" };
+                // Try to get UKPRN or other identifier/display fields (support common casing variants)
+                var identifierProperties = new[] { "ukprn", "id", "urn", "companiesHouseNumber", "companieshousenumber", "companies_house_number", "code", "localAuthorityName", "gor", "postcode", "postCode" };
                 foreach (var propertyName in identifierProperties)
                 {
                     if (item.TryGetProperty(propertyName, out var property))
@@ -256,7 +256,33 @@ namespace DfE.ExternalApplications.Web.Services
                         }
                     }
                 }
-                
+
+                // For establishments, also extract postcode from nested address (e.g. DfE API: address.postcode)
+                if (string.Equals(complexFieldId, "EstablishmentComplexField", StringComparison.OrdinalIgnoreCase)
+                    && !result.ContainsKey("postcode")
+                    && item.TryGetProperty("address", out var addressEl)
+                    && addressEl.ValueKind == JsonValueKind.Object)
+                {
+                    if (addressEl.TryGetProperty("postcode", out var postcodeEl) && postcodeEl.ValueKind == JsonValueKind.String)
+                    {
+                        var postcodeVal = postcodeEl.GetString();
+                        if (!string.IsNullOrEmpty(postcodeVal))
+                            result["postcode"] = postcodeVal;
+                    }
+                    if (!result.ContainsKey("postcode") && addressEl.TryGetProperty("postCode", out var postCodeEl) && postCodeEl.ValueKind == JsonValueKind.String)
+                    {
+                        var postcodeVal = postCodeEl.GetString();
+                        if (!string.IsNullOrEmpty(postcodeVal))
+                            result["postcode"] = postcodeVal;
+                    }
+                    if (!result.ContainsKey("postcode") && addressEl.TryGetProperty("postalCode", out var postalCodeEl) && postalCodeEl.ValueKind == JsonValueKind.String)
+                    {
+                        var postcodeVal = postalCodeEl.GetString();
+                        if (!string.IsNullOrEmpty(postcodeVal))
+                            result["postcode"] = postcodeVal;
+                    }
+                }
+
                 // If we found a display name and at least one other field, return the object
                 if (!string.IsNullOrEmpty(displayName) && result.Count > 1)
                 {
