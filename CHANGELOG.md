@@ -22,3 +22,7 @@ All notable changes to this service will be documented in this file.
 ## [1.2.1] – Public Beta
 ### Notes
 - Updated LSRP Test env appsettings with an update DSI auth details and Front-Door URL.
+
+## [1.2.2] – Public Beta
+### Notes
+- Improved Event-Mapping to support multi handlers when an application is submitted.
