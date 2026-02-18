@@ -508,12 +508,21 @@
 
             var root = doc.RootElement;
             string name = root.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() ?? string.Empty : string.Empty;
+            string postcode = root.TryGetProperty("postcode", out var pc) && pc.ValueKind == JsonValueKind.String ? pc.GetString() ?? string.Empty : string.Empty;
+            if (string.IsNullOrWhiteSpace(postcode) && root.TryGetProperty("postCode", out var pc2) && pc2.ValueKind == JsonValueKind.String) postcode = pc2.GetString() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(postcode) && root.TryGetProperty("address", out var addr) && addr.ValueKind == JsonValueKind.Object)
+            {
+                if (addr.TryGetProperty("postcode", out var apc) && apc.ValueKind == JsonValueKind.String) postcode = apc.GetString() ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(postcode) && addr.TryGetProperty("postCode", out var apc2) && apc2.ValueKind == JsonValueKind.String) postcode = apc2.GetString() ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(postcode) && addr.TryGetProperty("postalCode", out var apc3) && apc3.ValueKind == JsonValueKind.String) postcode = apc3.GetString() ?? string.Empty;
+            }
             string ukprn = root.TryGetProperty("ukprn", out var u) ? u.ToString() : string.Empty;
             string ch = root.TryGetProperty("companiesHouseNumber", out var c) && c.ValueKind == JsonValueKind.String ? c.GetString() ?? string.Empty : string.Empty;
             if (string.IsNullOrWhiteSpace(ch) && root.TryGetProperty("companiesHousenumber", out var c2)) ch = c2.ToString();
 
             var sb = new System.Text.StringBuilder();
             if (!string.IsNullOrWhiteSpace(name)) sb.Append($"<strong class=\"govuk-!-font-weight-bold\">{System.Net.WebUtility.HtmlEncode(name)}</strong>");
+            if (!string.IsNullOrWhiteSpace(postcode)) sb.Append($"<br/>Postcode: {System.Net.WebUtility.HtmlEncode(postcode)}");
             if (!string.IsNullOrWhiteSpace(ukprn)) sb.Append($"<br/>UKPRN: {System.Net.WebUtility.HtmlEncode(ukprn)}");
             if (!string.IsNullOrWhiteSpace(ch)) sb.Append($"<br/>Companies house number: {System.Net.WebUtility.HtmlEncode(ch)}");
             return sb.ToString();

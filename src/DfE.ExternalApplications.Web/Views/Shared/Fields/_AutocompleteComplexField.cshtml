@@ -138,6 +138,11 @@
             currentValues.Add(Model.CurrentValue);
         }
     }
+
+    // For establishment/academy fields, show postcode on confirmation; for others use default display fields
+    var confirmationDisplayFields = string.Equals(complexFieldId, "EstablishmentComplexField", StringComparison.OrdinalIgnoreCase)
+        ? "trustname,postcode,ukprn,companiesHousenumber"
+        : "trustname,ukprn,companiesHousenumber";
 }
 
 @if (string.IsNullOrEmpty(complexFieldId))
@@ -224,7 +229,7 @@ else
         @Html.RenderPrimaryConfirmationButton(
                 buttonText: "Search",
                 handler: "Page",
-                displayFields: "trustname,ukprn,companiesHousenumber",
+                displayFields: confirmationDisplayFields,
                 buttonId: "autocomplete-confirm-button",
                 title: $"Is this the right {@configuration.Label.ToLower()}?",
                 requiredMessage: $"Select yes if this is the right { @configuration.Label.ToLower()}")
@@ -680,11 +685,25 @@ document.addEventListener('DOMContentLoaded', function() {
                             return;
                         }
 
-                        // Look up the full object from cache to ensure we have ALL properties
+                        // Look up the full object from cache to ensure we have ALL properties.
+                        // Match by unique identifier when present (ukprn, companiesHouseNumber, urn) so that
+                        // items with the same name select the correct one; try each identifier if the others are not available.
                         var fullOption = option;
                         if (typeof option === 'object' && option.name && cachedResults.length > 0) {
                             var foundInCache = cachedResults.find(function(item) {
-                                return item.name === option.name;
+                                if (typeof item !== 'object' || item === null || item.name !== option.name) return false;
+                                var itemUkprn = item.ukprn != null ? String(item.ukprn).trim() : '';
+                                var optUkprn = option.ukprn != null ? String(option.ukprn).trim() : '';
+                                if (itemUkprn && optUkprn) return itemUkprn === optUkprn;
+                                var itemCh = (item.companiesHouseNumber ?? item.companiesHousenumber ?? item.companies_house_number);
+                                var optCh = (option.companiesHouseNumber ?? option.companiesHousenumber ?? option.companies_house_number);
+                                itemCh = itemCh != null ? String(itemCh).trim() : '';
+                                optCh = optCh != null ? String(optCh).trim() : '';
+                                if (itemCh && optCh) return itemCh === optCh;
+                                var itemUrn = item.urn != null ? String(item.urn).trim() : '';
+                                var optUrn = option.urn != null ? String(option.urn).trim() : '';
+                                if (itemUrn && optUrn) return itemUrn === optUrn;
+                                return true;
                             });
                             if (foundInCache) {
                                 console.log('Found full object in cache with', Object.keys(foundInCache).length, 'properties');

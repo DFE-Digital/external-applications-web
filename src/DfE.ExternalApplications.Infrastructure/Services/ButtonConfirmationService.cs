@@ -222,9 +222,9 @@ namespace DfE.ExternalApplications.Infrastructure.Services
         }
 
         /// <summary>
-        /// If the provided string contains a JSON object with well-known fields (name, ukprn, companiesHouseNumber),
+        /// If the provided string contains a JSON object with well-known fields (name, postcode, ukprn, companiesHouseNumber),
         /// augment the flattened form data with those keys for easier confirmation display.
-        /// Adds common key variants (e.g., trustname/trustName, companiesHousenumber/companiesHouseNumber).
+        /// Adds common key variants (e.g., trustname/trustName, companiesHousenumber/companiesHouseNumber, postCode/postcode).
         /// </summary>
         private static void TryAugmentFromJsonString(string value, Dictionary<string, object> sink)
         {
@@ -241,6 +241,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                 string? name = null;
                 string? ukprn = null;
                 string? chNo = null;
+                string? postcode = null;
 
                 if (root.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String)
                     name = n.GetString();
@@ -248,6 +249,20 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                     ukprn = u.ToString();
                 if (root.TryGetProperty("companiesHouseNumber", out var c) && c.ValueKind == JsonValueKind.String)
                     chNo = c.GetString();
+                if (root.TryGetProperty("postcode", out var pc) && pc.ValueKind == JsonValueKind.String)
+                    postcode = pc.GetString();
+                if (string.IsNullOrWhiteSpace(postcode) && root.TryGetProperty("postCode", out var pc2) && pc2.ValueKind == JsonValueKind.String)
+                    postcode = pc2.GetString();
+                // Nested address object (e.g. DfE establishments API: address.postcode)
+                if (string.IsNullOrWhiteSpace(postcode) && root.TryGetProperty("address", out var addr) && addr.ValueKind == JsonValueKind.Object)
+                {
+                    if (addr.TryGetProperty("postcode", out var apc) && apc.ValueKind == JsonValueKind.String)
+                        postcode = apc.GetString();
+                    if (string.IsNullOrWhiteSpace(postcode) && addr.TryGetProperty("postCode", out var apc2) && apc2.ValueKind == JsonValueKind.String)
+                        postcode = apc2.GetString();
+                    if (string.IsNullOrWhiteSpace(postcode) && addr.TryGetProperty("postalCode", out var apc3) && apc3.ValueKind == JsonValueKind.String)
+                        postcode = apc3.GetString();
+                }
 
                 // Only add if not already present
                 void AddIfMissing(string key, string? val)
@@ -258,6 +273,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
 
                 AddIfMissing("trustName", name);
                 AddIfMissing("trustname", name);
+                AddIfMissing("postcode", postcode);
                 AddIfMissing("ukprn", ukprn);
                 AddIfMissing("companiesHouseNumber", chNo);
                 AddIfMissing("companiesHousenumber", chNo); // tolerate common misspelling
