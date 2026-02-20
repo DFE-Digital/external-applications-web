@@ -31,3 +31,7 @@ All notable changes to this service will be documented in this file.
 ### Notes
 - Added postcode to the Academies Auto-Complete confirmation page.
 - Fixed a bug in Auto-Complete where duplicate items couldn't be selected.
+
+## [1.2.4]
+### Notes
+- Enabled Test Auth in LSRP Test Environment.

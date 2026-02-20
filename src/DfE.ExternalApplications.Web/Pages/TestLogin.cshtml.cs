@@ -28,8 +28,7 @@ public class TestLoginModel : PageModel
     public TestLoginModel(
         IConfiguration configuration,
         IOptions<TestAuthenticationOptions> testAuthOptions,
-        ITestAuthenticationService testAuthenticationService,
-        ICypressAuthenticationService cypressAuthService)
+        ITestAuthenticationService testAuthenticationService)
     {
         _configuration = configuration;
         _testAuthOptions = testAuthOptions.Value;
