@@ -403,6 +403,42 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                 _logger.LogInformation("Collection flow '{FlowId}' requires at least {MinItems} items but has {Count}", flow.FlowId, requiredMin, itemCount);
                             }
 
+                            // Check each collection item has all required fields completed
+                            if (flow.Pages != null && items.Any())
+                            {
+                                foreach (var item in items)
+                                {
+                                    bool itemHasMissingFields = false;
+                                    foreach (var page in flow.Pages)
+                                    {
+                                        if (page?.Fields == null) continue;
+                                        foreach (var field in page.Fields)
+                                        {
+                                            if (!_fieldRequirementService.IsFieldRequired(field, Template)) continue;
+
+                                            var hasValue = item.TryGetValue(field.FieldId, out var val)
+                                                           && val != null
+                                                           && !string.IsNullOrWhiteSpace(val.ToString());
+                                            if (!hasValue)
+                                            {
+                                                itemHasMissingFields = true;
+                                                break;
+                                            }
+                                        }
+                                        if (itemHasMissingFields) break;
+                                    }
+
+                                    if (itemHasMissingFields)
+                                    {
+                                        var flowTitle = string.IsNullOrWhiteSpace(flow.Title)
+                                            ? (string.IsNullOrWhiteSpace(CurrentTask?.TaskName) ? "this section" : CurrentTask!.TaskName)
+                                            : flow.Title;
+                                        errorLines.Add($"Complete all required questions for each item in {flowTitle}");
+                                        _logger.LogInformation("Collection flow '{FlowId}' has an item with incomplete required fields", flow.FlowId);
+                                        break;
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -1096,6 +1132,32 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     {
                         // Persist in-progress sub-flow data for this instance
                         SaveFlowProgress(flowId, instanceId, Data);
+
+                        // Also persist partial collection item to the database on every page
+                        if (ApplicationId.HasValue)
+                        {
+                            try
+                            {
+                                var accumulatedProgress = LoadFlowProgress(flowId, instanceId);
+                                AppendCollectionItemToSession(flowPages, flowFieldId, instanceId, accumulatedProgress);
+
+                                var accData = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
+                                if (accData.TryGetValue(flowFieldId, out var collectionValue))
+                                {
+                                    await _applicationResponseService.SaveApplicationResponseAsync(
+                                        ApplicationId.Value,
+                                        new Dictionary<string, object> { [flowFieldId] = collectionValue },
+                                        HttpContext.Session);
+                                    _logger.LogInformation("Saved partial collection item to database for flow {FlowId}, instance {InstanceId}, page {PageId}",
+                                        flowId, instanceId, CurrentPageId);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogError(ex, "Failed to save partial collection item for flow {FlowId}, instance {InstanceId}, page {PageId}",
+                                    flowId, instanceId, CurrentPageId);
+                            }
+                        }
 
                         var index = flowPages.FindIndex(p => p.PageId == CurrentPage.PageId);
                         var isLast = index == -1 || index >= flowPages.Count - 1;
