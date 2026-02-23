@@ -166,11 +166,6 @@
                             var currentPageIndex = flowPages.FindIndex(p => p.PageId == Model.CurrentPage.PageId);
                             isLastPageInFlow = currentPageIndex == flowPages.Count - 1;
                         }
-                        
-                        if (string.IsNullOrWhiteSpace(Model.CurrentPage.SaveButtonLabel))
-                        {
-                            buttonText = isLastPageInFlow ? "Save and continue" : "Continue";
-                        }
                     }
                 }
                 

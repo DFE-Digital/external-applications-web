@@ -35,3 +35,7 @@ All notable changes to this service will be documented in this file.
 ## [1.2.4]
 ### Notes
 - Enabled Test Auth in LSRP Test Environment.
+
+## [1.2.5]
+### Notes
+- Updated Collection Flows to save user changes on each click of Save and Continue
