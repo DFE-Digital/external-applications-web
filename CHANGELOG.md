@@ -39,3 +39,7 @@ All notable changes to this service will be documented in this file.
 ## [1.2.5]
 ### Notes
 - Updated Collection Flows to save user changes on each click of Save and Continue
+
+## [1.2.6]
+### Notes
+- Added support for checkboxes field
