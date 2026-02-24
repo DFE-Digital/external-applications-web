@@ -1,5 +1,6 @@
 @using System.Text.Json
 @using DfE.ExternalApplications.Web.Utilities
+@using DfE.ExternalApplications.Infrastructure.Services
 @using GovUk.Frontend.AspNetCore.TagHelpers
 @using Microsoft.AspNetCore.Mvc.TagHelpers
 @model DfE.ExternalApplications.Web.Pages.FormEngine.RenderFormModel
@@ -122,7 +123,9 @@
 
             @foreach (var field in Model.CurrentPage.Fields.OrderBy(f => f.Order).Where(f => !Model.IsFieldHidden(f.FieldId)))
             {
-                var currentValue = Model.Data.TryGetValue(field.FieldId, out var val) ? val?.ToString() ?? String.Empty : String.Empty;
+                var hasData = Model.Data.TryGetValue(field.FieldId, out var val);
+                var selectedValues = field.Type == "checkboxes" ? CheckboxValueNormalizer.Normalize(hasData ? val : null) : Array.Empty<string>();
+                var currentValue = hasData ? val?.ToString() ?? String.Empty : String.Empty;
 
                 var fieldModelState = ViewData.ModelState.Where(f => f.Key == field.FieldId).FirstOrDefault();
                 var errorMessage = fieldModelState.Value?.Errors?.FirstOrDefault()?.ErrorMessage ?? String.Empty;
@@ -137,7 +140,7 @@
                field.ComplexField == null ||
                !ComplexFieldConfigurationService.GetConfiguration(field.ComplexField.Id).FieldType.Equals("upload", StringComparison.OrdinalIgnoreCase))
                 {
-                    @await FieldRenderer.RenderFieldAsync(field, "Data", currentValue, errorMessage, Model.CurrentTask, Model.CurrentPage)
+                    @await FieldRenderer.RenderFieldAsync(field, "Data", currentValue, selectedValues, errorMessage, Model.CurrentTask, Model.CurrentPage)
                 }
             }
 
@@ -185,11 +188,13 @@
            field.ComplexField != null &&
            ComplexFieldConfigurationService.GetConfiguration(field.ComplexField.Id).FieldType.Equals("upload", StringComparison.OrdinalIgnoreCase))
         {
-            var currentValue = Model.Data.TryGetValue(field.FieldId, out var val) ? val?.ToString() ?? String.Empty : String.Empty;
+            var hasData = Model.Data.TryGetValue(field.FieldId, out var val);
+            var selectedValues = field.Type == "checkboxes" ? CheckboxValueNormalizer.Normalize(hasData ? val : null) : Array.Empty<string>();
+            var currentValue = hasData ? val?.ToString() ?? String.Empty : String.Empty;
             var fieldModelState = ViewData.ModelState.Where(f => f.Key == field.FieldId).FirstOrDefault();
             var errorMessage = fieldModelState.Value?.Errors?.FirstOrDefault()?.ErrorMessage ?? String.Empty;
 
-            @await FieldRenderer.RenderFieldAsync(field, "Data", currentValue, errorMessage, Model.CurrentTask, Model.CurrentPage)
+            @await FieldRenderer.RenderFieldAsync(field, "Data", currentValue, selectedValues, errorMessage, Model.CurrentTask, Model.CurrentPage)
         }
     }
 }

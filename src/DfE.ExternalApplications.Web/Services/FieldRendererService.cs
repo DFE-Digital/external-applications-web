@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Html;
+using Microsoft.AspNetCore.Html;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using DfE.ExternalApplications.Domain.Models;
@@ -13,7 +13,7 @@ namespace DfE.ExternalApplications.Web.Services
 {
     public class FieldRendererService(IServiceProvider serviceProvider) : IFieldRendererService
     {
-        public async Task<IHtmlContent> RenderFieldAsync(Field field, string prefix, string currentValue, string errorMessage, TaskModel currentTask, Page currentPage)
+        public async Task<IHtmlContent> RenderFieldAsync(Field field, string prefix, string currentValue, IReadOnlyCollection<string> selectedValues, string errorMessage, TaskModel currentTask, Page currentPage)
         {
             if (serviceProvider.GetRequiredService<IHtmlHelper>() is not IViewContextAware htmlHelper)
             {
@@ -30,7 +30,7 @@ namespace DfE.ExternalApplications.Web.Services
 
             var viewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary())
             {
-                Model = new FieldViewModel(field, prefix, DisplayHelpers.UnsanitiseHtmlInput(currentValue), errorMessage, currentTask, currentPage)
+                Model = new FieldViewModel(field, prefix, DisplayHelpers.UnsanitiseHtmlInput(currentValue), errorMessage, currentTask, currentPage, selectedValues)
             };
 
             // Pass route parameters to ViewData for use in partial views
@@ -62,12 +62,15 @@ namespace DfE.ExternalApplications.Web.Services
                 "select" => "Fields/_SelectField",
                 "text-area" => "Fields/_TextAreaField",
                 "radios" => "Fields/_RadiosField",
+                "checkboxes" => "Fields/_CheckboxesField",
                 "character-count" => "Fields/_CharacterCountField",
                 "date" => "Fields/_DateInputField",
                 "autocomplete" => "Fields/_AutocompleteField",
                 "complexField" => "Fields/_ComplexField",
                 _ => throw new NotSupportedException($"Field type '{field.Type}' not supported")
             };
+
+            viewData.Model = new FieldViewModel(field, prefix, DisplayHelpers.UnsanitiseHtmlInput(currentValue), errorMessage, currentTask, currentPage, selectedValues);
 
             return await ((IHtmlHelper)htmlHelper).PartialAsync($"~/Views/Shared/{partialName}.cshtml", viewData.Model);
         }

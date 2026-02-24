@@ -1,6 +1,7 @@
 using DfE.ExternalApplications.Application.Interfaces;
 using DfE.ExternalApplications.Domain.Models;
 using System.Globalization;
+using System.Linq;
 using System.Text.Json;
 
 namespace DfE.ExternalApplications.Infrastructure.Services
@@ -47,6 +48,15 @@ namespace DfE.ExternalApplications.Infrastructure.Services
 
         public string GetFormattedFieldValue(string fieldId, Dictionary<string, object> formData)
         {
+            if (formData.TryGetValue(fieldId, out var rawForCollection))
+            {
+                var normalized = CheckboxValueNormalizer.Normalize(rawForCollection);
+                if (normalized.Count > 0)
+                {
+                    return string.Join("<br />", normalized);
+                }
+            }
+
             var fieldValue = GetFieldValue(fieldId, formData);
             
             // DEBUG: Log formatting attempts
@@ -82,6 +92,15 @@ namespace DfE.ExternalApplications.Infrastructure.Services
 
         public List<string> GetFormattedFieldValues(string fieldId, Dictionary<string, object> formData)
         {
+            if (formData.TryGetValue(fieldId, out var rawForCollection))
+            {
+                var normalized = CheckboxValueNormalizer.Normalize(rawForCollection);
+                if (normalized.Count > 0)
+                {
+                    return normalized.ToList();
+                }
+            }
+
             var fieldValue = GetFieldValue(fieldId, formData);
             
             // DEBUG: Log formatting attempts for list version

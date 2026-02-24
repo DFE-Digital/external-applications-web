@@ -50,12 +50,24 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             {
                 var key = field.FieldId;
                 data.TryGetValue(key, out var rawValue);
-                var value = rawValue?.ToString() ?? string.Empty;
 
-                if (!ValidateField(field, value, data, modelState, key, template))
-                {
-                    isValid = false;
+
+                if (field.Type == "checkboxes") {
+                    if (!ValidateField(field, rawValue ?? string.Empty, data, modelState, key, template))
+                    {
+                        isValid = false;
+                    }
                 }
+                else
+                {
+                    var value = rawValue?.ToString() ?? string.Empty;
+                    if (!ValidateField(field, value, data, modelState, key, template))
+                    {
+                        isValid = false;
+                    }
+                }
+
+                
             }
 
             return isValid;
@@ -157,7 +169,13 @@ namespace DfE.ExternalApplications.Infrastructure.Services
         /// <returns>True if validation passes</returns>
         public bool ValidateField(Field field, object value, Dictionary<string, object>? formData, ModelStateDictionary modelState, string fieldKey, FormTemplate? template)
         {
-            var stringValue = value?.ToString() ?? string.Empty;
+            var normalizedCheckboxValues = field.Type == "checkboxes"
+                ? CheckboxValueNormalizer.Normalize(value)
+                : Array.Empty<string>();
+
+            var stringValue = field.Type == "checkboxes"
+                ? string.Join(",", normalizedCheckboxValues)
+                : value?.ToString() ?? string.Empty;
             var isValid = true;
 
             // Special handling for complex fields (upload, autocomplete, etc.)
@@ -237,15 +255,31 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             var fieldTypesWithOptions = new List<string> { "radios", "checkboxes" };
             if (fieldTypesWithOptions.Contains(field.Type, StringComparer.OrdinalIgnoreCase))
             {
-                if (!string.IsNullOrWhiteSpace(stringValue))
+                if (field.Type == "checkboxes")
+                {
+                    foreach (var checkboxOption in normalizedCheckboxValues)
+                    {
+                        var isValidOption = field.Options?.Select(o => o.Value).Contains(HttpUtility.HtmlDecode(checkboxOption)) ?? false;
+                        if (!isValidOption)
+                        {
+                            var message = GetCustomRequiredMessage(field) ?? "Select an option from the list";
+                            modelState.AddModelError(fieldKey, message);
+                            isValid = false;
+                            break;
+                        }
+                    }
+                }
+
+                else if (!string.IsNullOrWhiteSpace(stringValue))
                 {
                     var isValidOption = field.Options?.Select(o => o.Value).Contains(HttpUtility.HtmlDecode(stringValue)) ?? false;
-                    if (!isValidOption)
-                    {
-                        var message = GetCustomRequiredMessage(field) ?? "Select an option from the list";
-                        modelState.AddModelError(fieldKey, message);
-                        isValid = false;
-                    }
+                        if (!isValidOption)
+                        {
+                            var message = GetCustomRequiredMessage(field) ?? "Select an option from the list";
+                            modelState.AddModelError(fieldKey, message);
+                            isValid = false;
+                        }
+                        
                 }
             }
 

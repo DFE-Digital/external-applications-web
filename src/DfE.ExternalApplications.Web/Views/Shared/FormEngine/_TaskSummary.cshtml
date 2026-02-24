@@ -391,6 +391,27 @@
                                 var selectedOption = field.Options.FirstOrDefault(o => o.Value == fieldValue);
                                 @(selectedOption?.Label ?? fieldValue)
                             }
+                            else if (field.Type == "checkboxes" && field.Options != null)
+                            {
+                                var selectedOptionValues = Model.GetFormattedFieldValues(field.FieldId);
+                                var selectedOptions = field.Options
+                                    .Where(o => selectedOptionValues.Contains(o.Value))
+                                    .ToList();
+
+                                if (selectedOptions.Any())
+                                {
+                                    <ul class="govuk-list govuk-list--bullet">
+                                        @foreach (var option in selectedOptions)
+                                        {
+                                            <li>@(option.Label ?? option.Value)</li>
+                                        }
+                                    </ul>
+                                }
+                                else
+                                {
+                                    @(selectedOptionValues.FirstOrDefault() ?? fieldValue)
+                                }
+                            }
                             else if (field.Type == "select" && field.Options != null)
                             {
                                 var selectedOption = field.Options.FirstOrDefault(o => o.Value == fieldValue);

@@ -163,9 +163,25 @@
                                                                 }
                                                                 else if (field.Type == "checkboxes" && field.Options != null)
                                                                 {
-                                                                    var selectedValues = fieldValue.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).ToList();
-                                                                    var selectedLabels = field.Options.Where(o => selectedValues.Contains(o.Value)).Select(o => o.Label).ToList();
-                                                                    @Html.Raw(selectedLabels.Any() ? string.Join(", ", selectedLabels) : fieldValue)
+                                                                    var selectedValues = Model.GetFormattedFieldValues(field.FieldId);
+                                                                    var selectedLabels = field.Options
+                                                                        .Where(o => selectedValues.Contains(o.Value))
+                                                                        .Select(o => o.Label ?? o.Value)
+                                                                        .ToList();
+
+                                                                    if (selectedLabels.Any())
+                                                                    {
+                                                                        <ul class="govuk-list govuk-list--bullet">
+                                                                            @foreach (var label in selectedLabels)
+                                                                            {
+                                                                                <li>@label</li>
+                                                                            }
+                                                                        </ul>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        @Html.Raw(fieldValue.Replace("\r\n", "<br/>").Replace("\r", "<br/>").Replace("\n", "<br/>"))
+                                                                    }
                                                                 }
                                                                 else
                                                                 {
