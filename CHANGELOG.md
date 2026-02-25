@@ -40,6 +40,11 @@ All notable changes to this service will be documented in this file.
 ### Notes
 - Updated Collection Flows to save user changes on each click of Save and Continue
 
+## [1.2.6]
+### Notes
+- Fixed Collection Flow validation and conditional logic issues
+
 ## [1.2.8]
 ### Notes
 - Added a flag to the template's Task node to support moving of the Task Summary to the end of the Task journey.
+
