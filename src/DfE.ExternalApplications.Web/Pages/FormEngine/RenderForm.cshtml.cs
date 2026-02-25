@@ -416,6 +416,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                                         {
                                             if (!_fieldRequirementService.IsFieldRequired(field, Template)) continue;
 
+                                            if (IsFieldHiddenForItem(field.FieldId, item)) continue;
+
                                             var hasValue = item.TryGetValue(field.FieldId, out var val)
                                                            && val != null
                                                            && !string.IsNullOrWhiteSpace(val.ToString());
@@ -2706,7 +2708,12 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     return !isVisible;
                 }
 
-                return false; // Default to visible if field not found in conditional logic
+                if (Template?.ConditionalLogic != null && HasFieldConditionalLogic(fieldId))
+                {
+                    return true;
+                }
+
+                return false;
             }
             catch (Exception ex)
             {
