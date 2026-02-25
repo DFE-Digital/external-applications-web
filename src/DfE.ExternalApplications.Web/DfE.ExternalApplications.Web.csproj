@@ -5,8 +5,8 @@
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<UserSecretsId>8051c984-585b-4a5e-b6d7-833e5dd4afe7</UserSecretsId>
-		<Version>1.2.6</Version>
-		<InformationalVersion>1.2.6</InformationalVersion>
+		<Version>1.2.8</Version>
+		<InformationalVersion>1.2.8</InformationalVersion>
 		<IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
 	</PropertyGroup>
 
