@@ -262,7 +262,8 @@
                                             // Display each field for this collection item
                                             @foreach (var col in (flow.SummaryColumns ?? new List<DfE.ExternalApplications.Domain.Models.FlowSummaryColumn>()).Where(c => !Model.IsFieldHiddenForItem(c.Field, item)))
                                             {
-                                                var value = DisplayHelpers.InterpolateMessage($"{{{col.Field}}}", DisplayHelpers.ExpandEncodedJson(item));
+                                                var rawValue = DisplayHelpers.InterpolateMessage($"{{{col.Field}}}", DisplayHelpers.ExpandEncodedJson(item));
+                                                var value = rawValue == $"{{{col.Field}}}" ? string.Empty : rawValue;
                                                 
                                                 <div class="govuk-summary-list__row">
                                                     <dt class="govuk-summary-list__key">
