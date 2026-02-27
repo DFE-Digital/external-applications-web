@@ -1,6 +1,7 @@
 using DfE.ExternalApplications.Application.Interfaces;
 using DfE.ExternalApplications.Domain.Models;
 using System.Globalization;
+using System.Linq;
 using System.Text.Json;
 
 namespace DfE.ExternalApplications.Infrastructure.Services
@@ -47,12 +48,28 @@ namespace DfE.ExternalApplications.Infrastructure.Services
 
         public string GetFormattedFieldValue(string fieldId, Dictionary<string, object> formData)
         {
+            if (formData.TryGetValue(fieldId, out var rawForCollection))
+            {
+                var looksLikeObject =
+                    (rawForCollection is string s && s.TrimStart().StartsWith("{")) ||
+                    (rawForCollection is JsonElement je && je.ValueKind == JsonValueKind.Object);
+
+                if (!looksLikeObject)
+                {
+                    var normalized = CheckboxValueNormalizer.Normalize(rawForCollection)
+                        .Where(v => !IsPlaceholder(v))
+                        .ToArray();
+
+                    if (normalized.Length > 0)
+                    {
+                        return string.Join("<br />", normalized);
+                    }
+                }
+            }
+
             var fieldValue = GetFieldValue(fieldId, formData);
             
-            // DEBUG: Log formatting attempts
-
-            
-            if (string.IsNullOrEmpty(fieldValue))
+            if (string.IsNullOrEmpty(fieldValue) || IsPlaceholder(fieldValue))
             {
                 return string.Empty;
             }
@@ -62,10 +79,8 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             {
                 if (LooksLikeUploadData(fieldValue))
                 {
-
                     return FormatUploadValue(fieldValue);
                 }
-
 
                 return FormatAutocompleteValue(fieldValue);
             }
@@ -82,12 +97,28 @@ namespace DfE.ExternalApplications.Infrastructure.Services
 
         public List<string> GetFormattedFieldValues(string fieldId, Dictionary<string, object> formData)
         {
+            if (formData.TryGetValue(fieldId, out var rawForCollection))
+            {
+                var looksLikeObject =
+                    (rawForCollection is string s && s.TrimStart().StartsWith("{")) ||
+                    (rawForCollection is JsonElement je && je.ValueKind == JsonValueKind.Object);
+
+                if (!looksLikeObject)
+                {
+                    var normalized = CheckboxValueNormalizer.Normalize(rawForCollection)
+                        .Where(v => !IsPlaceholder(v))
+                        .ToArray();
+
+                    if (normalized.Length > 0)
+                    {
+                        return normalized.ToList();
+                    }
+                }
+            }
+
             var fieldValue = GetFieldValue(fieldId, formData);
             
-            // DEBUG: Log formatting attempts for list version
-
-            
-            if (string.IsNullOrEmpty(fieldValue))
+            if (string.IsNullOrEmpty(fieldValue) || IsPlaceholder(fieldValue))
             {
                 return new List<string>();
             }
@@ -96,10 +127,8 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             {
                 if (LooksLikeUploadData(fieldValue))
                 {
-
                     return FormatUploadValuesList(fieldValue);
                 }
-
 
                 return FormatAutocompleteValuesList(fieldValue);
             }
@@ -328,6 +357,28 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                 // ignore and return raw value
             }
             return value;
+        }
+
+        private static bool IsPlaceholder(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            var trimmed = value.Trim();
+            if (trimmed.Length < 3 || trimmed[0] != '{' || trimmed[^1] != '}')
+            {
+                return false;
+            }
+
+            var inner = trimmed.Substring(1, trimmed.Length - 2);
+            if (inner.Contains(":"))
+            {
+                return false;
+            }
+
+            return !inner.Any(char.IsWhiteSpace);
         }
 
         private List<string> FormatUploadValuesList(string value)

@@ -48,3 +48,6 @@ All notable changes to this service will be documented in this file.
 ### Notes
 - Added a flag to the template's Task node to support moving of the Task Summary to the end of the Task journey.
 
+## [1.2.9]
+### Notes
+- Added support for checkboxes field
