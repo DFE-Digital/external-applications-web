@@ -37,8 +37,9 @@ public class ServerErrorModel : PageModel
         
         // Prepare email subject and body
         var requestedPath = HttpContext.Request.Path.Value ?? "unknown";
-        EmailSubject = "Server Error - External Applications";
-        EmailBody = $"I encountered a server error while using the application.\n\n" +
+        var serviceName = _configuration["Layout:ServiceName"] ?? "External Applications";
+        EmailSubject = $"Server Error - {serviceName}";
+        EmailBody = $"I encountered a server error while using the {serviceName} service.\n\n" +
                    $"Error Reference: {ErrorId}\n\n" +
                    $"Please provide details about what you were trying to do when the error occurred:";
         

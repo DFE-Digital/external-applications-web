@@ -13,7 +13,7 @@
 }
 <div class="govuk-grid-row">
     <div class="govuk-grid-column-two-thirds">
-        <h1 class="govuk-heading-xl govuk-!-margin-bottom-6">Your application</h1>
+        <h1 class="govuk-heading-xl govuk-!-margin-bottom-6">Your @AppTerminology.Singular</h1>
         
         @await Html.PartialAsync("FormEngine/_FormHeader", Model)
         
@@ -78,16 +78,16 @@
             @if (Model.IsApplicationEditable())
             {
                 <a href="/applications/@Model.ReferenceNumber?preview=true" class="govuk-button" id="review-application-button" role="button">
-                    Review application
+                    Review @AppTerminology.Singular
                 </a>
             }
             else
             {
                 <a href="/applications/@Model.ReferenceNumber?preview=true" class="govuk-button" id="view-application-button" role="button">
-                    View application
+                    View @AppTerminology.Singular
                 </a>
                 <div class="govuk-inset-text govuk-!-margin-top-4">
-                    <p>This application has been submitted and can no longer be changed.</p>
+                    <p>This @AppTerminology.Singular has been submitted and can no longer be changed.</p>
                     <p>Status: <strong>@Model.ApplicationStatus</strong></p>
                 </div>
             }
@@ -99,7 +99,7 @@
         <div class="govuk-grid-column-one-third">
             <div class="govuk-!-margin-top-6">
                 <h2 class="govuk-heading-m">Contributors</h2>
-                <p class="govuk-body">You can invite other people to complete or view parts of this application.</p>
+                <p class="govuk-body">You can invite other people to complete or view parts of this @AppTerminology.Singular.</p>
                     <a href="/applications/@Model.ReferenceNumber/contributors" id="invite-contributors" class="govuk-button govuk-button--secondary" role="button">
                         Invite contributors
                     </a>

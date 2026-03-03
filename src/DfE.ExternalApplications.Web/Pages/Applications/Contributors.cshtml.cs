@@ -17,6 +17,7 @@ namespace DfE.ExternalApplications.Web.Pages.Applications;
 public class ContributorsModel(
     IContributorService contributorService,
     IApplicationStateService applicationStateService,
+    IApplicationTerminologyProvider terminologyProvider,
     ILogger<ContributorsModel> logger) : PageModel
 {
     [BindProperty(SupportsGet = true, Name = "referenceNumber")]
@@ -41,7 +42,7 @@ public class ContributorsModel(
             {
                 logger.LogWarning("No application ID found for reference number {ReferenceNumber}", ReferenceNumber);
                 HasError = true;
-                ErrorMessage = "Application not found. Please try again.";
+                ErrorMessage = $"{terminologyProvider.SingularCapitalised} not found. Please try again.";
                 return Page();
             }
 
@@ -99,7 +100,7 @@ public class ContributorsModel(
             {
                 logger.LogWarning("No application ID found for reference number {ReferenceNumber} when removing contributor", ReferenceNumber);
                 HasError = true;
-                ErrorMessage = "Application not found. Please try again.";
+                ErrorMessage = $"{terminologyProvider.SingularCapitalised} not found. Please try again.";
                 return await OnGetAsync();
             }
 
@@ -176,7 +177,7 @@ public class ContributorsModel(
             {
                 logger.LogWarning("No application ID found for reference number {ReferenceNumber} when confirming removal", ReferenceNumber);
                 HasError = true;
-                ErrorMessage = "Application not found. Please try again.";
+                ErrorMessage = $"{terminologyProvider.SingularCapitalised} not found. Please try again.";
                 return await OnGetAsync();
             }
 

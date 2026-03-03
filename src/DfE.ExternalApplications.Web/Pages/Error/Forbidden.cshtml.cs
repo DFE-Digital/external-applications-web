@@ -30,8 +30,9 @@ public class ForbiddenModel : PageModel
         SupportEmail = _configuration["SupportEmail"] ?? "RegionalServices.RG@education.gov.uk";
         
         // Prepare email subject and body
-        EmailSubject = "Access Denied - External Applications";
-        EmailBody = $"I was denied access to a page in the External Applications service.\n\n" +
+        var serviceName = _configuration["Layout:ServiceName"] ?? "External Applications";
+        EmailSubject = $"Access Denied - {serviceName}";
+        EmailBody = $"I was denied access to a page in the {serviceName} service.\n\n" +
                    $"Error Reference: {ErrorId ?? "N/A"}\n\n" +
                    $"Please provide details about what you were trying to access:";
     }
