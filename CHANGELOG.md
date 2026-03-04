@@ -55,3 +55,11 @@ All notable changes to this service will be documented in this file.
 ## [1.2.10]
 ### Notes
 - Added support custom application names per tenant.
+
+## [1.2.11]
+### Notes
+- Added max-words property to character count field.
+
+## [1.2.12]
+### Notes
+- Added root level template property "hideFieldLabelWhenOnlyOneField" to toggle labels hiding for single field pages.
