@@ -1,4 +1,4 @@
-﻿@page "/applications/dashboard"
+@page "/applications/dashboard"
 @using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums
 @using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response
 @using GovUk.Frontend.AspNetCore.TagHelpers
@@ -17,7 +17,7 @@
     <div class="govuk-grid-column-full govuk-!-margin-bottom-6">
         
         <h1 class="govuk-heading-xl govuk-!-margin-bottom-9">
-            Your applications
+            Your @AppTerminology.Plural
         </h1>
 
         @if (Model.HasError)
@@ -34,12 +34,12 @@
         }
 
         <h2 class="govuk-heading-l govuk-!-margin-bottom-3">
-            Applications in progress
+            @AppTerminology.PluralCapitalised in progress
         </h2>
 
         @if (!Model.HasError && !Model.Applications.Any())
         {
-            <p class="govuk-body">You have no applications in progress.</p>
+            <p class="govuk-body">You have no @AppTerminology.Plural in progress.</p>
         }
         else if (!Model.HasError)
         {
@@ -56,7 +56,7 @@
                 <tbody class="govuk-table__body">
                     @foreach (var app in Model.Applications)
                     {
-                        var action = app.CalculatedStatus == ApplicationStatus.Submitted ? "View application" : "Continue application";
+                        var action = app.CalculatedStatus == ApplicationStatus.Submitted ? $"View {AppTerminology.Singular}" : $"Continue {AppTerminology.Singular}";
                         var statusClass = app.CalculatedStatus == ApplicationStatus.Submitted ? "govuk-tag--green" :
                             app.CalculatedStatus == ApplicationStatus.InProgress ? "govuk-tag--blue" : "govuk-tag--grey";
 
@@ -88,11 +88,11 @@
         }
 
         <h2 class="govuk-heading-l govuk-!-margin-top-9">
-            Start a new application
+            Start a new @AppTerminology.Singular
         </h2>
-        <p class="govuk-body">If you start an application, you will be the lead applicant for it.</p>
+        <p class="govuk-body">If you start an @AppTerminology.Singular, you will be the lead applicant for it.</p>
         <form method="post">
-            <button class="govuk-button govuk-!-margin-bottom-9" type="submit" asp-page-handler="CreateApplication" id="start-new-application-button">Start new application</button>
+            <button class="govuk-button govuk-!-margin-bottom-9" type="submit" asp-page-handler="CreateApplication" id="start-new-application-button">Start new @AppTerminology.Singular</button>
         </form>
     </div>
 </div>

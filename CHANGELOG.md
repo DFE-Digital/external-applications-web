@@ -51,3 +51,7 @@ All notable changes to this service will be documented in this file.
 ## [1.2.9]
 ### Notes
 - Added support for checkboxes field
+
+## [1.2.10]
+### Notes
+- Added support custom application names per tenant.

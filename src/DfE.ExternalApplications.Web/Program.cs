@@ -389,6 +389,10 @@ builder.Services.AddServiceCaching(configuration);
 builder.Services.AddSingleton<IFormTemplateParser, JsonFormTemplateParser>();
 builder.Services.AddScoped<IFormTemplateProvider, FormTemplateProvider>();
 
+// Application terminology configuration (customisable per service, e.g. "application" vs "reform plan")
+builder.Services.Configure<ApplicationTerminologyOptions>(configuration.GetSection("ApplicationTerminology"));
+builder.Services.AddSingleton<IApplicationTerminologyProvider, ApplicationTerminologyProvider>();
+
 // Application submission configuration (mapper key and handlers per application)
 builder.Services.Configure<ApplicationSubmissionOptions>(configuration.GetSection("ApplicationSubmission"));
 

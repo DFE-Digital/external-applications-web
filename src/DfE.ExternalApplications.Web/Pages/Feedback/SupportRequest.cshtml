@@ -1,7 +1,7 @@
 @page "/Feedback/Support"
 @model DfE.ExternalApplications.Web.Pages.Feedback.SupportRequestModel
 @{
-    ViewData["Title"] = "Help with your application";
+    ViewData["Title"] = $"Help with your {AppTerminology.Singular}";
 }
 
 @section BeforeContent {
@@ -19,7 +19,7 @@
     <div class="govuk-grid-column-two-thirds">
         <form method="post">
             @Html.AntiForgeryToken()
-            <h1 class="govuk-heading-l">Help with your application</h1>
+            <h1 class="govuk-heading-l">Help with your @AppTerminology.Singular</h1>
             <govuk-character-count name="@nameof(Model.Message)" max-length="2000" label-class="govuk-label--m">
                 <govuk-character-count-label>
                     What do you need help with?
@@ -57,7 +57,7 @@
             <govuk-radios name="@nameof(Model.ReferenceNumber)">
                 <govuk-radios-fieldset>
                     <govuk-radios-fieldset-legend class="govuk-fieldset__legend--m">
-                        Which application do you need help with?
+                        Which @AppTerminology.Singular do you need help with?
                     </govuk-radios-fieldset-legend>
                     
                     @if (!Model.IsPropertyValid(nameof(Model.ReferenceNumber)))
