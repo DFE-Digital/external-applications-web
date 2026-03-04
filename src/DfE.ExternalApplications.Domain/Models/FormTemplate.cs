@@ -32,5 +32,8 @@ namespace DfE.ExternalApplications.Domain.Models
         /// </summary>
         [JsonPropertyName("defaultFieldRequirementPolicy")]
         public string? DefaultFieldRequirementPolicy { get; set; }
+
+        [JsonPropertyName("hideFieldLabelWhenOnlyOneField")]
+        public bool HideFieldLabelWhenOnlyOneField { get; set; } = true; // Default to true for backward compatibility
     }
 }

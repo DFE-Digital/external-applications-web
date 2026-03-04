@@ -17,7 +17,10 @@
             .FieldType.Equals("upload", StringComparison.OrdinalIgnoreCase));
 
     string typeOfFirstField = Model.CurrentPage.Fields[0].Type;
-    bool labelledByHeader = (Model.CurrentPage.Fields.Count == 1) && typeOfFirstField != "complexField";
+    bool hideFieldLabel = Model.Template.HideFieldLabelWhenOnlyOneField
+                            && Model.CurrentPage.Fields.Count == 1
+                            && typeOfFirstField != "complexField";
+
     bool hasAutocompleteField = Model.CurrentPage.Fields.Any(f =>
         f.Type == "complexField" &&
         f.ComplexField != null &&
@@ -130,7 +133,7 @@
                 var fieldModelState = ViewData.ModelState.Where(f => f.Key == field.FieldId).FirstOrDefault();
                 var errorMessage = fieldModelState.Value?.Errors?.FirstOrDefault()?.ErrorMessage ?? String.Empty;
 
-                if (labelledByHeader)
+                if (hideFieldLabel)
                 {
                     field.Label.IsVisible = false;
                 }
