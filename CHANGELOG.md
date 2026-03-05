@@ -63,3 +63,7 @@ All notable changes to this service will be documented in this file.
 ## [1.2.12]
 ### Notes
 - Added root level template property "hideFieldLabelWhenOnlyOneField" to toggle labels hiding for single field pages.
+
+- ## [1.2.13]
+### Notes
+- Replaced hardcoded values with Layout:ServiceName

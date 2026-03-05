@@ -1,10 +1,14 @@
-﻿@page "/Terms"
+@page "/Terms"
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
+@{
+    var serviceName = Configuration["Layout:ServiceName"] ?? "External Applications";
+}
 <div class="govuk-grid-row">
     <div class="govuk-grid-column-two-thirds">
         <h1 class="govuk-heading-xl">Terms and Conditions</h1>
 
         <h2 class="govuk-heading-l">All Users</h2>
-        <h3 class="govuk-heading-m">Using the Apply to transfer an academy into your trust service</h3>
+        <h3 class="govuk-heading-m">Using the @serviceName service</h3>
         <p class="govuk-body">
         Please read these Terms of Use (“General Terms”) carefully before using this service (the “Service”).
         </p>
