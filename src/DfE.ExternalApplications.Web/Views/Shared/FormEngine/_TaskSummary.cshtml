@@ -53,7 +53,7 @@
             var fieldValue = Model.GetFieldValue(field.FieldId);
             var hasValue = Model.HasFieldValue(field.FieldId);
             var formattedFieldValue = Model.GetFormattedFieldValue(field.FieldId);
-            var changeUrl = $"/applications/{Model.ReferenceNumber}/{Model.TaskId}/{page.PageId}";
+            var changeUrl = $"/applications/{Model.ReferenceNumber}/{Model.TaskId}/{page.PageId}?fromSummary=true";
 
             var fieldIdHyphenated = field.FieldId.Replace(" ", "-").ToLower();
 

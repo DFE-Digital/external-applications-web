@@ -275,7 +275,7 @@
                                 }
                             </dd>
                             <dd class="govuk-summary-list__actions">
-                                <a class="govuk-link" href="/applications/@renderModel.ReferenceNumber/@renderModel.TaskId/flow/@flow.FlowId/@(item.TryGetValue("id", out var changeItemIdValue) ? changeItemIdValue?.ToString() : "")/@pageId">
+                                <a class="govuk-link" href="/applications/@renderModel.ReferenceNumber/@renderModel.TaskId/flow/@flow.FlowId/@(item.TryGetValue("id", out var changeItemIdValue) ? changeItemIdValue?.ToString() : "")/@pageId?fromSummary=true">
                                     Change<span class="govuk-visually-hidden"> @col.Label for @memberTitle</span>
                                 </a>
                             </dd>
@@ -474,7 +474,7 @@
                                         }
                                     </dd>
                                     <dd class="govuk-summary-list__actions">
-                                        <a class="govuk-link" href="/applications/@renderModel.ReferenceNumber/@renderModel.TaskId/flow/@flow.FlowId/@(item.TryGetValue("id", out var changeItemIdValue) ? changeItemIdValue?.ToString() : "")/@pageId">
+                                        <a class="govuk-link" href="/applications/@renderModel.ReferenceNumber/@renderModel.TaskId/flow/@flow.FlowId/@(item.TryGetValue("id", out var changeItemIdValue) ? changeItemIdValue?.ToString() : "")/@pageId?fromSummary=true">
                                             Change<span class="govuk-visually-hidden"> @col.Label for @memberTitle</span>
                                         </a>
                                     </dd>

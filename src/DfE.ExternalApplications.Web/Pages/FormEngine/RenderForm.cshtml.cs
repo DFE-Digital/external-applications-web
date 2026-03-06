@@ -295,13 +295,86 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         ModelState.Clear();
                     }
                 }
+            // Track whether this GET is the result of a back navigation
+            var isBackNavigation = Request.Query.ContainsKey("nav") && string.Equals(Request.Query["nav"], "back", StringComparison.OrdinalIgnoreCase);
+            // Track whether this GET was initiated from a task summary "Change" link
+            var isFromSummary = Request.Query.ContainsKey("fromSummary") && string.Equals(Request.Query["fromSummary"], "true", StringComparison.OrdinalIgnoreCase);
+
             // If this GET was reached via back navigation, pop history entry for the current scope
             try
             {
-                if (Request.Query.ContainsKey("nav") && string.Equals(Request.Query["nav"], "back", StringComparison.OrdinalIgnoreCase))
+                if (isBackNavigation)
                 {
                     var scope = BuildHistoryScope(ReferenceNumber, TaskId, CurrentPageId);
                     _navigationHistoryService.Pop(scope, HttpContext.Session);
+                }
+            }
+            catch { }
+
+            // Ensure back link points to the immediate previous page when returnToSummaryPage is false.
+            // Only fall back to summary when there is no previous page or the previous page explicitly
+            // requests a return to summary. Handles both normal pages and collection flow pages.
+            try
+            {
+                if (!isBackNavigation
+                    && (CurrentFormState == FormState.FormPage || CurrentFormState == FormState.SubFlowPage)
+                    && CurrentTask != null
+                    && !string.IsNullOrEmpty(CurrentPageId))
+                {
+                    var scope = BuildHistoryScope(ReferenceNumber, TaskId, CurrentPageId);
+                    
+                    // If arriving from a summary Change link, reset history for this scope so we seed correctly
+                    if (isFromSummary)
+                    {
+                        _navigationHistoryService.Clear(scope, HttpContext.Session);
+                    }
+
+                    var last = _navigationHistoryService.Peek(scope, HttpContext.Session);
+
+                    // If no history exists for this scope, seed it based on the task definition
+                    if (string.IsNullOrEmpty(last))
+                    {
+                        // Handle collection flow pages separately
+                        if (TryParseFlowRoute(CurrentPageId, out var flowId, out var instanceId, out var flowPageId))
+                        {
+                            var flowPages = GetFlowPages(CurrentTask, flowId);
+                            var orderedFlowPages = flowPages?.OrderBy(p => p.PageOrder).ToList() ?? new List<Domain.Models.Page>();
+                            var currentFlowIndex = orderedFlowPages.FindIndex(p => p.PageId == flowPageId || p.PageId == CurrentPageId);
+                            Domain.Models.Page? previousFlowPage = currentFlowIndex > 0 ? orderedFlowPages[currentFlowIndex - 1] : null;
+
+                            if (previousFlowPage != null)
+                            {
+                                var previousUrl = _formNavigationService.GetSubFlowPageUrl(TaskId, ReferenceNumber, flowId, instanceId, previousFlowPage.PageId);
+                                _navigationHistoryService.Push(scope, previousUrl, HttpContext.Session);
+                            }
+                            else
+                            {
+                                var summaryUrl = _formNavigationService.GetCollectionFlowSummaryUrl(TaskId, ReferenceNumber);
+                                _navigationHistoryService.Push(scope, summaryUrl, HttpContext.Session);
+                            }
+                        }
+                        else if (CurrentTask.Pages != null)
+                        {
+                            var orderedPages = CurrentTask.Pages.OrderBy(p => p.PageOrder).ToList();
+                            var currentIndex = orderedPages.FindIndex(p => p.PageId == CurrentPageId);
+                            Domain.Models.Page? previousPage = currentIndex > 0 ? orderedPages[currentIndex - 1] : null;
+
+                            // When arriving from a summary change link, favour the previous page if it exists,
+                            // so Back goes to the prior step even if returnToSummaryPage is true.
+                            var shouldPreferPrevious = isFromSummary && previousPage != null;
+                            
+                            if (shouldPreferPrevious || (previousPage != null && !previousPage.ReturnToSummaryPage))
+                            {
+                                var previousUrl = $"/applications/{ReferenceNumber}/{TaskId}/{previousPage!.PageId}";
+                                _navigationHistoryService.Push(scope, previousUrl, HttpContext.Session);
+                            }
+                            else
+                            {
+                                var summaryUrl = _formNavigationService.GetTaskSummaryUrl(TaskId, ReferenceNumber);
+                                _navigationHistoryService.Push(scope, summaryUrl, HttpContext.Session);
+                            }
+                        }
+                    }
                 }
             }
             catch { }
@@ -1499,6 +1572,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         }
                         
                         // No conditional override - respect returnToSummaryPage
+                        var summaryScope = RenderFormModel.BuildHistoryScope(ReferenceNumber, TaskId, CurrentPageId);
+                        _navigationHistoryService.Clear(summaryScope, HttpContext.Session);
                         var summaryUrl = _formNavigationService.GetTaskSummaryUrl(CurrentTask.TaskId, ReferenceNumber);
 
                         return Redirect(summaryUrl);
@@ -1555,6 +1630,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     }
                     
                     // No next page found - go to task summary as fallback
+                    var summaryFallbackScope = RenderFormModel.BuildHistoryScope(ReferenceNumber, TaskId, CurrentPageId);
+                    _navigationHistoryService.Clear(summaryFallbackScope, HttpContext.Session);
                     var fallbackUrl = _formNavigationService.GetTaskSummaryUrl(CurrentTask.TaskId, ReferenceNumber);
 
                     return Redirect(fallbackUrl);
