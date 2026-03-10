@@ -1497,8 +1497,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
                             return Redirect(nextUrl);
                         }
-                        
+
                         // No conditional override - respect returnToSummaryPage
+                        var summaryScope = RenderFormModel.BuildHistoryScope(ReferenceNumber, TaskId, CurrentPageId);
+                        _navigationHistoryService.Clear(summaryScope, HttpContext.Session);
+
                         var summaryUrl = _formNavigationService.GetTaskSummaryUrl(CurrentTask.TaskId, ReferenceNumber);
 
                         return Redirect(summaryUrl);
@@ -1553,8 +1556,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
                         return Redirect(nextUrl);
                     }
-                    
+
                     // No next page found - go to task summary as fallback
+                    var summaryFallbackScope = RenderFormModel.BuildHistoryScope(ReferenceNumber, TaskId, CurrentPageId);
+                    _navigationHistoryService.Clear(summaryFallbackScope, HttpContext.Session);
+
                     var fallbackUrl = _formNavigationService.GetTaskSummaryUrl(CurrentTask.TaskId, ReferenceNumber);
 
                     return Redirect(fallbackUrl);
