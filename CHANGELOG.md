@@ -64,6 +64,10 @@ All notable changes to this service will be documented in this file.
 ### Notes
 - Added root level template property "hideFieldLabelWhenOnlyOneField" to toggle labels hiding for single field pages.
 
-- ## [1.2.13]
+## [1.2.13]
 ### Notes
 - Replaced hardcoded values with Layout:ServiceName
+
+## [1.3.0]
+### Notes
+- Upgraded to .NET10
