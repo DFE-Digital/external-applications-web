@@ -71,3 +71,7 @@ All notable changes to this service will be documented in this file.
 ## [1.3.0]
 ### Notes
 - Upgraded to .NET10
+
+## [1.3.1]
+### Notes
+- Fixed issue with backlink not always returning to task summary
