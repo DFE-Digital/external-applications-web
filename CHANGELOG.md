@@ -75,3 +75,7 @@ All notable changes to this service will be documented in this file.
 ## [1.3.1]
 ### Notes
 - Fixed issue with backlink not always returning to task summary
+
+## [1.3.2]
+### Notes
+- Fixed wrong message showing when a new item has been added to a collection

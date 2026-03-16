@@ -165,6 +165,19 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
                             // Find the correct flow and its pages
                             var flowPages = GetFlowPages(task, flowId);
+                            var flowFieldId = GetFlowFieldId(task, flowId);
+
+                            // Record whether the item existed before this flow started so we can choose the correct
+                            // success message even after partial autosaves add the item to the session.
+                            if (!string.IsNullOrEmpty(flowFieldId))
+                            {
+                                var existenceKey = GetFlowItemExistenceSessionKey(flowId, instanceId);
+                                if (HttpContext.Session.GetString(existenceKey) == null)
+                                {
+                                    var existed = IsExistingCollectionItem(flowFieldId, instanceId);
+                                    HttpContext.Session.SetString(existenceKey, existed ? "true" : "false");
+                                }
+                            }
                             if (flowPages != null)
                             {
                                 var page = string.IsNullOrEmpty(flowPageId) ? flowPages.FirstOrDefault() : flowPages.FirstOrDefault(p => p.PageId == flowPageId);
@@ -1132,6 +1145,13 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     
                     if (flowPages != null && !string.IsNullOrEmpty(flowFieldId))
                     {
+                        // Use the existence flag captured when the flow was first opened (fallback to current check)
+                        var existenceKey = GetFlowItemExistenceSessionKey(flowId, instanceId);
+                        bool itemExistedBeforeSave = HttpContext.Session.GetString(existenceKey) is { } existedValue &&
+                                                     bool.TryParse(existedValue, out var parsed)
+                                                     ? parsed
+                                                     : IsExistingCollectionItem(flowFieldId, instanceId);
+
                         // Persist in-progress sub-flow data for this instance
                         SaveFlowProgress(flowId, instanceId, Data);
 
@@ -1232,7 +1252,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         if (!string.IsNullOrEmpty(flowFieldId))
                         {
                             // Determine if this is a new item or an update
-                            bool isNewItem = !IsExistingCollectionItem(flowFieldId, instanceId);
+                            bool isNewItem = !itemExistedBeforeSave;
                             
                             // Merge accumulated progress with final page data
                             var accumulated = LoadFlowProgress(flowId, instanceId);
@@ -2173,6 +2193,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         }
 
         private static string GetFlowProgressSessionKey(string flowId, string instanceId) => $"FlowProgress_{flowId}_{instanceId}";
+
+        private static string GetFlowItemExistenceSessionKey(string flowId, string instanceId) => $"FlowItemExisted_{flowId}_{instanceId}";
 
         private Dictionary<string, object> LoadFlowProgressWithDebug()
         {
