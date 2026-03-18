@@ -78,11 +78,19 @@ namespace DfE.ExternalApplications.Web.Pages.Shared
         }
 
         /// <summary>
-        /// Checks if the application is editable
+        /// Checks if the application is editable based on status, or if the current user is an Admin
         /// </summary>
         public bool IsApplicationEditable()
         {
-            return _applicationStateService.IsApplicationEditable(ApplicationStatus);
+            return _applicationStateService.IsApplicationEditable(ApplicationStatus) || IsUserAdmin();
+        }
+
+        /// <summary>
+        /// Checks if the current user has the Admin role
+        /// </summary>
+        public bool IsUserAdmin()
+        {
+            return HttpContext?.User?.IsInRole("Admin") == true;
         }
 
         #endregion
