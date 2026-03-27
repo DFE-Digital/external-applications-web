@@ -1251,9 +1251,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         // Flow complete: append item to collection and go back to collection summary
                         if (!string.IsNullOrEmpty(flowFieldId))
                         {
-                            // Determine if this is a new item or an update
-                            bool isNewItem = !itemExistedBeforeSave;
-                            
                             // Merge accumulated progress with final page data
                             var accumulated = LoadFlowProgress(flowId, instanceId);
             
@@ -1269,39 +1266,10 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
                             AppendCollectionItemToSession(flowPages, flowFieldId, instanceId, accumulated);
                             
-                            // Generate success message
+                            // Generate simple, consistent success message
                             var flow = CurrentTask.Summary?.Flows?.FirstOrDefault(f => f.FlowId == flowId);
-                            if (flow != null)
-                            {
-                                // Use the accumulated data (all fields from the item)
-                                if (isNewItem)
-                                {
-                                    accumulated = ExpandEncodedJson(accumulated);
-                                    SuccessMessage = GenerateSuccessMessage(flow.AddItemMessage, "add", accumulated, flow.Title);
-                                }
-                                else
-                                {
-                                    // When a collection item is updated, the user can press the "Change" button on any
-                                    // of the fields. If they click (for example) the third button, the values for the
-                                    // first two fields aren't included in `accumulated`, which results in a bug where
-                                    // success messages show placeholders instead of the interpolated values.
-                                    // Merging in the original values using `TryAdd` ensures that all fields are
-                                    // available regardless of whether they were changed or not.
-                                    var itemData = accumulated;
-                                    var existingData = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
-                                    if (existingData.TryGetValue(flowFieldId, out var existingValue))
-                                    {
-                                        var contents = JsonSerializer.Deserialize<List<Dictionary<string, object>>>(existingValue.ToString() ?? "[]") ?? [];
-                                        foreach (var (key, value) in contents.FirstOrDefault() ?? new Dictionary<string, object>())
-                                        {
-                                            itemData.TryAdd(key, value);
-                                        }
-                                    }
-                                    itemData = ExpandEncodedJson(itemData);
-                                    
-                                    SuccessMessage = GenerateSuccessMessage(flow.UpdateItemMessage, "update", itemData, flow.Title);
-                                }
-                            }
+                            var taskTitle = CurrentTask?.TaskName ?? flow?.Title ?? "Item";
+                            SuccessMessage = $"{taskTitle} updated";
                             
                             if (ApplicationId.HasValue)
                             {

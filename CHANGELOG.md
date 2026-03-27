@@ -79,3 +79,8 @@ All notable changes to this service will be documented in this file.
 ## [1.3.2]
 ### Notes
 - Fixed wrong message showing when a new item has been added to a collection
+
+## [1.3.3]
+### Notes
+- Reduced complexity of collection item added and updated messages
+
