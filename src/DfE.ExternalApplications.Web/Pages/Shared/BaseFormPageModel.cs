@@ -1,5 +1,6 @@
 using DfE.ExternalApplications.Application.Interfaces;
 using DfE.ExternalApplications.Domain.Models;
+using DfE.ExternalApplications.Web.Authentication;
 using DfE.ExternalApplications.Web.Services;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using Microsoft.AspNetCore.Mvc;
@@ -78,11 +79,29 @@ namespace DfE.ExternalApplications.Web.Pages.Shared
         }
 
         /// <summary>
-        /// Checks if the application is editable
+        /// Checks if the application is editable based on status, or if the current user is an Admin
         /// </summary>
         public bool IsApplicationEditable()
         {
-            return _applicationStateService.IsApplicationEditable(ApplicationStatus);
+            return _applicationStateService.IsApplicationEditable(ApplicationStatus) || IsUserAdmin();
+        }
+
+        /// <summary>
+        /// Checks if the current user has the Admin role and is not service-authenticated
+        /// </summary>
+        public bool IsUserAdmin()
+        {
+            return HttpContext?.User?.IsInRole("Admin") == true
+                && !IsServiceAuthenticated();
+        }
+
+        /// <summary>
+        /// Checks if the current user is authenticated via the internal service authentication scheme
+        /// </summary>
+        private bool IsServiceAuthenticated()
+        {
+            return HttpContext?.User?.Identity?.AuthenticationType
+                == InternalServiceAuthenticationHandler.SchemeName;
         }
 
         #endregion
