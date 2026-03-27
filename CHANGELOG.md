@@ -84,3 +84,7 @@ All notable changes to this service will be documented in this file.
 ### Notes
 - Reduced complexity of collection item added and updated messages
 
+## [1.3.4]
+### Notes
+- Updated appsettings to include LSRP Prod environment details
+
