@@ -88,3 +88,7 @@ All notable changes to this service will be documented in this file.
 ### Notes
 - Updated appsettings to include LSRP Prod environment details
 
+## [1.3.5]
+### Notes
+- Fixed issue with CSS on flow descriptions
+
