@@ -691,6 +691,24 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         }
                     }
                 }
+                else if (TryParseDerivedFlowRoute(CurrentPageId, out var dFlowId, out var dItemId, out var dPageId))
+                {
+                    var (group, task) = InitializeCurrentTask(TaskId);
+                    CurrentGroup = group;
+                    CurrentTask = task;
+
+                    var derivedConfig = GetDerivedFlowConfiguration(task, dFlowId);
+                    if (derivedConfig != null)
+                    {
+                        var page = string.IsNullOrEmpty(dPageId)
+                            ? derivedConfig.Pages?.FirstOrDefault()
+                            : derivedConfig.Pages?.FirstOrDefault(p => p.PageId == dPageId);
+                        if (page != null)
+                        {
+                            CurrentPage = page;
+                        }
+                    }
+                }
                 else
                 {
             var (group, task, page) = InitializeCurrentPage(CurrentPageId);
@@ -1110,9 +1128,10 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 }
             }
 
-            // Save the current page data to the API (skip for sub-flows as they accumulate data differently)
+            // Save the current page data to the API (skip for sub-flows and derived flows as they accumulate data differently)
             bool isSubFlow = TryParseFlowRoute(CurrentPageId, out _, out _, out _);
-            if (ApplicationId.HasValue && Data.Any() && !isSubFlow)
+            bool isDerivedFlowSave = TryParseDerivedFlowRoute(CurrentPageId, out _, out _, out _);
+            if (ApplicationId.HasValue && Data.Any() && !isSubFlow && !isDerivedFlowSave)
             {
                 try
                 {
