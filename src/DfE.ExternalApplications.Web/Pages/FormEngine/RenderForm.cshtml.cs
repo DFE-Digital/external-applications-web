@@ -281,7 +281,20 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
                 await LoadAccumulatedDataFromSessionAsync();
                 MergeFlowProgressIntoFormDataForSummary();
-                
+
+                // For derived flow pages, re-apply declaration data AFTER accumulated data.
+                // The accumulated session may contain stale top-level keys (e.g. "chairName-joining")
+                // that were saved before derived-flow isolation. The declaration data in
+                // "fieldId_data_itemId" holds the authoritative values and must take priority.
+                if (!string.IsNullOrEmpty(DerivedFlowId) && !string.IsNullOrEmpty(DerivedItemId) && CurrentTask != null)
+                {
+                    var derivedConfig = GetDerivedFlowConfiguration(CurrentTask, DerivedFlowId);
+                    if (derivedConfig != null)
+                    {
+                        LoadDerivedItemData(derivedConfig, DerivedItemId);
+                    }
+                }
+
                 // For upload fields, populate Data from session so they display on GET
                 // This ensures files appear in the list after upload
                 await PopulateUploadFieldsFromSessionAsync();
@@ -1331,8 +1344,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
                     if (derivedConfig != null)
                     {
-                    
-                        
                         // Save the declaration data and mark as signed
                         _derivedCollectionFlowService.SaveItemDeclaration(
                             derivedConfig.FieldId, 
@@ -1341,14 +1352,20 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                             "Signed", 
                             FormData);
 
-                        
-
-                        // Save to API
+                        // Save to API — only pass the declaration keys that were changed,
+                        // not the entire stale FormData snapshot loaded at init time.
+                        // This prevents overwriting the current session state with stale data
+                        // which caused edits to not persist for existing (API-loaded) applications.
                         if (ApplicationId.HasValue)
                         {
-                            
-                            await _applicationResponseService.SaveApplicationResponseAsync(ApplicationId.Value, FormData, HttpContext.Session);
-                            
+                            var statusKey = $"{derivedConfig.FieldId}_status_{derivedItemId}";
+                            var dataKey = $"{derivedConfig.FieldId}_data_{derivedItemId}";
+                            var derivedUpdates = new Dictionary<string, object>
+                            {
+                                [statusKey] = FormData[statusKey],
+                                [dataKey] = FormData[dataKey]
+                            };
+                            await _applicationResponseService.SaveApplicationResponseAsync(ApplicationId.Value, derivedUpdates, HttpContext.Session);
                         }
                         else
                         {
