@@ -92,3 +92,7 @@ All notable changes to this service will be documented in this file.
 ### Notes
 - Fixed issue with CSS on flow descriptions
 
+## [1.3.6]
+### Notes
+- Fixed issue with derived collection not being saved when edited
+
