@@ -26,6 +26,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.ResponseCompression;
 using System.Diagnostics.CodeAnalysis;
+using GovUK.Dfe.CoreLibs.Security.EntraSso;
 using GovUK.Dfe.CoreLibs.Security.TokenRefresh.Extensions;
 using System.IO.Compression;
 using DfE.ExternalApplications.Infrastructure.Consumers;
@@ -145,6 +146,12 @@ builder.Services.Configure<TestAuthenticationOptions>(
 // Check if test authentication is enabled
 var testAuthOptions = configuration.GetSection(TestAuthenticationOptions.SectionName).Get<TestAuthenticationOptions>();
 var isTestAuthEnabled = testAuthOptions?.Enabled ?? false;
+
+// Configure Entra SSO options
+builder.Services.Configure<EntraSsoOptions>(
+    configuration.GetSection(EntraSsoOptions.SectionName));
+var entraSsoOptions = configuration.GetSection(EntraSsoOptions.SectionName).Get<EntraSsoOptions>();
+var isEntraSsoEnabled = entraSsoOptions?.Enabled ?? false;
 
 // Configure token settings for test authentication
 // This is needed when test auth is enabled
@@ -300,7 +307,30 @@ builder.Services
         options => { })
     .AddScheme<InternalServiceAuthenticationSchemeOptions, InternalServiceAuthenticationHandler>(
         InternalServiceAuthenticationHandler.SchemeName,
-        options => { });
+        options => { })
+    .AddEntraSso(configuration, sectionName: EntraSsoDefaults.ConfigurationSection, new OpenIdConnectEvents
+    {
+        OnRemoteFailure = context =>
+        {
+            var error = context.Failure?.Message ?? "Unknown error";
+
+            if (error.Contains("message.State", StringComparison.OrdinalIgnoreCase))
+            {
+                context.Response.Redirect("/");
+                context.HandleResponse();
+                return Task.CompletedTask;
+            }
+
+            return Task.CompletedTask;
+        },
+
+        OnAuthenticationFailed = context =>
+        {
+            context.HandleResponse();
+            context.Response.Redirect("/error?message=" + Uri.EscapeDataString(context.Exception.Message));
+            return Task.CompletedTask;
+        }
+    });
 
 // Use DynamicAuthenticationSchemeProvider to route per request
 // Checks for Internal Service Auth (forwarder pattern)
@@ -333,6 +363,7 @@ builder.Services.AddExternalApplicationsApiClients(configuration);
 builder.Services.AddScoped<OidcAuthenticationStrategy>();
 builder.Services.AddScoped<TestAuthenticationStrategy>();
 builder.Services.AddScoped<InternalAuthenticationStrategy>();
+builder.Services.AddScoped<EntraSsoAuthenticationStrategy>();
 builder.Services.AddScoped<IAuthenticationSchemeStrategy, CompositeAuthenticationSchemeStrategy>();
 
 // Register activity-based token refresh services
