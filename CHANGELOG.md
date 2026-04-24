@@ -96,3 +96,6 @@ All notable changes to this service will be documented in this file.
 ### Notes
 - Fixed issue with derived collection not being saved when edited
 
+## [1.3.7]
+### Notes
+- Increased request size for Json template saving logic.

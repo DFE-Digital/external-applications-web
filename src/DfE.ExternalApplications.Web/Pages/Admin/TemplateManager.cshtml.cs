@@ -15,27 +15,20 @@ using GovUK.Dfe.CoreLibs.Caching.Helpers;
 namespace DfE.ExternalApplications.Web.Pages.Admin;
 
 [Authorize(Roles = "Admin")]
-public class TemplateManagerModel : PageModel
+[RequestSizeLimit(52_428_800)]
+[RequestFormLimits(ValueLengthLimit = 52_428_800, ValueCountLimit = 1000)]
+public class TemplateManagerModel(
+    IFormTemplateProvider formTemplateProvider,
+    ITemplatesClient templatesClient,
+    ICacheService<IMemoryCacheType> cacheService,
+    ITemplateValidationService templateValidationService,
+    ILogger<TemplateManagerModel> logger) : PageModel
 {
-    private readonly IFormTemplateProvider _formTemplateProvider;
-    private readonly ITemplatesClient _templatesClient;
-    private readonly ICacheService<IMemoryCacheType> _cacheService;
-    private readonly ITemplateValidationService _templateValidationService;
-    private readonly ILogger<TemplateManagerModel> _logger;
-
-    public TemplateManagerModel(
-        IFormTemplateProvider formTemplateProvider,
-        ITemplatesClient templatesClient,
-        ICacheService<IMemoryCacheType> cacheService,
-        ITemplateValidationService templateValidationService,
-        ILogger<TemplateManagerModel> logger)
-    {
-        _formTemplateProvider = formTemplateProvider;
-        _templatesClient = templatesClient;
-        _cacheService = cacheService;
-        _templateValidationService = templateValidationService;
-        _logger = logger;
-    }
+    private readonly IFormTemplateProvider _formTemplateProvider = formTemplateProvider;
+    private readonly ITemplatesClient _templatesClient = templatesClient;
+    private readonly ICacheService<IMemoryCacheType> _cacheService = cacheService;
+    private readonly ITemplateValidationService _templateValidationService = templateValidationService;
+    private readonly ILogger<TemplateManagerModel> _logger = logger;
 
     public FormTemplate? CurrentTemplate { get; set; }
     public string? CurrentVersionNumber { get; set; }

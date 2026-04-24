@@ -169,9 +169,8 @@ builder.Services.AddUserTokenServiceFactory(
 // Add services to the container.
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
 {
-    // Increase form value length limit to handle large JSON data in hidden fields
-    options.ValueLengthLimit = 1048576; // 1MB limit for form values
-    options.ValueCountLimit = 1000; // Allow more form values
+    options.ValueLengthLimit = 4_194_304; // 4MB limit for form values
+    options.ValueCountLimit = 1000;
 });
 
 builder.Services.AddRazorPages(options =>
