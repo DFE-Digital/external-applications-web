@@ -99,3 +99,7 @@ All notable changes to this service will be documented in this file.
 ## [1.3.7]
 ### Notes
 - Increased request size for Json template saving logic.
+
+## [1.3.8]
+### Notes
+- Added support for EntraSSO authentication scheme.
