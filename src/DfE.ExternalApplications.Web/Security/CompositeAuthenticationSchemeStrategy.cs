@@ -10,27 +10,29 @@ namespace DfE.ExternalApplications.Web.Security;
 
 /// <summary>
 /// Chooses the appropriate authentication strategy per-request.
-/// - TestAuth when globally enabled or the request is a valid Cypress request (and toggle allowed)
-/// - OIDC otherwise
+/// Priority: Internal Auth > Test Auth > Entra SSO (when enabled) > DfE Sign-In OIDC
 /// </summary>
 public class CompositeAuthenticationSchemeStrategy(
     ILogger<CompositeAuthenticationSchemeStrategy> logger,
     IHttpContextAccessor httpContextAccessor,
     IOptions<TestAuthenticationOptions> testAuthOptions,
+    IOptions<EntraSsoOptions> entraSsoOptions,
     IConfiguration configuration,
     OidcAuthenticationStrategy oidcStrategy,
     TestAuthenticationStrategy testStrategy,
     InternalAuthenticationStrategy internalStrategy,
+    EntraSsoAuthenticationStrategy entraSsoStrategy,
     [FromKeyedServices("internal")] ICustomRequestChecker internalRequestChecker
     ) : IAuthenticationSchemeStrategy
 {
     private bool IsTestEnabled() => testAuthOptions.Value.Enabled;
 
+    private bool IsEntraSsoEnabled() => entraSsoOptions.Value.Enabled;
+
     private bool IsInternalAuthRequest()
     {
         var ctx = httpContextAccessor.HttpContext;
         if (ctx == null) return false;
-        // Request checker may be null in some DI graphs; treat as false
         return internalRequestChecker != null && internalRequestChecker.IsValidRequest(ctx);
     }
 
@@ -38,25 +40,25 @@ public class CompositeAuthenticationSchemeStrategy(
     {
         var ctx = httpContextAccessor.HttpContext;
         var path = ctx?.Request.Path.ToString() ?? "unknown";
-        var isTestEnabled = IsTestEnabled();
-        var isInternalAuth = IsInternalAuthRequest();
 
-        if (isInternalAuth)
+        if (IsInternalAuthRequest())
         {
-            logger.LogDebug(
-                "Selecting InternalAuthenticationStrategy for {Path}.",
-                path);
+            logger.LogDebug("Selecting InternalAuthenticationStrategy for {Path}.", path);
             return internalStrategy;
         }
 
-        if (isTestEnabled)
+        if (IsTestEnabled())
         {
-            logger.LogDebug(
-                "Selecting TestAuthenticationStrategy for {Path}. TestEnabled: {TestEnabled}",
-                path, isTestEnabled);
+            logger.LogDebug("Selecting TestAuthenticationStrategy for {Path}.", path);
             return testStrategy;
         }
-        
+
+        if (IsEntraSsoEnabled())
+        {
+            logger.LogDebug("Selecting EntraSsoAuthenticationStrategy for {Path}.", path);
+            return entraSsoStrategy;
+        }
+
         logger.LogDebug("Selecting OidcAuthenticationStrategy for {Path}", path);
         return oidcStrategy;
     }
@@ -75,5 +77,3 @@ public class CompositeAuthenticationSchemeStrategy(
     public string? GetUserId(HttpContext context)
         => Select().GetUserId(context);
 }
-
-
