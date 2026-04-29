@@ -11,6 +11,7 @@ on:
         options:
           - Transfers
           - Lsrp
+          - RGVisits
       environment:
         type: choice
         description: "Choose an environment to deploy to"
