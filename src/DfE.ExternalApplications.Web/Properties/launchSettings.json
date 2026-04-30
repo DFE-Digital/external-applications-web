@@ -49,6 +49,16 @@
         "APPLICATION_NAME": "Lsrp"
       }
     },
+    "Visits-https": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "applicationUrl": "https://localhost:7020;http://localhost:5211",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "APPLICATION_NAME": "Visits"
+      }
+    },
     "https-Local": {
       "commandName": "Project",
       "dotnetRunMessages": true,
@@ -57,7 +67,7 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Local",
         "DOTNET_ENVIRONMENT": "Development",
-        "APPLICATION_NAME": "Transfers",
+        "APPLICATION_NAME": "Visits",
         "GITHUB_ACTIONS": "true"
       }
     },
