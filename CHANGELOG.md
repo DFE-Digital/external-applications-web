@@ -107,3 +107,7 @@ All notable changes to this service will be documented in this file.
 ## [1.3.9]
 ### Notes
 - Fixed character count not counting characters properly on validation.
+
+## [1.3.10]
+### Notes
+- Set Entra SSO enabled to false
