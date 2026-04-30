@@ -103,3 +103,7 @@ All notable changes to this service will be documented in this file.
 ## [1.3.8]
 ### Notes
 - Added support for EntraSSO authentication scheme.
+
+## [1.3.9]
+### Notes
+- Fixed character count not counting characters properly on validation.
