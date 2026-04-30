@@ -339,7 +339,9 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                             var maxLengthStr = rule.Rule?.ToString();
                             if (!string.IsNullOrEmpty(maxLengthStr) && int.TryParse(maxLengthStr, out var maxLength))
                             {
-                                if (stringValue.Length > maxLength)
+                                // Values are stored sanitised (newlines as <br>, HTML-encoded); match GOV.UK character-count / textarea length.
+                                var plainTextForMaxLengthValidation = FormSanitisedTextNormalizer.ToPlainTextForCharacterCountValidation(stringValue);
+                                if (plainTextForMaxLengthValidation.Length > maxLength)
                                 {
                                     modelState.AddModelError(fieldKey, rule.Message);
                                     isValid = false;
@@ -494,7 +496,8 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                         {
                             if (int.TryParse(rule.Rule?.ToString(), out var maxLength))
                             {
-                                if (stringValue.Length > maxLength)
+                                var plainTextForMaxLengthValidation = FormSanitisedTextNormalizer.ToPlainTextForCharacterCountValidation(stringValue);
+                                if (plainTextForMaxLengthValidation.Length > maxLength)
                                 {
                                     modelState.AddModelError(fieldKey, rule.Message);
                                     isValid = false;

@@ -144,4 +144,114 @@ public class FormValidationOrchestratorTests
         Assert.True(result);
         Assert.Null(modelState[fieldKey]);
     }
+
+    [Fact]
+    public void ValidateField_when_maxLength_and_submitted_value_contains_html_entity_then_uses_decoded_length()
+    {
+        var maxLengthRule = _fixture.Build<ValidationRule>()
+            .With(v => v.Type, "maxLength")
+            .Without(v => v.Condition)
+            .With(v => v.Rule, "5")
+            .With(v => v.Message, "Too many characters")
+            .Create();
+        var field = _fixture.Build<Field>()
+            .With(f => f.Type, "character-count")
+            .With(f => f.Validations, [maxLengthRule])
+            .Create();
+
+        var formData = _fixture.Create<Dictionary<string, object>?>();
+        var modelState = new ModelStateDictionary();
+        var fieldKey = field.FieldId;
+        var formTemplate = _fixture.Create<FormTemplate>();
+
+        // User sees five characters (EMAT + U+2019); submitted value may arrive as an HTML numeric character reference.
+        const string submittedEncoded = "EMAT&#x2019;";
+
+        var result = _orchestrator.ValidateField(field, submittedEncoded, formData, modelState, fieldKey, formTemplate);
+
+        Assert.True(result);
+        Assert.Null(modelState[fieldKey]);
+    }
+
+    [Fact]
+    public void ValidateField_when_maxLength_and_decoded_length_exceeds_limit_then_returns_false()
+    {
+        var maxLengthRule = _fixture.Build<ValidationRule>()
+            .With(v => v.Type, "maxLength")
+            .Without(v => v.Condition)
+            .With(v => v.Rule, "4")
+            .With(v => v.Message, "Too many characters")
+            .Create();
+        var field = _fixture.Build<Field>()
+            .With(f => f.Type, "character-count")
+            .With(f => f.Validations, [maxLengthRule])
+            .Create();
+
+        var formData = _fixture.Create<Dictionary<string, object>?>();
+        var modelState = new ModelStateDictionary();
+        var fieldKey = field.FieldId;
+        var formTemplate = _fixture.Create<FormTemplate>();
+
+        const string submittedEncoded = "EMAT&#x2019;";
+
+        var result = _orchestrator.ValidateField(field, submittedEncoded, formData, modelState, fieldKey, formTemplate);
+
+        Assert.False(result);
+        Assert.Equal("Too many characters", modelState[fieldKey]!.Errors[0].ErrorMessage);
+    }
+
+    [Fact]
+    public void ValidateField_when_maxLength_and_value_is_sanitised_with_br_tags_then_uses_plain_text_length()
+    {
+        // Same shape as after DisplayHelpers.SanitiseHtmlInput for "Some\r\nnew\rlines\nhere" (see DisplayHelpersTests).
+        const string sanitisedAsStored = "Some<br>new<br>lines<br>here";
+        const int plainTextLength = 19;
+
+        var maxLengthRule = _fixture.Build<ValidationRule>()
+            .With(v => v.Type, "maxLength")
+            .Without(v => v.Condition)
+            .With(v => v.Rule, plainTextLength.ToString())
+            .With(v => v.Message, "Too many characters")
+            .Create();
+        var field = _fixture.Build<Field>()
+            .With(f => f.Type, "character-count")
+            .With(f => f.Validations, [maxLengthRule])
+            .Create();
+
+        var formData = _fixture.Create<Dictionary<string, object>?>();
+        var modelState = new ModelStateDictionary();
+        var fieldKey = field.FieldId;
+        var formTemplate = _fixture.Create<FormTemplate>();
+
+        var result = _orchestrator.ValidateField(field, sanitisedAsStored, formData, modelState, fieldKey, formTemplate);
+
+        Assert.True(result);
+        Assert.Null(modelState[fieldKey]);
+    }
+
+    [Fact]
+    public void ValidateField_when_maxLength_and_sanitised_value_exceeds_plain_limit_then_returns_false()
+    {
+        const string sanitisedAsStored = "Some<br>new<br>lines<br>here";
+
+        var maxLengthRule = _fixture.Build<ValidationRule>()
+            .With(v => v.Type, "maxLength")
+            .Without(v => v.Condition)
+            .With(v => v.Rule, "18")
+            .With(v => v.Message, "Too many characters")
+            .Create();
+        var field = _fixture.Build<Field>()
+            .With(f => f.Type, "character-count")
+            .With(f => f.Validations, [maxLengthRule])
+            .Create();
+
+        var formData = _fixture.Create<Dictionary<string, object>?>();
+        var modelState = new ModelStateDictionary();
+        var fieldKey = field.FieldId;
+        var formTemplate = _fixture.Create<FormTemplate>();
+
+        var result = _orchestrator.ValidateField(field, sanitisedAsStored, formData, modelState, fieldKey, formTemplate);
+
+        Assert.False(result);
+    }
 }
