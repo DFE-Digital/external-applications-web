@@ -1,6 +1,8 @@
 @page "/applications/{referenceNumber}/contributors"
 @using DfE.ExternalApplications.Web.Extensions
 @model ContributorsModel
+@inject IConfiguration Configuration
+
 @{
     ViewData["Title"] = "Invite contributors";
 
@@ -33,7 +35,7 @@
         </p>
 
         <p class="govuk-body">
-            They must have a DfE Sign-in account. They can only create an account using a business email address with their name. For example, firstname.lastname@schooldomain.
+            They must have a DfE Sign-in account. They can only create an account using a business email address with their name. For example, @Configuration["Layout:ContributorEmail"].
         </p>
 
         <p class="govuk-body">
