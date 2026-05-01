@@ -111,3 +111,7 @@ All notable changes to this service will be documented in this file.
 ## [1.3.10]
 ### Notes
 - Set Entra SSO enabled to false
+
+## [1.3.11]
+### Notes
+- Make email address configurable on invite a contributor page
