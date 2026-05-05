@@ -144,7 +144,7 @@
                                 }
                                 else if (isAutocompleteField)
                                 {
-                                    var html = RenderAutocompleteSummary(fieldValue);
+                                    var html = RenderAutocompleteSummary(DisplayHelpers.UnsanitiseHtmlInput(fieldValue));
                                     @Html.Raw(html)
                                 }
                                 else
