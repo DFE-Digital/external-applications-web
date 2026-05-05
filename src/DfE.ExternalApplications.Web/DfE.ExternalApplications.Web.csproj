@@ -11,7 +11,7 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="GovUK.Dfe.CoreLibs.Security" Version="1.1.25-prerelease-11" />
+		<PackageReference Include="GovUK.Dfe.CoreLibs.Security" Version="1.1.26" />
 		<PackageReference Include="GovUk.Frontend.AspNetCore" Version="3.2.2" />
 		<PackageReference Include="HtmlSanitizer" Version="9.0.892" />
 		<PackageReference Include="Markdig" Version="0.42.0" />
