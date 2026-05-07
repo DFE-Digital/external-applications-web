@@ -115,3 +115,7 @@ All notable changes to this service will be documented in this file.
 ## [1.3.11]
 ### Notes
 - Added site-wide notification banner and feature flag
+
+## [1.3.12]
+### Notes
+- Make email address configurable on invite a contributor page
