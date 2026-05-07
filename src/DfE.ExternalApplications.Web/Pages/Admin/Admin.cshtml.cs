@@ -77,7 +77,7 @@ namespace DfE.ExternalApplications.Web.Pages.Admin
             }
 
             await LoadTemplateInformationAsync(true);
-            return RedirectToPage("/index");
+            return RedirectToPage("/Applications/Dashboard");
         }
 
         public IActionResult OnPostGoToTemplateManager()
