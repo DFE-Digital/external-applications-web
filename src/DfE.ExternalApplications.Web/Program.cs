@@ -421,6 +421,9 @@ builder.Services.AddScoped<IFormTemplateProvider, FormTemplateProvider>();
 
 // Application terminology configuration (customisable per service, e.g. "application" vs "reform plan")
 builder.Services.Configure<ApplicationTerminologyOptions>(configuration.GetSection("ApplicationTerminology"));
+
+// Site-wide notification banner (feature flag driven from appsettings)
+builder.Services.Configure<NotificationBannerOptions>(configuration.GetSection("NotificationBanner"));
 builder.Services.AddSingleton<IApplicationTerminologyProvider, ApplicationTerminologyProvider>();
 
 // Application submission configuration (mapper key and handlers per application)

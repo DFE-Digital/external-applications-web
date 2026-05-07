@@ -313,6 +313,8 @@
     @Html.Raw(JavaScriptSnippet.FullScript)
 }
 
+@await Component.InvokeAsync("NotificationBanner")
+
 @await Html.PartialAsync("_NotificationDisplay")
 
 @RenderBody()
