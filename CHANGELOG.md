@@ -119,3 +119,7 @@ All notable changes to this service will be documented in this file.
 ## [1.3.12]
 ### Notes
 - Make email address configurable on invite a contributor page
+
+## [1.3.13]
+### Notes
+- Fix Vision page executive summary word count bug
