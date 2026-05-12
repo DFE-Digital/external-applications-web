@@ -1,11 +1,11 @@
 using DfE.ExternalApplications.Application.Interfaces;
 using DfE.ExternalApplications.Domain.Models;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
-using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
-using System.Text.Json;
-using System.Globalization;
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Web;
 using Task = DfE.ExternalApplications.Domain.Models.Task;
 
@@ -348,6 +348,13 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                                 }
                             }
                             break;
+                        case "maxWords":
+                            if (!ValidateWordCount(stringValue, rule))
+                            {
+                                modelState.AddModelError(fieldKey, rule.Message);
+                                isValid = false;
+                            }
+                            break;
                         default:
                             _logger.LogWarning("Unknown validation rule type: {RuleType} for field '{FieldKey}'", rule.Type, fieldKey);
                             break;
@@ -509,6 +516,14 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                             }
                         }
                         break;
+                    case "maxwords":
+                        if (!isUploadField && !ValidateWordCount(stringValue, rule))
+                        {
+                            modelState.AddModelError(fieldKey, rule.Message);
+                            isValid = false;
+                        }
+                        break;
+
                     default:
                         _logger.LogWarning("Unknown complex field validation rule type '{Type}' for field '{FieldId}'", rule.Type, field.FieldId);
                         break;
@@ -516,6 +531,22 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             }
 
             return isValid;
+        }
+
+        private static bool ValidateWordCount(string stringValue, ValidationRule rule)
+        {
+            var maxWordsStr = rule.Rule?.ToString();
+            if (!string.IsNullOrEmpty(maxWordsStr) && int.TryParse(maxWordsStr, out var maxWords))
+            {
+                var plainTextForValidation = FormSanitisedTextNormalizer.ToPlainTextForCharacterCountValidation(stringValue);
+                int wordCount = TextCounter.GetWordCount(plainTextForValidation);
+                if (wordCount > maxWords)
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         /// <summary>
