@@ -123,3 +123,7 @@ All notable changes to this service will be documented in this file.
 ## [1.3.13]
 ### Notes
 - Fix Vision page executive summary word count bug
+
+## [1.3.14]
+### Notes
+- Remove the word "form" from the plan version label
