@@ -127,3 +127,7 @@ All notable changes to this service will be documented in this file.
 ## [1.3.14]
 ### Notes
 - Remove the word "form" from the plan version label
+
+## [1.3.15]
+### Notes
+- Make the lead applicant label configurable in form header
