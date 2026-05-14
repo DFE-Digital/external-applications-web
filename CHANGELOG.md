@@ -131,3 +131,7 @@ All notable changes to this service will be documented in this file.
 ## [1.3.15]
 ### Notes
 - Make the lead applicant label configurable in form header
+
+## [1.3.16]
+### Notes
+- Added SignedOutCallBackUri to the DSI config
