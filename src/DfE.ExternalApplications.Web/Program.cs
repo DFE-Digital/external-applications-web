@@ -37,6 +37,7 @@ using Microsoft.AspNetCore.Authentication;
 using MassTransit;
 using GovUK.Dfe.CoreLibs.Messaging.Contracts.Exceptions;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.HttpOverrides;
 using DfE.ExternalApplications.Web.Telemetry;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -134,6 +135,17 @@ static void BindNestedConfiguration(ConfigurationManager config, string parentKe
 builder.Configuration.AddEnvironmentVariables();
 
 ConfigurationManager configuration = builder.Configuration;
+
+// Reverse proxies (Azure Container Apps, Front Door) forward original scheme/host; without this,
+// Request.Scheme/Host reflect the internal hop and OIDC redirect URIs do not match DfE Sign-In registration.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor
+        | ForwardedHeaders.XForwardedProto
+        | ForwardedHeaders.XForwardedHost;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 
 builder.Services.AddApplicationInsightsTelemetry(configuration);
 
@@ -298,6 +310,12 @@ builder.Services
         {
             context.HandleResponse();
             context.Response.Redirect("/error?message=" + Uri.EscapeDataString(context.Exception.Message));
+            return Task.CompletedTask;
+        },
+
+        OnRedirectToIdentityProviderForSignOut = context =>
+        {
+            DfESignInOidcPublicUrls.ApplyPostLogoutRedirectUri(context, configuration);
             return Task.CompletedTask;
         }
     })
@@ -491,6 +509,8 @@ AppDomain.CurrentDomain.UnhandledException += (sender, args) =>
         GC.GetTotalMemory(false) / 1024 / 1024);
 };
 var app = builder.Build();
+
+app.UseForwardedHeaders();
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
