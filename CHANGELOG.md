@@ -135,3 +135,7 @@ All notable changes to this service will be documented in this file.
 ## [1.3.16]
 ### Notes
 - Added SignedOutCallBackUri to the DSI config
+
+## [1.3.17]
+### Notes
+- Use a feature flag to disable submitting an application

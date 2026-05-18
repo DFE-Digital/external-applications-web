@@ -2,6 +2,8 @@
 @using System.Text.Json
 @model DfE.ExternalApplications.Web.Pages.FormEngine.RenderFormModel
 @inject DfE.ExternalApplications.Application.Interfaces.IDerivedCollectionFlowService DerivedFlowService
+@inject IConfiguration Configuration
+
 @{
     var applicationId = Context.Session.GetString("ApplicationId");
     var leadApplicantEmail = Context.Session.GetString($"ApplicationLeadApplicantEmail_{applicationId}");
@@ -14,6 +16,8 @@
                         ?? Context.User?.Identity?.Name;
     
     var isLeadApplicant = string.Equals(currentUserEmail?.Trim(), leadApplicantEmail?.Trim(), StringComparison.InvariantCultureIgnoreCase);
+
+    bool submitIsDisabled = bool.TryParse(Configuration["Layout:SubmitAppIsDisabled"], out bool isDisabled) && isDisabled;
 }
 
 <div class="govuk-grid-row">
@@ -635,7 +639,7 @@
             {
                 <input type="hidden" name="preview" value="true"/>
             }
-            <govuk-button type="submit" id="submit-application-button">
+            <govuk-button type="submit" id="submit-application-button" disabled="@(submitIsDisabled ? true : false)">
                 Submit
             </govuk-button>
         </form>
