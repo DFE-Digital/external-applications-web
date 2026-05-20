@@ -132,6 +132,14 @@ All notable changes to this service will be documented in this file.
 ### Notes
 - Make the lead applicant label configurable in form header
 
-## [1.3.15]
+## [1.3.16]
+### Notes
+- Added SignedOutCallBackUri to the DSI config
+
+## [1.3.17]
+### Notes
+- Use a feature flag to disable submitting an application
+
+## [1.3.18]
 ### Notes
 - Added pagination to the dashboard

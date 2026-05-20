@@ -1,0 +1,25 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: main
+    paths:
+      - './terraform'
+  pull_request:
+    paths:
+      - './terraform'
+
+jobs:
+  continuous-integration-terraform:
+    name: Continuous Integration Terraform
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+
+      - name: Terraform Validate
+        uses: DFE-Digital/terraform-linting-actions/.github/actions/validate@v1.2.1
+        with:
+          terraform_version: '1.10.5'
+          tflint_version: 'v0.44.1'
+          entrypoint: './terraform'
