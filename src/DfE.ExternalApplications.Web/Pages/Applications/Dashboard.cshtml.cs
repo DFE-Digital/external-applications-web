@@ -5,11 +5,13 @@ using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using DfE.ExternalApplications.Application.Interfaces;
+using DfE.ExternalApplications.Application.Options;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using GovUK.Dfe.ExternalApplications.Api.Client.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Options;
 using SystemTask = System.Threading.Tasks.Task;
 using Microsoft.Extensions.Configuration;
 
@@ -22,7 +24,8 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
         IApplicationsClient applicationsClient,
         IHttpContextAccessor httpContextAccessor,
         IApplicationResponseService applicationResponseService,
-        IFormTemplateProvider templateProvider)
+        IFormTemplateProvider templateProvider,
+        IOptions<DashboardOptions> dashboardOptions)
         : PageModel
     {
         public string? Email { get; private set; }
@@ -32,6 +35,12 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
         public IReadOnlyList<ApplicationWithCalculatedStatus> Applications { get; private set; } = Array.Empty<ApplicationWithCalculatedStatus>();
         public bool HasError { get; private set; }
         public string? ErrorMessage { get; private set; }
+
+        [BindProperty(SupportsGet = true)]
+        public int CurrentPage { get; set; } = 1;
+
+        public int TotalPages { get; private set; }
+        public int PageSize => dashboardOptions.Value.PageSize;
 
         public class ApplicationWithCalculatedStatus
         {
@@ -157,20 +166,23 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
                 return;
             }
 
-            var applications = await applicationsClient.GetMyApplicationsAsync(templateId: templateGuid.Value);
+            var pageSize = dashboardOptions.Value.PageSize;
+            var result = await applicationsClient.GetMyApplicationsAsync(
+                templateId: templateGuid.Value,
+                pageNumber: CurrentPage,
+                pageSize: pageSize);
 
-            // Calculate status for each application
-            var applicationTasks = applications.Select(async app => new ApplicationWithCalculatedStatus
+            TotalPages = result.TotalPages;
+            CurrentPage = Math.Clamp(CurrentPage, 1, Math.Max(1, TotalPages));
+
+            var applicationTasks = result.Items.AsEnumerable().Select(async app => new ApplicationWithCalculatedStatus
             {
                 Application = app,
                 CalculatedStatus = await GetCalculatedApplicationStatusAsync(app)
             });
 
-            var applicationsWithStatus = await SystemTask.WhenAll(applicationTasks);
-
-            Applications = applicationsWithStatus
-                .OrderByDescending(a => a.DateCreated)
-                .ToList();
+            Applications = [..(await SystemTask.WhenAll(applicationTasks))
+                .OrderByDescending(a => a.DateCreated)];
         }
 
         private Guid? ResolveTemplateId()

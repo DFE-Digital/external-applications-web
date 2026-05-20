@@ -442,6 +442,9 @@ builder.Services.Configure<ApplicationTerminologyOptions>(configuration.GetSecti
 
 // Site-wide notification banner (feature flag driven from appsettings)
 builder.Services.Configure<NotificationBannerOptions>(configuration.GetSection("NotificationBanner"));
+
+// Dashboard configuration (page size for application list pagination)
+builder.Services.Configure<DashboardOptions>(configuration.GetSection("Dashboard"));
 builder.Services.AddSingleton<IApplicationTerminologyProvider, ApplicationTerminologyProvider>();
 
 // Application submission configuration (mapper key and handlers per application)
