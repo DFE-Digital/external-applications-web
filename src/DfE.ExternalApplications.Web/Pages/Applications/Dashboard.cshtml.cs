@@ -40,7 +40,7 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
         public int CurrentPage { get; set; } = 1;
 
         public int TotalPages { get; private set; }
-        public int PageSize => dashboardOptions.Value.PageSize;
+        public int? PageSize => dashboardOptions.Value.PageSize;
 
         public class ApplicationWithCalculatedStatus
         {
@@ -166,14 +166,7 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
                 return;
             }
 
-            var pageSize = dashboardOptions.Value.PageSize;
-            var result = await applicationsClient.GetMyApplicationsAsync(
-                templateId: templateGuid.Value,
-                pageNumber: CurrentPage,
-                pageSize: pageSize);
-
-            TotalPages = result.TotalPages;
-            CurrentPage = Math.Clamp(CurrentPage, 1, Math.Max(1, TotalPages));
+            var applications = await applicationsClient.GetMyApplicationsAsync(templateId: templateGuid.Value);
 
             var applicationTasks = result.Items.AsEnumerable().Select(async app => new ApplicationWithCalculatedStatus
             {
