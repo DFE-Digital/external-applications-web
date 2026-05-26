@@ -11,6 +11,7 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<PackageReference Include="Azure.Identity" Version="1.17.1" />
 		<PackageReference Include="GovUK.Dfe.CoreLibs.Security" Version="1.1.27-prerelease-4" />
 		<PackageReference Include="GovUk.Frontend.AspNetCore" Version="3.2.2" />
 		<PackageReference Include="HtmlSanitizer" Version="9.0.892" />
@@ -23,6 +24,5 @@
 		<ProjectReference Include="..\DfE.ExternalApplications.Application\DfE.ExternalApplications.Application.csproj" />
 		<ProjectReference Include="..\DfE.ExternalApplications.Infrastructure\DfE.ExternalApplications.Infrastructure.csproj" />
 	</ItemGroup>
-
 
 </Project>

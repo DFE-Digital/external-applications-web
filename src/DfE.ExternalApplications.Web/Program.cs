@@ -42,6 +42,8 @@ using DfE.ExternalApplications.Web.Telemetry;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Configuration.AddJsonFile("appsettings.bootstrap.json", optional: true, reloadOnChange: true);
+
 // Load application-specific configuration from configurations/{APPLICATION_NAME}/ folder
 var applicationName = Environment.GetEnvironmentVariable("APPLICATION_NAME") ?? "Transfers";
 var environment = builder.Environment.EnvironmentName;
@@ -372,6 +374,8 @@ builder.Services.AddTokenRefreshWithOidc(configuration, "DfESignIn", "TokenRefre
 // Add HttpClient for API calls
 builder.Services.AddHttpClient();
 
+builder.Services.AddPlatformTenantConfiguration(configuration);
+
 builder.Services.AddScoped<IContributorService, ContributorService>();
 
 builder.Services.AddExternalApplicationsApiClients(configuration);
@@ -508,9 +512,12 @@ AppDomain.CurrentDomain.UnhandledException += (sender, args) =>
         exception?.GetType().FullName ?? "Unknown",
         GC.GetTotalMemory(false) / 1024 / 1024);
 };
+await builder.BootstrapPlatformHostConfigurationAsync();
+
 var app = builder.Build();
 
 app.UseForwardedHeaders();
+app.UsePlatformTenantConfiguration();
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
