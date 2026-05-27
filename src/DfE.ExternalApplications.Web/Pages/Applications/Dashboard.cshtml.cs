@@ -166,7 +166,7 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
                 return;
             }
 
-            var pageSize = dashboardOptions.Value.PageSize; 
+            var pageSize = dashboardOptions.Value.PageSize;
             var result = await applicationsClient.GetMyApplicationsAsync(
                 templateId: templateGuid.Value,
                 pageNumber: CurrentPage,
