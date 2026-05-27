@@ -166,7 +166,14 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
                 return;
             }
 
-            var applications = await applicationsClient.GetMyApplicationsAsync(templateId: templateGuid.Value);
+            var pageSize = dashboardOptions.Value.PageSize;
+            var result = await applicationsClient.GetMyApplicationsAsync(
+                templateId: templateGuid.Value,
+                pageNumber: CurrentPage,
+                pageSize: pageSize);
+
+            TotalPages = result.TotalPages;
+            CurrentPage = Math.Clamp(CurrentPage, 1, Math.Max(1, TotalPages));
 
             var applicationTasks = result.Items.AsEnumerable().Select(async app => new ApplicationWithCalculatedStatus
             {
