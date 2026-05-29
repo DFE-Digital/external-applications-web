@@ -39,8 +39,12 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
         [BindProperty(SupportsGet = true)]
         public int CurrentPage { get; set; } = 1;
 
+        [BindProperty(SupportsGet = true)]
+        public string? SearchReference { get; set; }
+
         public int TotalPages { get; private set; }
-        public int? PageSize => dashboardOptions.Value.PageSize;
+        public int PageSize => dashboardOptions.Value.PageSize;
+        public bool IsSearchActive => !string.IsNullOrWhiteSpace(SearchReference);
 
         public class ApplicationWithCalculatedStatus
         {
@@ -168,6 +172,7 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
 
             var pageSize = dashboardOptions.Value.PageSize;
             var result = await applicationsClient.GetMyApplicationsAsync(
+                applicationReference: string.IsNullOrWhiteSpace(SearchReference) ? null : SearchReference,
                 templateId: templateGuid.Value,
                 pageNumber: CurrentPage,
                 pageSize: pageSize);
