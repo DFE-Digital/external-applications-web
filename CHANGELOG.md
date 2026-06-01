@@ -143,3 +143,7 @@ All notable changes to this service will be documented in this file.
 ## [1.3.18]
 ### Notes
 - Added pagination to the dashboard
+
+## [1.3.19]
+### Notes
+- Addeed Test env appsettings
