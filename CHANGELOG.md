@@ -152,3 +152,7 @@ All notable changes to this service will be documented in this file.
 ## [1.3.20]
 ### Notes
 - Addeed Test env appsettings
+
+## [1.3.21]
+### Notes
+- Added the ability to search for applications by reference on the dashboard
