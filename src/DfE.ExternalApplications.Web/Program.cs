@@ -296,10 +296,11 @@ builder.Services
         {
             var error = context.Failure?.Message ?? "Unknown error";
 
-            if (error.Contains("message.State", StringComparison.OrdinalIgnoreCase))
+            if (error.Contains("message.State", StringComparison.OrdinalIgnoreCase)
+                || context.Request.Path.StartsWithSegments("/signout-callback-oidc"))
             {
                 context.Response.Redirect("/");
-                context.HandleResponse(); // Suppress the exception
+                context.HandleResponse();
                 return Task.CompletedTask;
             }
 
@@ -316,6 +317,12 @@ builder.Services
         OnRedirectToIdentityProviderForSignOut = context =>
         {
             DfESignInOidcPublicUrls.ApplyPostLogoutRedirectUri(context, configuration);
+            return Task.CompletedTask;
+        },
+
+        OnSignedOutCallbackRedirect = context =>
+        {
+            context.HttpContext.Session.Clear();
             return Task.CompletedTask;
         }
     })
@@ -345,6 +352,12 @@ builder.Services
         {
             context.HandleResponse();
             context.Response.Redirect("/error?message=" + Uri.EscapeDataString(context.Exception.Message));
+            return Task.CompletedTask;
+        },
+
+        OnSignedOutCallbackRedirect = context =>
+        {
+            context.HttpContext.Session.Clear();
             return Task.CompletedTask;
         }
     });
@@ -549,6 +562,11 @@ app.UseHostTemplateResolution();
 
 app.UseStatusCodePages(ctx =>
 {
+    if (AuthenticationPathExclusions.ShouldSkip(ctx.HttpContext.Request.Path))
+    {
+        return Task.CompletedTask;
+    }
+
     var c = ctx.HttpContext.Response.StatusCode;
     if (c == 401) ctx.HttpContext.Response.Redirect("/Error/Forbidden");
     else if (c == 403) ctx.HttpContext.Response.Redirect("/Error/Forbidden");

@@ -146,9 +146,13 @@ All notable changes to this service will be documented in this file.
 
 ## [1.3.19]
 ### Notes
-- Addeed Test env appsettings
+- Added Test env appsettings
 - Updated pagination default page size to show 50 applications per page
 
 ## [1.3.20]
 ### Notes
-- Addeed Test env appsettings
+- Added Test env appsettings
+
+## [1.3.21]
+### Notes
+- Improved Logout functionality
