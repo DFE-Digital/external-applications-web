@@ -1,6 +1,7 @@
 using DfE.ExternalApplications.Application.Interfaces;
 using DfE.ExternalApplications.Domain.Models;
 using DfE.ExternalApplications.Web.Authentication;
+using DfE.ExternalApplications.Web.Security;
 using DfE.ExternalApplications.Web.Services;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using Microsoft.AspNetCore.Mvc;
@@ -79,11 +80,26 @@ namespace DfE.ExternalApplications.Web.Pages.Shared
         }
 
         /// <summary>
-        /// Checks if the application is editable based on status, or if the current user is an Admin
+        /// Checks if the application is editable based on status, write permission, or Admin role.
         /// </summary>
         public bool IsApplicationEditable()
         {
-            return _applicationStateService.IsApplicationEditable(ApplicationStatus) || IsUserAdmin();
+            if (IsUserAdmin())
+            {
+                return true;
+            }
+
+            if (!_applicationStateService.IsApplicationEditable(ApplicationStatus))
+            {
+                return false;
+            }
+
+            if (!ApplicationId.HasValue)
+            {
+                return false;
+            }
+
+            return ApplicationPermissionHelper.CanWriteApplication(HttpContext?.User, ApplicationId.Value);
         }
 
         /// <summary>
