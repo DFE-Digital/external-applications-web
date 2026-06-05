@@ -57,6 +57,17 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         }
 
         /// <summary>
+        /// Ensures <see cref="CurrentFormState"/> is populated when returning <see cref="PageResult"/> from an exception filter.
+        /// </summary>
+        public void EnsureFormStateForErrorDisplay()
+        {
+            if (CurrentFormState == default)
+            {
+                CurrentFormState = GetCurrentFormState();
+            }
+        }
+
+        /// <summary>
         /// Gets the back link URL for the current context
         /// </summary>
         /// <returns>The back link URL</returns>

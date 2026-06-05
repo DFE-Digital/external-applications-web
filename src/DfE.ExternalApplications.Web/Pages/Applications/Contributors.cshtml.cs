@@ -33,36 +33,16 @@ public class ContributorsModel(
     /// </summary>
     public async Task<IActionResult> OnGetAsync()
     {
-        try
-        {
-            // Ensure we have a valid application ID
-            var (applicationId, _) = await applicationStateService.EnsureApplicationIdAsync(ReferenceNumber, HttpContext.Session);
-            
-            if (!applicationId.HasValue)
-            {
-                logger.LogWarning("No application ID found for reference number {ReferenceNumber}", ReferenceNumber);
-                HasError = true;
-                ErrorMessage = $"{terminologyProvider.SingularCapitalised} not found. Please try again.";
-                return Page();
-            }
+        var (applicationId, _) = await applicationStateService.EnsureApplicationIdAsync(ReferenceNumber, HttpContext.Session);
 
-            ApplicationId = applicationId;
+        ApplicationId = applicationId;
 
-            // Load contributors for the application
-            Contributors = await contributorService.GetApplicationContributorsAsync(applicationId.Value);
-            
-            logger.LogInformation("Loaded {Count} contributors for application {ApplicationId}", 
-                Contributors.Count, applicationId.Value);
+        Contributors = await contributorService.GetApplicationContributorsAsync(applicationId!.Value);
 
-            return Page();
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Error loading contributors for application reference {ReferenceNumber}", ReferenceNumber);
-            HasError = true;
-            ErrorMessage = "There was a problem loading contributors. Please try again later.";
-            return Page();
-        }
+        logger.LogInformation("Loaded {Count} contributors for application {ApplicationId}",
+            Contributors.Count, applicationId.Value);
+
+        return Page();
     }
 
     /// <summary>

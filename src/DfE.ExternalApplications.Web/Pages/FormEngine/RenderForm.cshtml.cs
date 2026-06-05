@@ -1,6 +1,8 @@
+using DfE.ExternalApplications.Application.Exceptions;
 using DfE.ExternalApplications.Application.Interfaces;
 using DfE.ExternalApplications.Domain.Models;
 using DfE.ExternalApplications.Infrastructure.Services;
+using DfE.ExternalApplications.Web.Constants;
 using DfE.ExternalApplications.Web.Interfaces;
 using DfE.ExternalApplications.Web.Pages.Shared;
 using DfE.ExternalApplications.Web.Services;
@@ -102,7 +104,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 try
                 {
                     await CommonFormEngineInitializationAsync();
-                    
+                
+                }
+                catch (ApplicationAccessException)
+                {
+                    throw;
                 }
                 catch (Exception ex)
                 {
@@ -527,7 +533,9 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             // Prevent submission if application is not editable
             if (!IsApplicationEditable())
             {
-                return RedirectToPage("/FormEngine/RenderForm", new { referenceNumber = ReferenceNumber });
+                CurrentFormState = FormState.ApplicationPreview;
+                ModelState.AddModelError("", ApplicationAccessMessages.NoWritePermission);
+                return Page();
             }
 
             // Check if all tasks are completed before allowing submission
@@ -600,12 +608,17 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 
                 return RedirectToPage("/Applications/ApplicationSubmitted", new { referenceNumber = ReferenceNumber });
             }
+            catch (ExternalApplicationsException)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to submit application {ApplicationId} with reference {ReferenceNumber}", 
                     ApplicationId.Value, ReferenceNumber);
                 
                 ModelState.AddModelError("", $"An error occurred while submitting your application: {ex.Message}. Please try again.");
+                CurrentFormState = FormState.ApplicationPreview;
                 return Page();
             }
         }
@@ -655,15 +668,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
             await CommonFormEngineInitializationAsync();
 
-            // Prevent editing if application is not editable
-            if (!IsApplicationEditable())
-            {
-                return RedirectToPage("/FormEngine/RenderForm", new { referenceNumber = ReferenceNumber });
-            }
-
-
-            
-            // URL decode the pageId to handle encoded forward slashes from form submissions
             if (!string.IsNullOrEmpty(CurrentPageId))
             {
                 CurrentPageId = System.Web.HttpUtility.UrlDecode(CurrentPageId);
@@ -732,6 +736,12 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 CurrentGroup = group;
                 CurrentTask = task;
                 CurrentPage = null; // No specific page for task summary
+            }
+
+            if (!IsApplicationEditable())
+            {
+                ModelState.AddModelError("", ApplicationAccessMessages.NoWritePermission);
+                return Page();
             }
 
             // Removed verbose debug logging of posted keys
@@ -1133,18 +1143,9 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             bool isDerivedFlowSave = TryParseDerivedFlowRoute(CurrentPageId, out _, out _, out _);
             if (ApplicationId.HasValue && Data.Any() && !isSubFlow && !isDerivedFlowSave)
             {
-                try
-                {
-                    await _applicationResponseService.SaveApplicationResponseAsync(ApplicationId.Value, Data, HttpContext.Session);
-                    _logger.LogInformation("Successfully saved response for Application {ApplicationId}, Page {PageId}",
-                        ApplicationId.Value, CurrentPageId);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to save response for Application {ApplicationId}, Page {PageId}",
-                        ApplicationId.Value, CurrentPageId);
-                    // Continue with navigation even if save fails - we can show a warning to user later
-                }
+                await _applicationResponseService.SaveApplicationResponseAsync(ApplicationId.Value, Data, HttpContext.Session);
+                _logger.LogInformation("Successfully saved response for Application {ApplicationId}, Page {PageId}",
+                    ApplicationId.Value, CurrentPageId);
             }
 
             // Before deciding where to go, push current page URL to navigation history so Back returns here
@@ -1190,25 +1191,17 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                         // Also persist partial collection item to the database on every page
                         if (ApplicationId.HasValue)
                         {
-                            try
-                            {
-                                var accumulatedProgress = LoadFlowProgress(flowId, instanceId);
-                                AppendCollectionItemToSession(flowPages, flowFieldId, instanceId, accumulatedProgress);
+                            var accumulatedProgress = LoadFlowProgress(flowId, instanceId);
+                            AppendCollectionItemToSession(flowPages, flowFieldId, instanceId, accumulatedProgress);
 
-                                var accData = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
-                                if (accData.TryGetValue(flowFieldId, out var collectionValue))
-                                {
-                                    await _applicationResponseService.SaveApplicationResponseAsync(
-                                        ApplicationId.Value,
-                                        new Dictionary<string, object> { [flowFieldId] = collectionValue },
-                                        HttpContext.Session);
-                                    _logger.LogInformation("Saved partial collection item to database for flow {FlowId}, instance {InstanceId}, page {PageId}",
-                                        flowId, instanceId, CurrentPageId);
-                                }
-                            }
-                            catch (Exception ex)
+                            var accData = _applicationResponseService.GetAccumulatedFormData(HttpContext.Session);
+                            if (accData.TryGetValue(flowFieldId, out var collectionValue))
                             {
-                                _logger.LogError(ex, "Failed to save partial collection item for flow {FlowId}, instance {InstanceId}, page {PageId}",
+                                await _applicationResponseService.SaveApplicationResponseAsync(
+                                    ApplicationId.Value,
+                                    new Dictionary<string, object> { [flowFieldId] = collectionValue },
+                                    HttpContext.Session);
+                                _logger.LogInformation("Saved partial collection item to database for flow {FlowId}, instance {InstanceId}, page {PageId}",
                                     flowId, instanceId, CurrentPageId);
                             }
                         }
@@ -1424,35 +1417,22 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
                     if (isCompleted)
                     {
-                        
-                        
-                        try
+                        // Persist a flag so API has an audit of completion action
+                        await _applicationResponseService.SaveApplicationResponseAsync(ApplicationId.Value, new Dictionary<string, object>
                         {
-                            // Persist a flag so API has an audit of completion action
-                            await _applicationResponseService.SaveApplicationResponseAsync(ApplicationId.Value, new Dictionary<string, object>
-                            {
-                                [$"{TaskId}_completed"] = true
-                            }, HttpContext.Session);
-                            
-                            // Also set the task status to Completed (matches TaskSummary behaviour)
-                            if (CurrentTask != null)
-                            {
-                                await _applicationStateService.SaveTaskStatusAsync(
-                                    ApplicationId.Value,
-                                    CurrentTask.TaskId,
-                                    Domain.Models.TaskStatus.Completed,
-                                    HttpContext.Session);
-                                
-                            }
+                            [$"{TaskId}_completed"] = true
+                        }, HttpContext.Session);
 
-                            
-                        }
-                        catch (Exception ex)
+                        // Also set the task status to Completed (matches TaskSummary behaviour)
+                        if (CurrentTask != null)
                         {
-                            _logger.LogError(ex, "POST: Error saving task completion status");
+                            await _applicationStateService.SaveTaskStatusAsync(
+                                ApplicationId.Value,
+                                CurrentTask.TaskId,
+                                Domain.Models.TaskStatus.Completed,
+                                HttpContext.Session);
                         }
-                        
-                        // Use RedirectToPage to ensure proper page model initialization
+
                         _logger.LogInformation("POST: About to redirect to task list using RedirectToPage with ReferenceNumber: {ReferenceNumber}", ReferenceNumber);
                         return RedirectToPage("/FormEngine/RenderForm", new { referenceNumber = ReferenceNumber });
                     }
@@ -1672,33 +1652,24 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
                     if (ApplicationId.HasValue)
                     {
-                        try
+                        if (isCompleted)
                         {
-                            if (isCompleted)
-                            {
-                                await _applicationStateService.SaveTaskStatusAsync(
-                                    ApplicationId.Value,
-                                    CurrentTask.TaskId,
-                                    Domain.Models.TaskStatus.Completed,
-                                    HttpContext.Session);
-                                
-                            }
-                            else
-                            {
-                                var hasAnyData = _applicationStateService.CalculateTaskStatus(CurrentTask.TaskId, Template, FormData, ApplicationId, HttpContext.Session, ApplicationStatus)
-                                    != Domain.Models.TaskStatus.NotStarted;
-                                var newStatus = hasAnyData ? Domain.Models.TaskStatus.InProgress : Domain.Models.TaskStatus.NotStarted;
-                                await _applicationStateService.SaveTaskStatusAsync(
-                                    ApplicationId.Value,
-                                    CurrentTask.TaskId,
-                                    newStatus,
-                                    HttpContext.Session);
-                                
-                            }
+                            await _applicationStateService.SaveTaskStatusAsync(
+                                ApplicationId.Value,
+                                CurrentTask.TaskId,
+                                Domain.Models.TaskStatus.Completed,
+                                HttpContext.Session);
                         }
-                        catch (Exception ex)
+                        else
                         {
-                            _logger.LogError(ex, "POST (fallback): Failed to save status for task '{TaskId}'", CurrentTask.TaskId);
+                            var hasAnyData = _applicationStateService.CalculateTaskStatus(CurrentTask.TaskId, Template, FormData, ApplicationId, HttpContext.Session, ApplicationStatus)
+                                != Domain.Models.TaskStatus.NotStarted;
+                            var newStatus = hasAnyData ? Domain.Models.TaskStatus.InProgress : Domain.Models.TaskStatus.NotStarted;
+                            await _applicationStateService.SaveTaskStatusAsync(
+                                ApplicationId.Value,
+                                CurrentTask.TaskId,
+                                newStatus,
+                                HttpContext.Session);
                         }
                     }
 
@@ -1755,6 +1726,12 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             if (string.IsNullOrEmpty(fieldId) || string.IsNullOrEmpty(itemId))
             {
                 return BadRequest("Field ID and Item ID are required");
+            }
+
+            if (!IsApplicationEditable())
+            {
+                ModelState.AddModelError("", ApplicationAccessMessages.NoWritePermission);
+                return Page();
             }
 
             bool isConfirmed = Request.Query.ContainsKey("confirmed") && Request.Query["confirmed"] == "true";
@@ -1832,6 +1809,10 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     {
                         await _applicationResponseService.SaveApplicationResponseAsync(ApplicationId.Value, new Dictionary<string, object> { [fieldId] = updatedJson }, HttpContext.Session);
                     }
+                }
+                catch (ExternalApplicationsException)
+                {
+                    throw;
                 }
                 catch (Exception ex)
                 {

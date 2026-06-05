@@ -34,44 +34,35 @@ public class LogoutModel(
     {
         try
         {
-            HttpContext.Session.Clear();
-
             if (testAuthOptions.Value.Enabled && testAuthenticationService != null)
             {
                 logger.LogInformation("Signing out from test authentication");
+                HttpContext.Session.Clear();
                 await testAuthenticationService.SignOutAsync(HttpContext);
-                return RedirectToPage("/Applications/Dashboard");
+                return Redirect("/");
             }
 
-            var redirectUri = Url.Page("/Applications/Dashboard");
-
-            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            // Do not clear session or sign out the cookie scheme before OIDC sign-out.
+            // The OIDC handler signs out the cookie (SignOutScheme) and preserves correlation
+            // state for the /signout-callback-oidc round trip. Clearing early causes 403 on callback.
+            var signOutProperties = new AuthenticationProperties { RedirectUri = "/" };
 
             if (entraSsoOptions.Value.Enabled)
             {
                 logger.LogInformation("Signing out from Entra SSO authentication");
 
-                await HttpContext.SignOutAsync(EntraSsoDefaults.AuthenticationScheme, new AuthenticationProperties
-                {
-                    RedirectUri = redirectUri
-                });
-            }
-            else
-            {
-                logger.LogInformation("Signing out from DfE Sign-In OIDC authentication");
-
-                await HttpContext.SignOutAsync(OpenIdConnectDefaults.AuthenticationScheme, new AuthenticationProperties
-                {
-                    RedirectUri = redirectUri
-                });
+                return SignOut(
+                    signOutProperties,
+                    CookieAuthenticationDefaults.AuthenticationScheme,
+                    EntraSsoDefaults.AuthenticationScheme);
             }
 
-            logger.LogInformation("User successfully signed out, redirecting to IdP end-session endpoint");
+            logger.LogInformation("Signing out from DfE Sign-In OIDC authentication");
 
-            // The OIDC SignOutAsync already wrote a 302 redirect to the IdP's
-            // end-session endpoint. Returning an empty result preserves that
-            // redirect so the browser actually reaches the IdP logout page.
-            return new EmptyResult();
+            return SignOut(
+                signOutProperties,
+                CookieAuthenticationDefaults.AuthenticationScheme,
+                OpenIdConnectDefaults.AuthenticationScheme);
         }
         catch (Exception ex)
         {

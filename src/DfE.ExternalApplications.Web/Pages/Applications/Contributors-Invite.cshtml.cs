@@ -47,12 +47,6 @@ public class ContributorsInviteModel(
         // Ensure we have a valid application ID
         var (applicationId, _) = await applicationStateService.EnsureApplicationIdAsync(ReferenceNumber, HttpContext.Session);
 
-        if (!applicationId.HasValue)
-        {
-            logger.LogWarning("No application ID found for reference number {ReferenceNumber}", ReferenceNumber);
-            return RedirectToPage("/Applications/Dashboard");
-        }
-
         ApplicationId = applicationId;
         return Page();
     }
@@ -62,16 +56,7 @@ public class ContributorsInviteModel(
     /// </summary>
     public async Task<IActionResult> OnPostSendInviteAsync()
     {
-
-        // Ensure we have a valid application ID
         var (applicationId, _) = await applicationStateService.EnsureApplicationIdAsync(ReferenceNumber, HttpContext.Session);
-
-        if (!applicationId.HasValue)
-        {
-            logger.LogWarning("No application ID found for reference number {ReferenceNumber} when sending invite", ReferenceNumber);
-            ModelState.AddModelError("", "Application not found. Please try again.");
-            return Page();
-        }
 
         ApplicationId = applicationId;
 

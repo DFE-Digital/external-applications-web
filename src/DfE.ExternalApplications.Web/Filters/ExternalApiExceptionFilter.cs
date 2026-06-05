@@ -1,4 +1,7 @@
-﻿using GovUK.Dfe.CoreLibs.Http.Models;
+﻿using DfE.ExternalApplications.Application.Exceptions;
+using DfE.ExternalApplications.Web.Constants;
+using DfE.ExternalApplications.Web.Pages.FormEngine;
+using GovUK.Dfe.CoreLibs.Http.Models;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -29,18 +32,39 @@ namespace DfE.ExternalApplications.Web.Filters
             
             var executedContext = await next();
 
-            
-
-            if (executedContext.Exception is ExternalApplicationsException<ExceptionResponse> ex
+            if (executedContext.Exception is ApplicationAccessException
                 && !executedContext.ExceptionHandled)
             {
-                
-                
-                var r = ex.Result;
+                executedContext.Result = new RedirectToPageResult("/Error/NotFound");
+                executedContext.ExceptionHandled = true;
+                return;
+            }
+
+            if (executedContext.Exception is ExternalApplicationsException apiException
+                && !executedContext.ExceptionHandled)
+            {
                 var page = context.HandlerInstance as PageModel
                            ?? throw new InvalidOperationException("Page filter only for Razor Pages");
-                           
-                
+
+                var response = (apiException as ExternalApplicationsException<ExceptionResponse>)?.Result;
+                var statusCode = response?.StatusCode ?? apiException.StatusCode;
+                var message = response?.Message ?? apiException.Message;
+
+                if (TryHandleApplicationWriteAccessDenied(context.HttpContext, page, statusCode, message, out var writeAccessResult))
+                {
+                    executedContext.Result = writeAccessResult;
+                    executedContext.ExceptionHandled = true;
+                    return;
+                }
+
+                if (response is null)
+                {
+                    executedContext.Result = MapUnhandledApiException(page, statusCode, message, context.HttpContext);
+                    executedContext.ExceptionHandled = true;
+                    return;
+                }
+
+                var r = response;
 
                 // 1) Validation: attempt to map structured validation errors into ModelState
                 if (r.StatusCode is 400 or 422)
@@ -59,7 +83,7 @@ namespace DfE.ExternalApplications.Web.Filters
                 if (r.StatusCode == 400 || r.StatusCode == 409)
                 {
                     
-                    AddNonFieldError(page, ex.Result.Message);
+                    AddNonFieldError(page, r.Message);
 
                     // SPECIAL HANDLING FOR UPLOAD REQUESTS: Use stored upload info
                     
@@ -110,41 +134,50 @@ namespace DfE.ExternalApplications.Web.Filters
                     return;
                 }
 
+                if (r.StatusCode == 404)
+                {
+                    executedContext.Result = new RedirectToPageResult("/Error/NotFound");
+                    executedContext.ExceptionHandled = true;
+                    return;
+                }
+
                 if (r.StatusCode == 401)
                 {
                     var logger = context.HttpContext.RequestServices.GetService<ILogger<ExternalApiPageExceptionFilter>>();
                     var userId = context.HttpContext.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "Anonymous";
 
-                    
                     page.TempData["ApiErrorId"] = r.ErrorId;
                     executedContext.Result = new RedirectToPageResult("/Error/Forbidden");
                     executedContext.ExceptionHandled = true;
                     return;
                 }
+
                 if (r.StatusCode == 403)
                 {
                     var logger = context.HttpContext.RequestServices.GetService<ILogger<ExternalApiPageExceptionFilter>>();
                     var userId = context.HttpContext.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "Anonymous";
-                    var userClaims = string.Join(", ", context.HttpContext.User?.Claims?.Select(c => $"{c.Type}:{c.Value}") ?? Array.Empty<string>());
-                    
-                    page.TempData["ApiErrorId"] = r.ErrorId;
-                    
-                    // Check if this is likely a token issue and redirect to logout
-                    if (r.Message?.Contains("token", StringComparison.OrdinalIgnoreCase) == true ||
-                        r.Message?.Contains("expired", StringComparison.OrdinalIgnoreCase) == true ||
-                        r.Message?.Contains("unauthorized", StringComparison.OrdinalIgnoreCase) == true)
-                    {
 
-                        
+                    page.TempData["ApiErrorId"] = r.ErrorId;
+
+                    // Treat forbidden application view access the same as not found
+                    if (IsApplicationRequest(context.HttpContext.Request.Path)
+                        && !IsMutatingHttpMethod(context.HttpContext.Request))
+                    {
+                        executedContext.Result = new RedirectToPageResult("/Error/NotFound");
+                        executedContext.ExceptionHandled = true;
+                        return;
+                    }
+
+                    // Check if this is likely a token issue and redirect to logout
+                    if (IsAuthenticationFailureMessage(r.Message))
+                    {
                         executedContext.Result = new RedirectToPageResult("/Logout", new { reason = "token_expired" });
                     }
                     else
                     {
-                        
-                        
                         executedContext.Result = new RedirectToPageResult("/Error/Forbidden");
                     }
-                    
+
                     executedContext.ExceptionHandled = true;
                     return;
                 }
@@ -249,6 +282,102 @@ namespace DfE.ExternalApplications.Web.Filters
             }
             
             return (false, string.Empty);
+        }
+
+        private static bool TryHandleApplicationWriteAccessDenied(
+            HttpContext httpContext,
+            PageModel page,
+            int statusCode,
+            string? apiMessage,
+            out IActionResult result)
+        {
+            result = new PageResult();
+
+            if (statusCode is not (401 or 403))
+            {
+                return false;
+            }
+
+            if (!IsApplicationRequest(httpContext.Request.Path) || !IsMutatingHttpMethod(httpContext.Request))
+            {
+                return false;
+            }
+
+            if (statusCode == 401 && IsAuthenticationFailureMessage(apiMessage))
+            {
+                return false;
+            }
+
+            if (page is BaseFormEngineModel formEnginePage)
+            {
+                formEnginePage.EnsureFormStateForErrorDisplay();
+            }
+
+            AddNonFieldError(page, ApplicationAccessMessages.NoWritePermission);
+            return true;
+        }
+
+        private static IActionResult MapUnhandledApiException(
+            PageModel page,
+            int statusCode,
+            string? message,
+            HttpContext httpContext)
+        {
+            if (statusCode == 404)
+            {
+                return new RedirectToPageResult("/Error/NotFound");
+            }
+
+            if (statusCode == 403
+                && IsApplicationRequest(httpContext.Request.Path)
+                && !IsMutatingHttpMethod(httpContext.Request))
+            {
+                return new RedirectToPageResult("/Error/NotFound");
+            }
+
+            if (statusCode == 401)
+            {
+                return new RedirectToPageResult("/Error/Forbidden");
+            }
+
+            if (statusCode == 403)
+            {
+                if (IsAuthenticationFailureMessage(message))
+                {
+                    return new RedirectToPageResult("/Logout", new { reason = "token_expired" });
+                }
+
+                return new RedirectToPageResult("/Error/Forbidden");
+            }
+
+            if (statusCode >= 500)
+            {
+                return new RedirectToPageResult("/Error/ServerError");
+            }
+
+            page.TempData["ErrorMessage"] = message;
+            return new RedirectToPageResult("/Error/General");
+        }
+
+        private static bool IsMutatingHttpMethod(HttpRequest request) =>
+            HttpMethods.IsPost(request.Method)
+            || HttpMethods.IsPut(request.Method)
+            || HttpMethods.IsPatch(request.Method)
+            || HttpMethods.IsDelete(request.Method);
+
+        private static bool IsAuthenticationFailureMessage(string? message) =>
+            message?.Contains("token", StringComparison.OrdinalIgnoreCase) == true
+            || message?.Contains("expired", StringComparison.OrdinalIgnoreCase) == true
+            || message?.Contains("unauthorized", StringComparison.OrdinalIgnoreCase) == true;
+
+        private static bool IsApplicationRequest(PathString path)
+        {
+            if (!path.HasValue)
+            {
+                return false;
+            }
+
+            return path.Value!.StartsWith("/applications/", StringComparison.OrdinalIgnoreCase);
         }
     }
 }
