@@ -1,4 +1,5 @@
-﻿using GovUK.Dfe.CoreLibs.Http.Models;
+﻿using DfE.ExternalApplications.Application.Exceptions;
+using GovUK.Dfe.CoreLibs.Http.Models;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -29,7 +30,13 @@ namespace DfE.ExternalApplications.Web.Filters
             
             var executedContext = await next();
 
-            
+            if (executedContext.Exception is ApplicationAccessException
+                && !executedContext.ExceptionHandled)
+            {
+                executedContext.Result = new RedirectToPageResult("/Error/NotFound");
+                executedContext.ExceptionHandled = true;
+                return;
+            }
 
             if (executedContext.Exception is ExternalApplicationsException<ExceptionResponse> ex
                 && !executedContext.ExceptionHandled)
@@ -110,6 +117,13 @@ namespace DfE.ExternalApplications.Web.Filters
                     return;
                 }
 
+                if (r.StatusCode == 404)
+                {
+                    executedContext.Result = new RedirectToPageResult("/Error/NotFound");
+                    executedContext.ExceptionHandled = true;
+                    return;
+                }
+
                 if (r.StatusCode == 401)
                 {
                     var logger = context.HttpContext.RequestServices.GetService<ILogger<ExternalApiPageExceptionFilter>>();
@@ -128,6 +142,14 @@ namespace DfE.ExternalApplications.Web.Filters
                     var userClaims = string.Join(", ", context.HttpContext.User?.Claims?.Select(c => $"{c.Type}:{c.Value}") ?? Array.Empty<string>());
                     
                     page.TempData["ApiErrorId"] = r.ErrorId;
+
+                    // Treat forbidden application access the same as not found
+                    if (IsApplicationRequest(context.HttpContext.Request.Path))
+                    {
+                        executedContext.Result = new RedirectToPageResult("/Error/NotFound");
+                        executedContext.ExceptionHandled = true;
+                        return;
+                    }
                     
                     // Check if this is likely a token issue and redirect to logout
                     if (r.Message?.Contains("token", StringComparison.OrdinalIgnoreCase) == true ||
@@ -249,6 +271,16 @@ namespace DfE.ExternalApplications.Web.Filters
             }
             
             return (false, string.Empty);
+        }
+
+        private static bool IsApplicationRequest(PathString path)
+        {
+            if (!path.HasValue)
+            {
+                return false;
+            }
+
+            return path.Value!.StartsWith("/applications/", StringComparison.OrdinalIgnoreCase);
         }
     }
 }

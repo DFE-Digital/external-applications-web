@@ -1,3 +1,4 @@
+using DfE.ExternalApplications.Application.Exceptions;
 using DfE.ExternalApplications.Application.Interfaces;
 using DfE.ExternalApplications.Domain.Models;
 using DfE.ExternalApplications.Infrastructure.Services;
@@ -102,7 +103,11 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 try
                 {
                     await CommonFormEngineInitializationAsync();
-                    
+                
+                }
+                catch (ApplicationAccessException)
+                {
+                    throw;
                 }
                 catch (Exception ex)
                 {

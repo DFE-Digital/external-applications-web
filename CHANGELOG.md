@@ -156,3 +156,4 @@ All notable changes to this service will be documented in this file.
 ## [1.3.21]
 ### Notes
 - Improved Logout functionality
+- Improved caching and API error handling
