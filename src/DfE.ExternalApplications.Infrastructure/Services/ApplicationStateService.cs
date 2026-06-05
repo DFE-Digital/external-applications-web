@@ -37,7 +37,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             }
             catch (ExternalApplicationsException<ExceptionResponse> ex) when (ex.StatusCode is 404 or 403)
             {
-                logger.LogWarning(
+                logger.LogError(
                     "Application {ReferenceNumber} not accessible (HTTP {StatusCode})",
                     referenceNumber,
                     ex.StatusCode);
@@ -45,7 +45,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             }
             catch (ExternalApplicationsException ex) when (ex.StatusCode is 404 or 403)
             {
-                logger.LogWarning(
+                logger.LogError(
                     "Application {ReferenceNumber} not accessible (HTTP {StatusCode})",
                     referenceNumber,
                     ex.StatusCode);
