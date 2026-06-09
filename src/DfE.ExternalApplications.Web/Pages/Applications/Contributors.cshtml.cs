@@ -1,7 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using DfE.ExternalApplications.Application.Interfaces;
-using DfE.ExternalApplications.Domain.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -17,6 +16,8 @@ namespace DfE.ExternalApplications.Web.Pages.Applications;
 public class ContributorsModel(
     IContributorService contributorService,
     IApplicationStateService applicationStateService,
+    IContributorPatternService contributorPatternService,
+    IConfiguration configuration,
     IApplicationTerminologyProvider terminologyProvider,
     ILogger<ContributorsModel> logger) : PageModel
 {
@@ -33,7 +34,13 @@ public class ContributorsModel(
     /// </summary>
     public async Task<IActionResult> OnGetAsync()
     {
-        var (applicationId, _) = await applicationStateService.EnsureApplicationIdAsync(ReferenceNumber, HttpContext.Session);
+        var (applicationId, application) = await applicationStateService.EnsureApplicationIdAsync(ReferenceNumber, HttpContext.Session);
+
+        var redirect = await RedirectIfContributorPatternDisabledAsync(application);
+        if (redirect != null)
+        {
+            return redirect;
+        }
 
         ApplicationId = applicationId;
 
@@ -57,8 +64,15 @@ public class ContributorsModel(
     /// <summary>
     /// Handles request to add a contributor
     /// </summary>
-    public IActionResult OnPostAddContributor()
+    public async Task<IActionResult> OnPostAddContributor()
     {
+        var (_, application) = await applicationStateService.EnsureApplicationIdAsync(ReferenceNumber, HttpContext.Session);
+        var redirect = await RedirectIfContributorPatternDisabledAsync(application);
+        if (redirect != null)
+        {
+            return redirect;
+        }
+
         logger.LogInformation("User navigating to add contributor for application reference {ReferenceNumber}", ReferenceNumber);
         return RedirectToPage("/Applications/Contributors-Invite", new { referenceNumber = ReferenceNumber });
     }
@@ -72,8 +86,14 @@ public class ContributorsModel(
         {
             if (!ApplicationId.HasValue)
             {
-                var (applicationId, _) = await applicationStateService.EnsureApplicationIdAsync(ReferenceNumber, HttpContext.Session);
+                var (applicationId, application) = await applicationStateService.EnsureApplicationIdAsync(ReferenceNumber, HttpContext.Session);
                 ApplicationId = applicationId;
+
+                var redirect = await RedirectIfContributorPatternDisabledAsync(application);
+                if (redirect != null)
+                {
+                    return redirect;
+                }
             }
 
             if (!ApplicationId.HasValue)
@@ -149,8 +169,14 @@ public class ContributorsModel(
 
             if (!ApplicationId.HasValue)
             {
-                var (applicationId, _) = await applicationStateService.EnsureApplicationIdAsync(ReferenceNumber, HttpContext.Session);
+                var (applicationId, application) = await applicationStateService.EnsureApplicationIdAsync(ReferenceNumber, HttpContext.Session);
                 ApplicationId = applicationId;
+
+                var redirect = await RedirectIfContributorPatternDisabledAsync(application);
+                if (redirect != null)
+                {
+                    return redirect;
+                }
             }
 
             if (!ApplicationId.HasValue)
@@ -176,4 +202,19 @@ public class ContributorsModel(
             return await OnGetAsync();
         }
     }
-} 
+
+    private async Task<IActionResult?> RedirectIfContributorPatternDisabledAsync(ApplicationDto? application = null)
+    {
+        var templateId = HttpContext.Session.GetString("TemplateId") ?? configuration["Template:Id"] ?? string.Empty;
+        if (await contributorPatternService.IsEnabledAsync(templateId, application))
+        {
+            return null;
+        }
+
+        logger.LogInformation(
+            "Contributor pattern disabled for template {TemplateId}; redirecting away from contributors page for application {ReferenceNumber}",
+            templateId,
+            ReferenceNumber);
+        return RedirectToPage("/FormEngine/RenderForm", new { referenceNumber = ReferenceNumber });
+    }
+}

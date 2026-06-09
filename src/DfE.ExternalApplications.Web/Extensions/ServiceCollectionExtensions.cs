@@ -37,6 +37,7 @@ namespace DfE.ExternalApplications.Web.Extensions
             services.AddScoped<IApplicationResponseService, ApplicationResponseService>();
             services.AddScoped<IFieldFormattingService, FieldFormattingService>();
             services.AddScoped<ITemplateManagementService, TemplateManagementService>();
+            services.AddScoped<IContributorPatternService, ContributorPatternService>();
             services.AddScoped<IApplicationStateService, ApplicationStateService>();
             services.AddScoped<IFileUploadService, FileUploadService>();
             services.AddScoped<IAutocompleteService, AutocompleteService>();

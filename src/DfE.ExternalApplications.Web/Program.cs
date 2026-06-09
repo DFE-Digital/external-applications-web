@@ -386,6 +386,7 @@ builder.Services.AddTokenRefreshWithOidc(configuration, "DfESignIn", "TokenRefre
 builder.Services.AddHttpClient();
 
 builder.Services.AddScoped<IContributorService, ContributorService>();
+builder.Services.AddScoped<IContributorPatternService, ContributorPatternService>();
 
 builder.Services.AddExternalApplicationsApiClients(configuration);
 
