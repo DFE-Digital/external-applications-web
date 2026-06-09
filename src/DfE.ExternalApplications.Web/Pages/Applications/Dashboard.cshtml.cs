@@ -24,7 +24,7 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
         IApplicationsClient applicationsClient,
         IHttpContextAccessor httpContextAccessor,
         IApplicationResponseService applicationResponseService,
-        IFormTemplateProvider templateProvider,
+        IContributorPatternService contributorPatternService,
         IOptions<DashboardOptions> dashboardOptions)
         : PageModel
     {
@@ -151,8 +151,13 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
             logger.LogInformation("Created new application {ApplicationId} and cleared accumulated form data", response.ApplicationId);
 
             // Note: Token management now handled automatically by TokenManagementMiddleware
-            
-            return RedirectToPage("/Applications/Contributors", new { referenceNumber = response.ApplicationReference });
+            var templateId = templateGuid.Value.ToString();
+            if (await contributorPatternService.IsEnabledAsync(templateId))
+            {
+                return RedirectToPage("/Applications/Contributors", new { referenceNumber = response.ApplicationReference });
+            }
+
+            return RedirectToPage("/FormEngine/RenderForm", new { referenceNumber = response.ApplicationReference });
         }
 
         private async SystemTask LoadApplicationsAsync()

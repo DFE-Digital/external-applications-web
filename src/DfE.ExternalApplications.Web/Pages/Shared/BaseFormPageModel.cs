@@ -80,6 +80,11 @@ namespace DfE.ExternalApplications.Web.Pages.Shared
         }
 
         /// <summary>
+        /// Indicates whether the current template enables contributor invitation and management.
+        /// </summary>
+        public bool IsContributorPatternEnabled() => Template?.ContributorPattern ?? true;
+
+        /// <summary>
         /// Checks if the application is editable based on status, write permission, or Admin role.
         /// </summary>
         public bool IsApplicationEditable()
