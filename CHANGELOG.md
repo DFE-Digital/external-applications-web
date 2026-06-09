@@ -161,3 +161,7 @@ All notable changes to this service will be documented in this file.
 ## [1.3.22]
 ### Notes
 - Allow contributor pattern to be disabled from the Template
+
+## [1.3.23]
+### Notes
+- Added Prod env appsettings
