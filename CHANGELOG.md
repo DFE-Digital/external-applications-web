@@ -157,3 +157,7 @@ All notable changes to this service will be documented in this file.
 ### Notes
 - Improved Logout functionality
 - Improved caching and API error handling
+
+## [1.3.22]
+### Notes
+- Added Prod env appsettings
