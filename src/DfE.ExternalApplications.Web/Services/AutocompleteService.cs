@@ -84,6 +84,14 @@ namespace DfE.ExternalApplications.Web.Services
                 // Sort results with prefix priority, then alphabetical
                 var sortedResults = SortResultsByPrefixThenAlpha(results, query);
 
+                if (sortedResults.Count == 0)
+                {
+                    _logger.LogWarning(
+                        "No autocomplete results for complex field {ComplexFieldId}, query: {Query}, request: {RequestUrl}, hasApiKey: {HasApiKey}, response: {JsonResponse}",
+                        complexFieldId, query, requestUrl, !string.IsNullOrEmpty(configuration.ApiKey),
+                        jsonResponse.Length > 500 ? jsonResponse[..500] : jsonResponse);
+                }
+
                 _logger.LogDebug("Found {Count} results for query: {Query} from complex field: {ComplexFieldId}", 
                     sortedResults.Count, query, complexFieldId);
                 return sortedResults;
@@ -392,8 +400,9 @@ namespace DfE.ExternalApplications.Web.Services
                         dict["companiesHouseNumber"] = ch;
                     }
 
-                    // Build a stable dedupe key (prefer ukprn, then companiesHouseNumber, urn, id, else name)
+                    // Build a stable dedupe key (prefer ukprn, then code, companiesHouseNumber, urn, id, else name)
                     var key = GetFirstNonEmpty(dict, "ukprn")
+                              ?? GetFirstNonEmpty(dict, "code")
                               ?? GetFirstNonEmpty(dict, "companiesHouseNumber")
                               ?? GetFirstNonEmpty(dict, "urn")
                               ?? GetFirstNonEmpty(dict, "id")

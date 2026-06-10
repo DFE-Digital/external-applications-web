@@ -32,10 +32,15 @@
         {
             var name = dict.ContainsKey("name") ? dict["name"]?.ToString() : "";
             var ukprn = dict.ContainsKey("ukprn") ? dict["ukprn"]?.ToString() : "";
+            var code = dict.ContainsKey("code") ? dict["code"]?.ToString() : "";
             
             if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(ukprn))
             {
                 return $"{name} (UKPRN: {ukprn})";
+            }
+            else if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(code))
+            {
+                return $"{name} (Code: {code})";
             }
             else if (!string.IsNullOrEmpty(name))
             {
@@ -139,10 +144,12 @@
         }
     }
 
-    // For establishment/academy fields, show postcode on confirmation; for others use default display fields
+    // For establishment/academy fields, show postcode on confirmation; for local authorities show code
     var confirmationDisplayFields = string.Equals(complexFieldId, "EstablishmentComplexField", StringComparison.OrdinalIgnoreCase)
         ? "trustname,postcode,ukprn,companiesHousenumber"
-        : "trustname,ukprn,companiesHousenumber";
+        : string.Equals(complexFieldId, "LocalAuthorityComplexField", StringComparison.OrdinalIgnoreCase)
+            ? "trustname,code"
+            : "trustname,ukprn,companiesHousenumber";
 }
 
 @if (string.IsNullOrEmpty(complexFieldId))
@@ -578,6 +585,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             if (typeof result === 'object' && result !== null) {
                                 var name = result.name ? escapeHtml(result.name) : '';
                                 var ukprn = (result.ukprn !== undefined && result.ukprn !== null) ? escapeHtml(result.ukprn.toString()) : '';
+                                var code = (result.code !== undefined && result.code !== null) ? escapeHtml(result.code.toString()) : '';
                                 var ch = '';
                                 if (result.companiesHouseNumber) ch = result.companiesHouseNumber;
                                 else if (result.companiesHousenumber) ch = result.companiesHousenumber;
@@ -586,6 +594,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                                 var parts = [name];
                                 if (ukprn) parts.push('UKPRN: ' + ukprn);
+                                if (code) parts.push('Code: ' + code);
                                 if (ch) parts.push('Companies house number: ' + ch);
                                 return '<div class="complex-field-suggestion">' + parts.join(' - ') + '</div>';
                             }
@@ -703,6 +712,9 @@ document.addEventListener('DOMContentLoaded', function() {
                                 var itemUrn = item.urn != null ? String(item.urn).trim() : '';
                                 var optUrn = option.urn != null ? String(option.urn).trim() : '';
                                 if (itemUrn && optUrn) return itemUrn === optUrn;
+                                var itemCode = item.code != null ? String(item.code).trim() : '';
+                                var optCode = option.code != null ? String(option.code).trim() : '';
+                                if (itemCode && optCode) return itemCode === optCode;
                                 return true;
                             });
                             if (foundInCache) {

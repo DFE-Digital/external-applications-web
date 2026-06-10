@@ -273,6 +273,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             {
                 string name = "";
                 string ukprn = "";
+                string code = "";
 
                 if (element.TryGetProperty("name", out var nameProperty) && nameProperty.ValueKind == JsonValueKind.String)
                 {
@@ -291,9 +292,25 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                     }
                 }
 
+                if (element.TryGetProperty("code", out var codeProperty))
+                {
+                    if (codeProperty.ValueKind == JsonValueKind.String)
+                    {
+                        code = codeProperty.GetString() ?? "";
+                    }
+                    else if (codeProperty.ValueKind == JsonValueKind.Number)
+                    {
+                        code = codeProperty.GetInt64().ToString();
+                    }
+                }
+
                 if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(ukprn))
                 {
                     return $"{System.Web.HttpUtility.HtmlEncode(name)} (UKPRN: {System.Web.HttpUtility.HtmlEncode(ukprn)})";
+                }
+                else if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(code))
+                {
+                    return $"{System.Web.HttpUtility.HtmlEncode(name)} (Code: {System.Web.HttpUtility.HtmlEncode(code)})";
                 }
                 else if (!string.IsNullOrEmpty(name))
                 {
