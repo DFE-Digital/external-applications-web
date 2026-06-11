@@ -165,3 +165,7 @@ All notable changes to this service will be documented in this file.
 ## [1.3.23]
 ### Notes
 - Added Prod env appsettings
+
+## [1.3.25]
+### Notes
+- Added LA and Diocese ComplexFields and details to the Auto-Complete search results and confirmation page.
