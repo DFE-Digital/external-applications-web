@@ -165,3 +165,7 @@ All notable changes to this service will be documented in this file.
 ## [1.3.23]
 ### Notes
 - Added Prod env appsettings
+
+## [1.3.24]
+### Notes
+- Improved caching

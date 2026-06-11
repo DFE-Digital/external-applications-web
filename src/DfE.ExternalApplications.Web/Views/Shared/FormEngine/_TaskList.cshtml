@@ -87,7 +87,14 @@
                     View @AppTerminology.Singular
                 </a>
                 <div class="govuk-inset-text govuk-!-margin-top-4">
-                    <p>This @AppTerminology.Singular has been submitted and can no longer be changed.</p>
+                    @if (string.Equals(Model.ApplicationStatus, "Submitted", StringComparison.OrdinalIgnoreCase))
+                    {
+                        <p>This @AppTerminology.Singular has been submitted and can no longer be changed.</p>
+                    }
+                    else
+                    {
+                        <p>You do not have permission to make changes to this @AppTerminology.Singular.</p>
+                    }
                     <p>Status: <strong>@Model.ApplicationStatus</strong></p>
                 </div>
             }

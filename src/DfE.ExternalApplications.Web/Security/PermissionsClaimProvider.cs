@@ -19,7 +19,7 @@ public class PermissionsClaimProvider(IMemoryCache cache) : ICustomClaimProvider
 
         var email = principal.FindFirstValue(ClaimTypes.Email);
 
-        var cacheKey = $"{PermissionsCacheMiddleware.PermissionsCacheKeyPrefix}{userId+email}";
+        var cacheKey = UserPermissionsCache.GetCacheKey(principal);
         
         var claims = new List<Claim>();
 
