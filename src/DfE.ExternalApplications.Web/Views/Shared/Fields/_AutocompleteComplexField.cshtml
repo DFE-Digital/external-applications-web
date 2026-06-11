@@ -144,10 +144,12 @@
         }
     }
 
-    // For establishment/academy fields, show postcode on confirmation; for local authorities show code
+    // For establishment/academy fields, show postcode on confirmation; for LA/diocese show name and code
+    var isNameAndCodeField = string.Equals(complexFieldId, "LocalAuthorityComplexField", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(complexFieldId, "DioceseComplexField", StringComparison.OrdinalIgnoreCase);
     var confirmationDisplayFields = string.Equals(complexFieldId, "EstablishmentComplexField", StringComparison.OrdinalIgnoreCase)
         ? "trustname,postcode,ukprn,companiesHousenumber"
-        : string.Equals(complexFieldId, "LocalAuthorityComplexField", StringComparison.OrdinalIgnoreCase)
+        : isNameAndCodeField
             ? "trustname,code"
             : "trustname,ukprn,companiesHousenumber";
 }

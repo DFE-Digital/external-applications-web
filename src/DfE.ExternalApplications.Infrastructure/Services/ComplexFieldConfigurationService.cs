@@ -88,7 +88,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
 
         /// <summary>
         /// Reuses the Academies API key from another complex field when this field has none configured.
-        /// New fields (e.g. LocalAuthorityComplexField) are often added without a dedicated user-secret entry.
+        /// New fields (e.g. LocalAuthorityComplexField, DioceseComplexField) are often added without a dedicated user-secret entry.
         /// </summary>
         private void ApplySharedApiKeyFallback(ComplexFieldConfiguration config, List<ComplexFieldConfiguration> allConfigurations)
         {
