@@ -7,6 +7,7 @@ using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Diagnostics.CodeAnalysis;
+using System.Security.Claims;
 using Task = System.Threading.Tasks.Task;
 
 namespace DfE.ExternalApplications.Web.Pages.Shared
@@ -85,7 +86,7 @@ namespace DfE.ExternalApplications.Web.Pages.Shared
         public bool IsContributorPatternEnabled() => Template?.ContributorPattern ?? true;
 
         /// <summary>
-        /// Checks if the application is editable based on status, write permission, or Admin role.
+        /// Checks if the application is editable based on status, write permission, lead applicant ownership, or Admin role.
         /// </summary>
         public bool IsApplicationEditable()
         {
@@ -104,7 +105,42 @@ namespace DfE.ExternalApplications.Web.Pages.Shared
                 return false;
             }
 
-            return ApplicationPermissionHelper.CanWriteApplication(HttpContext?.User, ApplicationId.Value);
+            if (ApplicationPermissionHelper.CanWriteApplication(HttpContext?.User, ApplicationId.Value))
+            {
+                return true;
+            }
+
+            // Permission claims can be stale immediately after creating a new application.
+            return IsCurrentUserLeadApplicant();
+        }
+
+        /// <summary>
+        /// Returns true when the signed-in user is the lead applicant for the current application.
+        /// </summary>
+        protected bool IsCurrentUserLeadApplicant()
+        {
+            if (!ApplicationId.HasValue || HttpContext?.Session == null)
+            {
+                return false;
+            }
+
+            var leadApplicantEmail = HttpContext.Session.GetString($"ApplicationLeadApplicantEmail_{ApplicationId.Value}");
+            var leadApplicantUserId = HttpContext.Session.GetString($"ApplicationLeadApplicantUserId_{ApplicationId.Value}");
+
+            var currentUserEmail = HttpContext.User?.FindFirst(ClaimTypes.Email)?.Value
+                                   ?? HttpContext.User?.FindFirst("email")?.Value;
+            var currentUserId = HttpContext.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (!string.IsNullOrEmpty(leadApplicantUserId)
+                && !string.IsNullOrEmpty(currentUserId)
+                && string.Equals(leadApplicantUserId, currentUserId, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            return !string.IsNullOrEmpty(leadApplicantEmail)
+                   && !string.IsNullOrEmpty(currentUserEmail)
+                   && string.Equals(leadApplicantEmail.Trim(), currentUserEmail.Trim(), StringComparison.InvariantCultureIgnoreCase);
         }
 
         /// <summary>
