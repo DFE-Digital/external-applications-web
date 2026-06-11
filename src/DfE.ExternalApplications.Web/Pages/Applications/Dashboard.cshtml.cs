@@ -8,9 +8,11 @@ using DfE.ExternalApplications.Application.Interfaces;
 using DfE.ExternalApplications.Application.Options;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using GovUK.Dfe.ExternalApplications.Api.Client.Security;
+using DfE.ExternalApplications.Web.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using SystemTask = System.Threading.Tasks.Task;
 using Microsoft.Extensions.Configuration;
@@ -25,6 +27,7 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
         IHttpContextAccessor httpContextAccessor,
         IApplicationResponseService applicationResponseService,
         IContributorPatternService contributorPatternService,
+        IMemoryCache memoryCache,
         IOptions<DashboardOptions> dashboardOptions)
         : PageModel
     {
@@ -143,10 +146,32 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
 
             HttpContext.Session.SetString("ApplicationId", response.ApplicationId.ToString());
             HttpContext.Session.SetString("ApplicationReference", response.ApplicationReference);
+            HttpContext.Session.SetString($"ApplicationStatus_{response.ApplicationId}", response.Status?.ToString() ?? ApplicationStatus.InProgress.ToString());
+
+            var currentUserEmail = User.FindFirstValue(ClaimTypes.Email) ?? User.FindFirstValue("email");
+            var currentUserName = User.FindFirstValue(ClaimTypes.Name) ?? currentUserEmail ?? string.Empty;
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!string.IsNullOrEmpty(currentUserEmail))
+            {
+                HttpContext.Session.SetString($"ApplicationLeadApplicantEmail_{response.ApplicationId}", currentUserEmail);
+            }
+            if (!string.IsNullOrEmpty(currentUserName))
+            {
+                HttpContext.Session.SetString($"ApplicationLeadApplicantName_{response.ApplicationId}", currentUserName);
+            }
+            if (!string.IsNullOrEmpty(currentUserId))
+            {
+                HttpContext.Session.SetString($"ApplicationLeadApplicantUserId_{response.ApplicationId}", currentUserId);
+            }
 
             // Clear any existing accumulated form data when starting a new application
             applicationResponseService.ClearAccumulatedFormData(HttpContext.Session);
             HttpContext.Session.SetString("CurrentAccumulatedApplicationId", response.ApplicationId.ToString());
+
+            if (User.Identity?.IsAuthenticated == true)
+            {
+                UserPermissionsCache.Invalidate(memoryCache, User);
+            }
 
             logger.LogInformation("Created new application {ApplicationId} and cleared accumulated form data", response.ApplicationId);
 
