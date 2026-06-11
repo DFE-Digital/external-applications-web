@@ -28,8 +28,10 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                     var config = configurations.FirstOrDefault(c => c.Id == complexFieldId);
                     if (config != null)
                     {
-                        _logger.LogDebug("Loaded complex field configuration for {ComplexFieldId}: Endpoint={Endpoint}, AllowMultiple={AllowMultiple}, MinLength={MinLength}", 
-                            complexFieldId, config.ApiEndpoint, config.AllowMultiple, config.MinLength);
+                        ApplySharedApiKeyFallback(config, configurations);
+                        _logger.LogDebug(
+                            "Loaded complex field configuration for {ComplexFieldId}: Endpoint={Endpoint}, AllowMultiple={AllowMultiple}, MinLength={MinLength}, HasApiKey={HasApiKey}",
+                            complexFieldId, config.ApiEndpoint, config.AllowMultiple, config.MinLength, !string.IsNullOrEmpty(config.ApiKey));
                         return config;
                     }
                 }
@@ -66,10 +68,41 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                 }
             }
 
-            _logger.LogDebug("Loaded complex field configuration for {ComplexFieldId}: Endpoint={Endpoint}, AllowMultiple={AllowMultiple}, MinLength={MinLength}", 
-                complexFieldId, configuration.ApiEndpoint, configuration.AllowMultiple, configuration.MinLength);
+            if (string.IsNullOrEmpty(configuration.ApiKey))
+            {
+                var allConfigurations = complexFieldsSection.Exists()
+                    ? complexFieldsSection.Get<List<ComplexFieldConfiguration>>()
+                    : null;
+                if (allConfigurations != null)
+                {
+                    ApplySharedApiKeyFallback(configuration, allConfigurations);
+                }
+            }
+
+            _logger.LogDebug(
+                "Loaded complex field configuration for {ComplexFieldId}: Endpoint={Endpoint}, AllowMultiple={AllowMultiple}, MinLength={MinLength}, HasApiKey={HasApiKey}",
+                complexFieldId, configuration.ApiEndpoint, configuration.AllowMultiple, configuration.MinLength, !string.IsNullOrEmpty(configuration.ApiKey));
 
             return configuration;
+        }
+
+        /// <summary>
+        /// Reuses the Academies API key from another complex field when this field has none configured.
+        /// New fields (e.g. LocalAuthorityComplexField, DioceseComplexField) are often added without a dedicated user-secret entry.
+        /// </summary>
+        private void ApplySharedApiKeyFallback(ComplexFieldConfiguration config, List<ComplexFieldConfiguration> allConfigurations)
+        {
+            if (!string.IsNullOrEmpty(config.ApiKey))
+            {
+                return;
+            }
+
+            config.ApiKey = allConfigurations
+                .Where(c => c.Id != config.Id && !string.IsNullOrEmpty(c.ApiKey))
+                .Select(c => c.ApiKey)
+                .FirstOrDefault()
+                ?? _configuration["FormEngine:AcademiesApiKey"]
+                ?? string.Empty;
         }
 
         public bool HasConfiguration(string complexFieldId)

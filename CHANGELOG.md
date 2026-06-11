@@ -169,3 +169,8 @@ All notable changes to this service will be documented in this file.
 ## [1.3.24]
 ### Notes
 - Improved caching
+
+## [1.3.25]
+### Notes
+- Added LA and Diocese ComplexFields and details to the Auto-Complete search results and confirmation page.
+
