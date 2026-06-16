@@ -174,3 +174,6 @@ All notable changes to this service will be documented in this file.
 ### Notes
 - Added LA and Diocese ComplexFields and details to the Auto-Complete search results and confirmation page.
 
+## [1.3.26]
+### Notes
+- Added Academy filtering feature flag on the endpoint
