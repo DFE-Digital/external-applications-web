@@ -70,7 +70,9 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
 
         public int TotalPages { get; private set; }
         public int PageSize => dashboardOptions.Value.PageSize;
-        public bool IsSearchActive => SearchFilters.HasActiveFilters;
+        public bool FiltersEnabled => dashboardOptions.Value.EnableApplicationFilters;
+        public bool IsSearchActive => FiltersEnabled && SearchFilters.HasActiveFilters;
+        public bool ShowFiltersPanel => IsSearchActive;
 
         public class ApplicationWithCalculatedStatus
         {
@@ -94,6 +96,9 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
 
         private void ValidateSearchFilters()
         {
+            if (!FiltersEnabled)
+                return;
+
             var filters = SearchFilters;
 
             if (!string.IsNullOrWhiteSpace(filters.DateStartedFromValue) && !filters.DateStartedFrom.HasValue)
@@ -115,7 +120,10 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
                 ModelState.AddModelError(nameof(DateSubmittedTo), "Date submitted 'to' must be on or after date submitted 'from'.");
         }
 
-        public string BuildPaginationHref(int page) => SearchFilters.BuildPaginationHref(page);
+        public string BuildPaginationHref(int page) =>
+            FiltersEnabled
+                ? SearchFilters.BuildPaginationHref(page)
+                : $"?currentPage={page}";
 
         /// <summary>
         /// Calculate the actual application status based on response data
@@ -229,7 +237,7 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
             }
 
             var pageSize = dashboardOptions.Value.PageSize;
-            var filters = SearchFilters;
+            var filters = FiltersEnabled ? SearchFilters : new DashboardApplicationSearch();
             var result = await applicationsClient.GetMyApplicationsAsync(
                 templateId: templateGuid.Value,
                 pageNumber: CurrentPage,
