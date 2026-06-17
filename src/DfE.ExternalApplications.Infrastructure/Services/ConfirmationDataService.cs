@@ -123,6 +123,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
         {
             string? name = null;
             string? ukprn = null;
+            string? code = null;
             string? postcode = null;
             string? chNo = null;
 
@@ -130,6 +131,8 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                 name = n.GetString();
             if (root.TryGetProperty("ukprn", out var u) && (u.ValueKind == JsonValueKind.String || u.ValueKind == JsonValueKind.Number))
                 ukprn = u.ToString();
+            if (root.TryGetProperty("code", out var laCode) && (laCode.ValueKind == JsonValueKind.String || laCode.ValueKind == JsonValueKind.Number))
+                code = laCode.ToString();
             if (root.TryGetProperty("postcode", out var pc) && pc.ValueKind == JsonValueKind.String)
                 postcode = pc.GetString();
             if (string.IsNullOrWhiteSpace(postcode) && root.TryGetProperty("postCode", out var pc2) && pc2.ValueKind == JsonValueKind.String)
@@ -159,7 +162,9 @@ namespace DfE.ExternalApplications.Infrastructure.Services
 
             AddIfMissing("trustName", name);
             AddIfMissing("trustname", name);
+            AddIfMissing("name", name);
             AddIfMissing("ukprn", ukprn);
+            AddIfMissing("code", code);
             AddIfMissing("postcode", postcode);
             AddIfMissing("companiesHouseNumber", chNo);
             AddIfMissing("companiesHousenumber", chNo);
@@ -180,6 +185,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             {
                 { "trustName", "Trust Name" },
                 { "ukprn", "UKPRN" },
+                { "code", "Code" },
                 { "urn", "URN" },
                 { "companiesHouseNumber", "Companies House Number" },
                 { "contributorEmail", "Email Address" },

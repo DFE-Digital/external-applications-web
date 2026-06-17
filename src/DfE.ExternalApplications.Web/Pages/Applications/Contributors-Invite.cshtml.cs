@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
 using DfE.ExternalApplications.Application.Interfaces;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -16,6 +17,8 @@ namespace DfE.ExternalApplications.Web.Pages.Applications;
 public class ContributorsInviteModel(
     IContributorService contributorService,
     IApplicationStateService applicationStateService,
+    IContributorPatternService contributorPatternService,
+    IConfiguration configuration,
     //IApiErrorParser apiErrorParser,
     //IModelStateErrorHandler errorHandler,
     ILogger<ContributorsInviteModel> logger) : PageModel
@@ -45,12 +48,12 @@ public class ContributorsInviteModel(
     {
 
         // Ensure we have a valid application ID
-        var (applicationId, _) = await applicationStateService.EnsureApplicationIdAsync(ReferenceNumber, HttpContext.Session);
+        var (applicationId, application) = await applicationStateService.EnsureApplicationIdAsync(ReferenceNumber, HttpContext.Session);
 
-        if (!applicationId.HasValue)
+        var redirect = await RedirectIfContributorPatternDisabledAsync(application);
+        if (redirect != null)
         {
-            logger.LogWarning("No application ID found for reference number {ReferenceNumber}", ReferenceNumber);
-            return RedirectToPage("/Applications/Dashboard");
+            return redirect;
         }
 
         ApplicationId = applicationId;
@@ -62,15 +65,12 @@ public class ContributorsInviteModel(
     /// </summary>
     public async Task<IActionResult> OnPostSendInviteAsync()
     {
+        var (applicationId, application) = await applicationStateService.EnsureApplicationIdAsync(ReferenceNumber, HttpContext.Session);
 
-        // Ensure we have a valid application ID
-        var (applicationId, _) = await applicationStateService.EnsureApplicationIdAsync(ReferenceNumber, HttpContext.Session);
-
-        if (!applicationId.HasValue)
+        var redirect = await RedirectIfContributorPatternDisabledAsync(application);
+        if (redirect != null)
         {
-            logger.LogWarning("No application ID found for reference number {ReferenceNumber} when sending invite", ReferenceNumber);
-            ModelState.AddModelError("", "Application not found. Please try again.");
-            return Page();
+            return redirect;
         }
 
         ApplicationId = applicationId;
@@ -101,9 +101,32 @@ public class ContributorsInviteModel(
     /// <summary>
     /// Handles request to cancel and return to contributors page
     /// </summary>
-    public IActionResult OnPostCancel()
+    public async Task<IActionResult> OnPostCancel()
     {
         logger.LogInformation("User cancelled contributor invitation for application reference {ReferenceNumber}", ReferenceNumber);
+
+        var (_, application) = await applicationStateService.EnsureApplicationIdAsync(ReferenceNumber, HttpContext.Session);
+        var redirect = await RedirectIfContributorPatternDisabledAsync(application);
+        if (redirect != null)
+        {
+            return redirect;
+        }
+
         return RedirectToPage("/Applications/Contributors", new { referenceNumber = ReferenceNumber });
+    }
+
+    private async Task<IActionResult?> RedirectIfContributorPatternDisabledAsync(ApplicationDto? application = null)
+    {
+        var templateId = HttpContext.Session.GetString("TemplateId") ?? configuration["Template:Id"] ?? string.Empty;
+        if (await contributorPatternService.IsEnabledAsync(templateId, application))
+        {
+            return null;
+        }
+
+        logger.LogInformation(
+            "Contributor pattern disabled for template {TemplateId}; redirecting away from invite page for application {ReferenceNumber}",
+            templateId,
+            ReferenceNumber);
+        return RedirectToPage("/FormEngine/RenderForm", new { referenceNumber = ReferenceNumber });
     }
 }

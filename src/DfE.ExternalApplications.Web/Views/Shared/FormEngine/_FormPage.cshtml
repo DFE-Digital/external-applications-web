@@ -46,6 +46,13 @@
                     var validationErrors = ViewData["ValidationErrors"] as Dictionary<string, List<string>>;
                     var hasViewDataErrors = validationErrors != null && validationErrors.Any();
                     var hasModelStateErrors = ViewData.ModelState.Any(m => m.Value.Errors.Any());
+                    var fieldIds = Model.CurrentPage.Fields.Select(f => f.FieldId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    var nonFieldErrors = ViewData.ModelState
+                        .Where(m => !fieldIds.Contains(m.Key))
+                        .SelectMany(m => m.Value.Errors)
+                        .Where(e => !string.IsNullOrEmpty(e.ErrorMessage))
+                        .Select(e => e.ErrorMessage)
+                        .ToList();
                     
                     IEnumerable<dynamic> errorsToDisplay;
                     
@@ -64,6 +71,12 @@
                                                        select new { Key = m.Key, Field = f, Errors = m.Value.Errors.Select(e => e.ErrorMessage).ToList() };
                         errorsToDisplay = ModelStateWithFieldProps;
                     }
+                }
+                @foreach (var errorMsg in nonFieldErrors)
+                {
+                    <govuk-error-summary-item>
+                        <span class="govuk-visually-hidden">Error: </span>@errorMsg
+                    </govuk-error-summary-item>
                 }
                 @foreach (var s in errorsToDisplay.OrderBy(s => s.Field.Order))
                 {

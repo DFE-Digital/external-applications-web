@@ -146,13 +146,34 @@ All notable changes to this service will be documented in this file.
 
 ## [1.3.19]
 ### Notes
-- Addeed Test env appsettings
+- Added Test env appsettings
 - Updated pagination default page size to show 50 applications per page
 
 ## [1.3.20]
 ### Notes
-- Addeed Test env appsettings
+- Added Test env appsettings
 
 ## [1.3.21]
 ### Notes
-- Added the ability to search for applications by reference on the dashboard
+- Improved Logout functionality
+- Improved caching and API error handling
+
+## [1.3.22]
+### Notes
+- Allow contributor pattern to be disabled from the Template
+
+## [1.3.23]
+### Notes
+- Added Prod env appsettings
+
+## [1.3.24]
+### Notes
+- Improved caching
+
+## [1.3.25]
+### Notes
+- Added LA and Diocese ComplexFields and details to the Auto-Complete search results and confirmation page.
+
+## [1.3.26]
+### Notes
+- Added Academy filtering feature flag on the endpoint
