@@ -11,14 +11,16 @@ concurrency:
 jobs:
   generate-dashboard:
     runs-on: ubuntu-latest
+
     permissions:
-      contents: none      
-      deployments: read   
+      contents: none
+      deployments: read
 
     steps:
       - name: Generate Matrix Table
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           cat << 'EOF' > generate_matrix.py
           import json
@@ -26,43 +28,63 @@ jobs:
           import re
           import os
 
-          # Fetch the last 100 deployment events
-          cmd = 'gh api repos/${{ github.repository }}/deployments --per-page 100'
-          res = subprocess.check_output(cmd, shell=True).decode('utf-8')
+          repository = os.environ["REPOSITORY"]
+          stages = ["development", "test", "production"]
+
+          # Fetch deployments, newest first.
+          cmd = f"gh api repos/{repository}/deployments?per_page=100"
+          res = subprocess.check_output(cmd, shell=True).decode("utf-8")
           deployments = json.loads(res)
 
+          deployments.sort(
+              key=lambda x: x.get("created_at", ""),
+              reverse=True
+          )
+
           matrix = {}
-          stages = ['development', 'test', 'production']
 
-          for d in deployments:
-              env_name = d.get('environment', '')
+          for deployment in deployments:
+              env_name = deployment.get("environment", "")
 
-              # Matches "application-environment" (e.g., transfers-development)
-              match = re.match(r'^(.*?)-(development|test|production)$', env_name, re.IGNORECASE)
-              if match:
-                  app = match.group(1).upper()
-                  stage = match.group(2).lower()
-                  ref = d.get('ref', 'unknown')
+              # Matches "application-environment"
+              # Example: transfers-development
+              match = re.match(
+                  r"^(.*?)-(development|test|production)$",
+                  env_name,
+                  re.IGNORECASE
+              )
 
-                  if app not in matrix:
-                      matrix[app] = {s: '-' for s in stages}
+              if not match:
+                  continue
 
-                  # Populate only if empty (keeps latest deploy)
-                  if matrix[app][stage] == '-':
-                      matrix[app][stage] = f'`{ref}`'
+              app = match.group(1).upper()
+              stage = match.group(2).lower()
+              ref = deployment.get("ref", "unknown")
+
+              if app not in matrix:
+                  matrix[app] = {s: "-" for s in stages}
+
+              # Keep the latest deployment per app/environment.
+              if matrix[app][stage] == "-":
+                  matrix[app][stage] = f"`{ref}`"
 
           markdown = [
-              '## 🏢 Deployment Matrix Dashboard',
-              '| Application | 🛠️ Development | 🧪 Test | 🚀 Production |',
-              '| :--- | :---: | :---: | :---: |'
+              "## 🏢 Deployment Matrix Dashboard",
+              "",
+              "| Application | 🛠️ Development | 🧪 Test | 🚀 Production |",
+              "| :--- | :---: | :---: | :---: |"
           ]
 
           for app in sorted(matrix.keys()):
-              row = f"| **{app}** | {matrix[app]['development']} | {matrix[app]['test']} | {matrix[app]['production']} |"
-              markdown.append(row)
+              markdown.append(
+                  f"| **{app}** | {matrix[app]['development']} | {matrix[app]['test']} | {matrix[app]['production']} |"
+              )
 
-          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
-              f.write('\n'.join(markdown))
+          if not matrix:
+              markdown.append("| _No deployments found_ | - | - | - |")
+
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+              f.write("\n".join(markdown))
           EOF
 
           python3 generate_matrix.py
