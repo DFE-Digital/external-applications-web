@@ -6,6 +6,7 @@ using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using DfE.ExternalApplications.Application.Interfaces;
 using DfE.ExternalApplications.Application.Options;
+using DfE.ExternalApplications.Web.Models.Applications;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using GovUK.Dfe.ExternalApplications.Api.Client.Security;
 using DfE.ExternalApplications.Web.Security;
@@ -42,8 +43,39 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
         [BindProperty(SupportsGet = true)]
         public int CurrentPage { get; set; } = 1;
 
+        [BindProperty(SupportsGet = true)]
+        public string? SearchReference { get; set; }
+
+        [BindProperty(SupportsGet = true)]
+        public string? DateStartedFrom { get; set; }
+
+        [BindProperty(SupportsGet = true)]
+        public string? DateStartedTo { get; set; }
+
+        [BindProperty(SupportsGet = true)]
+        public string? DateSubmittedFrom { get; set; }
+
+        [BindProperty(SupportsGet = true)]
+        public string? DateSubmittedTo { get; set; }
+
+        [BindProperty(SupportsGet = true)]
+        public ApplicationStatus? Status { get; set; }
+
+        public DashboardApplicationSearch SearchFilters => new()
+        {
+            SearchReference = SearchReference,
+            DateStartedFromValue = DateStartedFrom,
+            DateStartedToValue = DateStartedTo,
+            DateSubmittedFromValue = DateSubmittedFrom,
+            DateSubmittedToValue = DateSubmittedTo,
+            Status = Status
+        };
+
         public int TotalPages { get; private set; }
         public int PageSize => dashboardOptions.Value.PageSize;
+        public bool FiltersEnabled => dashboardOptions.Value.EnableApplicationFilters;
+        public bool IsSearchActive => FiltersEnabled && SearchFilters.HasActiveFilters;
+        public bool ShowFiltersPanel => IsSearchActive;
 
         public class ApplicationWithCalculatedStatus
         {
@@ -60,9 +92,41 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
 
         public async SystemTask OnGetAsync()
         {
+            ValidateSearchFilters();
             await LoadUserDetailsAsync();
             await LoadApplicationsAsync();
         }
+
+        private void ValidateSearchFilters()
+        {
+            if (!FiltersEnabled)
+                return;
+
+            var filters = SearchFilters;
+
+            if (!string.IsNullOrWhiteSpace(filters.DateStartedFromValue) && !filters.DateStartedFrom.HasValue)
+                ModelState.AddModelError(nameof(DateStartedFrom), "Enter a valid date started 'from' date.");
+
+            if (!string.IsNullOrWhiteSpace(filters.DateStartedToValue) && !filters.DateStartedTo.HasValue)
+                ModelState.AddModelError(nameof(DateStartedTo), "Enter a valid date started 'to' date.");
+
+            if (!string.IsNullOrWhiteSpace(filters.DateSubmittedFromValue) && !filters.DateSubmittedFrom.HasValue)
+                ModelState.AddModelError(nameof(DateSubmittedFrom), "Enter a valid date submitted 'from' date.");
+
+            if (!string.IsNullOrWhiteSpace(filters.DateSubmittedToValue) && !filters.DateSubmittedTo.HasValue)
+                ModelState.AddModelError(nameof(DateSubmittedTo), "Enter a valid date submitted 'to' date.");
+
+            if (filters.DateStartedFrom.HasValue && filters.DateStartedTo.HasValue && filters.DateStartedFrom > filters.DateStartedTo)
+                ModelState.AddModelError(nameof(DateStartedTo), "Date started 'to' must be on or after date started 'from'.");
+
+            if (filters.DateSubmittedFrom.HasValue && filters.DateSubmittedTo.HasValue && filters.DateSubmittedFrom > filters.DateSubmittedTo)
+                ModelState.AddModelError(nameof(DateSubmittedTo), "Date submitted 'to' must be on or after date submitted 'from'.");
+        }
+
+        public string BuildPaginationHref(int page) =>
+            FiltersEnabled
+                ? SearchFilters.BuildPaginationHref(page)
+                : $"?currentPage={page}";
 
         /// <summary>
         /// Calculate the actual application status based on response data
@@ -187,6 +251,12 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
 
         private async SystemTask LoadApplicationsAsync()
         {
+            if (!ModelState.IsValid)
+            {
+                Applications = Array.Empty<ApplicationWithCalculatedStatus>();
+                return;
+            }
+
             var templateGuid = ResolveTemplateId();
             if (!templateGuid.HasValue)
             {
@@ -197,10 +267,17 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
             }
 
             var pageSize = dashboardOptions.Value.PageSize;
+            var filters = FiltersEnabled ? SearchFilters : new DashboardApplicationSearch();
             var result = await applicationsClient.GetMyApplicationsAsync(
                 templateId: templateGuid.Value,
                 pageNumber: CurrentPage,
-                pageSize: pageSize);
+                pageSize: pageSize,
+                applicationReference: string.IsNullOrWhiteSpace(filters.SearchReference) ? null : filters.SearchReference,
+                dateStartedFrom: filters.DateStartedFrom,
+                dateStartedTo: filters.DateStartedTo,
+                dateSubmittedFrom: filters.DateSubmittedFrom,
+                dateSubmittedTo: filters.DateSubmittedTo,
+                status: filters.Status);
 
             TotalPages = result.TotalPages;
             CurrentPage = Math.Clamp(CurrentPage, 1, Math.Max(1, TotalPages));
