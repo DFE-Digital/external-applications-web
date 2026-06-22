@@ -181,3 +181,7 @@ All notable changes to this service will be documented in this file.
 ## [1.3.27]
 ### Notes
 - Added application search functionality
+
+## [1.3.28]
+### Notes
+- Updated RGVisits service name
