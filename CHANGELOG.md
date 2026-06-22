@@ -177,3 +177,7 @@ All notable changes to this service will be documented in this file.
 ## [1.3.26]
 ### Notes
 - Added Academy filtering feature flag on the endpoint
+
+## [1.3.27]
+### Notes
+- Added application search functionality
