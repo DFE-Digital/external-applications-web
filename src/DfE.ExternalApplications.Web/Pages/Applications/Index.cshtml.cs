@@ -1,4 +1,5 @@
 using DfE.ExternalApplications.Application.Options;
+using DfE.ExternalApplications.Web.Models.Applications;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
@@ -18,46 +19,135 @@ public class IndexModel(
     IOptions<DashboardOptions> dashboardOptions,
     ILogger<IndexModel> logger) : PageModel
 {
-    public Guid TemplateId { get; set; } = Guid.Parse("B2F8E7D4-2C46-4A91-8E73-9D5A1F4B6C89"); // HACK SP LSRP
+    public Guid? TemplateId { get; set; }
     
     public IReadOnlyList<ApplicationWithCalculatedStatus> Applications { get; private set; } = [];
 
     public int PageSize => dashboardOptions.Value.PageSize;
 
-    [BindProperty(SupportsGet = true)]
-    public int CurrentPage { get; set; } = 1;
-    
     public int TotalPages { get; private set; }
+
+    public bool FiltersEnabled => dashboardOptions.Value.EnableApplicationFilters;
 
     public bool HasError { get; private set; }
     public string? ErrorMessage { get; private set; }
 
     public bool SearchDone { get; private set; }
 
-    public void OnGet()
+    public bool IsSearchActive => FiltersEnabled && SearchFilters.HasActiveFilters;
+
+    public bool ShowFiltersPanel => IsSearchActive;
+
+    [BindProperty(SupportsGet = true)]
+    public int CurrentPage { get; set; } = 1;
+
+    [BindProperty(SupportsGet = true)]
+    public string? SearchReference { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public string? DateStartedFrom { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public string? DateStartedTo { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public string? DateSubmittedFrom { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public string? DateSubmittedTo { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public ApplicationStatus? Status { get; set; }
+
+    public DashboardApplicationSearch SearchFilters => new()
     {
-        StringValues templateIdValues = Request.Query["templateId"];
-        if (templateIdValues.Count != 0)
-        {
-            string? templateId = templateIdValues.First();
-            if (!string.IsNullOrWhiteSpace(templateId))
-            {
-                TemplateId = Guid.Parse(templateId);
-            }
-        }
+        SearchReference = SearchReference,
+        DateStartedFromValue = DateStartedFrom,
+        DateStartedToValue = DateStartedTo,
+        DateSubmittedFromValue = DateSubmittedFrom,
+        DateSubmittedToValue = DateSubmittedTo,
+        Status = Status
+    };
+
+    //public void OnGet()
+    //{
+    //    // TODO get template id from memory
+    //    //StringValues templateIdValues = Request.Query["templateId"];
+    //    //if (templateIdValues.Count != 0)
+    //    //{
+    //    //    string? templateId = templateIdValues.First();
+    //    //    if (!string.IsNullOrWhiteSpace(templateId))
+    //    //    {
+    //    //        TemplateId = Guid.Parse(templateId);
+    //    //    }
+    //    //}
+    //    var templateId = HttpContext.Session.GetString("TemplateId");
+    //    TemplateId = !string.IsNullOrWhiteSpace(templateId) ? Guid.Parse(templateId) : null;
+    //}
+
+    public async Task OnGetAsync()
+    {
+        var templateId = HttpContext.Session.GetString("TemplateId");
+        TemplateId = !string.IsNullOrWhiteSpace(templateId) ? Guid.Parse(templateId) : null;
+        ValidateSearchFilters();
+        //await LoadUserDetailsAsync();
+        await LoadApplicationsAsync();
     }
 
-    public async Task OnGetSearchAsync(Guid? templateId)
+    private void ValidateSearchFilters()
     {
-        if (!templateId.HasValue)
+        if (!FiltersEnabled)
+            return;
+
+        var filters = SearchFilters;
+
+        if (!string.IsNullOrWhiteSpace(filters.DateStartedFromValue) && !filters.DateStartedFrom.HasValue)
+            ModelState.AddModelError(nameof(DateStartedFrom), "Enter a valid date started 'from' date.");
+
+        if (!string.IsNullOrWhiteSpace(filters.DateStartedToValue) && !filters.DateStartedTo.HasValue)
+            ModelState.AddModelError(nameof(DateStartedTo), "Enter a valid date started 'to' date.");
+
+        if (!string.IsNullOrWhiteSpace(filters.DateSubmittedFromValue) && !filters.DateSubmittedFrom.HasValue)
+            ModelState.AddModelError(nameof(DateSubmittedFrom), "Enter a valid date submitted 'from' date.");
+
+        if (!string.IsNullOrWhiteSpace(filters.DateSubmittedToValue) && !filters.DateSubmittedTo.HasValue)
+            ModelState.AddModelError(nameof(DateSubmittedTo), "Enter a valid date submitted 'to' date.");
+
+        if (filters.DateStartedFrom.HasValue && filters.DateStartedTo.HasValue && filters.DateStartedFrom > filters.DateStartedTo)
+            ModelState.AddModelError(nameof(DateStartedTo), "Date started 'to' must be on or after date started 'from'.");
+
+        if (filters.DateSubmittedFrom.HasValue && filters.DateSubmittedTo.HasValue && filters.DateSubmittedFrom > filters.DateSubmittedTo)
+            ModelState.AddModelError(nameof(DateSubmittedTo), "Date submitted 'to' must be on or after date submitted 'from'.");
+    }
+
+    private async Task LoadApplicationsAsync()
+    {
+        if (!ModelState.IsValid)
         {
-            throw new ArgumentNullException(nameof(templateId)); // TODO SP handle error
+            Applications = Array.Empty<ApplicationWithCalculatedStatus>();
+            return;
         }
 
-        PagedResultOfApplicationDto result = await applicationsClient.GetApplicationsByTemplateAsync(
-                templateId: templateId.Value,
-                pageNumber: CurrentPage,
-                pageSize: PageSize);
+        if (!TemplateId.HasValue)
+        {
+            // Try again on next request; show empty state instead of erroring
+            logger.LogWarning("TemplateId not available when loading applications; rendering empty dashboard");
+            Applications = Array.Empty<ApplicationWithCalculatedStatus>();
+            return;
+        }
+
+        var pageSize = dashboardOptions.Value.PageSize;
+        var filters = FiltersEnabled ? SearchFilters : new DashboardApplicationSearch();
+        var result = await applicationsClient.GetApplicationsByTemplateAsync(
+            templateId: TemplateId.Value,
+            pageNumber: CurrentPage,
+            pageSize: pageSize,
+            applicationReference: string.IsNullOrWhiteSpace(filters.SearchReference) ? null : filters.SearchReference,
+            dateStartedFrom: filters.DateStartedFrom,
+            dateStartedTo: filters.DateStartedTo,
+            dateSubmittedFrom: filters.DateSubmittedFrom,
+            dateSubmittedTo: filters.DateSubmittedTo,
+            status: filters.Status);
 
         TotalPages = result.TotalPages;
         CurrentPage = Math.Clamp(CurrentPage, 1, Math.Max(1, TotalPages));
@@ -68,10 +158,35 @@ public class IndexModel(
             CalculatedStatus = await GetCalculatedApplicationStatusAsync(app)
         });
 
-        Applications = [.. (await Task.WhenAll(applicationTasks)).OrderByDescending(a => a.DateCreated)];
-
-        SearchDone = true;
+        Applications = [..(await Task.WhenAll(applicationTasks))
+                .OrderByDescending(a => a.DateCreated)];
     }
+
+    //public async Task OnGetSearchAsync(Guid? templateId)
+    //{
+    //    if (!templateId.HasValue)
+    //    {
+    //        throw new ArgumentNullException(nameof(templateId)); // TODO SP handle error
+    //    }
+
+    //    PagedResultOfApplicationDto result = await applicationsClient.GetApplicationsByTemplateAsync(
+    //            templateId: templateId.Value,
+    //            pageNumber: CurrentPage,
+    //            pageSize: PageSize);
+
+    //    TotalPages = result.TotalPages;
+    //    CurrentPage = Math.Clamp(CurrentPage, 1, Math.Max(1, TotalPages));
+
+    //    var applicationTasks = result.Items.AsEnumerable().Select(async app => new ApplicationWithCalculatedStatus
+    //    {
+    //        Application = app,
+    //        CalculatedStatus = await GetCalculatedApplicationStatusAsync(app)
+    //    });
+
+    //    Applications = [.. (await Task.WhenAll(applicationTasks)).OrderByDescending(a => a.DateCreated)];
+
+    //    SearchDone = true;
+    //}
 
     // TODO SP: Consider moving this logic to a service class for better separation of concerns and testability, and share with main dashboard.
     /// <summary>
