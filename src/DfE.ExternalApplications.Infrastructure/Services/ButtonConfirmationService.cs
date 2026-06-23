@@ -240,6 +240,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
 
                 string? name = null;
                 string? ukprn = null;
+                string? code = null;
                 string? chNo = null;
                 string? postcode = null;
 
@@ -247,6 +248,8 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                     name = n.GetString();
                 if (root.TryGetProperty("ukprn", out var u) && (u.ValueKind == JsonValueKind.String || u.ValueKind == JsonValueKind.Number))
                     ukprn = u.ToString();
+                if (root.TryGetProperty("code", out var laCode) && (laCode.ValueKind == JsonValueKind.String || laCode.ValueKind == JsonValueKind.Number))
+                    code = laCode.ToString();
                 if (root.TryGetProperty("companiesHouseNumber", out var c) && c.ValueKind == JsonValueKind.String)
                     chNo = c.GetString();
                 if (root.TryGetProperty("postcode", out var pc) && pc.ValueKind == JsonValueKind.String)
@@ -273,8 +276,10 @@ namespace DfE.ExternalApplications.Infrastructure.Services
 
                 AddIfMissing("trustName", name);
                 AddIfMissing("trustname", name);
+                AddIfMissing("name", name);
                 AddIfMissing("postcode", postcode);
                 AddIfMissing("ukprn", ukprn);
+                AddIfMissing("code", code);
                 AddIfMissing("companiesHouseNumber", chNo);
                 AddIfMissing("companiesHousenumber", chNo); // tolerate common misspelling
             }

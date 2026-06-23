@@ -35,5 +35,12 @@ namespace DfE.ExternalApplications.Domain.Models
 
         [JsonPropertyName("hideFieldLabelWhenOnlyOneField")]
         public bool HideFieldLabelWhenOnlyOneField { get; set; } = true; // Default to true for backward compatibility
+
+        /// <summary>
+        /// When true, owners can invite contributors to help complete the application.
+        /// When false, contributor pages and links are hidden.
+        /// </summary>
+        [JsonPropertyName("contributorPattern")]
+        public bool ContributorPattern { get; set; } = true;
     }
 }

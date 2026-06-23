@@ -139,3 +139,49 @@ All notable changes to this service will be documented in this file.
 ## [1.3.17]
 ### Notes
 - Use a feature flag to disable submitting an application
+
+## [1.3.18]
+### Notes
+- Added pagination to the dashboard
+
+## [1.3.19]
+### Notes
+- Added Test env appsettings
+- Updated pagination default page size to show 50 applications per page
+
+## [1.3.20]
+### Notes
+- Added Test env appsettings
+
+## [1.3.21]
+### Notes
+- Improved Logout functionality
+- Improved caching and API error handling
+
+## [1.3.22]
+### Notes
+- Allow contributor pattern to be disabled from the Template
+
+## [1.3.23]
+### Notes
+- Added Prod env appsettings
+
+## [1.3.24]
+### Notes
+- Improved caching
+
+## [1.3.25]
+### Notes
+- Added LA and Diocese ComplexFields and details to the Auto-Complete search results and confirmation page.
+
+## [1.3.26]
+### Notes
+- Added Academy filtering feature flag on the endpoint
+
+## [1.3.27]
+### Notes
+- Added application search functionality
+
+## [1.3.28]
+### Notes
+- Updated RGVisits service name

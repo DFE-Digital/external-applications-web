@@ -4,6 +4,8 @@ locals {
   azure_location                                = var.azure_location
   tags                                          = var.tags
   virtual_network_address_space                 = var.virtual_network_address_space
+  virtual_network_address_space_mask            = element(split("/", local.virtual_network_address_space), 1)
+  key_vault_subnet_cidr                         = cidrsubnet(local.virtual_network_address_space, 21 - local.virtual_network_address_space_mask, 2)
   container_apps_infra_subnet_service_endpoints = var.container_apps_infra_subnet_service_endpoints
   enable_container_registry                     = var.enable_container_registry
   registry_admin_enabled                        = var.registry_admin_enabled
@@ -22,6 +24,7 @@ locals {
   dns_txt_records                               = var.dns_txt_records
   dns_mx_records                                = var.dns_mx_records
   key_vault_access_ipv4                         = var.key_vault_access_ipv4
+  enable_keyvault_private_endpoint              = var.enable_keyvault_private_endpoint
   tfvars_filename                               = var.tfvars_filename
   enable_monitoring                             = var.enable_monitoring
   monitor_email_receivers                       = var.monitor_email_receivers

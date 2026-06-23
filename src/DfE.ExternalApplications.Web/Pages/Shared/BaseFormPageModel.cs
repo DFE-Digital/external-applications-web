@@ -1,11 +1,13 @@
 using DfE.ExternalApplications.Application.Interfaces;
 using DfE.ExternalApplications.Domain.Models;
 using DfE.ExternalApplications.Web.Authentication;
+using DfE.ExternalApplications.Web.Security;
 using DfE.ExternalApplications.Web.Services;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Diagnostics.CodeAnalysis;
+using System.Security.Claims;
 using Task = System.Threading.Tasks.Task;
 
 namespace DfE.ExternalApplications.Web.Pages.Shared
@@ -79,11 +81,66 @@ namespace DfE.ExternalApplications.Web.Pages.Shared
         }
 
         /// <summary>
-        /// Checks if the application is editable based on status, or if the current user is an Admin
+        /// Indicates whether the current template enables contributor invitation and management.
+        /// </summary>
+        public bool IsContributorPatternEnabled() => Template?.ContributorPattern ?? true;
+
+        /// <summary>
+        /// Checks if the application is editable based on status, write permission, lead applicant ownership, or Admin role.
         /// </summary>
         public bool IsApplicationEditable()
         {
-            return _applicationStateService.IsApplicationEditable(ApplicationStatus) || IsUserAdmin();
+            if (IsUserAdmin())
+            {
+                return true;
+            }
+
+            if (!_applicationStateService.IsApplicationEditable(ApplicationStatus))
+            {
+                return false;
+            }
+
+            if (!ApplicationId.HasValue)
+            {
+                return false;
+            }
+
+            if (ApplicationPermissionHelper.CanWriteApplication(HttpContext?.User, ApplicationId.Value))
+            {
+                return true;
+            }
+
+            // Permission claims can be stale immediately after creating a new application.
+            return IsCurrentUserLeadApplicant();
+        }
+
+        /// <summary>
+        /// Returns true when the signed-in user is the lead applicant for the current application.
+        /// </summary>
+        protected bool IsCurrentUserLeadApplicant()
+        {
+            if (!ApplicationId.HasValue || HttpContext?.Session == null)
+            {
+                return false;
+            }
+
+            var leadApplicantEmail = HttpContext.Session.GetString($"ApplicationLeadApplicantEmail_{ApplicationId.Value}");
+            var leadApplicantUserId = HttpContext.Session.GetString($"ApplicationLeadApplicantUserId_{ApplicationId.Value}");
+
+            var currentUserEmail = HttpContext.User?.FindFirst(ClaimTypes.Email)?.Value
+                                   ?? HttpContext.User?.FindFirst("email")?.Value;
+            var currentUserId = HttpContext.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (!string.IsNullOrEmpty(leadApplicantUserId)
+                && !string.IsNullOrEmpty(currentUserId)
+                && string.Equals(leadApplicantUserId, currentUserId, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            return !string.IsNullOrEmpty(leadApplicantEmail)
+                   && !string.IsNullOrEmpty(currentUserEmail)
+                   && string.Equals(leadApplicantEmail.Trim(), currentUserEmail.Trim(), StringComparison.InvariantCultureIgnoreCase);
         }
 
         /// <summary>

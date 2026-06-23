@@ -24,8 +24,8 @@ public class SupportRequestModel(
 
     protected override async Task FetchFormDataAsync()
     {
-        var applications = await applicationsClient.GetMyApplicationsAsync(templateId: TemplateId);
-        ApplicationReferences = applications.Select(a => a.ApplicationReference).ToList();
+        var result = await applicationsClient.GetMyApplicationsAsync(templateId: TemplateId);
+        ApplicationReferences = result.Items.AsEnumerable().Select(a => a.ApplicationReference).ToList();
 
         await base.FetchFormDataAsync();
     }
