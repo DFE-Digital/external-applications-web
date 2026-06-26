@@ -17,8 +17,6 @@
     <link rel="stylesheet" href="~/css/application-listing.css" asp-append-version="true" />
 }
 
-<p>Template ID: @Model.TemplateId</p>
-
 @if (Model.FiltersEnabled)
 {
     <details class="govuk-details application-listing__filters-container" data-module="govuk-details" @(showFiltersPanel ? "open" : null)>
@@ -151,7 +149,7 @@
     </details>
 }
 
-@if (!Model.HasError && Model.SearchDone && !Model.Applications.Any())
+@if (!Model.HasError && !Model.Applications.Any())
 {
     <p class="govuk-body">No @AppTerminology.Plural</p>
 }

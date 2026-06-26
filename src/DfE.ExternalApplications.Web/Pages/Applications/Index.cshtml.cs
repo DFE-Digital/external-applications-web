@@ -7,7 +7,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
-using Microsoft.Extensions.Primitives;
 using System.Text.Json;
 using static DfE.ExternalApplications.Web.Pages.Applications.DashboardModel;
 
@@ -31,8 +30,6 @@ public class IndexModel(
 
     public bool HasError { get; private set; }
     public string? ErrorMessage { get; private set; }
-
-    public bool SearchDone { get; private set; }
 
     public bool IsSearchActive => FiltersEnabled && SearchFilters.HasActiveFilters;
 
@@ -69,28 +66,12 @@ public class IndexModel(
         Status = Status
     };
 
-    //public void OnGet()
-    //{
-    //    // TODO get template id from memory
-    //    //StringValues templateIdValues = Request.Query["templateId"];
-    //    //if (templateIdValues.Count != 0)
-    //    //{
-    //    //    string? templateId = templateIdValues.First();
-    //    //    if (!string.IsNullOrWhiteSpace(templateId))
-    //    //    {
-    //    //        TemplateId = Guid.Parse(templateId);
-    //    //    }
-    //    //}
-    //    var templateId = HttpContext.Session.GetString("TemplateId");
-    //    TemplateId = !string.IsNullOrWhiteSpace(templateId) ? Guid.Parse(templateId) : null;
-    //}
-
     public async Task OnGetAsync()
     {
         var templateId = HttpContext.Session.GetString("TemplateId");
         TemplateId = !string.IsNullOrWhiteSpace(templateId) ? Guid.Parse(templateId) : null;
+        logger.LogInformation("TemplateId from session: {TemplateId}", TemplateId);
         ValidateSearchFilters();
-        //await LoadUserDetailsAsync();
         await LoadApplicationsAsync();
     }
 
@@ -162,33 +143,7 @@ public class IndexModel(
                 .OrderByDescending(a => a.DateCreated)];
     }
 
-    //public async Task OnGetSearchAsync(Guid? templateId)
-    //{
-    //    if (!templateId.HasValue)
-    //    {
-    //        throw new ArgumentNullException(nameof(templateId)); // TODO SP handle error
-    //    }
-
-    //    PagedResultOfApplicationDto result = await applicationsClient.GetApplicationsByTemplateAsync(
-    //            templateId: templateId.Value,
-    //            pageNumber: CurrentPage,
-    //            pageSize: PageSize);
-
-    //    TotalPages = result.TotalPages;
-    //    CurrentPage = Math.Clamp(CurrentPage, 1, Math.Max(1, TotalPages));
-
-    //    var applicationTasks = result.Items.AsEnumerable().Select(async app => new ApplicationWithCalculatedStatus
-    //    {
-    //        Application = app,
-    //        CalculatedStatus = await GetCalculatedApplicationStatusAsync(app)
-    //    });
-
-    //    Applications = [.. (await Task.WhenAll(applicationTasks)).OrderByDescending(a => a.DateCreated)];
-
-    //    SearchDone = true;
-    //}
-
-    // TODO SP: Consider moving this logic to a service class for better separation of concerns and testability, and share with main dashboard.
+    // TODO Consider moving this logic to a service class for better separation of concerns and testability, and share with main dashboard.
     /// <summary>
     /// Calculate the actual application status based on response data
     /// </summary>
