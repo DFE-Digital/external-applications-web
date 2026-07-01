@@ -1,3 +1,4 @@
+import {EnvUsername} from "../Constants/cypressConstants";
 
 export class Contributors{
 
@@ -28,7 +29,7 @@ static addContributor() {
 }
 static verifyContributor(){
     // Verify if the contributor is added by checking the username
-    cy.getById(this.selectors.contributor1).contains(Cypress.env('username'));
+    cy.getById(this.selectors.contributor1).contains(Cypress.expose(EnvUsername));
 }
 
 static verifyNewContributor() {

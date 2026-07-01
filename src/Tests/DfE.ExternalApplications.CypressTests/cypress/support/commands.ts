@@ -2,24 +2,24 @@
 import "cypress-axe";
 import { Logger } from "../Common/logger";
 import { RuleObject } from "axe-core";
-import { AuthenticationInterceptor } from "../auth/authenticationInterceptor";
 import 'cypress-file-upload';
+import {EnvAuthKey, EnvCypressSecret, EnvUrl, EnvUsername} from "../Constants/cypressConstants";
 
 // Override cy.visit to automatically add Cypress authentication headers
 Cypress.Commands.overwrite('visit', (originalFn, url, options) => {
-    const cypressSecret = Cypress.env('CYPRESS_SECRET') || '';
-    
-    // Merge our custom headers with any existing headers
-    const visitOptions = {
-        ...(options || {}),
-        headers: {
-            ...(options?.headers || {}),
-            'x-cypress-test': 'true',
-            'x-cypress-secret': cypressSecret
-        }
-    };
-    
-    return originalFn({ url, ...visitOptions });
+    return cy.env([EnvCypressSecret]).then(({cypress_secret}) => {
+        // Merge our custom headers with any existing headers
+        const visitOptions = {
+            ...(options || {}),
+            headers: {
+                ...(options?.headers || {}),
+                'x-cypress-test': 'true',
+                'x-cypress-secret': cypress_secret || ''
+            }
+        };
+
+        return originalFn({url, ...visitOptions});
+    })
 });
 
 Cypress.Commands.add(
@@ -174,7 +174,7 @@ Cypress.Commands.add("hasAddress", (id: string, line1: string, line2: string, li
 Cypress.Commands.add("login", () => {
     cy.clearCookies();
     cy.clearLocalStorage();
-    cy.visit(Cypress.env('url'));
+    cy.visit(Cypress.expose(EnvUrl));
 });
 
 
