@@ -17,6 +17,7 @@
 
 import "./commands";
 import { RuleObject } from "axe-core";
+import { AuthenticationInterceptor } from "../auth/authenticationInterceptor";
 
 // Block ASP.NET Core development tools that cause issues with Cypress proxy
 Cypress.on('uncaught:exception', (err) => {
@@ -46,20 +47,8 @@ beforeEach(() => {
         statusCode: 204,
         body: ''
     }).as('blockFramework');
-    
-    cy.intercept('**/*', (req) => {
-        // Skip for already blocked URLs and Cypress internal URLs
-        if (req.url.includes('_framework') || 
-            req.url.includes('_vs') || 
-            req.url.includes('__cypress') ||
-            req.url.includes('__/')) {
-            return;
-        }
-        
-        // Add Cypress authentication headers
-        req.headers['x-service-email'] = Cypress.env('username') || '';
-        req.headers['x-service-api-key'] = Cypress.env('cypress_secret') || '';
-    });
+
+    new AuthenticationInterceptor().register();
 });
 
 
