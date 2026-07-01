@@ -7,6 +7,7 @@ import '../../support/commands';
 import Contributors from '../../pages/ContributorsPage';
 import ReasonsAndBenefits from '../../pages/TaskListPages/ReasonsAndBenefitsPageOutgoing'; 
 import Academies from '../../pages/TaskListPages/DetailsofAcademies';
+import {EnvUsername} from "../../Constants/cypressConstants";
 
 describe('Create an Application', () => {
 
@@ -28,7 +29,7 @@ describe('Create an Application', () => {
     cy.url().should('include', '/TestLogin'); // Example assertion
 
     Logger.log("Logging in with the test user");
-    TestLoginPage.enterUsername(Cypress.env('username'));
+    TestLoginPage.enterUsername(Cypress.expose(EnvUsername));
      Logger.log("Clicking the Continue button on the TestLogin page");
     TestLoginPage.SignInBtn();
     // Add assertions or further actions here as needed

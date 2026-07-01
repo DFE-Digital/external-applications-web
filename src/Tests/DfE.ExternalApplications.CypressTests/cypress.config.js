@@ -24,7 +24,13 @@ module.exports = defineConfig({
         }
         return launchOptions
       })
-      
+      config.baseUrl = config.env.url;
+      config.expose = {
+        ...(config.expose || {}),
+        url: config.env.url,
+        username: config.env.username,
+      }
+
       return config
     }
   },
