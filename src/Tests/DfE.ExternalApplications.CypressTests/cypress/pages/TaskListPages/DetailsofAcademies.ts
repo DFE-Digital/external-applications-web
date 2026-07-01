@@ -109,7 +109,7 @@ export class Academies{
         }
 
         static verifyAcademyIsAdded(AcademyName:string){
-            cy.getByClass('govuk-notification-banner__heading').should('contain.text', AcademyName + ' has been added');
+            cy.getByClass('govuk-notification-banner__heading').should('contain.text', 'Details of academies updated');
         }
     
     static clickMarkCompleteCheckbox() {

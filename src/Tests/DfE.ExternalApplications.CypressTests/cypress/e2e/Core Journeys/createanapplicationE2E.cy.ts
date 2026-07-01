@@ -29,7 +29,7 @@ describe('Create an Application', () => {
         cy.executeAccessibilityTests();
     });
 
-  it('Should Navigate to Dashboard Page', () => {
+  it('Should Navigate to Dashboard Page and creating a new application', () => {
     Logger.log("Dashboard Loaded"); 
 
    // Logger.log("Clicking the start button on the dashboard");
@@ -228,7 +228,7 @@ describe('Create an Application', () => {
     cy.SaveTaskSummary();
 
 
-  //2. Reasons and Bemefits About Transferring Academies
+  //2. Reasons and Benefits About Transferring Academies
     Logger.log("Selecting the Reasons and Benefits task");
     ReasonsAndBenefits.clickReasonsIfNotStarted();
     ReasonsAndBenefits.ClickChangeforStrategicNeeds('Strategic needs Testing text');

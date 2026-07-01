@@ -129,7 +129,7 @@ static selectors = {
 
        static verifyFileUploadSuccessMessage() {
 
-        cy.getByClass(this.selectors.TrustDetailsSuccesBanner).contains('The trust that academies are joining has been added');
+        cy.getByClass(this.selectors.TrustDetailsSuccesBanner).contains('Trust details updated');
 
        }
 
