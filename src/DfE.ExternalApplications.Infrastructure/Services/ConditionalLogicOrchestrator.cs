@@ -546,6 +546,22 @@ public class ConditionalLogicOrchestrator(
                         {
                             pages.AddRange(task.Pages);
                         }
+
+                        if (task.Summary?.Flows != null)
+                        {
+                            foreach (var flow in task.Summary.Flows)
+                            {
+                                pages.AddRange(flow.Pages);
+                            }
+                        }
+
+                        if (task.Summary?.DerivedFlows != null)
+                        {
+                            foreach (var flow in task.Summary.DerivedFlows)
+                            {
+                                pages.AddRange(flow.Pages);
+                            }
+                        }
                     }
                 }
             }
@@ -556,60 +572,21 @@ public class ConditionalLogicOrchestrator(
 
     private List<Field> GetAllFields(FormTemplate template)
     {
-        var fields = new List<Field>();
-
-        if (template.TaskGroups != null)
-        {
-            foreach (var group in template.TaskGroups)
-            {
-                if (group.Tasks != null)
-                {
-                    foreach (var task in group.Tasks)
-                    {
-                        if (task.Pages != null)
-                        {
-                            foreach (var page in task.Pages)
-                            {
-                                if (page.Fields != null)
-                                {
-                                    fields.AddRange(page.Fields);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        return fields;
+        return GetAllPages(template)
+            .Where(p => p.Fields != null)
+            .SelectMany(p => p.Fields)
+            .ToList();
     }
 
     private List<Field> GetFieldsForPage(FormTemplate template, string pageId)
     {
-        var fields = new List<Field>();
-
-        if (template.TaskGroups != null)
+        var page = GetAllPages(template).FirstOrDefault(p => p.PageId == pageId);
+        if (page?.Fields != null)
         {
-            foreach (var group in template.TaskGroups)
-            {
-                if (group.Tasks != null)
-                {
-                    foreach (var task in group.Tasks)
-                    {
-                        if (task.Pages != null)
-                        {
-                            var page = task.Pages.FirstOrDefault(p => p.PageId == pageId);
-                            if (page?.Fields != null)
-                            {
-                                fields.AddRange(page.Fields);
-                            }
-                        }
-                    }
-                }
-            }
+            return page.Fields.ToList();
         }
 
-        return fields;
+        return new List<Field>();
     }
 
     #endregion

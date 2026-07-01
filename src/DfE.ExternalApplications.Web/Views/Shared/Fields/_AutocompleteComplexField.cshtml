@@ -32,10 +32,15 @@
         {
             var name = dict.ContainsKey("name") ? dict["name"]?.ToString() : "";
             var ukprn = dict.ContainsKey("ukprn") ? dict["ukprn"]?.ToString() : "";
+            var code = dict.ContainsKey("code") ? dict["code"]?.ToString() : "";
             
             if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(ukprn))
             {
                 return $"{name} (UKPRN: {ukprn})";
+            }
+            else if (!string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(code))
+            {
+                return $"{name} (Code: {code})";
             }
             else if (!string.IsNullOrEmpty(name))
             {
@@ -138,6 +143,15 @@
             currentValues.Add(Model.CurrentValue);
         }
     }
+
+    // For establishment/academy fields, show postcode on confirmation; for LA/diocese show name and code
+    var isNameAndCodeField = string.Equals(complexFieldId, "LocalAuthorityComplexField", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(complexFieldId, "DioceseComplexField", StringComparison.OrdinalIgnoreCase);
+    var confirmationDisplayFields = string.Equals(complexFieldId, "EstablishmentComplexField", StringComparison.OrdinalIgnoreCase)
+        ? "trustname,postcode,ukprn,companiesHousenumber"
+        : isNameAndCodeField
+            ? "trustname,code"
+            : "trustname,ukprn,companiesHousenumber";
 }
 
 @if (string.IsNullOrEmpty(complexFieldId))
@@ -224,7 +238,7 @@ else
         @Html.RenderPrimaryConfirmationButton(
                 buttonText: "Search",
                 handler: "Page",
-                displayFields: "trustname,ukprn,companiesHousenumber",
+                displayFields: confirmationDisplayFields,
                 buttonId: "autocomplete-confirm-button",
                 title: $"Is this the right {@configuration.Label.ToLower()}?",
                 requiredMessage: $"Select yes if this is the right { @configuration.Label.ToLower()}")
@@ -573,6 +587,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             if (typeof result === 'object' && result !== null) {
                                 var name = result.name ? escapeHtml(result.name) : '';
                                 var ukprn = (result.ukprn !== undefined && result.ukprn !== null) ? escapeHtml(result.ukprn.toString()) : '';
+                                var code = (result.code !== undefined && result.code !== null) ? escapeHtml(result.code.toString()) : '';
                                 var ch = '';
                                 if (result.companiesHouseNumber) ch = result.companiesHouseNumber;
                                 else if (result.companiesHousenumber) ch = result.companiesHousenumber;
@@ -581,6 +596,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                                 var parts = [name];
                                 if (ukprn) parts.push('UKPRN: ' + ukprn);
+                                if (code) parts.push('Code: ' + code);
                                 if (ch) parts.push('Companies house number: ' + ch);
                                 return '<div class="complex-field-suggestion">' + parts.join(' - ') + '</div>';
                             }
@@ -680,11 +696,28 @@ document.addEventListener('DOMContentLoaded', function() {
                             return;
                         }
 
-                        // Look up the full object from cache to ensure we have ALL properties
+                        // Look up the full object from cache to ensure we have ALL properties.
+                        // Match by unique identifier when present (ukprn, companiesHouseNumber, urn) so that
+                        // items with the same name select the correct one; try each identifier if the others are not available.
                         var fullOption = option;
                         if (typeof option === 'object' && option.name && cachedResults.length > 0) {
                             var foundInCache = cachedResults.find(function(item) {
-                                return item.name === option.name;
+                                if (typeof item !== 'object' || item === null || item.name !== option.name) return false;
+                                var itemUkprn = item.ukprn != null ? String(item.ukprn).trim() : '';
+                                var optUkprn = option.ukprn != null ? String(option.ukprn).trim() : '';
+                                if (itemUkprn && optUkprn) return itemUkprn === optUkprn;
+                                var itemCh = (item.companiesHouseNumber ?? item.companiesHousenumber ?? item.companies_house_number);
+                                var optCh = (option.companiesHouseNumber ?? option.companiesHousenumber ?? option.companies_house_number);
+                                itemCh = itemCh != null ? String(itemCh).trim() : '';
+                                optCh = optCh != null ? String(optCh).trim() : '';
+                                if (itemCh && optCh) return itemCh === optCh;
+                                var itemUrn = item.urn != null ? String(item.urn).trim() : '';
+                                var optUrn = option.urn != null ? String(option.urn).trim() : '';
+                                if (itemUrn && optUrn) return itemUrn === optUrn;
+                                var itemCode = item.code != null ? String(item.code).trim() : '';
+                                var optCode = option.code != null ? String(option.code).trim() : '';
+                                if (itemCode && optCode) return itemCode === optCode;
+                                return true;
                             });
                             if (foundInCache) {
                                 console.log('Found full object in cache with', Object.keys(foundInCache).length, 'properties');

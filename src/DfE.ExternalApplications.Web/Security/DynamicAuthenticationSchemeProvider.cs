@@ -1,5 +1,6 @@
 using DfE.ExternalApplications.Web.Authentication;
 using GovUK.Dfe.CoreLibs.Security.Configurations;
+using GovUK.Dfe.CoreLibs.Security.EntraSso;
 using GovUK.Dfe.CoreLibs.Security.Interfaces;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -16,13 +17,14 @@ namespace DfE.ExternalApplications.Web.Security;
 /// Priority order:
 /// 1. If X-Service-Email header present: Uses Internal Service Auth (header-based forwarder)
 /// 2. If TestAuthentication.Enabled is true: Uses Test scheme for all
-/// 3. If AllowToggle is true AND request is from Cypress: Uses Test scheme
-/// 4. Otherwise: Uses OIDC (Cookies + OIDC challenge/sign-out)
+/// 3. If EntraSso.Enabled is true: Uses Entra SSO scheme
+/// 4. Otherwise: Uses DfE Sign-In OIDC (Cookies + OIDC challenge/sign-out)
 /// </summary>
 public class DynamicAuthenticationSchemeProvider(
     IOptions<AuthenticationOptions> options,
     IHttpContextAccessor httpContextAccessor,
     IOptions<TestAuthenticationOptions> testAuthOptions,
+    IOptions<EntraSsoOptions> entraSsoOptions,
     IConfiguration configuration)
     : AuthenticationSchemeProvider(options)
 {
@@ -33,7 +35,6 @@ public class DynamicAuthenticationSchemeProvider(
 
     private bool ShouldUseTestAuth()
     {
-        // Always use test auth if globally enabled
         if (IsTestAuthGloballyEnabled())
         {
             return true;
@@ -42,75 +43,73 @@ public class DynamicAuthenticationSchemeProvider(
         return false;
     }
 
+    private bool IsEntraSsoEnabled()
+    {
+        return entraSsoOptions.Value.Enabled;
+    }
+
     private bool IsInternalServiceRequest()
     {
         var httpContext = httpContextAccessor.HttpContext;
         if (httpContext == null) return false;
         
-        // Only engage Internal Service Auth if X-Service-Email header is present
         return httpContext.Request.Headers.ContainsKey("x-service-email");
+    }
+
+    private string GetDefaultIdpScheme()
+    {
+        return IsEntraSsoEnabled()
+            ? EntraSsoDefaults.AuthenticationScheme
+            : OpenIdConnectDefaults.AuthenticationScheme;
     }
 
     public override Task<AuthenticationScheme?> GetDefaultAuthenticateSchemeAsync()
     {
-        // PRIORITY 1: Internal Service Authentication (check header first - fastest)
         if (IsInternalServiceRequest())
         {
             return GetSchemeAsync(InternalServiceAuthenticationHandler.SchemeName);
         }
         
-        // PRIORITY 2: Test Authentication (if enabled or Cypress)
         if (ShouldUseTestAuth())
         {
             return GetSchemeAsync(TestAuthenticationHandler.SchemeName);
         }
         
-        // PRIORITY 3: Default to OIDC (Cookies)
         return GetSchemeAsync(CookieAuthenticationDefaults.AuthenticationScheme);
     }
 
     public override Task<AuthenticationScheme?> GetDefaultChallengeSchemeAsync()
     {
-        // Internal Service requests don't challenge - they authenticate directly
         if (IsInternalServiceRequest())
         {
             return GetSchemeAsync(InternalServiceAuthenticationHandler.SchemeName);
         }
         
-        // Test Auth uses its own challenge
         if (ShouldUseTestAuth())
         {
             return GetSchemeAsync(TestAuthenticationHandler.SchemeName);
         }
         
-        // Regular users: OIDC challenge (login page)
-        return GetSchemeAsync(OpenIdConnectDefaults.AuthenticationScheme);
+        return GetSchemeAsync(GetDefaultIdpScheme());
     }
 
     public override Task<AuthenticationScheme?> GetDefaultForbidSchemeAsync()
     {
-        // Don't call GetDefaultChallengeSchemeAsync here as it might trigger recursion
-        // Instead, inline the logic with the cached result
-        
-        // Internal Service requests
         if (IsInternalServiceRequest())
         {
             return GetSchemeAsync(InternalServiceAuthenticationHandler.SchemeName);
         }
         
-        // Test Auth
         if (ShouldUseTestAuth())
         {
             return GetSchemeAsync(TestAuthenticationHandler.SchemeName);
         }
         
-        // Regular users: OIDC
-        return GetSchemeAsync(OpenIdConnectDefaults.AuthenticationScheme);
+        return GetSchemeAsync(GetDefaultIdpScheme());
     }
 
     public override Task<AuthenticationScheme?> GetDefaultSignInSchemeAsync()
     {
-        // Always use Cookies for sign-in
         return GetSchemeAsync(CookieAuthenticationDefaults.AuthenticationScheme);
     }
 
@@ -118,12 +117,9 @@ public class DynamicAuthenticationSchemeProvider(
     {
         if (ShouldUseTestAuth())
         {
-            // Test auth signs out cookies only
             return GetSchemeAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         }
-        // OIDC sign-out triggers federated sign-out
-        return GetSchemeAsync(OpenIdConnectDefaults.AuthenticationScheme);
+
+        return GetSchemeAsync(GetDefaultIdpScheme());
     }
 }
-
-

@@ -1,6 +1,9 @@
 @using System.Security.Claims
+@using System.Text.Json
 @model DfE.ExternalApplications.Web.Pages.FormEngine.RenderFormModel
 @inject DfE.ExternalApplications.Application.Interfaces.IDerivedCollectionFlowService DerivedFlowService
+@inject IConfiguration Configuration
+
 @{
     var applicationId = Context.Session.GetString("ApplicationId");
     var leadApplicantEmail = Context.Session.GetString($"ApplicationLeadApplicantEmail_{applicationId}");
@@ -13,12 +16,14 @@
                         ?? Context.User?.Identity?.Name;
     
     var isLeadApplicant = string.Equals(currentUserEmail?.Trim(), leadApplicantEmail?.Trim(), StringComparison.InvariantCultureIgnoreCase);
+
+    bool submitIsDisabled = bool.TryParse(Configuration["Layout:SubmitAppIsDisabled"], out bool isDisabled) && isDisabled;
 }
 
 <div class="govuk-grid-row">
     <div class="govuk-grid-column-full">
         <h1 class="govuk-heading-xl govuk-!-margin-bottom-6">Check your answers</h1>
-        <govuk-inset-text>Application reference: <strong>@Model.ReferenceNumber</strong></govuk-inset-text>
+        <govuk-inset-text>@AppTerminology.SingularCapitalised reference: <strong>@Model.ReferenceNumber</strong></govuk-inset-text>
 
         @if (!ViewData.ModelState.IsValid)
         {
@@ -163,9 +168,25 @@
                                                                 }
                                                                 else if (field.Type == "checkboxes" && field.Options != null)
                                                                 {
-                                                                    var selectedValues = fieldValue.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).ToList();
-                                                                    var selectedLabels = field.Options.Where(o => selectedValues.Contains(o.Value)).Select(o => o.Label).ToList();
-                                                                    @Html.Raw(selectedLabels.Any() ? string.Join(", ", selectedLabels) : fieldValue)
+                                                                    var selectedValues = Model.GetFormattedFieldValues(field.FieldId);
+                                                                    var selectedLabels = field.Options
+                                                                        .Where(o => selectedValues.Contains(o.Value))
+                                                                        .Select(o => o.Label ?? o.Value)
+                                                                        .ToList();
+
+                                                                    if (selectedLabels.Any())
+                                                                    {
+                                                                        <ul class="govuk-list govuk-list--bullet">
+                                                                            @foreach (var label in selectedLabels)
+                                                                            {
+                                                                                <li>@label</li>
+                                                                            }
+                                                                        </ul>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        @Html.Raw(fieldValue.Replace("\r\n", "<br/>").Replace("\r", "<br/>").Replace("\n", "<br/>"))
+                                                                    }
                                                                 }
                                                                 else
                                                                 {
@@ -262,7 +283,8 @@
                                             // Display each field for this collection item
                                             @foreach (var col in (flow.SummaryColumns ?? new List<DfE.ExternalApplications.Domain.Models.FlowSummaryColumn>()).Where(c => !Model.IsFieldHiddenForItem(c.Field, item)))
                                             {
-                                                var value = DisplayHelpers.InterpolateMessage($"{{{col.Field}}}", DisplayHelpers.ExpandEncodedJson(item));
+                                                var rawValue = DisplayHelpers.InterpolateMessage($"{{{col.Field}}}", DisplayHelpers.ExpandEncodedJson(item));
+                                                var value = rawValue == $"{{{col.Field}}}" ? string.Empty : rawValue;
                                                 
                                                 <div class="govuk-summary-list__row">
                                                     <dt class="govuk-summary-list__key">
@@ -462,7 +484,9 @@
                                                          }
                                                          else
                                                          {
-                                                             @Html.Raw(formattedValues.FirstOrDefault())
+
+                                                             var html = RenderAutocompleteSummary(DisplayHelpers.UnsanitiseHtmlInput(fieldValue));
+                                                             @Html.Raw(html)
                                                          }
                                                      }
                                                  </dd>
@@ -605,8 +629,8 @@
 @if (Model.IsApplicationEditable() && isLeadApplicant)
 {
     <div class="govuk-!-margin-top-6">
-        <h2 class="govuk-heading-m govuk-!-margin-top-9">Submit your application</h2>
-        <p class="govuk-body">By submitting this application you are confirming that, to the best of your knowledge, the details you are providing are correct.</p>
+        <h2 class="govuk-heading-m govuk-!-margin-top-9">Submit your @AppTerminology.Singular</h2>
+        <p class="govuk-body">By submitting this @AppTerminology.Singular you are confirming that, to the best of your knowledge, the details you are providing are correct.</p>
 
 
         <form method="post" asp-page-handler="SubmitApplication">
@@ -615,7 +639,7 @@
             {
                 <input type="hidden" name="preview" value="true"/>
             }
-            <govuk-button type="submit" id="submit-application-button">
+            <govuk-button type="submit" id="submit-application-button" disabled="@(submitIsDisabled ? true : false)">
                 Submit
             </govuk-button>
         </form>
@@ -625,7 +649,48 @@ else if (Model.IsApplicationEditable() && !isLeadApplicant)
 {
     <div class="govuk-!-margin-top-6">
         <div class="govuk-inset-text">
-            <p class="govuk-body">Only the lead applicant can submit this application.</p>
+            <p class="govuk-body">Only the lead applicant can submit this @AppTerminology.Singular.</p>
         </div>
     </div>
+}
+
+@functions {
+    // Builds HTML matching confirmation page formatting for a single autocomplete selection
+    private static string RenderAutocompleteSummary(string rawValue)
+    {
+        if (string.IsNullOrWhiteSpace(rawValue)) return string.Empty;
+        try
+        {
+            using var doc = JsonDocument.Parse(rawValue);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return System.Net.WebUtility.HtmlEncode(rawValue);
+            }
+
+            var root = doc.RootElement;
+            string name = root.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() ?? string.Empty : string.Empty;
+            string postcode = root.TryGetProperty("postcode", out var pc) && pc.ValueKind == JsonValueKind.String ? pc.GetString() ?? string.Empty : string.Empty;
+            if (string.IsNullOrWhiteSpace(postcode) && root.TryGetProperty("postCode", out var pc2) && pc2.ValueKind == JsonValueKind.String) postcode = pc2.GetString() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(postcode) && root.TryGetProperty("address", out var addr) && addr.ValueKind == JsonValueKind.Object)
+            {
+                if (addr.TryGetProperty("postcode", out var apc) && apc.ValueKind == JsonValueKind.String) postcode = apc.GetString() ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(postcode) && addr.TryGetProperty("postCode", out var apc2) && apc2.ValueKind == JsonValueKind.String) postcode = apc2.GetString() ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(postcode) && addr.TryGetProperty("postalCode", out var apc3) && apc3.ValueKind == JsonValueKind.String) postcode = apc3.GetString() ?? string.Empty;
+            }
+            string ukprn = root.TryGetProperty("ukprn", out var u) ? u.ToString() : string.Empty;
+            string ch = root.TryGetProperty("companiesHouseNumber", out var c) && c.ValueKind == JsonValueKind.String ? c.GetString() ?? string.Empty : string.Empty;
+            if (string.IsNullOrWhiteSpace(ch) && root.TryGetProperty("companiesHousenumber", out var c2)) ch = c2.ToString();
+
+            var sb = new System.Text.StringBuilder();
+            if (!string.IsNullOrWhiteSpace(name)) sb.Append($"<strong class=\"govuk-!-font-weight-bold\">{System.Net.WebUtility.HtmlEncode(name)}</strong>");
+            if (!string.IsNullOrWhiteSpace(postcode)) sb.Append($"<br/>Postcode: {System.Net.WebUtility.HtmlEncode(postcode)}");
+            if (!string.IsNullOrWhiteSpace(ukprn)) sb.Append($"<br/>UKPRN: {System.Net.WebUtility.HtmlEncode(ukprn)}");
+            if (!string.IsNullOrWhiteSpace(ch)) sb.Append($"<br/>Companies house number: {System.Net.WebUtility.HtmlEncode(ch)}");
+            return sb.ToString();
+        }
+        catch
+        {
+            return System.Net.WebUtility.HtmlEncode(rawValue);
+        }
+    }
 }

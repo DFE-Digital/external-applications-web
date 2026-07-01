@@ -5,11 +5,16 @@ using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using DfE.ExternalApplications.Application.Interfaces;
+using DfE.ExternalApplications.Application.Options;
+using DfE.ExternalApplications.Web.Models.Applications;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using GovUK.Dfe.ExternalApplications.Api.Client.Security;
+using DfE.ExternalApplications.Web.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Options;
 using SystemTask = System.Threading.Tasks.Task;
 using Microsoft.Extensions.Configuration;
 
@@ -22,7 +27,9 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
         IApplicationsClient applicationsClient,
         IHttpContextAccessor httpContextAccessor,
         IApplicationResponseService applicationResponseService,
-        IFormTemplateProvider templateProvider)
+        IContributorPatternService contributorPatternService,
+        IMemoryCache memoryCache,
+        IOptions<DashboardOptions> dashboardOptions)
         : PageModel
     {
         public string? Email { get; private set; }
@@ -32,6 +39,43 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
         public IReadOnlyList<ApplicationWithCalculatedStatus> Applications { get; private set; } = Array.Empty<ApplicationWithCalculatedStatus>();
         public bool HasError { get; private set; }
         public string? ErrorMessage { get; private set; }
+
+        [BindProperty(SupportsGet = true)]
+        public int CurrentPage { get; set; } = 1;
+
+        [BindProperty(SupportsGet = true)]
+        public string? SearchReference { get; set; }
+
+        [BindProperty(SupportsGet = true)]
+        public string? DateStartedFrom { get; set; }
+
+        [BindProperty(SupportsGet = true)]
+        public string? DateStartedTo { get; set; }
+
+        [BindProperty(SupportsGet = true)]
+        public string? DateSubmittedFrom { get; set; }
+
+        [BindProperty(SupportsGet = true)]
+        public string? DateSubmittedTo { get; set; }
+
+        [BindProperty(SupportsGet = true)]
+        public ApplicationStatus? Status { get; set; }
+
+        public DashboardApplicationSearch SearchFilters => new()
+        {
+            SearchReference = SearchReference,
+            DateStartedFromValue = DateStartedFrom,
+            DateStartedToValue = DateStartedTo,
+            DateSubmittedFromValue = DateSubmittedFrom,
+            DateSubmittedToValue = DateSubmittedTo,
+            Status = Status
+        };
+
+        public int TotalPages { get; private set; }
+        public int PageSize => dashboardOptions.Value.PageSize;
+        public bool FiltersEnabled => dashboardOptions.Value.EnableApplicationFilters;
+        public bool IsSearchActive => FiltersEnabled && SearchFilters.HasActiveFilters;
+        public bool ShowFiltersPanel => IsSearchActive;
 
         public class ApplicationWithCalculatedStatus
         {
@@ -48,9 +92,41 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
 
         public async SystemTask OnGetAsync()
         {
+            ValidateSearchFilters();
             await LoadUserDetailsAsync();
             await LoadApplicationsAsync();
         }
+
+        private void ValidateSearchFilters()
+        {
+            if (!FiltersEnabled)
+                return;
+
+            var filters = SearchFilters;
+
+            if (!string.IsNullOrWhiteSpace(filters.DateStartedFromValue) && !filters.DateStartedFrom.HasValue)
+                ModelState.AddModelError(nameof(DateStartedFrom), "Enter a valid date started 'from' date.");
+
+            if (!string.IsNullOrWhiteSpace(filters.DateStartedToValue) && !filters.DateStartedTo.HasValue)
+                ModelState.AddModelError(nameof(DateStartedTo), "Enter a valid date started 'to' date.");
+
+            if (!string.IsNullOrWhiteSpace(filters.DateSubmittedFromValue) && !filters.DateSubmittedFrom.HasValue)
+                ModelState.AddModelError(nameof(DateSubmittedFrom), "Enter a valid date submitted 'from' date.");
+
+            if (!string.IsNullOrWhiteSpace(filters.DateSubmittedToValue) && !filters.DateSubmittedTo.HasValue)
+                ModelState.AddModelError(nameof(DateSubmittedTo), "Enter a valid date submitted 'to' date.");
+
+            if (filters.DateStartedFrom.HasValue && filters.DateStartedTo.HasValue && filters.DateStartedFrom > filters.DateStartedTo)
+                ModelState.AddModelError(nameof(DateStartedTo), "Date started 'to' must be on or after date started 'from'.");
+
+            if (filters.DateSubmittedFrom.HasValue && filters.DateSubmittedTo.HasValue && filters.DateSubmittedFrom > filters.DateSubmittedTo)
+                ModelState.AddModelError(nameof(DateSubmittedTo), "Date submitted 'to' must be on or after date submitted 'from'.");
+        }
+
+        public string BuildPaginationHref(int page) =>
+            FiltersEnabled
+                ? SearchFilters.BuildPaginationHref(page)
+                : $"?currentPage={page}";
 
         /// <summary>
         /// Calculate the actual application status based on response data
@@ -134,20 +210,53 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
 
             HttpContext.Session.SetString("ApplicationId", response.ApplicationId.ToString());
             HttpContext.Session.SetString("ApplicationReference", response.ApplicationReference);
+            HttpContext.Session.SetString($"ApplicationStatus_{response.ApplicationId}", response.Status?.ToString() ?? ApplicationStatus.InProgress.ToString());
+
+            var currentUserEmail = User.FindFirstValue(ClaimTypes.Email) ?? User.FindFirstValue("email");
+            var currentUserName = User.FindFirstValue(ClaimTypes.Name) ?? currentUserEmail ?? string.Empty;
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!string.IsNullOrEmpty(currentUserEmail))
+            {
+                HttpContext.Session.SetString($"ApplicationLeadApplicantEmail_{response.ApplicationId}", currentUserEmail);
+            }
+            if (!string.IsNullOrEmpty(currentUserName))
+            {
+                HttpContext.Session.SetString($"ApplicationLeadApplicantName_{response.ApplicationId}", currentUserName);
+            }
+            if (!string.IsNullOrEmpty(currentUserId))
+            {
+                HttpContext.Session.SetString($"ApplicationLeadApplicantUserId_{response.ApplicationId}", currentUserId);
+            }
 
             // Clear any existing accumulated form data when starting a new application
             applicationResponseService.ClearAccumulatedFormData(HttpContext.Session);
             HttpContext.Session.SetString("CurrentAccumulatedApplicationId", response.ApplicationId.ToString());
 
+            if (User.Identity?.IsAuthenticated == true)
+            {
+                UserPermissionsCache.Invalidate(memoryCache, User);
+            }
+
             logger.LogInformation("Created new application {ApplicationId} and cleared accumulated form data", response.ApplicationId);
 
             // Note: Token management now handled automatically by TokenManagementMiddleware
-            
-            return RedirectToPage("/Applications/Contributors", new { referenceNumber = response.ApplicationReference });
+            var templateId = templateGuid.Value.ToString();
+            if (await contributorPatternService.IsEnabledAsync(templateId))
+            {
+                return RedirectToPage("/Applications/Contributors", new { referenceNumber = response.ApplicationReference });
+            }
+
+            return RedirectToPage("/FormEngine/RenderForm", new { referenceNumber = response.ApplicationReference });
         }
 
         private async SystemTask LoadApplicationsAsync()
         {
+            if (!ModelState.IsValid)
+            {
+                Applications = Array.Empty<ApplicationWithCalculatedStatus>();
+                return;
+            }
+
             var templateGuid = ResolveTemplateId();
             if (!templateGuid.HasValue)
             {
@@ -157,20 +266,30 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
                 return;
             }
 
-            var applications = await applicationsClient.GetMyApplicationsAsync(templateId: templateGuid.Value);
+            var pageSize = dashboardOptions.Value.PageSize;
+            var filters = FiltersEnabled ? SearchFilters : new DashboardApplicationSearch();
+            var result = await applicationsClient.GetMyApplicationsAsync(
+                templateId: templateGuid.Value,
+                pageNumber: CurrentPage,
+                pageSize: pageSize,
+                applicationReference: string.IsNullOrWhiteSpace(filters.SearchReference) ? null : filters.SearchReference,
+                dateStartedFrom: filters.DateStartedFrom,
+                dateStartedTo: filters.DateStartedTo,
+                dateSubmittedFrom: filters.DateSubmittedFrom,
+                dateSubmittedTo: filters.DateSubmittedTo,
+                status: filters.Status);
 
-            // Calculate status for each application
-            var applicationTasks = applications.Select(async app => new ApplicationWithCalculatedStatus
+            TotalPages = result.TotalPages;
+            CurrentPage = Math.Clamp(CurrentPage, 1, Math.Max(1, TotalPages));
+
+            var applicationTasks = result.Items.AsEnumerable().Select(async app => new ApplicationWithCalculatedStatus
             {
                 Application = app,
                 CalculatedStatus = await GetCalculatedApplicationStatusAsync(app)
             });
 
-            var applicationsWithStatus = await SystemTask.WhenAll(applicationTasks);
-
-            Applications = applicationsWithStatus
-                .OrderByDescending(a => a.DateCreated)
-                .ToList();
+            Applications = [..(await SystemTask.WhenAll(applicationTasks))
+                .OrderByDescending(a => a.DateCreated)];
         }
 
         private Guid? ResolveTemplateId()

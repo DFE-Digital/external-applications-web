@@ -32,5 +32,15 @@ namespace DfE.ExternalApplications.Domain.Models
         /// </summary>
         [JsonPropertyName("defaultFieldRequirementPolicy")]
         public string? DefaultFieldRequirementPolicy { get; set; }
+
+        [JsonPropertyName("hideFieldLabelWhenOnlyOneField")]
+        public bool HideFieldLabelWhenOnlyOneField { get; set; } = true; // Default to true for backward compatibility
+
+        /// <summary>
+        /// When true, owners can invite contributors to help complete the application.
+        /// When false, contributor pages and links are hidden.
+        /// </summary>
+        [JsonPropertyName("contributorPattern")]
+        public bool ContributorPattern { get; set; } = true;
     }
 }

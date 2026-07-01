@@ -58,7 +58,7 @@ public class FieldRendererServiceTests
         var currentTask = _fixture.Create<TaskModel>();
         var currentPage = _fixture.Create<Page>();
 
-        var result = await _service.RenderFieldAsync(field, prefix, currentValue, errorMessage, currentTask, currentPage);
+        var result = await _service.RenderFieldAsync(field, prefix, currentValue, Array.Empty<string>(), errorMessage, currentTask, currentPage);
 
         Assert.NotNull(result);
 
@@ -100,7 +100,7 @@ public class FieldRendererServiceTests
         var currentTask = _fixture.Create<TaskModel>();
         var currentPage = _fixture.Create<Page>();
 
-        var result = await _service.RenderFieldAsync(field, prefix, currentValue, errorMessage, currentTask, currentPage);
+        var result = await _service.RenderFieldAsync(field, prefix, currentValue, Array.Empty<string>(), errorMessage, currentTask, currentPage);
 
         Assert.NotNull(result);
 
@@ -125,7 +125,7 @@ public class FieldRendererServiceTests
         var currentPage = _fixture.Create<Page>();
 
         await Assert.ThrowsAsync<NotSupportedException>(() =>
-            _service.RenderFieldAsync(field, prefix, currentValue, errorMessage, currentTask, currentPage));
+            _service.RenderFieldAsync(field, prefix, currentValue, Array.Empty<string>(), errorMessage, currentTask, currentPage));
     }
 
     [Fact]
@@ -142,7 +142,7 @@ public class FieldRendererServiceTests
         var currentPage = _fixture.Create<Page>();
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            _service.RenderFieldAsync(field, prefix, currentValue, errorMessage, currentTask, currentPage));
+            _service.RenderFieldAsync(field, prefix, currentValue, Array.Empty<string>(), errorMessage, currentTask, currentPage));
     }
 
     [Fact]
@@ -164,6 +164,6 @@ public class FieldRendererServiceTests
         var currentPage = _fixture.Create<Page>();
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            _service.RenderFieldAsync(field, prefix, currentValue, errorMessage, currentTask, currentPage));
+            _service.RenderFieldAsync(field, prefix, currentValue, Array.Empty<string>(), errorMessage, currentTask, currentPage));
     }
 }

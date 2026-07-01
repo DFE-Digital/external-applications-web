@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Serialization;
 
 namespace DfE.ExternalApplications.Domain.Models;
@@ -30,6 +30,11 @@ public class Task
 
     [JsonPropertyName("pages")]
     public List<Page>? Pages { get; set; }
+
+    // When true, clicking a NotStarted task from the task list routes to its first page (instead of task summary).
+    // Default is false/null for backward compatibility.
+    [JsonPropertyName("startAtFirstPageWhenNotStarted")]
+    public bool? StartAtFirstPageWhenNotStarted { get; set; }
 
     // Custom summary configuration (optional)
     [JsonPropertyName("summary")] public TaskSummaryConfiguration? Summary { get; set; }

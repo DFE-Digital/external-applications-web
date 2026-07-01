@@ -4,6 +4,7 @@ using GovUK.Dfe.CoreLibs.Security.Configurations;
 using GovUK.Dfe.CoreLibs.Security.Interfaces;
 using GovUK.Dfe.CoreLibs.Security.OpenIdConnect;
 using DfE.ExternalApplications.Application.Interfaces;
+using DfE.ExternalApplications.Application.Options;
 using DfE.ExternalApplications.Infrastructure.Parsers;
 using DfE.ExternalApplications.Infrastructure.Providers;
 using DfE.ExternalApplications.Infrastructure.Services;
@@ -25,6 +26,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.ResponseCompression;
 using System.Diagnostics.CodeAnalysis;
+using GovUK.Dfe.CoreLibs.Security.EntraSso;
 using GovUK.Dfe.CoreLibs.Security.TokenRefresh.Extensions;
 using System.IO.Compression;
 using DfE.ExternalApplications.Infrastructure.Consumers;
@@ -35,6 +37,7 @@ using Microsoft.AspNetCore.Authentication;
 using MassTransit;
 using GovUK.Dfe.CoreLibs.Messaging.Contracts.Exceptions;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.HttpOverrides;
 using DfE.ExternalApplications.Web.Telemetry;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -133,6 +136,17 @@ builder.Configuration.AddEnvironmentVariables();
 
 ConfigurationManager configuration = builder.Configuration;
 
+// Reverse proxies (Azure Container Apps, Front Door) forward original scheme/host; without this,
+// Request.Scheme/Host reflect the internal hop and OIDC redirect URIs do not match DfE Sign-In registration.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor
+        | ForwardedHeaders.XForwardedProto
+        | ForwardedHeaders.XForwardedHost;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 builder.Services.AddApplicationInsightsTelemetry(configuration);
 
 // Filter out health check endpoints from Application Insights telemetry
@@ -144,6 +158,12 @@ builder.Services.Configure<TestAuthenticationOptions>(
 // Check if test authentication is enabled
 var testAuthOptions = configuration.GetSection(TestAuthenticationOptions.SectionName).Get<TestAuthenticationOptions>();
 var isTestAuthEnabled = testAuthOptions?.Enabled ?? false;
+
+// Configure Entra SSO options
+builder.Services.Configure<EntraSsoOptions>(
+    configuration.GetSection(EntraSsoOptions.SectionName));
+var entraSsoOptions = configuration.GetSection(EntraSsoOptions.SectionName).Get<EntraSsoOptions>();
+var isEntraSsoEnabled = entraSsoOptions?.Enabled ?? false;
 
 // Configure token settings for test authentication
 // This is needed when test auth is enabled
@@ -168,9 +188,8 @@ builder.Services.AddUserTokenServiceFactory(
 // Add services to the container.
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
 {
-    // Increase form value length limit to handle large JSON data in hidden fields
-    options.ValueLengthLimit = 1048576; // 1MB limit for form values
-    options.ValueCountLimit = 1000; // Allow more form values
+    options.ValueLengthLimit = 4_194_304; // 4MB limit for form values
+    options.ValueCountLimit = 1000;
 });
 
 builder.Services.AddRazorPages(options =>
@@ -227,8 +246,6 @@ builder.Services.AddHttpContextAccessor();
 //builder.Services.AddKeyedScoped<ICustomRequestChecker, ExternalAppsCypressRequestChecker>("cypress");
 builder.Services.AddKeyedScoped<ICustomRequestChecker, InternalAuthRequestChecker>("internal");
 
-//builder.Services.AddScoped<ICypressAuthenticationService, CypressAuthenticationService>();
-
 // Add confirmation interceptor filter globally for all MVC actions
 builder.Services.Configure<Microsoft.AspNetCore.Mvc.MvcOptions>(options =>
 {
@@ -279,10 +296,11 @@ builder.Services
         {
             var error = context.Failure?.Message ?? "Unknown error";
 
-            if (error.Contains("message.State", StringComparison.OrdinalIgnoreCase))
+            if (error.Contains("message.State", StringComparison.OrdinalIgnoreCase)
+                || context.Request.Path.StartsWithSegments("/signout-callback-oidc"))
             {
                 context.Response.Redirect("/");
-                context.HandleResponse(); // Suppress the exception
+                context.HandleResponse();
                 return Task.CompletedTask;
             }
 
@@ -294,6 +312,18 @@ builder.Services
             context.HandleResponse();
             context.Response.Redirect("/error?message=" + Uri.EscapeDataString(context.Exception.Message));
             return Task.CompletedTask;
+        },
+
+        OnRedirectToIdentityProviderForSignOut = context =>
+        {
+            DfESignInOidcPublicUrls.ApplyPostLogoutRedirectUri(context, configuration);
+            return Task.CompletedTask;
+        },
+
+        OnSignedOutCallbackRedirect = context =>
+        {
+            context.HttpContext.Session.Clear();
+            return Task.CompletedTask;
         }
     })
     .AddScheme<TestAuthenticationSchemeOptions, TestAuthenticationHandler>(
@@ -301,7 +331,36 @@ builder.Services
         options => { })
     .AddScheme<InternalServiceAuthenticationSchemeOptions, InternalServiceAuthenticationHandler>(
         InternalServiceAuthenticationHandler.SchemeName,
-        options => { });
+        options => { })
+    .AddEntraSso(configuration, sectionName: EntraSsoDefaults.ConfigurationSection, new OpenIdConnectEvents
+    {
+        OnRemoteFailure = context =>
+        {
+            var error = context.Failure?.Message ?? "Unknown error";
+
+            if (error.Contains("message.State", StringComparison.OrdinalIgnoreCase))
+            {
+                context.Response.Redirect("/");
+                context.HandleResponse();
+                return Task.CompletedTask;
+            }
+
+            return Task.CompletedTask;
+        },
+
+        OnAuthenticationFailed = context =>
+        {
+            context.HandleResponse();
+            context.Response.Redirect("/error?message=" + Uri.EscapeDataString(context.Exception.Message));
+            return Task.CompletedTask;
+        },
+
+        OnSignedOutCallbackRedirect = context =>
+        {
+            context.HttpContext.Session.Clear();
+            return Task.CompletedTask;
+        }
+    });
 
 // Use DynamicAuthenticationSchemeProvider to route per request
 // Checks for Internal Service Auth (forwarder pattern)
@@ -327,6 +386,7 @@ builder.Services.AddTokenRefreshWithOidc(configuration, "DfESignIn", "TokenRefre
 builder.Services.AddHttpClient();
 
 builder.Services.AddScoped<IContributorService, ContributorService>();
+builder.Services.AddScoped<IContributorPatternService, ContributorPatternService>();
 
 builder.Services.AddExternalApplicationsApiClients(configuration);
 
@@ -334,6 +394,7 @@ builder.Services.AddExternalApplicationsApiClients(configuration);
 builder.Services.AddScoped<OidcAuthenticationStrategy>();
 builder.Services.AddScoped<TestAuthenticationStrategy>();
 builder.Services.AddScoped<InternalAuthenticationStrategy>();
+builder.Services.AddScoped<EntraSsoAuthenticationStrategy>();
 builder.Services.AddScoped<IAuthenticationSchemeStrategy, CompositeAuthenticationSchemeStrategy>();
 
 // Register activity-based token refresh services
@@ -390,9 +451,29 @@ builder.Services.AddServiceCaching(configuration);
 builder.Services.AddSingleton<IFormTemplateParser, JsonFormTemplateParser>();
 builder.Services.AddScoped<IFormTemplateProvider, FormTemplateProvider>();
 
+// Application terminology configuration (customisable per service, e.g. "application" vs "reform plan")
+builder.Services.Configure<ApplicationTerminologyOptions>(configuration.GetSection("ApplicationTerminology"));
+
+// Site-wide notification banner (feature flag driven from appsettings)
+builder.Services.Configure<NotificationBannerOptions>(configuration.GetSection("NotificationBanner"));
+
+// Dashboard configuration (page size for application list pagination)
+builder.Services.Configure<DashboardOptions>(configuration.GetSection("Dashboard"));
+builder.Services.AddSingleton<IApplicationTerminologyProvider, ApplicationTerminologyProvider>();
+
+// Application submission configuration (mapper key and handlers per application)
+builder.Services.Configure<ApplicationSubmissionOptions>(configuration.GetSection("ApplicationSubmission"));
+
 // Event mapping and publishing services
 builder.Services.AddSingleton<IEventMappingProvider, EventMappingProvider>();
-builder.Services.AddScoped<IEventDataMapper, EventDataMapper>();
+builder.Services.AddKeyedScoped<IEventDataMapper, EventDataMapper>("Default");
+builder.Services.AddScoped<IEventDataMapperFactory, EventDataMapperFactory>();
+builder.Services.AddSingleton<IEventTypeRegistry, EventTypeRegistry>();
+
+// Application submission handlers (resolved by key from ApplicationSubmission:Handlers)
+builder.Services.AddKeyedScoped<IApplicationSubmittedHandler, PublishEventApplicationSubmittedHandler>("PublishEvent");
+builder.Services.AddKeyedScoped<IApplicationSubmittedHandler, NoOpApplicationSubmittedHandler>("NoOp");
+builder.Services.AddScoped<IApplicationSubmissionOrchestrator, ApplicationSubmissionOrchestrator>();
 
 builder.Services.AddDfEMassTransit(
     configuration,
@@ -446,6 +527,8 @@ AppDomain.CurrentDomain.UnhandledException += (sender, args) =>
 };
 var app = builder.Build();
 
+app.UseForwardedHeaders();
+
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
@@ -480,6 +563,11 @@ app.UseHostTemplateResolution();
 
 app.UseStatusCodePages(ctx =>
 {
+    if (AuthenticationPathExclusions.ShouldSkip(ctx.HttpContext.Request.Path))
+    {
+        return Task.CompletedTask;
+    }
+
     var c = ctx.HttpContext.Response.StatusCode;
     if (c == 401) ctx.HttpContext.Response.Redirect("/Error/Forbidden");
     else if (c == 403) ctx.HttpContext.Response.Redirect("/Error/Forbidden");

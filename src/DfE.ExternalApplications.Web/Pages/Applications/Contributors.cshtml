@@ -1,6 +1,8 @@
 @page "/applications/{referenceNumber}/contributors"
 @using DfE.ExternalApplications.Web.Extensions
 @model ContributorsModel
+@inject IConfiguration Configuration
+
 @{
     ViewData["Title"] = "Invite contributors";
 
@@ -29,15 +31,15 @@
         }
 
         <p class="govuk-body">
-            Invite people to help you complete your application by providing their email address and name.
+            Invite people to help you complete your @AppTerminology.Singular by providing their email address and name.
         </p>
 
         <p class="govuk-body">
-            They must have a DfE Sign-in account. They can only create an account using a business email address with their name. For example, firstname.lastname@schooldomain.
+            They must have a DfE Sign-in account. They can only create an account using a business email address with their name. For example, @Configuration["Layout:ContributorEmail"].
         </p>
 
         <p class="govuk-body">
-            Once a contributor joins, they will be able to view and edit the application and see each contributor's email address.
+            Once a contributor joins, they will be able to view and edit the @AppTerminology.Singular and see each contributor's email address.
         </p>
 
         <p class="govuk-body">
@@ -53,7 +55,7 @@
 
             <form method="post">
                 <button id="proceed-to-application-form" class="govuk-button govuk-button--secondary" type="submit" asp-page-handler="ProceedToForm" data-module="govuk-button">
-                    Go to application form
+                    Go to @AppTerminology.Singular
                 </button>
             </form>
         </div>

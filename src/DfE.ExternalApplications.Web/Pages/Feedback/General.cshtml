@@ -1,8 +1,10 @@
 @page "/Feedback/General"
 @using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request
 @model DfE.ExternalApplications.Web.Pages.Feedback.GeneralModel
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 @{
-	ViewData["Title"] = "Give feedback on the Apply to transfer an academy into your trust service";
+	var serviceName = Configuration["Layout:ServiceName"] ?? "External Applications";
+	ViewData["Title"] = $"Give feedback on the {serviceName} service";
 }
 
 @section BeforeContent {
@@ -19,7 +21,7 @@
 <div class="govuk-grid-row">
 	<div class="govuk-grid-column-two-thirds">
 		<h1 class="govuk-heading-l">
-			Give feedback on the Apply to transfer an academy into your trust service
+			Give feedback on the @serviceName service
 		</h1>
 
 		<form method="post">

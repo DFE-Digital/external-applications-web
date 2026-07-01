@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Linq;
+using Microsoft.AspNetCore.WebUtilities;
 using DfE.ExternalApplications.Application.Interfaces;
 using DfE.ExternalApplications.Domain.Models;
 
@@ -49,8 +50,8 @@ namespace DfE.ExternalApplications.Web.Services
 
             try
             {
-                // Build the request URL with query parameter
-                var requestUrl = BuildRequestUrl(configuration.ApiEndpoint, query);
+                var (apiEndpoint, includeOnlyAcademies) = ExtractEndpointOptions(configuration.ApiEndpoint);
+                var requestUrl = BuildRequestUrl(apiEndpoint, query);
                 
                 _logger.LogInformation("Making autocomplete request to: {RequestUrl} for complex field: {ComplexFieldId}", requestUrl, complexFieldId);
 
@@ -76,13 +77,21 @@ namespace DfE.ExternalApplications.Web.Services
                 var jsonResponse = await response.Content.ReadAsStringAsync();
                 _logger.LogDebug("Raw JSON response for complex field {ComplexFieldId}: {JsonResponse}", complexFieldId, jsonResponse);
                 
-                var results = ParseResponse(jsonResponse, complexFieldId);
+                var results = ParseResponse(jsonResponse, complexFieldId, includeOnlyAcademies);
 
                 // Normalise and de-duplicate results before sorting
                 results = DeduplicateAndNormalise(results);
 
                 // Sort results with prefix priority, then alphabetical
                 var sortedResults = SortResultsByPrefixThenAlpha(results, query);
+
+                if (sortedResults.Count == 0)
+                {
+                    _logger.LogWarning(
+                        "No autocomplete results for complex field {ComplexFieldId}, query: {Query}, request: {RequestUrl}, hasApiKey: {HasApiKey}, response: {JsonResponse}",
+                        complexFieldId, query, requestUrl, !string.IsNullOrEmpty(configuration.ApiKey),
+                        jsonResponse.Length > 500 ? jsonResponse[..500] : jsonResponse);
+                }
 
                 _logger.LogDebug("Found {Count} results for query: {Query} from complex field: {ComplexFieldId}", 
                     sortedResults.Count, query, complexFieldId);
@@ -95,6 +104,30 @@ namespace DfE.ExternalApplications.Web.Services
             }
         }
        
+        private static (string ApiEndpoint, bool IncludeOnlyAcademies) ExtractEndpointOptions(string endpoint)
+        {
+            if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri))
+            {
+                return (endpoint, true);
+            }
+
+            var query = QueryHelpers.ParseQuery(uri.Query);
+            var includeOnlyAcademies = true;
+
+            if (query.TryGetValue("IncludeOnlyAcademies", out var includeOnlyAcademiesValues))
+            {
+                includeOnlyAcademies = bool.TryParse(includeOnlyAcademiesValues.FirstOrDefault(), out var parsed) && parsed;
+                query.Remove("IncludeOnlyAcademies");
+            }
+
+            var builder = new UriBuilder(uri)
+            {
+                Query = query.Count == 0 ? string.Empty : QueryString.Create(query).Value?.TrimStart('?') ?? string.Empty
+            };
+
+            return (builder.Uri.ToString(), includeOnlyAcademies);
+        }
+
         private string BuildRequestUrl(string endpoint, string query)
         {
             var encodedQuery = Uri.EscapeDataString(query);
@@ -117,7 +150,7 @@ namespace DfE.ExternalApplications.Web.Services
             }
         }
 
-        private List<object> ParseResponse(string jsonResponse, string complexFieldId)
+        private List<object> ParseResponse(string jsonResponse, string complexFieldId, bool includeOnlyAcademies)
         {
             var results = new List<object>();
             
@@ -128,7 +161,7 @@ namespace DfE.ExternalApplications.Web.Services
                 // Handle direct array response
                 if (apiData.ValueKind == JsonValueKind.Array)
                 {
-                    ExtractObjectsFromArray(apiData, results, complexFieldId);
+                    ExtractObjectsFromArray(apiData, results, complexFieldId, includeOnlyAcademies);
                 }
                 // Handle object with nested array
                 else if (apiData.ValueKind == JsonValueKind.Object)
@@ -140,7 +173,7 @@ namespace DfE.ExternalApplications.Web.Services
                     {
                         if (apiData.TryGetProperty(propertyName, out var arrayProperty) && arrayProperty.ValueKind == JsonValueKind.Array)
                         {
-                            ExtractObjectsFromArray(arrayProperty, results, complexFieldId);
+                            ExtractObjectsFromArray(arrayProperty, results, complexFieldId, includeOnlyAcademies);
                             break;
                         }
                     }
@@ -154,11 +187,11 @@ namespace DfE.ExternalApplications.Web.Services
             return results;
         }
 
-        private void ExtractObjectsFromArray(JsonElement arrayElement, List<object> results, string complexFieldId)
+        private void ExtractObjectsFromArray(JsonElement arrayElement, List<object> results, string complexFieldId, bool includeOnlyAcademies)
         {
             foreach (var item in arrayElement.EnumerateArray())
             {
-                var displayValue = ExtractDisplayValue(item, complexFieldId);
+                var displayValue = ExtractDisplayValue(item, complexFieldId, includeOnlyAcademies);
                 if (displayValue != null && !displayValue.Equals(string.Empty))
                 {
                     results.Add(displayValue);
@@ -166,7 +199,7 @@ namespace DfE.ExternalApplications.Web.Services
             }
         }
 
-        private object ExtractDisplayValue(JsonElement item, string complexFieldId)
+        private object ExtractDisplayValue(JsonElement item, string complexFieldId, bool includeOnlyAcademies)
         {
             // If it's already a string, use it directly
             if (item.ValueKind == JsonValueKind.String)
@@ -177,8 +210,9 @@ namespace DfE.ExternalApplications.Web.Services
             // If it's an object, try to extract structured data
             if (item.ValueKind == JsonValueKind.Object)
             {
-                // For establishments, filter out results without UKPRN
-                if (complexFieldId == "EstablishmentComplexField")
+                // For establishments, optionally filter out results without UKPRN (academies only)
+                if (string.Equals(complexFieldId, "EstablishmentComplexField", StringComparison.OrdinalIgnoreCase)
+                    && includeOnlyAcademies)
                 {
                     if (item.TryGetProperty("ukprn", out var ukprnProperty))
                     {
@@ -221,8 +255,8 @@ namespace DfE.ExternalApplications.Web.Services
                     }
                 }
                 
-                // Try to get UKPRN or other identifier fields (support common casing variants)
-                var identifierProperties = new[] { "ukprn", "id", "urn", "companiesHouseNumber", "companieshousenumber", "companies_house_number", "code", "localAuthorityName", "gor" };
+                // Try to get UKPRN or other identifier/display fields (support common casing variants)
+                var identifierProperties = new[] { "ukprn", "id", "urn", "companiesHouseNumber", "companieshousenumber", "companies_house_number", "code", "localAuthorityName", "gor", "postcode", "postCode" };
                 foreach (var propertyName in identifierProperties)
                 {
                     if (item.TryGetProperty(propertyName, out var property))
@@ -256,7 +290,33 @@ namespace DfE.ExternalApplications.Web.Services
                         }
                     }
                 }
-                
+
+                // For establishments, also extract postcode from nested address (e.g. DfE API: address.postcode)
+                if (string.Equals(complexFieldId, "EstablishmentComplexField", StringComparison.OrdinalIgnoreCase)
+                    && !result.ContainsKey("postcode")
+                    && item.TryGetProperty("address", out var addressEl)
+                    && addressEl.ValueKind == JsonValueKind.Object)
+                {
+                    if (addressEl.TryGetProperty("postcode", out var postcodeEl) && postcodeEl.ValueKind == JsonValueKind.String)
+                    {
+                        var postcodeVal = postcodeEl.GetString();
+                        if (!string.IsNullOrEmpty(postcodeVal))
+                            result["postcode"] = postcodeVal;
+                    }
+                    if (!result.ContainsKey("postcode") && addressEl.TryGetProperty("postCode", out var postCodeEl) && postCodeEl.ValueKind == JsonValueKind.String)
+                    {
+                        var postcodeVal = postCodeEl.GetString();
+                        if (!string.IsNullOrEmpty(postcodeVal))
+                            result["postcode"] = postcodeVal;
+                    }
+                    if (!result.ContainsKey("postcode") && addressEl.TryGetProperty("postalCode", out var postalCodeEl) && postalCodeEl.ValueKind == JsonValueKind.String)
+                    {
+                        var postcodeVal = postalCodeEl.GetString();
+                        if (!string.IsNullOrEmpty(postcodeVal))
+                            result["postcode"] = postcodeVal;
+                    }
+                }
+
                 // If we found a display name and at least one other field, return the object
                 if (!string.IsNullOrEmpty(displayName) && result.Count > 1)
                 {
@@ -366,8 +426,9 @@ namespace DfE.ExternalApplications.Web.Services
                         dict["companiesHouseNumber"] = ch;
                     }
 
-                    // Build a stable dedupe key (prefer ukprn, then companiesHouseNumber, urn, id, else name)
+                    // Build a stable dedupe key (prefer ukprn, then code, companiesHouseNumber, urn, id, else name)
                     var key = GetFirstNonEmpty(dict, "ukprn")
+                              ?? GetFirstNonEmpty(dict, "code")
                               ?? GetFirstNonEmpty(dict, "companiesHouseNumber")
                               ?? GetFirstNonEmpty(dict, "urn")
                               ?? GetFirstNonEmpty(dict, "id")

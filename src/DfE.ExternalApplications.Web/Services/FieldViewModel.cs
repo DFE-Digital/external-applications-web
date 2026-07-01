@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
@@ -14,16 +15,18 @@ namespace DfE.ExternalApplications.Web.Services
         public Field Field { get; }
         public string Prefix { get; }
         public string CurrentValue { get; }
+        public IReadOnlyCollection<string> SelectedValues { get; }
         public string ErrorMessage { get; }
         public string TaskName => CurrentTask.TaskName;
         public Page CurrentPage { get; }
         public Task CurrentTask { get; }
 
-        public FieldViewModel(Field field, string prefix, string currentValue, string errorMessage, Task currentTask, Page currentPage)
+        public FieldViewModel(Field field, string prefix, string currentValue, string errorMessage, Task currentTask, Page currentPage, IReadOnlyCollection<string>? selectedValues = null)
         {
             Field = field;
             Prefix = prefix;
             CurrentValue = currentValue;
+            SelectedValues = selectedValues ?? Array.Empty<string>();
             ErrorMessage = errorMessage;
             CurrentTask = currentTask;
             CurrentPage = currentPage;

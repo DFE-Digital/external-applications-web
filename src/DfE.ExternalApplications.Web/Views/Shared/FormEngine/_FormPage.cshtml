@@ -1,5 +1,6 @@
 @using System.Text.Json
 @using DfE.ExternalApplications.Web.Utilities
+@using DfE.ExternalApplications.Infrastructure.Services
 @using GovUk.Frontend.AspNetCore.TagHelpers
 @using Microsoft.AspNetCore.Mvc.TagHelpers
 @model DfE.ExternalApplications.Web.Pages.FormEngine.RenderFormModel
@@ -16,7 +17,10 @@
             .FieldType.Equals("upload", StringComparison.OrdinalIgnoreCase));
 
     string typeOfFirstField = Model.CurrentPage.Fields[0].Type;
-    bool labelledByHeader = (Model.CurrentPage.Fields.Count == 1) && typeOfFirstField != "complexField";
+    bool hideFieldLabel = Model.Template.HideFieldLabelWhenOnlyOneField
+                            && Model.CurrentPage.Fields.Count == 1
+                            && typeOfFirstField != "complexField";
+
     bool hasAutocompleteField = Model.CurrentPage.Fields.Any(f =>
         f.Type == "complexField" &&
         f.ComplexField != null &&
@@ -42,6 +46,13 @@
                     var validationErrors = ViewData["ValidationErrors"] as Dictionary<string, List<string>>;
                     var hasViewDataErrors = validationErrors != null && validationErrors.Any();
                     var hasModelStateErrors = ViewData.ModelState.Any(m => m.Value.Errors.Any());
+                    var fieldIds = Model.CurrentPage.Fields.Select(f => f.FieldId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    var nonFieldErrors = ViewData.ModelState
+                        .Where(m => !fieldIds.Contains(m.Key))
+                        .SelectMany(m => m.Value.Errors)
+                        .Where(e => !string.IsNullOrEmpty(e.ErrorMessage))
+                        .Select(e => e.ErrorMessage)
+                        .ToList();
                     
                     IEnumerable<dynamic> errorsToDisplay;
                     
@@ -60,6 +71,12 @@
                                                        select new { Key = m.Key, Field = f, Errors = m.Value.Errors.Select(e => e.ErrorMessage).ToList() };
                         errorsToDisplay = ModelStateWithFieldProps;
                     }
+                }
+                @foreach (var errorMsg in nonFieldErrors)
+                {
+                    <govuk-error-summary-item>
+                        <span class="govuk-visually-hidden">Error: </span>@errorMsg
+                    </govuk-error-summary-item>
                 }
                 @foreach (var s in errorsToDisplay.OrderBy(s => s.Field.Order))
                 {
@@ -122,12 +139,14 @@
 
             @foreach (var field in Model.CurrentPage.Fields.OrderBy(f => f.Order).Where(f => !Model.IsFieldHidden(f.FieldId)))
             {
-                var currentValue = Model.Data.TryGetValue(field.FieldId, out var val) ? val?.ToString() ?? String.Empty : String.Empty;
+                var hasData = Model.Data.TryGetValue(field.FieldId, out var val);
+                var selectedValues = field.Type == "checkboxes" ? CheckboxValueNormalizer.Normalize(hasData ? val : null) : Array.Empty<string>();
+                var currentValue = hasData ? val?.ToString() ?? String.Empty : String.Empty;
 
                 var fieldModelState = ViewData.ModelState.Where(f => f.Key == field.FieldId).FirstOrDefault();
                 var errorMessage = fieldModelState.Value?.Errors?.FirstOrDefault()?.ErrorMessage ?? String.Empty;
 
-                if (labelledByHeader)
+                if (hideFieldLabel)
                 {
                     field.Label.IsVisible = false;
                 }
@@ -137,7 +156,7 @@
                field.ComplexField == null ||
                !ComplexFieldConfigurationService.GetConfiguration(field.ComplexField.Id).FieldType.Equals("upload", StringComparison.OrdinalIgnoreCase))
                 {
-                    @await FieldRenderer.RenderFieldAsync(field, "Data", currentValue, errorMessage, Model.CurrentTask, Model.CurrentPage)
+                    @await FieldRenderer.RenderFieldAsync(field, "Data", currentValue, selectedValues, errorMessage, Model.CurrentTask, Model.CurrentPage)
                 }
             }
 
@@ -166,11 +185,6 @@
                             var currentPageIndex = flowPages.FindIndex(p => p.PageId == Model.CurrentPage.PageId);
                             isLastPageInFlow = currentPageIndex == flowPages.Count - 1;
                         }
-                        
-                        if (string.IsNullOrWhiteSpace(Model.CurrentPage.SaveButtonLabel))
-                        {
-                            buttonText = isLastPageInFlow ? "Save and continue" : "Continue";
-                        }
                     }
                 }
                 
@@ -190,11 +204,13 @@
            field.ComplexField != null &&
            ComplexFieldConfigurationService.GetConfiguration(field.ComplexField.Id).FieldType.Equals("upload", StringComparison.OrdinalIgnoreCase))
         {
-            var currentValue = Model.Data.TryGetValue(field.FieldId, out var val) ? val?.ToString() ?? String.Empty : String.Empty;
+            var hasData = Model.Data.TryGetValue(field.FieldId, out var val);
+            var selectedValues = field.Type == "checkboxes" ? CheckboxValueNormalizer.Normalize(hasData ? val : null) : Array.Empty<string>();
+            var currentValue = hasData ? val?.ToString() ?? String.Empty : String.Empty;
             var fieldModelState = ViewData.ModelState.Where(f => f.Key == field.FieldId).FirstOrDefault();
             var errorMessage = fieldModelState.Value?.Errors?.FirstOrDefault()?.ErrorMessage ?? String.Empty;
 
-            @await FieldRenderer.RenderFieldAsync(field, "Data", currentValue, errorMessage, Model.CurrentTask, Model.CurrentPage)
+            @await FieldRenderer.RenderFieldAsync(field, "Data", currentValue, selectedValues, errorMessage, Model.CurrentTask, Model.CurrentPage)
         }
     }
 }

@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
 using GovUK.Dfe.CoreLibs.Security.Configurations;
+using GovUK.Dfe.CoreLibs.Security.EntraSso;
 using DfE.ExternalApplications.Web.Services;
 using System.Diagnostics.CodeAnalysis;
 
@@ -13,25 +14,14 @@ namespace DfE.ExternalApplications.Web.Pages;
 
 [ExcludeFromCodeCoverage]
 [AllowAnonymous]
-public class LogoutModel : PageModel
+public class LogoutModel(
+    IOptions<TestAuthenticationOptions> testAuthOptions,
+    IOptions<EntraSsoOptions> entraSsoOptions,
+    ILogger<LogoutModel> logger,
+    ITestAuthenticationService? testAuthenticationService = null) : PageModel
 {
-    private readonly TestAuthenticationOptions _testAuthOptions;
-    private readonly ITestAuthenticationService? _testAuthenticationService;
-    private readonly ILogger<LogoutModel> _logger;
-
-    public LogoutModel(
-        IOptions<TestAuthenticationOptions> testAuthOptions,
-        ILogger<LogoutModel> logger,
-        ITestAuthenticationService? testAuthenticationService = null)
-    {
-        _testAuthOptions = testAuthOptions.Value;
-        _testAuthenticationService = testAuthenticationService;
-        _logger = logger;
-    }
-
     public IActionResult OnGet()
     {
-        // Only show the page if user is authenticated
         if (!User.Identity?.IsAuthenticated ?? true)
         {
             return RedirectToPage("/Applications/Dashboard");
@@ -44,34 +34,39 @@ public class LogoutModel : PageModel
     {
         try
         {
-            if (_testAuthOptions.Enabled && _testAuthenticationService != null)
+            if (testAuthOptions.Value.Enabled && testAuthenticationService != null)
             {
-                _logger.LogInformation("Signing out from test authentication");
-                await _testAuthenticationService.SignOutAsync(HttpContext);
-            }
-            else
-            {
-                _logger.LogInformation("Signing out from production authentication");
-                
-                // Clear the existing external cookie
-                await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-                
-                // Clear the existing OIDC cookie and redirect to DfE Sign-in for sign out
-                await HttpContext.SignOutAsync(OpenIdConnectDefaults.AuthenticationScheme, new AuthenticationProperties
-                {
-                    RedirectUri = Url.Page("/Applications/Dashboard")
-                });
+                logger.LogInformation("Signing out from test authentication");
+                HttpContext.Session.Clear();
+                await testAuthenticationService.SignOutAsync(HttpContext);
+                return Redirect("/");
             }
 
-            // Clear session data
-            HttpContext.Session.Clear();
+            // Do not clear session or sign out the cookie scheme before OIDC sign-out.
+            // The OIDC handler signs out the cookie (SignOutScheme) and preserves correlation
+            // state for the /signout-callback-oidc round trip. Clearing early causes 403 on callback.
+            var signOutProperties = new AuthenticationProperties { RedirectUri = "/" };
 
-            _logger.LogInformation("User successfully signed out");
-            return RedirectToPage("/Applications/Dashboard");
+            if (entraSsoOptions.Value.Enabled)
+            {
+                logger.LogInformation("Signing out from Entra SSO authentication");
+
+                return SignOut(
+                    signOutProperties,
+                    CookieAuthenticationDefaults.AuthenticationScheme,
+                    EntraSsoDefaults.AuthenticationScheme);
+            }
+
+            logger.LogInformation("Signing out from DfE Sign-In OIDC authentication");
+
+            return SignOut(
+                signOutProperties,
+                CookieAuthenticationDefaults.AuthenticationScheme,
+                OpenIdConnectDefaults.AuthenticationScheme);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error during sign out process");
+            logger.LogError(ex, "Error during sign out process");
             ModelState.AddModelError(string.Empty, "An error occurred while signing out. Please try again.");
             return Page();
         }

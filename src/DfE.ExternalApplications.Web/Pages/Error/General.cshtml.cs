@@ -32,8 +32,9 @@ public class GeneralModel : PageModel
         SupportEmail = _configuration["SupportEmail"] ?? "RegionalServices.RG@education.gov.uk";
         
         // Prepare email subject and body
-        EmailSubject = "Error - External Applications";
-        EmailBody = $"I encountered an error while using the External Applications service.\n\n" +
+        var serviceName = _configuration["Layout:ServiceName"] ?? "External Applications";
+        EmailSubject = $"Error - {serviceName}";
+        EmailBody = $"I encountered an error while using the {serviceName} service.\n\n" +
                    $"Error Reference: {ErrorId ?? "N/A"}\n" +
                    $"Error Message: {ErrorMessage ?? "N/A"}\n\n" +
                    $"Please provide details about what you were trying to do when the error occurred:";

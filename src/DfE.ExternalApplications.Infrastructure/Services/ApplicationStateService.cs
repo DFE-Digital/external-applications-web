@@ -1,6 +1,8 @@
+using DfE.ExternalApplications.Application.Exceptions;
 using DfE.ExternalApplications.Application.Interfaces;
 using DfE.ExternalApplications.Domain.Models;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
+using GovUK.Dfe.CoreLibs.Http.Models;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -19,133 +21,52 @@ namespace DfE.ExternalApplications.Infrastructure.Services
         ILogger<ApplicationStateService> logger)
         : IApplicationStateService
     {
-        public async Task<(Guid? ApplicationId, ApplicationDto? Application)> EnsureApplicationIdAsync(string referenceNumber, ISession session)
+        public async Task<(Guid? ApplicationId, ApplicationDto? Application)> EnsureApplicationIdAsync(
+            string referenceNumber,
+            ISession session)
         {
-            // First check if we have template schema stored in session for this reference
-            var templateSchemaKey = $"TemplateSchema_{referenceNumber}";
-            var templateVersionIdKey = $"TemplateVersionId_{referenceNumber}";
-            var templateVersionNoKey = $"TemplateVersionNo_{referenceNumber}";
-            var storedTemplateSchema = session.GetString(templateSchemaKey);
-            var storedTemplateVersionId = session.GetString(templateVersionIdKey);
-            var storedTemplateId = session.GetString("TemplateId");
-            var storedTemplateVersionNo = session.GetString(templateVersionNoKey);
+            if (string.IsNullOrWhiteSpace(referenceNumber))
+                throw new ApplicationAccessException(referenceNumber ?? string.Empty);
 
-            // Check if we have basic application data in session
-            var applicationIdString = session.GetString("ApplicationId");
-            var sessionReference = session.GetString("ApplicationReference");
+            ClearStaleSessionDataIfReferenceChanged(referenceNumber, session);
 
-            if (!string.IsNullOrEmpty(applicationIdString) &&
-                !string.IsNullOrEmpty(sessionReference) &&
-                sessionReference == referenceNumber)
-            {
-                if (Guid.TryParse(applicationIdString, out var sessionAppId))
-                {
-                    ApplicationDto? currentApplication = null;
-                    
-                    // If we have template schema in session, create a minimal ApplicationDto
-                    if (!string.IsNullOrEmpty(storedTemplateSchema) && !string.IsNullOrEmpty(storedTemplateVersionId))
-                    {
-                        currentApplication = new ApplicationDto
-                        {
-                            ApplicationId = sessionAppId,
-                            ApplicationReference = sessionReference,
-                            TemplateVersionId = Guid.Parse(storedTemplateVersionId),
-                            TemplateSchema = new TemplateSchemaDto
-                            {
-                                JsonSchema = storedTemplateSchema,
-                                TemplateVersionId = new Guid(storedTemplateVersionId),
-                                TemplateId = new Guid(storedTemplateId),
-                                VersionNumber = storedTemplateVersionNo ?? String.Empty
-                            }
-                        };
-
-                        logger.LogDebug("Using cached template schema for application {ApplicationId} with template version {TemplateVersionId}", 
-                            sessionAppId, storedTemplateVersionId);
-
-                        // Check if we need to load form data from API (for contributors or when session is empty)
-                        var existingFormData = applicationResponseService.GetAccumulatedFormData(session);
-                        if (!existingFormData.Any())
-                        {
-                            try
-                            {
-                                var fullApplication = await applicationsClient.GetApplicationByReferenceAsync(referenceNumber);
-                                if (fullApplication != null)
-                                {
-                                    await LoadResponseDataIntoSessionAsync(fullApplication, session);
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                logger.LogError(ex, "Failed to load response data from API for application {ApplicationReference}", sessionReference);
-                            }
-                        }
-
-                        return (sessionAppId, currentApplication);
-                    }
-
-                }
-            }
-
-            // If not in session or incomplete data, fetch from API
+            ApplicationDto application;
             try
             {
-                var application = await applicationsClient.GetApplicationByReferenceAsync(referenceNumber);
-
-                if (application != null)
-                {
-                    // Store application data in session for future use
-                    session.SetString("ApplicationId", application.ApplicationId.ToString());
-                    session.SetString("ApplicationReference", application.ApplicationReference);
-
-                    // Store template schema in session for future use
-                    if (application.TemplateSchema?.JsonSchema != null)
-                    {
-                        session.SetString(templateSchemaKey, application.TemplateSchema.JsonSchema);
-                        session.SetString(templateVersionIdKey, application.TemplateVersionId.ToString());
-                        session.SetString(templateVersionNoKey, application.TemplateSchema.VersionNumber);
-
-                        logger.LogDebug("Cached template schema for reference {ReferenceNumber} with template version {TemplateVersionId}", 
-                            referenceNumber, application.TemplateVersionId);
-                    }
-
-                    // Store application status in session
-                    if (application.Status != null)
-                    {
-                        var statusKey = $"ApplicationStatus_{application.ApplicationId}";
-                        session.SetString(statusKey, application.Status.ToString());
-                    }
-
-                    // Store application lead applicant in session
-                    var leadApplicantNameKey = $"ApplicationLeadApplicantName_{application.ApplicationId}";
-                    var leadApplicantEmailKey = $"ApplicationLeadApplicantEmail_{application.ApplicationId}";
-                    var leadApplicantUserIdKey = $"ApplicationLeadApplicantUserId_{application.ApplicationId}";
-                    var applicationFormVersionKey = $"ApplicationFormVersion_{application.ApplicationId}";
-
-                    session.SetString(leadApplicantNameKey, application.CreatedBy!.Name);
-                    session.SetString(leadApplicantEmailKey, application.CreatedBy.Email);
-                    session.SetString(leadApplicantUserIdKey, application.CreatedBy.UserId.ToString());
-                    session.SetString(applicationFormVersionKey, string.IsNullOrEmpty(application.TemplateSchema?.VersionNumber) ? "N/A" : application.TemplateSchema?.VersionNumber!);
-
-                    // Load existing response data into session for existing applications
-                    await LoadResponseDataIntoSessionAsync(application, session);
-                    
-                    logger.LogDebug("Loaded application {ApplicationId} from API with template version {TemplateVersionId}", 
-                        application.ApplicationId, application.TemplateVersionId);
-                    
-                    return (application.ApplicationId, application);
-                }
-                else
-                {
-                    logger.LogWarning("Could not find application with reference {ReferenceNumber}", referenceNumber);
-                }
+                application = await applicationsClient.GetApplicationByReferenceAsync(referenceNumber);
             }
-            catch (Exception ex)
+            catch (ExternalApplicationsException<ExceptionResponse> ex) when (ex.StatusCode is 404 or 403)
             {
-                logger.LogError(ex, "Failed to retrieve application information from API for reference {ReferenceNumber}", referenceNumber);
+                logger.LogError(
+                    "Application {ReferenceNumber} not accessible (HTTP {StatusCode})",
+                    referenceNumber,
+                    ex.StatusCode);
+                throw new ApplicationAccessException(referenceNumber);
+            }
+            catch (ExternalApplicationsException ex) when (ex.StatusCode is 404 or 403)
+            {
+                logger.LogError(
+                    "Application {ReferenceNumber} not accessible (HTTP {StatusCode})",
+                    referenceNumber,
+                    ex.StatusCode);
+                throw new ApplicationAccessException(referenceNumber);
             }
 
-            logger.LogWarning("Could not determine ApplicationId for reference {ReferenceNumber}", referenceNumber);
-            return (null, null);
+            if (application is null)
+            {
+                logger.LogWarning("Application {ReferenceNumber} was not returned by the API", referenceNumber);
+                throw new ApplicationAccessException(referenceNumber);
+            }
+
+            PersistApplicationToSession(application, referenceNumber, session);
+            await LoadResponseDataIntoSessionAsync(application, session);
+
+            logger.LogDebug(
+                "Loaded application {ApplicationId} from API for reference {ReferenceNumber}",
+                application.ApplicationId,
+                referenceNumber);
+
+            return (application.ApplicationId, application);
         }
 
         public async Task LoadResponseDataIntoSessionAsync(ApplicationDto application, ISession session)
@@ -153,6 +74,8 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             if (application.LatestResponse?.ResponseBody == null)
             {
                 logger.LogInformation("No existing response data found for application {ApplicationReference}", application.ApplicationReference);
+                applicationResponseService.ClearAccumulatedFormData(session);
+                applicationResponseService.SetCurrentAccumulatedApplicationId(application.ApplicationId, session);
                 return;
             }
 
@@ -234,6 +157,56 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                 logger.LogError(ex, "Failed to load response data for application {ApplicationReference}: {ErrorMessage}",
                     application.ApplicationReference, ex.Message);
             }
+        }
+
+        private void ClearStaleSessionDataIfReferenceChanged(string referenceNumber, ISession session)
+        {
+            var sessionReference = session.GetString("ApplicationReference");
+            if (string.IsNullOrEmpty(sessionReference)
+                || string.Equals(sessionReference, referenceNumber, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            applicationResponseService.ClearAccumulatedFormData(session);
+            session.Remove("ApplicationId");
+            session.Remove("ApplicationReference");
+        }
+
+        private void PersistApplicationToSession(ApplicationDto application, string referenceNumber, ISession session)
+        {
+            session.SetString("ApplicationId", application.ApplicationId.ToString());
+            session.SetString("ApplicationReference", application.ApplicationReference ?? referenceNumber);
+
+            var templateSchemaKey = $"TemplateSchema_{referenceNumber}";
+            var templateVersionIdKey = $"TemplateVersionId_{referenceNumber}";
+            var templateVersionNoKey = $"TemplateVersionNo_{referenceNumber}";
+
+            if (application.TemplateSchema?.JsonSchema != null)
+            {
+                session.SetString(templateSchemaKey, application.TemplateSchema.JsonSchema);
+                session.SetString(templateVersionIdKey, application.TemplateVersionId.ToString());
+                session.SetString(templateVersionNoKey, application.TemplateSchema.VersionNumber ?? string.Empty);
+            }
+
+            if (application.Status != null)
+            {
+                var statusKey = $"ApplicationStatus_{application.ApplicationId}";
+                session.SetString(statusKey, application.Status.ToString());
+            }
+
+            if (application.CreatedBy != null)
+            {
+                session.SetString($"ApplicationLeadApplicantName_{application.ApplicationId}", application.CreatedBy.Name);
+                session.SetString($"ApplicationLeadApplicantEmail_{application.ApplicationId}", application.CreatedBy.Email);
+                session.SetString($"ApplicationLeadApplicantUserId_{application.ApplicationId}", application.CreatedBy.UserId.ToString());
+            }
+
+            session.SetString(
+                $"ApplicationFormVersion_{application.ApplicationId}",
+                string.IsNullOrEmpty(application.TemplateSchema?.VersionNumber)
+                    ? "N/A"
+                    : application.TemplateSchema.VersionNumber);
         }
 
         public string GetApplicationStatus(Guid? applicationId, ISession session)
@@ -410,4 +383,4 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             return tasksWithMissingFields;
         }
     }
-} 
+}

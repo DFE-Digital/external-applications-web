@@ -1,5 +1,5 @@
 # Set the major version of dotnet
-ARG DOTNET_VERSION=8.0
+ARG DOTNET_VERSION=10.0
 # Application to build (Transfers, Lsrp, etc.) - determines which configuration folder to use
 ARG APPLICATION=Transfers
 

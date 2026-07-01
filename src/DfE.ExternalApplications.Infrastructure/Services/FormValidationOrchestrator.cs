@@ -1,11 +1,11 @@
 using DfE.ExternalApplications.Application.Interfaces;
 using DfE.ExternalApplications.Domain.Models;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
-using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
-using System.Text.Json;
-using System.Globalization;
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Web;
 using Task = DfE.ExternalApplications.Domain.Models.Task;
 
@@ -50,12 +50,24 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             {
                 var key = field.FieldId;
                 data.TryGetValue(key, out var rawValue);
-                var value = rawValue?.ToString() ?? string.Empty;
 
-                if (!ValidateField(field, value, data, modelState, key, template))
-                {
-                    isValid = false;
+
+                if (field.Type == "checkboxes") {
+                    if (!ValidateField(field, rawValue ?? string.Empty, data, modelState, key, template))
+                    {
+                        isValid = false;
+                    }
                 }
+                else
+                {
+                    var value = rawValue?.ToString() ?? string.Empty;
+                    if (!ValidateField(field, value, data, modelState, key, template))
+                    {
+                        isValid = false;
+                    }
+                }
+
+                
             }
 
             return isValid;
@@ -157,7 +169,13 @@ namespace DfE.ExternalApplications.Infrastructure.Services
         /// <returns>True if validation passes</returns>
         public bool ValidateField(Field field, object value, Dictionary<string, object>? formData, ModelStateDictionary modelState, string fieldKey, FormTemplate? template)
         {
-            var stringValue = value?.ToString() ?? string.Empty;
+            var normalizedCheckboxValues = field.Type == "checkboxes"
+                ? CheckboxValueNormalizer.Normalize(value)
+                : Array.Empty<string>();
+
+            var stringValue = field.Type == "checkboxes"
+                ? string.Join(",", normalizedCheckboxValues)
+                : value?.ToString() ?? string.Empty;
             var isValid = true;
 
             // Special handling for complex fields (upload, autocomplete, etc.)
@@ -237,15 +255,31 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             var fieldTypesWithOptions = new List<string> { "radios", "checkboxes" };
             if (fieldTypesWithOptions.Contains(field.Type, StringComparer.OrdinalIgnoreCase))
             {
-                if (!string.IsNullOrWhiteSpace(stringValue))
+                if (field.Type == "checkboxes")
+                {
+                    foreach (var checkboxOption in normalizedCheckboxValues)
+                    {
+                        var isValidOption = field.Options?.Select(o => o.Value).Contains(HttpUtility.HtmlDecode(checkboxOption)) ?? false;
+                        if (!isValidOption)
+                        {
+                            var message = GetCustomRequiredMessage(field) ?? "Select an option from the list";
+                            modelState.AddModelError(fieldKey, message);
+                            isValid = false;
+                            break;
+                        }
+                    }
+                }
+
+                else if (!string.IsNullOrWhiteSpace(stringValue))
                 {
                     var isValidOption = field.Options?.Select(o => o.Value).Contains(HttpUtility.HtmlDecode(stringValue)) ?? false;
-                    if (!isValidOption)
-                    {
-                        var message = GetCustomRequiredMessage(field) ?? "Select an option from the list";
-                        modelState.AddModelError(fieldKey, message);
-                        isValid = false;
-                    }
+                        if (!isValidOption)
+                        {
+                            var message = GetCustomRequiredMessage(field) ?? "Select an option from the list";
+                            modelState.AddModelError(fieldKey, message);
+                            isValid = false;
+                        }
+                        
                 }
             }
 
@@ -305,11 +339,20 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                             var maxLengthStr = rule.Rule?.ToString();
                             if (!string.IsNullOrEmpty(maxLengthStr) && int.TryParse(maxLengthStr, out var maxLength))
                             {
-                                if (stringValue.Length > maxLength)
+                                // Values are stored sanitised (newlines as <br>, HTML-encoded); match GOV.UK character-count / textarea length.
+                                var plainTextForMaxLengthValidation = FormSanitisedTextNormalizer.ToPlainTextForCharacterCountValidation(stringValue);
+                                if (plainTextForMaxLengthValidation.Length > maxLength)
                                 {
                                     modelState.AddModelError(fieldKey, rule.Message);
                                     isValid = false;
                                 }
+                            }
+                            break;
+                        case "maxWords":
+                            if (!ValidateWordCount(stringValue, rule))
+                            {
+                                modelState.AddModelError(fieldKey, rule.Message);
+                                isValid = false;
                             }
                             break;
                         default:
@@ -460,7 +503,8 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                         {
                             if (int.TryParse(rule.Rule?.ToString(), out var maxLength))
                             {
-                                if (stringValue.Length > maxLength)
+                                var plainTextForMaxLengthValidation = FormSanitisedTextNormalizer.ToPlainTextForCharacterCountValidation(stringValue);
+                                if (plainTextForMaxLengthValidation.Length > maxLength)
                                 {
                                     modelState.AddModelError(fieldKey, rule.Message);
                                     isValid = false;
@@ -472,6 +516,14 @@ namespace DfE.ExternalApplications.Infrastructure.Services
                             }
                         }
                         break;
+                    case "maxwords":
+                        if (!isUploadField && !ValidateWordCount(stringValue, rule))
+                        {
+                            modelState.AddModelError(fieldKey, rule.Message);
+                            isValid = false;
+                        }
+                        break;
+
                     default:
                         _logger.LogWarning("Unknown complex field validation rule type '{Type}' for field '{FieldId}'", rule.Type, field.FieldId);
                         break;
@@ -479,6 +531,22 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             }
 
             return isValid;
+        }
+
+        private static bool ValidateWordCount(string stringValue, ValidationRule rule)
+        {
+            var maxWordsStr = rule.Rule?.ToString();
+            if (!string.IsNullOrEmpty(maxWordsStr) && int.TryParse(maxWordsStr, out var maxWords))
+            {
+                var plainTextForValidation = FormSanitisedTextNormalizer.ToPlainTextForCharacterCountValidation(stringValue);
+                int wordCount = TextCounter.GetWordCount(plainTextForValidation);
+                if (wordCount > maxWords)
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         /// <summary>

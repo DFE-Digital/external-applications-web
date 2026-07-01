@@ -11,8 +11,9 @@ namespace DfE.ExternalApplications.Application.Interfaces
     public interface IApplicationStateService
     {
         /// <summary>
-        /// Ensures application ID is loaded from session or API
+        /// Loads the application from the API on every call (no session cache for authorization).
         /// </summary>
+        /// <exception cref="ApplicationAccessException">When the application does not exist or the user cannot access it.</exception>
         Task<(Guid? ApplicationId, ApplicationDto? Application)> EnsureApplicationIdAsync(string referenceNumber, ISession session);
 
         /// <summary>

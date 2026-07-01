@@ -1,11 +1,13 @@
-﻿@using Microsoft.AspNetCore.Http.Features
+@using Microsoft.AspNetCore.Http.Features
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 
 @{
+    var serviceName = Configuration["Layout:ServiceName"] ?? "External Applications";
     var consentFeature = Context.Features.Get<ITrackingConsentFeature>();
 
     var showBanner = !(consentFeature?.CanTrack ?? false) && Context.Session.GetInt32("cookiesRejected") != 1;
     var returnPath = Context.Request.Path;
-    var label = "Cookies on Apply to transfer an academy into your trust";
+    var label = $"Cookies on {serviceName}";
 }
 
 @if (showBanner)

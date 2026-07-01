@@ -1,0 +1,37 @@
+.application-listing__filters-container.govuk-details {
+  margin-bottom: 30px;
+}
+
+.application-listing__filters-summary.govuk-details__summary {
+  display: block;
+  list-style: none;
+  padding-left: 0;
+}
+
+.application-listing__filters-summary::-webkit-details-marker {
+  display: none;
+}
+
+.application-listing__filters-summary::marker {
+  content: "";
+}
+
+.application-listing__filters-button.govuk-details__summary-text {
+  display: inline-block;
+  margin-bottom: 0;
+}
+
+.application-listing__filters-button.govuk-details__summary-text::before {
+  display: none;
+}
+
+.application-listing__filters-details.govuk-details__text {
+  margin-top: 15px;
+  padding: 20px;
+  border: 1px solid #b1b4b6;
+  background-color: #f3f2f1;
+}
+
+.application-listing__filters-details .govuk-fieldset {
+  min-width: 0;
+}

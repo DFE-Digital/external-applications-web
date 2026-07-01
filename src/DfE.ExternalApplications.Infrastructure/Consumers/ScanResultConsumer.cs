@@ -613,7 +613,7 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
                     try
                     {
                         // Parse the flow progress data
-                        var flowData = JsonSerializer.Deserialize<Dictionary<string, object>>(sessionData!);
+                        var flowData = JsonSerializer.Deserialize<Dictionary<string, object>>((string)sessionData!);
                         if (flowData == null)
                             continue;
 

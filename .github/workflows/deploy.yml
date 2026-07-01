@@ -11,6 +11,7 @@ on:
         options:
           - Transfers
           - Lsrp
+          - RGVisits
       environment:
         type: choice
         description: "Choose an environment to deploy to"
@@ -60,6 +61,17 @@ jobs:
           echo "checked-out-sha=${CHECKED_OUT_SHA}" >> $GITHUB_OUTPUT
           echo "image-name=${IMAGE_NAME}" >> $GITHUB_OUTPUT
 
+  validate-packages:
+    runs-on: windows-latest
+    name: Package Validation
+    permissions:
+      contents: read
+    needs: [ set-env ]
+    steps:
+      - name: Validate Packages
+        uses: DFE-Digital/rsd-github-actions/.github/actions/validate-packages@v1
+        with:
+          environment: ${{ needs.set-env.outputs.environment }}
 
   build-import-deploy:
     name: Deploy ${{ needs.set-env.outputs.application }} to ${{ needs.set-env.outputs.environment }}
