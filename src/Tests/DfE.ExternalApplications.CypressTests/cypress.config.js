@@ -2,6 +2,7 @@ const { defineConfig } = require("cypress");
 
 module.exports = defineConfig({
   e2e: {
+    allowCypressEnv: false,
     experimentalRunAllSpecs: true,
     reporter: 'cypress-multi-reporters',
     reporterOptions: {
