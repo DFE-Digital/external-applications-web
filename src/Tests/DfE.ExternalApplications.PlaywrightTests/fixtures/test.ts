@@ -1,14 +1,10 @@
 import { test as base } from '@playwright/test';
 import { registerAuthentication } from '../support/authenticationInterceptor';
-import { getServiceConfig } from '../support/services';
-import type { ServiceConfig, ServiceName } from '../support/types';
+import { getServiceConfigFromEnv } from '../support/test-config';
 
-export const test = base.extend<{ serviceConfig: ServiceConfig }>({
-  serviceConfig: async ({}, use, testInfo) => {
-    await use(getServiceConfig(testInfo.project.name as ServiceName));
-  },
-
-  context: async ({ context, serviceConfig }, use) => {
+export const test = base.extend({
+  context: async ({ context }, use) => {
+    const serviceConfig = getServiceConfigFromEnv();
     await registerAuthentication(context, serviceConfig);
     await use(context);
   },

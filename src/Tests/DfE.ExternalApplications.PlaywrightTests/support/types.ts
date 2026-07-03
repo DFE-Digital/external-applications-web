@@ -1,4 +1,4 @@
-export type ServiceName = 'transfers' | 'lsrp' | 'visits';
+export type ServiceName = 'Transfers' | 'Lsrp' | 'RGVisits';
 
 export interface ServiceConfig {
   name: ServiceName;

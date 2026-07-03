@@ -2,8 +2,8 @@ import { expect, test } from '../../fixtures/test';
 import { login } from '../../support/login';
 
 test.describe('Visits initial test', () => {
-  test('should login and navigate to the dashboard', async ({ page, serviceConfig }) => {
-    await login(page, serviceConfig);
+  test('should login and navigate to the dashboard', async ({ page }) => {
+    await login(page);
 
     await expect(page).toHaveURL(/\/applications\/dashboard/);
     await expect(page.getByRole('heading', { level: 1, name: 'Your visits' })).toBeVisible();
