@@ -42,18 +42,14 @@ export function resolveAspNetEnvironment(): string {
   const normalizedEnvironment = environment.toLowerCase();
 
   if (!normalizedEnvironment.startsWith(prefix)) {
-    throw new Error(
-      `ENVIRONMENT '${environment}' does not match SERVICE '${service}' (expected prefix '${prefix}')`,
-    );
+    throw new Error(`ENVIRONMENT '${environment}' does not match SERVICE '${service}' (expected prefix '${prefix}')`);
   }
 
   const suffix = normalizedEnvironment.slice(prefix.length);
   const aspNetEnvironment = aspNetEnvironmentNames[suffix];
 
   if (!aspNetEnvironment) {
-    throw new Error(
-      `Unsupported environment suffix '${suffix}' in GitHub environment '${environment}'`,
-    );
+    throw new Error(`Unsupported environment suffix '${suffix}' in GitHub environment '${environment}'`);
   }
 
   return aspNetEnvironment;
