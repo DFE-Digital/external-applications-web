@@ -20,7 +20,7 @@ public class ApplicationResponseService(
     public async Task SaveApplicationResponseAsync(Guid applicationId, Dictionary<string, object> formData, ISession session, CancellationToken cancellationToken = default)
     {
         try
-        {
+        {            
             // Accumulate the new data with existing data (infected files filtered by blacklist)
             AccumulateFormData(formData, session);
             

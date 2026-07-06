@@ -1,22 +1,21 @@
-﻿using System.Diagnostics.CodeAnalysis;
-using System.Security.Claims;
-using System.Text.Json;
+﻿using DfE.ExternalApplications.Application.Interfaces;
+using DfE.ExternalApplications.Application.Options;
+using DfE.ExternalApplications.Web.Models.Applications;
+using DfE.ExternalApplications.Web.Security;
+using DfE.ExternalApplications.Web.Services;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
-using DfE.ExternalApplications.Application.Interfaces;
-using DfE.ExternalApplications.Application.Options;
-using DfE.ExternalApplications.Web.Models.Applications;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
-using GovUK.Dfe.ExternalApplications.Api.Client.Security;
-using DfE.ExternalApplications.Web.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+using System.Diagnostics.CodeAnalysis;
+using System.Security.Claims;
+using System.Text.Json;
 using SystemTask = System.Threading.Tasks.Task;
-using Microsoft.Extensions.Configuration;
 
 namespace DfE.ExternalApplications.Web.Pages.Applications
 {
@@ -24,6 +23,8 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
     [Authorize]
     public class DashboardModel(
         ILogger<DashboardModel> logger,
+        IApplicationStatusService applicationStatusService,
+        ITemplatesClient templatesClient,
         IApplicationsClient applicationsClient,
         IHttpContextAccessor httpContextAccessor,
         IApplicationResponseService applicationResponseService,
@@ -37,6 +38,7 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
         public string? LastName { get; private set; }
         public string? OrganisationName { get; private set; }
         public IReadOnlyList<ApplicationWithCalculatedStatus> Applications { get; private set; } = Array.Empty<ApplicationWithCalculatedStatus>();
+        public IReadOnlyList<CustomApplicationStatusDto> CustomStatuses { get; private set; } = [];
         public bool HasError { get; private set; }
         public string? ErrorMessage { get; private set; }
 
@@ -80,7 +82,7 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
         public class ApplicationWithCalculatedStatus
         {
             public ApplicationDto Application { get; set; } = null!;
-            public ApplicationStatus CalculatedStatus { get; set; }
+            public KeyValuePair<ApplicationStatus, string> CalculatedStatus { get; set; }
 
             // Convenience properties to access original application properties
             public Guid ApplicationId => Application.ApplicationId;
@@ -92,6 +94,7 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
 
         public async SystemTask OnGetAsync()
         {
+            CustomStatuses = await templatesClient.GetCustomApplicationStatusesAsync(ResolveTemplateId().Value);
             ValidateSearchFilters();
             await LoadUserDetailsAsync();
             await LoadApplicationsAsync();
@@ -127,69 +130,6 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
             FiltersEnabled
                 ? SearchFilters.BuildPaginationHref(page)
                 : $"?currentPage={page}";
-
-        /// <summary>
-        /// Calculate the actual application status based on response data
-        /// </summary>
-        public async System.Threading.Tasks.Task<ApplicationStatus> GetCalculatedApplicationStatusAsync(ApplicationDto application)
-        {
-            try
-            {
-                // If already submitted, return submitted
-                if (application.Status == ApplicationStatus.Submitted)
-                {
-                    return ApplicationStatus.Submitted;
-                }
-
-                // Check if there's any response data indicating progress
-                if (application.LatestResponse?.ResponseBody != null)
-                {
-                    try
-                    {
-                        // Try to decode base64 first
-                        string responseJson;
-                        try
-                        {
-                            var decodedBytes = Convert.FromBase64String(application.LatestResponse.ResponseBody);
-                            responseJson = System.Text.Encoding.UTF8.GetString(decodedBytes);
-                        }
-                        catch
-                        {
-                            // If base64 decode fails, treat as plain JSON
-                            responseJson = application.LatestResponse.ResponseBody;
-                        }
-
-                        var responseData = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(responseJson);
-                        if (responseData != null && responseData.Any())
-                        {
-                            // Check if there's any actual field data (not just task status)
-                            var hasFieldData = responseData.Any(kvp =>
-                                !kvp.Key.StartsWith("TaskStatus_") &&
-                                kvp.Value.ValueKind != JsonValueKind.Null &&
-                                !string.IsNullOrWhiteSpace(kvp.Value.ToString()));
-
-                            if (hasFieldData)
-                            {
-                                return ApplicationStatus.InProgress;
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogWarning(ex, "Failed to parse response data for application {ApplicationId}", application.ApplicationId);
-                    }
-                }
-
-                // No response data = InProgress (default state for new applications)
-                return ApplicationStatus.InProgress;
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Failed to calculate application status for {ApplicationId}, defaulting to InProgress",
-                    application.ApplicationId);
-                return ApplicationStatus.InProgress;
-            }
-        }
 
         public async Task<IActionResult> OnPostCreateApplicationAsync()
         {
@@ -285,7 +225,7 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
             var applicationTasks = result.Items.AsEnumerable().Select(async app => new ApplicationWithCalculatedStatus
             {
                 Application = app,
-                CalculatedStatus = await GetCalculatedApplicationStatusAsync(app)
+                CalculatedStatus = applicationStatusService.GetCalculatedApplicationStatusAsync(app, CustomStatuses)
             });
 
             Applications = [..(await SystemTask.WhenAll(applicationTasks))
