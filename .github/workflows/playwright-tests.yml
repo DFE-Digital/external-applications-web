@@ -14,7 +14,7 @@ on:
         required: true
         type: string
     secrets:
-      SERVICE_API_KEY:
+      CYPRESS_TEST_SECRET: # temp replacement for SERVICE_API_KEY
         required: true
       TEAMS_WEBHOOK_URL:
         required: false
@@ -53,7 +53,7 @@ jobs:
         env:
           SERVICE: ${{ inputs.application }}
           ENVIRONMENT: ${{ inputs.environment }}
-          SERVICE_API_KEY: ${{ secrets.SERVICE_API_KEY }}
+          SERVICE_API_KEY: ${{ secrets.CYPRESS_TEST_SECRET }} # temp replacement for SERVICE_API_KEY
         run: npm run pl:run
 
       - name: Upload test results
