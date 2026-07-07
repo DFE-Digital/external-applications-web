@@ -144,6 +144,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     
                     // Clear all validation errors for preview since we don't need validation on preview page
                     ModelState.Clear();
+
+                    IsPdfView = Request.Query.ContainsKey("pdf");
                 }
                 else
                 {

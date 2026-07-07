@@ -36,6 +36,8 @@ namespace DfE.ExternalApplications.Web.Pages.Shared
         // Current application data for template schema access
         protected ApplicationDto? CurrentApplication { get; set; }
 
+        public bool IsPdfView { get; set; }
+
         // Common Services (injected via constructor in derived classes)
         protected readonly IFieldRendererService _renderer = renderer;
         protected readonly IApplicationResponseService _applicationResponseService = applicationResponseService;
@@ -90,6 +92,11 @@ namespace DfE.ExternalApplications.Web.Pages.Shared
         /// </summary>
         public bool IsApplicationEditable()
         {
+            if (IsPdfView)
+            {
+                return false;
+            }
+
             if (IsUserAdmin())
             {
                 return true;

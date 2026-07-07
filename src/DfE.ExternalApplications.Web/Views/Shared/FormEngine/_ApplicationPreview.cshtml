@@ -38,6 +38,22 @@
         <h1 class="govuk-heading-xl govuk-!-margin-bottom-6">Check your answers</h1>
         <govuk-inset-text>@AppTerminology.SingularCapitalised reference: <strong>@Model.ReferenceNumber</strong></govuk-inset-text>
 
+        <div>
+            @if (!Model.IsPdfView)
+            {
+                @*
+                string url = $"/applications/{Model.ReferenceNumber}?preview=true&pdf=true";
+                var pdfUrl = $"/pdf/generate?url={url}&name={Model.ReferenceNumber}";
+                <a class="govuk-link" href="@pdfUrl">Download this form</a>
+                *@
+                @using (Html.BeginForm("GeneratePdf", "Pdf", FormMethod.Post))
+                {
+                    <button type="submit" class="btn btn-primary">Generate PDF</button>
+                    <input type="hidden" name="ApplicationId" value="@Model.ApplicationId" />
+                }
+            }
+        </div>
+
         @if (!ViewData.ModelState.IsValid)
         {
             <govuk-error-summary>

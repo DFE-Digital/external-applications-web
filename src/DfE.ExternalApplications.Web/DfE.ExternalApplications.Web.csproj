@@ -17,6 +17,7 @@
 		<PackageReference Include="Markdig" Version="0.42.0" />
 		<PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" Version="2.22.0" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+		<PackageReference Include="PuppeteerSharp" Version="25.3.1" />
 	</ItemGroup>
 
 	<ItemGroup>
