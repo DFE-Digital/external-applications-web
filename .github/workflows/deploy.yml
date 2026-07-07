@@ -133,8 +133,10 @@ jobs:
       endsWith(needs.set-env.outputs.environment, '-development') ||
       endsWith(needs.set-env.outputs.environment, '-test')
     uses: ./.github/workflows/playwright-tests.yml
-    secrets: inherit
     with:
       application: ${{ needs.set-env.outputs.application }}
       environment: ${{ needs.set-env.outputs.environment }}
       branch-name: ${{ needs.set-env.outputs.branch }}
+    secrets:
+      CYPRESS_TEST_SECRET: ${{ secrets.CYPRESS_TEST_SECRET }}
+      TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
