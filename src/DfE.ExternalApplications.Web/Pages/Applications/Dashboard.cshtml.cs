@@ -24,7 +24,6 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
     public class DashboardModel(
         ILogger<DashboardModel> logger,
         IApplicationStatusService applicationStatusService,
-        ITemplatesClient templatesClient,
         IApplicationsClient applicationsClient,
         IHttpContextAccessor httpContextAccessor,
         IApplicationResponseService applicationResponseService,
@@ -94,7 +93,7 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
 
         public async SystemTask OnGetAsync()
         {
-            CustomStatuses = await templatesClient.GetCustomApplicationStatusesAsync(ResolveTemplateId().Value);
+            CustomStatuses = await applicationStatusService.GetCustomApplicationStatusesAsync(ResolveTemplateId());
             ValidateSearchFilters();
             await LoadUserDetailsAsync();
             await LoadApplicationsAsync();

@@ -15,7 +15,6 @@ namespace DfE.ExternalApplications.Web.Pages.Applications;
 [Authorize(Roles = "Admin, Caseworker")]
 public class IndexModel(
     IApplicationsClient applicationsClient,
-    ITemplatesClient templatesClient,
     IApplicationStatusService applicationStatusService,
     IOptions<DashboardOptions> dashboardOptions,
     ILogger<IndexModel> logger) : PageModel
@@ -73,7 +72,7 @@ public class IndexModel(
     {
         var templateId = HttpContext.Session.GetString("TemplateId");
         TemplateId = !string.IsNullOrWhiteSpace(templateId) ? Guid.Parse(templateId) : null;
-        CustomStatuses = await templatesClient.GetCustomApplicationStatusesAsync(TemplateId.Value);
+        CustomStatuses = await applicationStatusService.GetCustomApplicationStatusesAsync(TemplateId);
         logger.LogInformation("TemplateId from session: {TemplateId}", TemplateId);
         ValidateSearchFilters();
         await LoadApplicationsAsync();
