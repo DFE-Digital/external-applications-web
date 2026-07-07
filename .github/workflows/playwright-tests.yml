@@ -15,9 +15,9 @@ on:
         type: string
     secrets:
       CYPRESS_TEST_SECRET: # temp replacement for SERVICE_API_KEY
-        required: true
-      TEAMS_WEBHOOK_URL:
         required: false
+      TEAMS_WEBHOOK_URL:
+        required: true
 
 concurrency:
   group: ${{ github.workflow }}-${{ inputs.application }}-${{ inputs.environment }}
