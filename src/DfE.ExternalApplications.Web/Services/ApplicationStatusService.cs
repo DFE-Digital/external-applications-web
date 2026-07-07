@@ -2,7 +2,6 @@
 using GovUK.Dfe.CoreLibs.Caching.Interfaces;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
-using GovUK.Dfe.ExternalApplications.Api.Client;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using System.ComponentModel;
 using System.Text.Json;
@@ -24,10 +23,10 @@ namespace DfE.ExternalApplications.Web.Services
 
         public async Task<IReadOnlyList<CustomApplicationStatusDto>> GetCustomApplicationStatusesAsync(Guid? templateId)
         {
-            if(!templateId.HasValue)
+            if (!templateId.HasValue)
             {
                 return new List<CustomApplicationStatusDto>();
-            }    
+            }
 
             var cacheKey = $"CustomApplicationStatuses_{CacheKeyHelper.GenerateHashedCacheKey(templateId.ToString())}";
             var methodName = nameof(GetCustomApplicationStatusesAsync);
@@ -48,7 +47,7 @@ namespace DfE.ExternalApplications.Web.Services
                 // If already submitted, return submitted
                 if (application.Status == ApplicationStatus.Submitted)
                 {
-                    return new KeyValuePair<ApplicationStatus, string>(ApplicationStatus.Submitted, GetDescription(ApplicationStatus.Submitted, customStatuses));
+                    return new KeyValuePair<ApplicationStatus, string>(ApplicationStatus.Submitted, GetStatusLabel(ApplicationStatus.Submitted, customStatuses));
                 }
 
                 // Check if there's any response data indicating progress
@@ -80,7 +79,7 @@ namespace DfE.ExternalApplications.Web.Services
 
                             if (hasFieldData)
                             {
-                                return new KeyValuePair<ApplicationStatus, string>(ApplicationStatus.InProgress, GetDescription(ApplicationStatus.InProgress, customStatuses));
+                                return new KeyValuePair<ApplicationStatus, string>(ApplicationStatus.InProgress, GetStatusLabel(ApplicationStatus.InProgress, customStatuses));
                             }
                         }
                     }
@@ -91,17 +90,17 @@ namespace DfE.ExternalApplications.Web.Services
                 }
 
                 // No response data = InProgress (default state for new applications)
-                return new KeyValuePair<ApplicationStatus, string>(ApplicationStatus.InProgress, GetDescription(ApplicationStatus.InProgress, customStatuses));
+                return new KeyValuePair<ApplicationStatus, string>(ApplicationStatus.InProgress, GetStatusLabel(ApplicationStatus.InProgress, customStatuses));
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to calculate application status for {ApplicationId}, defaulting to InProgress",
                     application.ApplicationId);
-                return new KeyValuePair<ApplicationStatus, string>(ApplicationStatus.InProgress, GetDescription(ApplicationStatus.InProgress, customStatuses));
+                return new KeyValuePair<ApplicationStatus, string>(ApplicationStatus.InProgress, GetStatusLabel(ApplicationStatus.InProgress, customStatuses));
             }
         }
 
-        private string GetDescription(ApplicationStatus status, IReadOnlyList<CustomApplicationStatusDto> customStatuses)
+        public string GetStatusLabel(ApplicationStatus status, IReadOnlyList<CustomApplicationStatusDto> customStatuses)
         {
             if (customStatuses != null)
             {
@@ -112,9 +111,19 @@ namespace DfE.ExternalApplications.Web.Services
                 }
             }
 
+            return GetBaseStatusLabel(status);
+        }
+
+        public string GetBaseStatusLabel(ApplicationStatus status)
+        {
             var appStatusInfo = status.GetType().GetField(status.ToString());
             var descriptionAttributes = (DescriptionAttribute[])appStatusInfo!.GetCustomAttributes(typeof(DescriptionAttribute), false);
             return descriptionAttributes.Length > 0 ? descriptionAttributes[0].Description : status.ToString();
+        }
+
+        public async Task OverrideApplicationStatusLabels(CustomApplicationStatusDto customStatus)
+        {
+            var statusDto = await _templatesClient.CreateCustomApplicationStatusAsync(customStatus.TemplateId, customStatus);
         }
     }
 }

@@ -1,0 +1,64 @@
+﻿@page
+@model DfE.ExternalApplications.Web.Pages.Admin.CustomStatusLabelOverridesModel
+@{
+    ViewData["Title"] = "Admin - Custom Status Overrides";
+}
+
+<div class="govuk-grid-row">
+    <div class="govuk-grid-column-full">
+        <h1 class="govuk-heading-xl">@ViewData["Title"]</h1>
+        <dl class="govuk-summary-list">
+            <div class="govuk-summary-list__row">
+                <dt class="govuk-summary-list__key">
+                    Template ID
+                </dt>
+                <dd class="govuk-summary-list__value">
+                    @Model.CurrentTemplate.TemplateId
+                </dd>
+            </div>
+            <div class="govuk-summary-list__row">
+                <dt class="govuk-summary-list__key">
+                    Template Name
+                </dt>
+                <dd class="govuk-summary-list__value">
+                    @Model.CurrentTemplate.TemplateName
+                </dd>
+            </div>
+            <div class="govuk-summary-list__row">
+                <dt class="govuk-summary-list__key">
+                    Current Version
+                </dt>
+                <dd class="govuk-summary-list__value">
+                    @Model.CurrentVersionNumber
+                </dd>
+            </div>
+        </dl>
+        <form method="post" novalidate="">
+            <div class="govuk-form-group ">
+                <label class="govuk-label govuk-label--m" for="NewVersion">
+                    In Progress
+                </label>
+                <input class="govuk-input govuk-input @(ViewData.ModelState["InProgressOverrideValue"]?.Errors.Any() == true ? "govuk-input--error" : "")" 
+                    asp-for="InProgressOverrideValue" type="text" />
+            </div>
+
+            <div class="govuk-form-group ">
+                <label class="govuk-label govuk-label--m" for="NewVersion">
+                    Submitted
+                </label>
+                <input class="govuk-input govuk-input @(ViewData.ModelState["InProgressOverrideValue"]?.Errors.Any() == true ? "govuk-input--error" : "")" 
+                    asp-for="SubmittedOverrideValue" type="text" />
+            </div>
+
+            <div class="govuk-button-group">
+                <button class="govuk-button" type="submit" id="save-new-version-button">Save Overrides</button>
+                <button class="govuk-button govuk-button--secondary" type="submit" id="cancel-add-version-button" asp-asp-page-handler="CancelOverride">Cancel</button>
+            </div>
+        </form>
+
+        <!-- Navigation -->
+        <div class="govuk-!-margin-top-6">
+            <a href="javascript:history.back()" class="govuk-link">← Go back</a>
+        </div>
+    </div>
+</div> 

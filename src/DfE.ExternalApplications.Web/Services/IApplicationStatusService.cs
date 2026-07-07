@@ -7,5 +7,8 @@ namespace DfE.ExternalApplications.Web.Services
     {
         Task<IReadOnlyList<CustomApplicationStatusDto>> GetCustomApplicationStatusesAsync(Guid? templateId);
         KeyValuePair<ApplicationStatus, string> GetCalculatedApplicationStatusAsync(ApplicationDto application, IReadOnlyList<CustomApplicationStatusDto> customStatuses);
+        string GetStatusLabel(ApplicationStatus status, IReadOnlyList<CustomApplicationStatusDto> customStatuses);
+        string GetBaseStatusLabel(ApplicationStatus status);
+        Task OverrideApplicationStatusLabels(CustomApplicationStatusDto customStatus);
     }
 }
