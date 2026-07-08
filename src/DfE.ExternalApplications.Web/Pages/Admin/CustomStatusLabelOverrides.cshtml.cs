@@ -10,7 +10,9 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
+using Task = System.Threading.Tasks.Task;
 
 namespace DfE.ExternalApplications.Web.Pages.Admin
 {
@@ -35,12 +37,16 @@ namespace DfE.ExternalApplications.Web.Pages.Admin
         public FormTemplate? CurrentTemplate { get; set; }
         public string? CurrentVersionNumber { get; set; }
         [BindProperty]
+        [Required(ErrorMessage = "A value for \"In Progress\" is required")]
         public string InProgressOverrideValue { get; set; }
         [BindProperty]
+        [Required(ErrorMessage = "A value for \"Submitted\" is required")]
         public string SubmittedOverrideValue { get; set; }
 
-        public async Task<IActionResult> OnGetAsync()
+        public async Task<IActionResult> OnGetAsync(bool success = false)
         {
+            ShowSuccess = success;
+
             bool templateParsed = Guid.TryParse(HttpContext.Session.GetString("TemplateId"), out Guid templateId);
 
             if (!templateParsed)
@@ -48,9 +54,7 @@ namespace DfE.ExternalApplications.Web.Pages.Admin
                 _logger.LogWarning("TemplateId not found in session, or is not a valid Guid");
             }
 
-            var apiResponse = await _templatesClient.GetLatestTemplateSchemaAsync(templateId);
-            CurrentVersionNumber = apiResponse.VersionNumber;
-            CurrentTemplate = await _formTemplateProvider.GetTemplateAsync(templateId.ToString());
+            await LoadTemplateDataAsync(templateId);
             var statuses = await _applicationStatusService.GetCustomApplicationStatusesAsync(templateId);
             InProgressOverrideValue = _applicationStatusService.GetStatusLabel(ApplicationStatus.InProgress, statuses);
             SubmittedOverrideValue = _applicationStatusService.GetStatusLabel(ApplicationStatus.Submitted, statuses);
@@ -66,12 +70,11 @@ namespace DfE.ExternalApplications.Web.Pages.Admin
                 return RedirectToPage("/Applications/Dashboard");
             }
 
-            //if (!ValidateInput())
-            //{
-            //    ShowAddVersionForm = true;
-            //    await LoadTemplateDataAsync(templateId);
-            //    return Page();
-            //}
+            if (!ValidateInput())
+            {
+                await LoadTemplateDataAsync(templateId);
+                return Page();
+            }
 
             List<CustomApplicationStatusDto> customStatuses = new List<CustomApplicationStatusDto>();
             if (InProgressOverrideValue != _applicationStatusService.GetBaseStatusLabel(ApplicationStatus.InProgress))
@@ -102,9 +105,35 @@ namespace DfE.ExternalApplications.Web.Pages.Admin
             return RedirectToPage(new { success = true });
         }
 
+        private bool ValidateInput()
+        {
+            var isValid = true;
+
+            if (string.IsNullOrWhiteSpace(InProgressOverrideValue))
+            {
+                ModelState.AddModelError(nameof(InProgressOverrideValue), "An override value for \"In Progress\" is required and cannot be empty");
+                isValid = false;
+            }
+
+            if (string.IsNullOrWhiteSpace(SubmittedOverrideValue))
+            {
+                ModelState.AddModelError(nameof(SubmittedOverrideValue), "An override value for \"Submitted\" is required and cannot be empty");
+                isValid = false;
+            }
+
+            return isValid;
+        }
+
         public IActionResult OnPostCancelOverride()
         {
-            return RedirectToPage();
+            return new RedirectToPageResult("/Admin/Admin");
+        }
+
+        private async Task LoadTemplateDataAsync(Guid templateId)
+        {
+            var apiResponse = await _templatesClient.GetLatestTemplateSchemaAsync(templateId);
+            CurrentVersionNumber = apiResponse.VersionNumber;
+            CurrentTemplate = await _formTemplateProvider.GetTemplateAsync(templateId.ToString());
         }
     }
 }
