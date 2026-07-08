@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { resolveAspNetEnvironment } from './environment';
-import type { ServiceName } from './types';
+import type { ServiceName, Terminology } from './types';
 
 type JsonValue = string | number | boolean | null | JsonObject | JsonValue[];
 interface JsonObject {
@@ -21,6 +21,10 @@ interface AppSettings {
   };
   InternalServiceAuth?: {
     Services?: InternalServiceAccount[];
+  };
+  ApplicationTerminology?: {
+    Singular?: string;
+    Plural?: string;
   };
 }
 
@@ -89,6 +93,19 @@ export function resolveTenantId(settings: AppSettings): string {
   }
 
   return tenantId;
+}
+
+export function resolveTerminology(settings: AppSettings): Terminology {
+  const singular = settings.ApplicationTerminology?.Singular?.trim();
+  const plural = settings.ApplicationTerminology?.Plural?.trim();
+
+  if (!singular || !plural) {
+    throw new Error(
+      'ApplicationTerminology:Singular and ApplicationTerminology:Plural are not configured in appsettings',
+    );
+  }
+
+  return { singular, plural };
 }
 
 export function resolvePlaywrightServiceEmail(settings: AppSettings, emailMarker: string): string {

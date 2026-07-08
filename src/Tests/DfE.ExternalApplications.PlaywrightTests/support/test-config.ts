@@ -1,5 +1,11 @@
 import { playwrightServiceEmailMarker, requireService, resolveAspNetEnvironment } from './environment';
-import { loadServiceAppSettings, resolveBaseUrl, resolvePlaywrightServiceEmail, resolveTenantId } from './app-settings';
+import {
+  loadServiceAppSettings,
+  resolveBaseUrl,
+  resolvePlaywrightServiceEmail,
+  resolveTenantId,
+  resolveTerminology,
+} from './app-settings';
 import type { ServiceConfig, ServiceName } from './types';
 
 function normalizeUrl(url: string): string {
@@ -26,6 +32,7 @@ export function createServiceConfig(serviceName: ServiceName): ServiceConfig {
     username: serviceEmail,
     apiKey: requireApiKey(),
     tenantId: resolveTenantId(settings),
+    terminology: resolveTerminology(settings),
   };
 }
 
