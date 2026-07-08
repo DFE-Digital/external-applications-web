@@ -1,8 +1,7 @@
 {
   "name": "dfe.externalapplications.playwrighttests",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Playwright UI tests for DfE.ExternalApplications.Web",
   "scripts": {
     "pl:run": "playwright test",
     "pl:open:Transfers:dev": "cross-env SERVICE=Transfers playwright test --ui",
@@ -18,8 +17,6 @@
     "pl:run:Lsrp:test": "cross-env SERVICE=Lsrp ENVIRONMENT=Test playwright test",
     "pl:run:RGVisits:test": "cross-env SERVICE=RGVisits ENVIRONMENT=Test playwright test",
     "pl:test:report": "playwright show-report",
-    "zap:report": "node scripts/generate-zap-report.js",
-    "zap:report:teams": "node scripts/send-zap-teams-notification.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",

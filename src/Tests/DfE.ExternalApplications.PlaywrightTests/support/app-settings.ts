@@ -10,7 +10,6 @@ interface JsonObject {
 
 interface InternalServiceAccount {
   Email?: string;
-  ApiKey?: string;
 }
 
 interface AppSettings {
@@ -92,29 +91,24 @@ export function resolveTenantId(settings: AppSettings): string {
   return tenantId;
 }
 
-export function resolvePlaywrightServiceAccount(
-  settings: AppSettings,
-  emailMarker: string,
-): { email: string; apiKey: string; index: number } {
+export function resolvePlaywrightServiceEmail(settings: AppSettings, emailMarker: string): string {
   const services = settings.InternalServiceAuth?.Services;
 
   if (!services?.length) {
     throw new Error('InternalServiceAuth:Services is not configured in appsettings');
   }
 
-  const index = services.findIndex((service) => service.Email?.toLowerCase().includes(emailMarker.toLowerCase()));
+  const service = services.find((candidate) => candidate.Email?.toLowerCase().includes(emailMarker.toLowerCase()));
 
-  if (index < 0) {
+  if (!service) {
     throw new Error(`No InternalServiceAuth service account containing '${emailMarker}' was found in appsettings`);
   }
 
-  const service = services[index];
   const email = service.Email?.trim();
-  const apiKey = service.ApiKey?.trim();
 
-  if (!email || !apiKey) {
-    throw new Error(`InternalServiceAuth service account at index ${index} is missing Email or ApiKey`);
+  if (!email) {
+    throw new Error(`InternalServiceAuth service account containing '${emailMarker}' is missing Email`);
   }
 
-  return { email, apiKey, index };
+  return email;
 }

@@ -1,5 +1,4 @@
 name: Playwright UI Tests
-run-name: Playwright tests for '${{ inputs.application }}' - `${{ inputs.environment }}` - `${{ inputs.branch-name }}`
 
 on:
   workflow_call:
@@ -10,11 +9,8 @@ on:
       environment:
         required: true
         type: string
-      branch-name:
-        required: true
-        type: string
     secrets:
-      CYPRESS_TEST_SECRET: # temp replacement for SERVICE_API_KEY
+      SERVICE_API_KEY:
         required: false
       TEAMS_WEBHOOK_URL:
         required: true
@@ -53,7 +49,7 @@ jobs:
         env:
           SERVICE: ${{ inputs.application }}
           ENVIRONMENT: ${{ inputs.environment }}
-          SERVICE_API_KEY: ${{ secrets.CYPRESS_TEST_SECRET }} # temp replacement for SERVICE_API_KEY
+          SERVICE_API_KEY: ${{ secrets.SERVICE_API_KEY }}
         run: npm run pl:run
 
       - name: Upload test results

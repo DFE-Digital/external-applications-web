@@ -136,7 +136,6 @@ jobs:
     with:
       application: ${{ needs.set-env.outputs.application }}
       environment: ${{ needs.set-env.outputs.environment }}
-      branch-name: ${{ needs.set-env.outputs.branch }}
     secrets:
-      CYPRESS_TEST_SECRET: ${{ secrets.CYPRESS_TEST_SECRET }}
+      SERVICE_API_KEY: ${{ secrets.SERVICE_API_KEY }}
       TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
