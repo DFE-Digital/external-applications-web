@@ -59,10 +59,11 @@ namespace DfE.ExternalApplications.Web.Controllers
         /// </summary>
         [HttpPost]
         [Route("generatepdf")]
-        public async Task<IActionResult> GeneratePdf(Guid applicationId)
+        public async Task<IActionResult> GeneratePdf([FromForm] string referenceNumber)
         {
             // TODO SP create view model using applicationId and pass it to the view
             //RenderFormModel? model = serviceProvider.GetService<RenderFormModel>();
+            model.ReferenceNumber = referenceNumber;
             await model!.OnGetAsync();
 
             var html = await renderer.RenderViewToHtmlAsync("_ApplicationPreview", model);

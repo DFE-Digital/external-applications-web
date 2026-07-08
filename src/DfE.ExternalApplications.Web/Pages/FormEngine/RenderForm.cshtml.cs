@@ -47,7 +47,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         ILogger<RenderFormModel> logger,
         INavigationHistoryService navigationHistoryService,
         IApplicationSubmissionOrchestrator applicationSubmissionOrchestrator,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IRazorViewRenderer viewRenderer)
         : BaseFormEngineModel(renderer, applicationResponseService, fieldFormattingService, templateManagementService,
             applicationStateService, formStateManager, formNavigationService, formDataManager, formValidationOrchestrator, formConfigurationService, logger)
     {
@@ -1850,6 +1851,13 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
         }
 
+        public async Task<IActionResult> OnPostGeneratePdfAsync()
+        {
+            var html = await viewRenderer.RenderViewToHtmlAsync("/Views/Shared/FormEngine/_ApplicationPreview.cshtml", this); // error!
+
+            // TODO SP: Implement PDF generation logic here using PuppeteerSharp or another library, similar to the GeneratePdf method in PdfController.
+            return Content(html);
+        }
 
 
         private static bool TryParseFlowRoute(string pageId, out string flowId, out string instanceId, out string flowPageId)

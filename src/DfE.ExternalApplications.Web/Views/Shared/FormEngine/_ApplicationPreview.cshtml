@@ -42,15 +42,13 @@
             @if (!Model.IsPdfView)
             {
                 @*
-                string url = $"/applications/{Model.ReferenceNumber}?preview=true&pdf=true";
+                string url = $"https://localhost:7020/applications/{Model.ReferenceNumber}?preview=true&pdf=true"; // HACK host and port hardcoded for now, will need to be dynamic.
                 var pdfUrl = $"/pdf/generate?url={url}&name={Model.ReferenceNumber}";
                 <a class="govuk-link" href="@pdfUrl">Download this form</a>
                 *@
-                @using (Html.BeginForm("GeneratePdf", "Pdf", FormMethod.Post))
-                {
-                    <button type="submit" class="btn btn-primary">Generate PDF</button>
-                    <input type="hidden" name="ApplicationId" value="@Model.ApplicationId" />
-                }
+                <form method="post" asp-page-handler="GeneratePdf">
+                    <button type="submit" class="btn btn-primary">Download this form</button>
+                </form>
             }
         </div>
 
