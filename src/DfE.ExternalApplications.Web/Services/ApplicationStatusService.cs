@@ -1,6 +1,7 @@
 ﻿using GovUK.Dfe.CoreLibs.Caching.Helpers;
 using GovUK.Dfe.CoreLibs.Caching.Interfaces;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using System.ComponentModel;
@@ -121,9 +122,9 @@ namespace DfE.ExternalApplications.Web.Services
             return descriptionAttributes.Length > 0 ? descriptionAttributes[0].Description : status.ToString();
         }
 
-        public async Task OverrideApplicationStatusLabels(CustomApplicationStatusDto customStatus)
+        public async Task OverrideApplicationStatusLabels(Guid templateId, CustomApplicationStatusRequest customStatus)
         {
-            var statusDto = await _templatesClient.CreateCustomApplicationStatusAsync(customStatus.TemplateId, customStatus);
+            var statusDto = await _templatesClient.CreateCustomApplicationStatusAsync(templateId, customStatus);
         }
     }
 }

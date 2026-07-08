@@ -193,3 +193,7 @@ All notable changes to this service will be documented in this file.
 ## [1.3.30]
 ### Notes
 - UCD changes for disabling the submit buuton
+
+## [1.4.0]
+### Notes
+- Added feature for overriding the application statuses

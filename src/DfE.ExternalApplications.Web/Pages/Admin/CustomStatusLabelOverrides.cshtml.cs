@@ -4,6 +4,7 @@ using DfE.ExternalApplications.Web.Services;
 using GovUK.Dfe.CoreLibs.Caching.Helpers;
 using GovUK.Dfe.CoreLibs.Caching.Interfaces;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using Microsoft.AspNetCore.Authentication;
@@ -76,30 +77,21 @@ namespace DfE.ExternalApplications.Web.Pages.Admin
                 return Page();
             }
 
-            List<CustomApplicationStatusDto> customStatuses = new List<CustomApplicationStatusDto>();
-            if (InProgressOverrideValue != _applicationStatusService.GetBaseStatusLabel(ApplicationStatus.InProgress))
-            {
-                await _applicationStatusService.OverrideApplicationStatusLabels(
-                    new CustomApplicationStatusDto
-                    {
-                        Label = InProgressOverrideValue,
-                        ApplicationStatus = ApplicationStatus.InProgress,
-                        TemplateId = templateId
-                    });
-                _logger.LogInformation("Successfully overriden in progress application status for {TemplateId}", templateId);
-            }
+            await _applicationStatusService.OverrideApplicationStatusLabels(templateId,
+                new CustomApplicationStatusRequest
+                {
+                    Label = InProgressOverrideValue,
+                    ApplicationStatus = ApplicationStatus.InProgress
+                });
+            _logger.LogInformation("Successfully overriden in progress application status for {TemplateId}", templateId);
 
-            if (SubmittedOverrideValue != _applicationStatusService.GetBaseStatusLabel(ApplicationStatus.Submitted))
-            {
-                await _applicationStatusService.OverrideApplicationStatusLabels(
-                    new CustomApplicationStatusDto
-                    {
-                        Label = SubmittedOverrideValue,
-                        ApplicationStatus = ApplicationStatus.Submitted,
-                        TemplateId = templateId
-                    });
-                _logger.LogInformation("Successfully overriden submitted application status for {TemplateId}", templateId);
-            }
+            await _applicationStatusService.OverrideApplicationStatusLabels(templateId,
+                new CustomApplicationStatusRequest
+                {
+                    Label = SubmittedOverrideValue,
+                    ApplicationStatus = ApplicationStatus.Submitted
+                });
+            _logger.LogInformation("Successfully overriden submitted application status for {TemplateId}", templateId);
             _cacheService.Remove($"CustomApplicationStatuses_{CacheKeyHelper.GenerateHashedCacheKey(templateId.ToString())}");
 
             return RedirectToPage(new { success = true });

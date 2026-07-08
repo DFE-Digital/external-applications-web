@@ -1,4 +1,5 @@
 ﻿using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 
 namespace DfE.ExternalApplications.Web.Services
@@ -9,6 +10,6 @@ namespace DfE.ExternalApplications.Web.Services
         KeyValuePair<ApplicationStatus, string> GetCalculatedApplicationStatusAsync(ApplicationDto application, IReadOnlyList<CustomApplicationStatusDto> customStatuses);
         string GetStatusLabel(ApplicationStatus status, IReadOnlyList<CustomApplicationStatusDto> customStatuses);
         string GetBaseStatusLabel(ApplicationStatus status);
-        Task OverrideApplicationStatusLabels(CustomApplicationStatusDto customStatus);
+        Task OverrideApplicationStatusLabels(Guid templateId, CustomApplicationStatusRequest customStatus);
     }
 }

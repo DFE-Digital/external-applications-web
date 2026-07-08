@@ -38,6 +38,8 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
         public string? OrganisationName { get; private set; }
         public IReadOnlyList<ApplicationWithCalculatedStatus> Applications { get; private set; } = Array.Empty<ApplicationWithCalculatedStatus>();
         public IReadOnlyList<CustomApplicationStatusDto> CustomStatuses { get; private set; } = [];
+        public string ApplicationStatusInProgressLabel { get; set; }
+        public string ApplicationStatusSubmittedLabel { get; set; }
         public bool HasError { get; private set; }
         public string? ErrorMessage { get; private set; }
 
@@ -97,6 +99,8 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
             ValidateSearchFilters();
             await LoadUserDetailsAsync();
             await LoadApplicationsAsync();
+            ApplicationStatusInProgressLabel = applicationStatusService.GetStatusLabel(ApplicationStatus.InProgress, CustomStatuses);
+            ApplicationStatusSubmittedLabel = applicationStatusService.GetStatusLabel(ApplicationStatus.Submitted, CustomStatuses);
         }
 
         private void ValidateSearchFilters()
