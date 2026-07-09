@@ -2,6 +2,7 @@ const { defineConfig } = require("cypress");
 
 module.exports = defineConfig({
   e2e: {
+    allowCypressEnv: false,
     experimentalRunAllSpecs: true,
     reporter: 'cypress-multi-reporters',
     reporterOptions: {
@@ -24,7 +25,13 @@ module.exports = defineConfig({
         }
         return launchOptions
       })
-      
+      config.baseUrl = config.env.url;
+      config.expose = {
+        ...(config.expose || {}),
+        url: config.env.url,
+        username: config.env.username,
+      }
+
       return config
     }
   },

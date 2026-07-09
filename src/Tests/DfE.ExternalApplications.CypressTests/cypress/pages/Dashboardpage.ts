@@ -24,7 +24,7 @@ export class Dashboardpage{
             // Log the value (optional)
             cy.log(`Extracted Application Reference Number from URL: ${appRefNum}`);
             // Store the value as an environment variable for later use;
-            Cypress.env('applicationReferenceNumber', appRefNum);
+            Cypress.expose('applicationReferenceNumber', appRefNum);
         });
     }
 

@@ -1,3 +1,4 @@
+import {EnvUrl} from "../Constants/cypressConstants";
 
 export class GovUKPage{
 
@@ -7,7 +8,7 @@ export class GovUKPage{
     }
 
       static getHomePage() {
-       cy.visit(Cypress.env('url'));;
+       cy.visit(Cypress.expose(EnvUrl));
     }
 static scrollToStartButton() {
         cy.getById(this.selectors.startButton).scrollIntoView();

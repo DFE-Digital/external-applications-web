@@ -185,3 +185,11 @@ All notable changes to this service will be documented in this file.
 ## [1.3.28]
 ### Notes
 - Updated RGVisits service name
+
+## [1.3.29]
+### Notes
+- Created read-only dashboard for listing all applications
+
+## [1.3.30]
+### Notes
+- UCD changes for disabling the submit buuton
