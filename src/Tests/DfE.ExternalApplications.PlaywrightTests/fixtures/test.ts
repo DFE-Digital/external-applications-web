@@ -14,6 +14,11 @@ interface Fixtures {
 }
 
 export const test = base.extend<Fixtures>({
+  page: async ({ page }, use) => {
+    // Skip SignalR when running under Cypress to avoid WebSocket proxy issues
+    await page.addInitScript('window.Cypress = true');
+    await use(page);
+  },
   context: async ({ context }, use) => {
     const serviceConfig = getServiceConfigFromEnv();
     await registerAuthentication(context, serviceConfig);
