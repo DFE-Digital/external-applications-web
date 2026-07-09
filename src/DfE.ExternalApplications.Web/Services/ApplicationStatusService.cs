@@ -91,7 +91,8 @@ namespace DfE.ExternalApplications.Web.Services
                 }
 
                 // No response data = InProgress (default state for new applications)
-                return new KeyValuePair<ApplicationStatus, string>(ApplicationStatus.InProgress, GetStatusLabel(ApplicationStatus.InProgress, customStatuses));
+                var currentStatus = application.Status.HasValue ? application.Status.Value : ApplicationStatus.Created;
+                return new KeyValuePair<ApplicationStatus, string>(currentStatus, GetStatusLabel(currentStatus, customStatuses));
             }
             catch (Exception ex)
             {
@@ -113,6 +114,16 @@ namespace DfE.ExternalApplications.Web.Services
             }
 
             return GetBaseStatusLabel(status);
+        }
+
+        public List<KeyValuePair<ApplicationStatus, string>> GetBaseApplicationStatuses()
+        {
+            List<KeyValuePair<ApplicationStatus, string>> baseStatuses = new List<KeyValuePair<ApplicationStatus, string>>();
+            foreach(var status in Enum.GetValues<ApplicationStatus>())
+            {
+                baseStatuses.Add(new KeyValuePair<ApplicationStatus, string>(status, GetBaseStatusLabel(status)));
+            }
+            return baseStatuses;
         }
 
         public string GetBaseStatusLabel(ApplicationStatus status)

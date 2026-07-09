@@ -38,13 +38,13 @@ namespace DfE.ExternalApplications.Web.Pages.Admin
         public FormTemplate? CurrentTemplate { get; set; }
         public string? CurrentVersionNumber { get; set; }
         [BindProperty]
-        [Required(ErrorMessage = "A value for \"In Progress\" is required")]
-        public string InProgressOverrideValue { get; set; }
-        [BindProperty]
-        [Required(ErrorMessage = "A value for \"Submitted\" is required")]
-        public string SubmittedOverrideValue { get; set; }
+        [Required(ErrorMessage = "A custom override value is required")]
+        public string BaseStatusOverrideValue { get; set; }
+        public IEnumerable<KeyValuePair<ApplicationStatus, string>> BaseStatuses { get; set; }
+        [BindProperty(SupportsGet = true)]
+        public ApplicationStatus SelectedBaseStatus { get; set; }
 
-        public async Task<IActionResult> OnGetAsync(bool success = false)
+        public async Task<IActionResult> OnGetAsync(bool success = false, ApplicationStatus status = ApplicationStatus.Created)
         {
             ShowSuccess = success;
 
@@ -56,14 +56,28 @@ namespace DfE.ExternalApplications.Web.Pages.Admin
             }
 
             await LoadTemplateDataAsync(templateId);
+            SelectedBaseStatus = status;
+            BaseStatuses = _applicationStatusService.GetBaseApplicationStatuses().OrderBy(x => x.Key);
             var statuses = await _applicationStatusService.GetCustomApplicationStatusesAsync(templateId);
-            InProgressOverrideValue = _applicationStatusService.GetStatusLabel(ApplicationStatus.InProgress, statuses);
-            SubmittedOverrideValue = _applicationStatusService.GetStatusLabel(ApplicationStatus.Submitted, statuses);
+            BaseStatusOverrideValue = _applicationStatusService.GetStatusLabel(status, statuses);
             return Page();
         }
 
         public async Task<IActionResult> OnPostAsync()
         {
+            ApplicationStatus appStatus = ApplicationStatus.Created;
+            var query = HttpContext.Request.Query;
+            var queryHasStatus = query.TryGetValue("status", out var queryStatus);
+            if(queryHasStatus)
+            {
+                Enum.TryParse(queryStatus, out appStatus);
+            }
+
+            if (appStatus != SelectedBaseStatus)
+            {
+                return RedirectToPage(new { status = SelectedBaseStatus });
+            }
+
             bool templateParsed = Guid.TryParse(HttpContext.Session.GetString("TemplateId"), out Guid templateId);
             if (!templateParsed)
             {
@@ -74,42 +88,30 @@ namespace DfE.ExternalApplications.Web.Pages.Admin
             if (!ValidateInput())
             {
                 await LoadTemplateDataAsync(templateId);
+                BaseStatuses = _applicationStatusService.GetBaseApplicationStatuses().OrderBy(x => x.Key);
                 return Page();
             }
 
             await _applicationStatusService.OverrideApplicationStatusLabels(templateId,
                 new CustomApplicationStatusRequest
                 {
-                    Label = InProgressOverrideValue,
-                    ApplicationStatus = ApplicationStatus.InProgress
+                    Label = BaseStatusOverrideValue,
+                    ApplicationStatus = SelectedBaseStatus
                 });
-            _logger.LogInformation("Successfully overriden in progress application status for {TemplateId}", templateId);
-
-            await _applicationStatusService.OverrideApplicationStatusLabels(templateId,
-                new CustomApplicationStatusRequest
-                {
-                    Label = SubmittedOverrideValue,
-                    ApplicationStatus = ApplicationStatus.Submitted
-                });
+            
             _logger.LogInformation("Successfully overriden submitted application status for {TemplateId}", templateId);
             _cacheService.Remove($"CustomApplicationStatuses_{CacheKeyHelper.GenerateHashedCacheKey(templateId.ToString())}");
 
-            return RedirectToPage(new { success = true });
+            return RedirectToPage(new { success = true, status = appStatus });
         }
 
         private bool ValidateInput()
         {
             var isValid = true;
 
-            if (string.IsNullOrWhiteSpace(InProgressOverrideValue))
+            if (string.IsNullOrWhiteSpace(BaseStatusOverrideValue))
             {
-                ModelState.AddModelError(nameof(InProgressOverrideValue), "An override value for \"In Progress\" is required and cannot be empty");
-                isValid = false;
-            }
-
-            if (string.IsNullOrWhiteSpace(SubmittedOverrideValue))
-            {
-                ModelState.AddModelError(nameof(SubmittedOverrideValue), "An override value for \"Submitted\" is required and cannot be empty");
+                ModelState.AddModelError(nameof(BaseStatusOverrideValue), "An override value for \"In Progress\" is required and cannot be empty");
                 isValid = false;
             }
 

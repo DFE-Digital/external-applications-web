@@ -38,8 +38,6 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
         public string? OrganisationName { get; private set; }
         public IReadOnlyList<ApplicationWithCalculatedStatus> Applications { get; private set; } = Array.Empty<ApplicationWithCalculatedStatus>();
         public IReadOnlyList<CustomApplicationStatusDto> CustomStatuses { get; private set; } = [];
-        public string ApplicationStatusInProgressLabel { get; set; }
-        public string ApplicationStatusSubmittedLabel { get; set; }
         public bool HasError { get; private set; }
         public string? ErrorMessage { get; private set; }
 
@@ -63,6 +61,12 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
 
         [BindProperty(SupportsGet = true)]
         public ApplicationStatus? Status { get; set; }
+
+        [BindProperty(SupportsGet = true)]
+        public IList<KeyValuePair<ApplicationStatus, string>> StatusFilters { get; set; }
+
+        [BindProperty]
+        public ApplicationStatus? SelectedStatusFilter { get; set; }
 
         public DashboardApplicationSearch SearchFilters => new()
         {
@@ -93,14 +97,21 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
             public DateTime? DateSubmitted => Application.DateSubmitted;
         }
 
-        public async SystemTask OnGetAsync()
+        public async SystemTask OnGetAsync(ApplicationStatus? status = null)
         {
+            var statusFilters = new List<KeyValuePair<ApplicationStatus, string>>();
+            var baseApplicationStatuses = applicationStatusService.GetBaseApplicationStatuses();
             CustomStatuses = await applicationStatusService.GetCustomApplicationStatusesAsync(ResolveTemplateId());
+            foreach(var item in baseApplicationStatuses)
+            {
+                var customStatus = CustomStatuses.FirstOrDefault(x => x.ApplicationStatus == item.Key);
+                statusFilters.Add(new KeyValuePair<ApplicationStatus, string>(item.Key, customStatus?.Label != null ? customStatus.Label : item.Value));
+            }
+            StatusFilters = statusFilters.OrderBy(x => x.Key).ToList();
+            SelectedStatusFilter = status;
             ValidateSearchFilters();
             await LoadUserDetailsAsync();
             await LoadApplicationsAsync();
-            ApplicationStatusInProgressLabel = applicationStatusService.GetStatusLabel(ApplicationStatus.InProgress, CustomStatuses);
-            ApplicationStatusSubmittedLabel = applicationStatusService.GetStatusLabel(ApplicationStatus.Submitted, CustomStatuses);
         }
 
         private void ValidateSearchFilters()
