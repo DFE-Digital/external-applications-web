@@ -4,27 +4,26 @@ using Microsoft.Extensions.Configuration;
 namespace DfE.ExternalApplications.Web.Security;
 
 /// <summary>
-/// Builds DfE Sign-In OIDC URLs using the public origin from <c>DfESignIn:RedirectUri</c> so
-/// <c>post_logout_redirect_uri</c> matches DSI registration when the app runs behind a reverse proxy
-/// (internal container host/scheme differ from the public URL).
+/// Builds DfE Sign-In OIDC URLs using the public origin from tenant or host configuration.
 /// </summary>
 internal static class DfESignInOidcPublicUrls
 {
     /// <summary>
-    /// Sets <see cref="Microsoft.IdentityModel.Protocols.OpenIdConnect.OpenIdConnectMessage.PostLogoutRedirectUri"/>
-    /// to an absolute URL using the same scheme/host as sign-in <c>RedirectUri</c>, plus the configured
-    /// <c>SignedOutCallbackPath</c> (default <c>/signout-callback-oidc</c>).
+    /// Sets post-logout redirect URI using tenant DfE Sign-In settings when available.
     /// </summary>
-    public static void ApplyPostLogoutRedirectUri(RedirectContext context, IConfiguration configuration)
+    public static void ApplyPostLogoutRedirectUri(RedirectContext context, IConfiguration hostConfiguration)
     {
-        var signInRedirect = configuration["DfESignIn:RedirectUri"];
+        var section = TenantAwareOpenIdConnectConfigurator.GetTenantSignInSection(context.HttpContext)
+            ?? hostConfiguration.GetSection("DfESignIn");
+
+        var signInRedirect = section["RedirectUri"];
         if (string.IsNullOrWhiteSpace(signInRedirect)
             || !Uri.TryCreate(signInRedirect, UriKind.Absolute, out var signInUri))
         {
             return;
         }
 
-        var signedOutPath = configuration["DfESignIn:SignedOutCallbackPath"];
+        var signedOutPath = section["SignedOutCallbackPath"];
         if (string.IsNullOrWhiteSpace(signedOutPath))
         {
             signedOutPath = "/signout-callback-oidc";

@@ -3,8 +3,9 @@ using DfE.ExternalApplications.Infrastructure.Parsers;
 using DfE.ExternalApplications.Infrastructure.Providers;
 using DfE.ExternalApplications.Infrastructure.Services;
 using DfE.ExternalApplications.Infrastructure.Stores;
-using DfE.ExternalApplications.Web.Services;
+using DfE.ExternalApplications.Web.Configuration;
 using DfE.ExternalApplications.Web.Interfaces;
+using DfE.ExternalApplications.Web.Services;
 using GovUK.Dfe.ExternalApplications.Api.Client;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using GovUK.Dfe.ExternalApplications.Api.Client.Extensions;
@@ -15,15 +16,30 @@ namespace DfE.ExternalApplications.Web.Extensions
 {
     public static class ServiceCollectionExtensions
     {
-        public static IServiceCollection AddExternalApplicationsApiClients(this IServiceCollection services, IConfiguration configuration)
+        public static IServiceCollection AddExternalApplicationsApiClients(
+            this IServiceCollection services,
+            IConfiguration configuration)
         {
-            services.AddExternalApplicationsApiClient<ITokensClient, TokensClient>(configuration);
-            services.AddExternalApplicationsApiClient<IUsersClient, UsersClient>(configuration);
-            services.AddExternalApplicationsApiClient<IApplicationsClient, ApplicationsClient>(configuration);
-            services.AddExternalApplicationsApiClient<ITemplatesClient, TemplatesClient>(configuration);
-            services.AddExternalApplicationsApiClient<IHubAuthClient, HubAuthClient>(configuration);
-            services.AddExternalApplicationsApiClient<INotificationsClient, NotificationsClient>(configuration);
-            services.AddExternalApplicationsApiClient<IUserFeedbackClient, UserFeedbackClient>(configuration);
+            var platformEnabled = configuration
+                .GetSection(PlatformBootstrapOptions.SectionName)
+                .Get<PlatformBootstrapOptions>()?.Enabled ?? false;
+
+            bool? enableTokenExchange = platformEnabled ? true : null;
+
+            services.AddExternalApplicationsApiClient<ITokensClient, TokensClient>(
+                configuration, enableTokenExchange: enableTokenExchange);
+            services.AddExternalApplicationsApiClient<IUsersClient, UsersClient>(
+                configuration, enableTokenExchange: enableTokenExchange);
+            services.AddExternalApplicationsApiClient<IApplicationsClient, ApplicationsClient>(
+                configuration, enableTokenExchange: enableTokenExchange);
+            services.AddExternalApplicationsApiClient<ITemplatesClient, TemplatesClient>(
+                configuration, enableTokenExchange: enableTokenExchange);
+            services.AddExternalApplicationsApiClient<IHubAuthClient, HubAuthClient>(
+                configuration, enableTokenExchange: enableTokenExchange);
+            services.AddExternalApplicationsApiClient<INotificationsClient, NotificationsClient>(
+                configuration, enableTokenExchange: enableTokenExchange);
+            services.AddExternalApplicationsApiClient<IUserFeedbackClient, UserFeedbackClient>(
+                configuration, enableTokenExchange: enableTokenExchange);
             return services;
         }
 
@@ -72,5 +88,4 @@ namespace DfE.ExternalApplications.Web.Extensions
         }
     }
 }
-
 

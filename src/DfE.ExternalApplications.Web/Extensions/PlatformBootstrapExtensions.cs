@@ -3,6 +3,7 @@ using DfE.ExternalApplications.Web.Middleware;
 using DfE.ExternalApplications.Web.Services.Platform;
 using DfE.ExternalApplications.Web.Services.Tenant;
 using DfE.ExternalApplications.Web.Tenancy;
+using Microsoft.Extensions.Configuration;
 
 namespace DfE.ExternalApplications.Web.Extensions;
 

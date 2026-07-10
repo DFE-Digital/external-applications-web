@@ -25,6 +25,12 @@ public sealed class TenantConfigurationMiddleware(
             return;
         }
 
+        if (ShouldBypassTenantResolution(context.Request.Path))
+        {
+            await next(context);
+            return;
+        }
+
         var tenantId = await tenantIdResolver.ResolveTenantIdAsync(context, context.RequestAborted);
         if (tenantId is null)
         {
@@ -73,5 +79,22 @@ public sealed class TenantConfigurationMiddleware(
         context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
         context.Response.ContentType = "application/json";
         await context.Response.WriteAsync(JsonSerializer.Serialize(new { error = message }));
+    }
+
+    private static bool ShouldBypassTenantResolution(PathString path)
+    {
+        if (path.HasValue != true)
+        {
+            return false;
+        }
+
+        var value = path.Value!;
+        return value.StartsWith("/css", StringComparison.OrdinalIgnoreCase)
+               || value.StartsWith("/js", StringComparison.OrdinalIgnoreCase)
+               || value.StartsWith("/lib", StringComparison.OrdinalIgnoreCase)
+               || value.StartsWith("/assets", StringComparison.OrdinalIgnoreCase)
+               || value.StartsWith("/govuk", StringComparison.OrdinalIgnoreCase)
+               || value.StartsWith("/favicon", StringComparison.OrdinalIgnoreCase)
+               || value.StartsWith("/_framework", StringComparison.OrdinalIgnoreCase);
     }
 }
