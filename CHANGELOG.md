@@ -197,3 +197,7 @@ All notable changes to this service will be documented in this file.
 ## [1.4.0]
 ### Notes
 - Added feature for overriding the application statuses
+
+## [1.4.1]
+### Notes
+- Accessibility issue with override custom application status form fixed
