@@ -1,5 +1,6 @@
 using DfE.ExternalApplications.Application.Options;
 using DfE.ExternalApplications.Web.Models.Applications;
+using DfE.ExternalApplications.Web.Services;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
@@ -7,7 +8,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
-using System.Text.Json;
 using static DfE.ExternalApplications.Web.Pages.Applications.DashboardModel;
 
 namespace DfE.ExternalApplications.Web.Pages.Applications;
@@ -15,12 +15,14 @@ namespace DfE.ExternalApplications.Web.Pages.Applications;
 [Authorize(Roles = "Admin, Caseworker")]
 public class IndexModel(
     IApplicationsClient applicationsClient,
+    IApplicationStatusService applicationStatusService,
     IOptions<DashboardOptions> dashboardOptions,
     ILogger<IndexModel> logger) : PageModel
 {
     public Guid? TemplateId { get; set; }
-    
+
     public IReadOnlyList<ApplicationWithCalculatedStatus> Applications { get; private set; } = [];
+    public IReadOnlyList<CustomApplicationStatusDto> CustomStatuses { get; private set; } = [];
 
     public int PageSize => dashboardOptions.Value.PageSize;
 
@@ -70,6 +72,7 @@ public class IndexModel(
     {
         var templateId = HttpContext.Session.GetString("TemplateId");
         TemplateId = !string.IsNullOrWhiteSpace(templateId) ? Guid.Parse(templateId) : null;
+        CustomStatuses = await applicationStatusService.GetCustomApplicationStatusesAsync(TemplateId);
         logger.LogInformation("TemplateId from session: {TemplateId}", TemplateId);
         ValidateSearchFilters();
         await LoadApplicationsAsync();
@@ -136,75 +139,10 @@ public class IndexModel(
         var applicationTasks = result.Items.AsEnumerable().Select(async app => new ApplicationWithCalculatedStatus
         {
             Application = app,
-            CalculatedStatus = await GetCalculatedApplicationStatusAsync(app)
+            CalculatedStatus = applicationStatusService.GetCalculatedApplicationStatusAsync(app, CustomStatuses)
         });
 
         Applications = [..(await Task.WhenAll(applicationTasks))
                 .OrderByDescending(a => a.DateCreated)];
     }
-
-    // TODO Consider moving this logic to a service class for better separation of concerns and testability, and share with main dashboard.
-    /// <summary>
-    /// Calculate the actual application status based on response data
-    /// </summary>
-    public async Task<ApplicationStatus> GetCalculatedApplicationStatusAsync(ApplicationDto application)
-    {
-        try
-        {
-            // If already submitted, return submitted
-            if (application.Status == ApplicationStatus.Submitted)
-            {
-                return ApplicationStatus.Submitted;
-            }
-
-            // Check if there's any response data indicating progress
-            if (application.LatestResponse?.ResponseBody != null)
-            {
-                try
-                {
-                    // Try to decode base64 first
-                    string responseJson;
-                    try
-                    {
-                        var decodedBytes = Convert.FromBase64String(application.LatestResponse.ResponseBody);
-                        responseJson = System.Text.Encoding.UTF8.GetString(decodedBytes);
-                    }
-                    catch
-                    {
-                        // If base64 decode fails, treat as plain JSON
-                        responseJson = application.LatestResponse.ResponseBody;
-                    }
-
-                    var responseData = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(responseJson);
-                    if (responseData != null && responseData.Any())
-                    {
-                        // Check if there's any actual field data (not just task status)
-                        var hasFieldData = responseData.Any(kvp =>
-                            !kvp.Key.StartsWith("TaskStatus_") &&
-                            kvp.Value.ValueKind != JsonValueKind.Null &&
-                            !string.IsNullOrWhiteSpace(kvp.Value.ToString()));
-
-                        if (hasFieldData)
-                        {
-                            return ApplicationStatus.InProgress;
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    logger.LogWarning(ex, "Failed to parse response data for application {ApplicationId}", application.ApplicationId);
-                }
-            }
-
-            // No response data = InProgress (default state for new applications)
-            return ApplicationStatus.InProgress;
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Failed to calculate application status for {ApplicationId}, defaulting to InProgress",
-                application.ApplicationId);
-            return ApplicationStatus.InProgress;
-        }
-    }
-
 }

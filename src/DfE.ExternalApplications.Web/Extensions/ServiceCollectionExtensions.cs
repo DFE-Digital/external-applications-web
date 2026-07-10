@@ -3,13 +3,11 @@ using DfE.ExternalApplications.Infrastructure.Parsers;
 using DfE.ExternalApplications.Infrastructure.Providers;
 using DfE.ExternalApplications.Infrastructure.Services;
 using DfE.ExternalApplications.Infrastructure.Stores;
-using DfE.ExternalApplications.Web.Services;
 using DfE.ExternalApplications.Web.Interfaces;
+using DfE.ExternalApplications.Web.Services;
 using GovUK.Dfe.ExternalApplications.Api.Client;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using GovUK.Dfe.ExternalApplications.Api.Client.Extensions;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace DfE.ExternalApplications.Web.Extensions
 {
@@ -41,6 +39,7 @@ namespace DfE.ExternalApplications.Web.Extensions
             services.AddScoped<IApplicationStateService, ApplicationStateService>();
             services.AddScoped<IFileUploadService, FileUploadService>();
             services.AddScoped<IAutocompleteService, AutocompleteService>();
+            services.AddScoped<IApplicationStatusService, ApplicationStatusService>();
             services.AddScoped<IComplexFieldConfigurationService, ComplexFieldConfigurationService>();
             services.AddScoped<IComplexFieldRendererFactory, ComplexFieldRendererFactory>();
             services.AddScoped<IComplexFieldRenderer, AutocompleteComplexFieldRenderer>();
@@ -49,7 +48,7 @@ namespace DfE.ExternalApplications.Web.Extensions
             services.AddSingleton<ITemplateStore, ApiTemplateStore>();
             services.AddSingleton<IFormTemplateParser, JsonFormTemplateParser>();
             services.AddScoped<IFormTemplateProvider, FormTemplateProvider>();
-            
+
             // Form Engine Services
             services.AddScoped<IFormStateManager, FormStateManager>();
             services.AddScoped<IFormNavigationService, FormNavigationService>();
@@ -60,14 +59,14 @@ namespace DfE.ExternalApplications.Web.Extensions
             services.AddScoped<IFormConfigurationService, FormConfigurationService>();
             services.AddScoped<ITemplateValidationService, TemplateValidationService>();
             services.AddHttpContextAccessor();
-            
+
             // Confirmation Services
             services.AddScoped<IButtonConfirmationService, ButtonConfirmationService>();
             services.AddScoped<IConfirmationDataService, ConfirmationDataService>();
-            
+
             // Feedback services
             services.AddScoped<IFeedbackService, FeedbackService>();
-            
+
             return services;
         }
     }
