@@ -1,15 +1,18 @@
 using DfE.ExternalApplications.Web.Tenancy;
 using GovUK.Dfe.CoreLibs.Security.TokenRefresh.Configuration;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace DfE.ExternalApplications.Web.Configuration;
 
 /// <summary>
 /// Resolves token refresh options from tenant configuration for the current request.
+/// Uses <see cref="IHttpContextAccessor"/> so options remain correct outside a captured DI scope.
 /// </summary>
 public sealed class TenantTokenRefreshOptionsAccessor(
-    ITenantRequestContext tenantRequestContext,
+    IHttpContextAccessor httpContextAccessor,
     IConfiguration hostConfiguration) : IOptions<TokenRefreshOptions>
 {
     /// <inheritdoc />
@@ -17,7 +20,10 @@ public sealed class TenantTokenRefreshOptionsAccessor(
 
     private TokenRefreshOptions Build()
     {
-        var config = tenantRequestContext.TenantConfiguration ?? hostConfiguration;
+        var tenantRequestContext = httpContextAccessor.HttpContext?.RequestServices
+            .GetService<ITenantRequestContext>();
+        var config = tenantRequestContext?.TenantConfiguration ?? hostConfiguration;
+
         var options = new TokenRefreshOptions();
         config.GetSection("TokenRefresh").Bind(options);
 

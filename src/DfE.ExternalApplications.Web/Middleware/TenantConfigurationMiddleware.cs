@@ -12,12 +12,14 @@ namespace DfE.ExternalApplications.Web.Middleware;
 /// </summary>
 public sealed class TenantConfigurationMiddleware(
     RequestDelegate next,
-    ITenantIdResolver tenantIdResolver,
-    TenantConfigurationLoader tenantConfigurationLoader,
     IOptions<PlatformBootstrapOptions> bootstrapOptions,
     ILogger<TenantConfigurationMiddleware> logger)
 {
-    public async Task InvokeAsync(HttpContext context, ITenantRequestContext tenantRequestContext)
+    public async Task InvokeAsync(
+        HttpContext context,
+        ITenantRequestContext tenantRequestContext,
+        ITenantIdResolver tenantIdResolver,
+        TenantConfigurationLoader tenantConfigurationLoader)
     {
         if (!bootstrapOptions.Value.Enabled)
         {
@@ -55,8 +57,6 @@ public sealed class TenantConfigurationMiddleware(
             tenantRequestContext.TenantId = tenantConfig.TenantId;
             tenantRequestContext.TenantName = tenantConfig.TenantName;
             tenantRequestContext.TenantConfiguration = configuration;
-
-            context.Items[TenantApiRequestHandler.TenantIdItemKey] = tenantConfig.TenantId;
 
             using (logger.BeginScope(new Dictionary<string, object>
                    {

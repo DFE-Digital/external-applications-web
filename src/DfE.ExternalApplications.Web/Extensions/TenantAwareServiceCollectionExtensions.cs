@@ -27,8 +27,8 @@ public static class TenantAwareServiceCollectionExtensions
             return services;
         }
 
-        services.AddScoped<IApiClientSettingsProvider, TenantApiClientSettingsProvider>();
-        services.AddScoped<IOptions<TokenRefreshOptions>, TenantTokenRefreshOptionsAccessor>();
+        services.AddSingleton<IApiClientSettingsProvider, TenantApiClientSettingsProvider>();
+        services.AddSingleton<IOptions<TokenRefreshOptions>, TenantTokenRefreshOptionsAccessor>();
         services.AddScoped<ITenantAppConfiguration, TenantAppConfiguration>();
 
         return services;

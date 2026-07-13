@@ -25,6 +25,9 @@ public static class PlatformBootstrapExtensions
             return services;
         }
 
+        // Do not use ConfigureHttpClientDefaults here: host bootstrap resolves this
+        // client before an HTTP request exists. Business API clients get X-Tenant-ID
+        // from HeaderForwardingHandler via TenantApiClientSettingsProvider.
         services.AddHttpClient<PlatformConfigurationApiClient>();
         services.AddSingleton<IPlatformAccessTokenProvider, PlatformAccessTokenProvider>();
         services.AddSingleton<ITenantConfigurationCache, TenantConfigurationCache>();
@@ -32,10 +35,6 @@ public static class PlatformBootstrapExtensions
         services.AddScoped<ITenantIdResolver, TenantIdResolver>();
         services.AddScoped<PlatformHostConfigurationBootstrapper>();
         services.AddScoped<ITenantRequestContext, TenantRequestContext>();
-        services.AddTransient<TenantApiRequestHandler>();
-
-        services.AddHttpClient().ConfigureHttpClientDefaults(http =>
-            http.AddHttpMessageHandler<TenantApiRequestHandler>());
 
         return services;
     }

@@ -95,32 +95,43 @@ if (!platformBootstrapEnabled)
     if (builder.Environment.IsDevelopment())
     {
         builder.Configuration.AddUserSecrets(typeof(Program).Assembly, optional: true);
-
-        var appSecretsSection = builder.Configuration.GetSection(applicationName);
-        if (appSecretsSection.Exists())
-        {
-            var appSecrets = appSecretsSection.GetChildren();
-            foreach (var secret in appSecrets)
-            {
-                builder.Configuration[secret.Key] = secret.Value;
-
-                foreach (var child in secret.GetChildren())
-                {
-                    BindNestedConfiguration(builder.Configuration, secret.Key, child);
-                }
-            }
-
-            Console.WriteLine($"[Configuration] User secrets loaded for application: {applicationName}");
-        }
-        else
-        {
-            Console.WriteLine($"[Configuration] No application-specific secrets found for: {applicationName}");
-        }
+        ApplyApplicationUserSecrets(builder.Configuration, applicationName);
     }
 }
 else
 {
     Console.WriteLine("[Configuration] Platform bootstrap enabled - skipping folder-based configuration.");
+
+    // Still flatten APPLICATION_NAME user secrets in Development for local infrastructure
+    // (Service Bus, Redis, etc.) that is registered at startup and is not yet fully
+    // driven from TenantConfig host settings.
+    if (builder.Environment.IsDevelopment())
+    {
+        builder.Configuration.AddUserSecrets(typeof(Program).Assembly, optional: true);
+        ApplyApplicationUserSecrets(builder.Configuration, applicationName);
+    }
+}
+
+static void ApplyApplicationUserSecrets(ConfigurationManager config, string applicationName)
+{
+    var appSecretsSection = config.GetSection(applicationName);
+    if (!appSecretsSection.Exists())
+    {
+        Console.WriteLine($"[Configuration] No application-specific secrets found for: {applicationName}");
+        return;
+    }
+
+    foreach (var secret in appSecretsSection.GetChildren())
+    {
+        config[secret.Key] = secret.Value;
+
+        foreach (var child in secret.GetChildren())
+        {
+            BindNestedConfiguration(config, secret.Key, child);
+        }
+    }
+
+    Console.WriteLine($"[Configuration] User secrets loaded for application: {applicationName}");
 }
 
 // Helper method to bind nested configuration sections

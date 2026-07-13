@@ -1,5 +1,8 @@
 using DfE.ExternalApplications.Web.Tenancy;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using NSubstitute;
 
 namespace Dfe.ExternalApplications.Web.UnitTests.Tenancy;
 
@@ -24,10 +27,27 @@ public class TenantApiClientSettingsProviderTests
             TenantConfiguration = tenantConfiguration
         };
 
-        var hostConfiguration = new ConfigurationBuilder().Build();
-        var provider = new TenantApiClientSettingsProvider(tenantContext, hostConfiguration);
+        var services = new ServiceCollection();
+        services.AddScoped<ITenantRequestContext>(_ => tenantContext);
+        var provider = services.BuildServiceProvider();
 
-        var settings = provider.GetSettings();
+        var httpContext = new DefaultHttpContext
+        {
+            RequestServices = provider
+        };
+        var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
+        httpContextAccessor.HttpContext.Returns(httpContext);
+
+        var hostConfiguration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ExternalApplicationsApiClient:BaseUrl"] = "https://host.example/"
+            })
+            .Build();
+
+        var settingsProvider = new TenantApiClientSettingsProvider(httpContextAccessor, hostConfiguration);
+
+        var settings = settingsProvider.GetSettings();
 
         Assert.Equal("https://api.example/", settings.BaseUrl);
         Assert.Equal("client-id", settings.ClientId);
@@ -35,12 +55,24 @@ public class TenantApiClientSettingsProviderTests
     }
 
     [Fact]
-    public void GetSettings_ShouldThrow_WhenTenantConfigurationMissing()
+    public void GetSettings_ShouldFallBackToHost_WhenTenantConfigurationMissing()
     {
-        var provider = new TenantApiClientSettingsProvider(
-            new TenantRequestContext(),
-            new ConfigurationBuilder().Build());
+        var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
+        httpContextAccessor.HttpContext.Returns((HttpContext?)null);
 
-        Assert.Throws<InvalidOperationException>(() => provider.GetSettings());
+        var hostConfiguration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ExternalApplicationsApiClient:BaseUrl"] = "https://host.example/",
+                ["ExternalApplicationsApiClient:ClientId"] = "host-client"
+            })
+            .Build();
+
+        var settingsProvider = new TenantApiClientSettingsProvider(httpContextAccessor, hostConfiguration);
+
+        var settings = settingsProvider.GetSettings();
+
+        Assert.Equal("https://host.example/", settings.BaseUrl);
+        Assert.Equal("host-client", settings.ClientId);
     }
 }

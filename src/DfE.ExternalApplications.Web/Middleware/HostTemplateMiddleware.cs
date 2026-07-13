@@ -8,10 +8,9 @@ namespace DfE.ExternalApplications.Web.Middleware;
 public sealed class HostTemplateMiddleware(
     RequestDelegate next,
     IConfiguration hostConfiguration,
-    ITenantRequestContext tenantRequestContext,
     ILogger<HostTemplateMiddleware> logger)
 {
-    public async Task InvokeAsync(HttpContext context)
+    public async Task InvokeAsync(HttpContext context, ITenantRequestContext tenantRequestContext)
     {
         if (string.IsNullOrEmpty(context.Session.GetString("TemplateId")))
         {

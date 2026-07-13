@@ -1,33 +1,36 @@
 using GovUK.Dfe.ExternalApplications.Api.Client.Settings;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DfE.ExternalApplications.Web.Tenancy;
 
 /// <summary>
 /// Resolves API client settings from the current tenant configuration loaded by platform bootstrap.
+/// Uses <see cref="IHttpContextAccessor"/> so settings remain correct when consumed from
+/// HttpClient message handlers (which outlive a single request DI scope).
 /// </summary>
 public sealed class TenantApiClientSettingsProvider(
-    ITenantRequestContext tenantRequestContext,
+    IHttpContextAccessor httpContextAccessor,
     IConfiguration hostConfiguration) : IApiClientSettingsProvider
 {
     /// <inheritdoc />
     public ApiClientSettings GetSettings()
     {
-        var tenantConfiguration = tenantRequestContext.TenantConfiguration
-            ?? throw new InvalidOperationException(
-                "Tenant configuration is not available. Ensure platform tenant middleware ran for this request.");
-
         var settings = new ApiClientSettings();
-        tenantConfiguration.GetSection("ExternalApplicationsApiClient").Bind(settings);
+        hostConfiguration.GetSection("ExternalApplicationsApiClient").Bind(settings);
 
-        if (tenantRequestContext.TenantId.HasValue)
-        {
-            settings.TenantId = tenantRequestContext.TenantId;
-        }
+        var tenantRequestContext = httpContextAccessor.HttpContext?.RequestServices
+            .GetService<ITenantRequestContext>();
 
-        if (string.IsNullOrWhiteSpace(settings.BaseUrl))
+        if (tenantRequestContext?.TenantConfiguration is { } tenantConfiguration)
         {
-            hostConfiguration.GetSection("ExternalApplicationsApiClient:BaseUrl").Bind(settings);
+            tenantConfiguration.GetSection("ExternalApplicationsApiClient").Bind(settings);
+
+            if (tenantRequestContext.TenantId.HasValue)
+            {
+                settings.TenantId = tenantRequestContext.TenantId;
+            }
         }
 
         return settings;
