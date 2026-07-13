@@ -65,6 +65,12 @@ public static class UserPermissionsCache
             cache.Set(cacheKey, permissions, CacheDuration);
             return permissions;
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Client navigated away / request aborted — expected, not a permissions failure.
+            logger?.LogDebug("Permissions refresh canceled for {UserId}", userId);
+            return null;
+        }
         catch (Exception ex)
         {
             logger?.LogError(ex, "Failed to refresh user permissions for {UserId}", userId);

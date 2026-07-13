@@ -41,6 +41,11 @@ public class PermissionsCacheMiddleware(
                     var transformation = context.RequestServices.GetRequiredService<IClaimsTransformation>();
                     context.User = await transformation.TransformAsync(user);
                 }
+                catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+                {
+                    logger?.LogDebug("Permissions cache refresh canceled for aborted request {Path}", context.Request.Path);
+                    return;
+                }
                 catch (ExternalApplicationsException ex) when (ex.StatusCode == 401)
                 {
                     context.Response.Redirect("/Logout?reason=auth_failed");
