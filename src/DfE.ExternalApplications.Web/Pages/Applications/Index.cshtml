@@ -1,12 +1,13 @@
 ﻿@page "/applications"
 @using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums
 @using System.ComponentModel;
-@inject IConfiguration Configuration
+@using DfE.ExternalApplications.Web.Tenancy
+@inject ITenantAppConfiguration AppConfig
 
 @model DfE.ExternalApplications.Web.Pages.Applications.IndexModel
 
 @{
-    ViewData["Title"] = Configuration["Layout:ServiceName"];
+    ViewData["Title"] = AppConfig["Layout:ServiceName"];
     var showFiltersPanel = Model.FiltersEnabled && (Model.ShowFiltersPanel || !ViewData.ModelState.IsValid);
 }
 

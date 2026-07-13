@@ -1,3 +1,4 @@
+using DfE.ExternalApplications.Application.Interfaces;
 using Microsoft.Extensions.Configuration;
 
 namespace DfE.ExternalApplications.Web.Tenancy;
@@ -5,17 +6,8 @@ namespace DfE.ExternalApplications.Web.Tenancy;
 /// <summary>
 /// Exposes merged host + tenant configuration for the current HTTP request.
 /// </summary>
-public interface ITenantAppConfiguration
+public interface ITenantAppConfiguration : IRequestAppConfiguration
 {
-    /// <summary>
-    /// Returns a configuration value preferring tenant settings over host settings.
-    /// </summary>
-    string? this[string key] { get; }
-
-    /// <summary>
-    /// Returns a configuration section preferring tenant settings over host settings.
-    /// </summary>
-    IConfigurationSection GetSection(string key);
 }
 
 /// <inheritdoc />
@@ -23,11 +15,27 @@ public sealed class TenantAppConfiguration(
     ITenantRequestContext tenantRequestContext,
     IConfiguration hostConfiguration) : ITenantAppConfiguration
 {
-    /// <inheritdoc />
-    public string? this[string key] =>
-        tenantRequestContext.GetTenantOrHostValue(hostConfiguration, key);
+    private IConfiguration? _effective;
 
     /// <inheritdoc />
-    public IConfigurationSection GetSection(string key) =>
-        tenantRequestContext.GetTenantOrHostSection(hostConfiguration, key);
+    public IConfiguration Current => _effective ??= BuildEffectiveConfiguration();
+
+    /// <inheritdoc />
+    public string? this[string key] => Current[key];
+
+    /// <inheritdoc />
+    public IConfigurationSection GetSection(string key) => Current.GetSection(key);
+
+    private IConfiguration BuildEffectiveConfiguration()
+    {
+        if (tenantRequestContext.TenantConfiguration is null)
+        {
+            return hostConfiguration;
+        }
+
+        return new ConfigurationBuilder()
+            .AddConfiguration(hostConfiguration)
+            .AddConfiguration(tenantRequestContext.TenantConfiguration)
+            .Build();
+    }
 }

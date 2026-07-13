@@ -1,8 +1,9 @@
 @using Microsoft.AspNetCore.Http.Features
-@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
+@using DfE.ExternalApplications.Web.Tenancy
+@inject ITenantAppConfiguration AppConfig
 
 @{
-    var serviceName = Configuration["Layout:ServiceName"] ?? "External Applications";
+    var serviceName = AppConfig["Layout:ServiceName"] ?? "External Applications";
     var consentFeature = Context.Features.Get<ITrackingConsentFeature>();
 
     var showBanner = !(consentFeature?.CanTrack ?? false) && Context.Session.GetInt32("cookiesRejected") != 1;

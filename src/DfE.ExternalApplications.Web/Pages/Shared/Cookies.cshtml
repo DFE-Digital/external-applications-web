@@ -3,14 +3,15 @@
 @using Microsoft.AspNetCore.Http.Features;
 @using Microsoft.AspNetCore.Http;
 @model DfE.ExternalApplications.Web.Pages.Shared.CookiesModel;
-@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
+@using DfE.ExternalApplications.Web.Tenancy
+@inject ITenantAppConfiguration AppConfig
 
 @{
     ViewData["Title"] = "Cookies";
 
     var consentFeature = this.HttpContext.Features.Get<ITrackingConsentFeature>();
     var canTrack = consentFeature?.CanTrack ?? false;
-    var serviceName = Configuration["Layout:ServiceName"] ?? "External Applications";
+    var serviceName = AppConfig["Layout:ServiceName"] ?? "External Applications";
 }
 
 @{

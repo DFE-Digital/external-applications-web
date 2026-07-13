@@ -1,9 +1,10 @@
 @page "/Feedback/General"
 @using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request
 @model DfE.ExternalApplications.Web.Pages.Feedback.GeneralModel
-@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
+@using DfE.ExternalApplications.Web.Tenancy
+@inject ITenantAppConfiguration AppConfig
 @{
-	var serviceName = Configuration["Layout:ServiceName"] ?? "External Applications";
+	var serviceName = AppConfig["Layout:ServiceName"] ?? "External Applications";
 	ViewData["Title"] = $"Give feedback on the {serviceName} service";
 }
 

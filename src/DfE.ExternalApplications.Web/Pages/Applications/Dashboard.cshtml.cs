@@ -303,7 +303,7 @@ namespace DfE.ExternalApplications.Web.Pages.Applications
                 }
 
                 // Fallback to configuration
-                var configuration = HttpContext.RequestServices.GetService(typeof(IConfiguration)) as IConfiguration;
+                var configuration = HttpContext.RequestServices.GetService(typeof(IRequestAppConfiguration)) as IRequestAppConfiguration;
                 var configured = configuration?["Template:Id"];
                 if (Guid.TryParse(configured, out var cfgGuid))
                 {

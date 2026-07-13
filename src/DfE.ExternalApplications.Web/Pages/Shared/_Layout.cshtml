@@ -1,15 +1,16 @@
 ﻿@using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Authentication
 @using System.IdentityModel.Tokens.Jwt
+@using DfE.ExternalApplications.Web.Tenancy
 @inject IAuthorizationService AuthService
 @inject Microsoft.ApplicationInsights.AspNetCore.JavaScriptSnippet JavaScriptSnippet
+@inject ITenantAppConfiguration AppConfig
 
 @{
     Layout = "_GovUkPageTemplate";
-    @inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 }
 @{
-    var apiBase = (Configuration["ExternalApplicationsApiClient:BaseUrl"] ?? "").TrimEnd('/');
+    var apiBase = (AppConfig["ExternalApplicationsApiClient:BaseUrl"] ?? "").TrimEnd('/');
 }
 <meta name="api-base" content="@apiBase" />
 @section Header {
@@ -168,7 +169,7 @@
             <div class="govuk-service-navigation__container app-service-nav-container">
                 <span class="govuk-service-navigation__service-name">
                     <a class="govuk-service-navigation__link" href="/applications/dashboard">
-                        @Configuration["Layout:ServiceName"]
+                        @AppConfig["Layout:ServiceName"]
                     </a>
                 </span>
                 @if (User?.Identity?.IsAuthenticated ?? false)
@@ -206,7 +207,7 @@
         <div class="govuk-phase-banner">
             <p class="govuk-phase-banner__content">
                 <strong class="govuk-tag govuk-phase-banner__content__tag">
-                    @Configuration["Layout:PhaseBanner:PhaseText"]
+                    @AppConfig["Layout:PhaseBanner:PhaseText"]
                 </strong>
                 <span class="govuk-phase-banner__text">
                     @try

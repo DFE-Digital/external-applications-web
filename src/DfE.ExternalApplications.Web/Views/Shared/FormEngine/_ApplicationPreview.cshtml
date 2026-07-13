@@ -2,7 +2,8 @@
 @using System.Text.Json
 @model DfE.ExternalApplications.Web.Pages.FormEngine.RenderFormModel
 @inject DfE.ExternalApplications.Application.Interfaces.IDerivedCollectionFlowService DerivedFlowService
-@inject IConfiguration Configuration
+@using DfE.ExternalApplications.Web.Tenancy
+@inject ITenantAppConfiguration AppConfig
 
 @{
     var applicationId = Context.Session.GetString("ApplicationId");
@@ -17,7 +18,7 @@
 
     var isLeadApplicant = string.Equals(currentUserEmail?.Trim(), leadApplicantEmail?.Trim(), StringComparison.InvariantCultureIgnoreCase);
 
-    bool submitIsDisabled = Configuration.GetSection("Layout:SubmitAppDisabled").Exists();
+    bool submitIsDisabled = AppConfig.GetSection("Layout:SubmitAppDisabled").Exists();
 }
 
 @if (submitIsDisabled)
@@ -27,7 +28,7 @@
             <h2 class="govuk-notification-banner__title" id="govuk-notification-banner-title">Important</h2>
         </div>
         <div class="govuk-notification-banner__content">
-            @Configuration["Layout:SubmitAppDisabled:BannerText"]
+            @AppConfig["Layout:SubmitAppDisabled:BannerText"]
             You can still work on your @AppTerminology.Singular and save it.
         </div>
     </div>
@@ -647,7 +648,7 @@
 
         @if (submitIsDisabled)
         {
-            <p class="govuk-body">@Configuration["Layout:SubmitAppDisabled:HelpText"]</p>
+            <p class="govuk-body">@AppConfig["Layout:SubmitAppDisabled:HelpText"]</p>
             <p class="govuk-body">You'll see a <b>Submit</b> button here when they're open.</p>
             <p class="govuk-body">You can still work on your @AppTerminology.Singular and save it.</p>
         }

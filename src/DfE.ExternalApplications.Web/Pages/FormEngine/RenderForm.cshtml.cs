@@ -47,7 +47,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         ILogger<RenderFormModel> logger,
         INavigationHistoryService navigationHistoryService,
         IApplicationSubmissionOrchestrator applicationSubmissionOrchestrator,
-        IConfiguration configuration)
+        IRequestAppConfiguration requestConfiguration)
         : BaseFormEngineModel(renderer, applicationResponseService, fieldFormattingService, templateManagementService,
             applicationStateService, formStateManager, formNavigationService, formDataManager, formValidationOrchestrator, formConfigurationService, logger)
     {
@@ -61,7 +61,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         private readonly IFieldRequirementService _fieldRequirementService = fieldRequirementService;
         private readonly INavigationHistoryService _navigationHistoryService = navigationHistoryService;
         private readonly IApplicationSubmissionOrchestrator _applicationSubmissionOrchestrator = applicationSubmissionOrchestrator;
-        private readonly string _context = configuration["ApplicationName"] ?? "Transfers";
+        private readonly IRequestAppConfiguration _requestConfiguration = requestConfiguration;
+        private string ApplicationContext => _requestConfiguration["ApplicationName"] ?? "Transfers";
 
         [BindProperty(SupportsGet = false)] public Dictionary<string, object> Data { get; set; } = new();
 
@@ -2905,7 +2906,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                 {
                     Message = SuccessMessage,
                     Category = "file-upload",
-                    Context = _context,
+                    Context = ApplicationContext,
                     Type = NotificationType.Success,
                     AutoDismiss = false,
                     AutoDismissSeconds = 5
@@ -3038,7 +3039,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             {
                 Message = string.Empty, // set later when known
                 Category = "file-upload",
-                Context = _context,
+                Context = ApplicationContext,
                 Type = NotificationType.Success,
                 AutoDismiss = false,
             };

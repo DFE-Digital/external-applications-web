@@ -1,15 +1,21 @@
+using System.Collections.Concurrent;
 using DfE.ExternalApplications.Web.Configuration;
 using DfE.ExternalApplications.Web.Services.Platform;
+using Microsoft.Extensions.Options;
 
 namespace DfE.ExternalApplications.Web.Services.Tenant;
 
 /// <inheritdoc />
 public sealed class TenantIdResolver(
     PlatformConfigurationApiClient apiClient,
+    IOptions<PlatformBootstrapOptions> options,
     ILogger<TenantIdResolver> logger) : ITenantIdResolver
 {
     public const string TenantIdHeader = "X-Tenant-ID";
 
+    private readonly ConcurrentDictionary<string, CacheEntry> _hostnameCache = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
     public async Task<Guid?> ResolveTenantIdAsync(
         HttpContext httpContext,
         CancellationToken cancellationToken = default)
@@ -32,6 +38,13 @@ public sealed class TenantIdResolver(
             return null;
         }
 
+        var ttl = TimeSpan.FromMinutes(Math.Max(1, options.Value.TenantConfigurationCacheMinutes));
+        var now = DateTimeOffset.UtcNow;
+        if (_hostnameCache.TryGetValue(host, out var cached) && cached.ExpiresAt > now)
+        {
+            return cached.TenantId;
+        }
+
         try
         {
             var resolution = await apiClient.ResolveTenantByHostnameAsync(host, cancellationToken);
@@ -41,7 +54,12 @@ public sealed class TenantIdResolver(
                 resolution.TenantName,
                 resolution.Hostname);
 
+            _hostnameCache[host] = new CacheEntry(resolution.TenantId, now.Add(ttl));
             return resolution.TenantId;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (HttpRequestException ex)
         {
@@ -49,4 +67,6 @@ public sealed class TenantIdResolver(
             return null;
         }
     }
+
+    private sealed record CacheEntry(Guid TenantId, DateTimeOffset ExpiresAt);
 }

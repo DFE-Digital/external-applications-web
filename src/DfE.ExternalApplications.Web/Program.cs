@@ -502,10 +502,13 @@ builder.Services.Configure<NotificationBannerOptions>(configuration.GetSection("
 
 // Dashboard configuration (page size for application list pagination)
 builder.Services.Configure<DashboardOptions>(configuration.GetSection("Dashboard"));
-builder.Services.AddSingleton<IApplicationTerminologyProvider, ApplicationTerminologyProvider>();
+// Scoped so tenant-aware IOptions are not captured for the app lifetime.
+builder.Services.AddScoped<IApplicationTerminologyProvider, ApplicationTerminologyProvider>();
 
 // Application submission configuration (mapper key and handlers per application)
 builder.Services.Configure<ApplicationSubmissionOptions>(configuration.GetSection("ApplicationSubmission"));
+
+builder.Services.AddTenantAwareOptionsAccessors(configuration);
 
 // Event mapping and publishing services
 builder.Services.AddSingleton<IEventMappingProvider, EventMappingProvider>();

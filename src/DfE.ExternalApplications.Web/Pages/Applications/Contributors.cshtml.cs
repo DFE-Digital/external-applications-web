@@ -17,7 +17,7 @@ public class ContributorsModel(
     IContributorService contributorService,
     IApplicationStateService applicationStateService,
     IContributorPatternService contributorPatternService,
-    IConfiguration configuration,
+    IRequestAppConfiguration requestConfiguration,
     IApplicationTerminologyProvider terminologyProvider,
     ILogger<ContributorsModel> logger) : PageModel
 {
@@ -205,7 +205,7 @@ public class ContributorsModel(
 
     private async Task<IActionResult?> RedirectIfContributorPatternDisabledAsync(ApplicationDto? application = null)
     {
-        var templateId = HttpContext.Session.GetString("TemplateId") ?? configuration["Template:Id"] ?? string.Empty;
+        var templateId = HttpContext.Session.GetString("TemplateId") ?? requestConfiguration["Template:Id"] ?? string.Empty;
         if (await contributorPatternService.IsEnabledAsync(templateId, application))
         {
             return null;

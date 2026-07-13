@@ -7,10 +7,11 @@
 @addTagHelper *, GovUK.Dfe.CoreLibs.Security
 @model DfE.ExternalApplications.Web.Pages.Applications.DashboardModel
 @inject IAuthorizationService AuthService
-@inject IConfiguration Configuration
+@using DfE.ExternalApplications.Web.Tenancy
+@inject ITenantAppConfiguration AppConfig
 
 @{
-    ViewData["Title"] = Configuration["Layout:ServiceName"];
+    ViewData["Title"] = AppConfig["Layout:ServiceName"];
     var showFiltersPanel = Model.FiltersEnabled && (Model.ShowFiltersPanel || !ViewData.ModelState.IsValid);
 }
 

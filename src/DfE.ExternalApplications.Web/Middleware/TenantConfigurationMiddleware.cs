@@ -33,21 +33,21 @@ public sealed class TenantConfigurationMiddleware(
             return;
         }
 
-        var tenantId = await tenantIdResolver.ResolveTenantIdAsync(context, context.RequestAborted);
-        if (tenantId is null)
-        {
-            logger.LogWarning(
-                "No tenant could be resolved for {Method} {Path} (Host={Host})",
-                context.Request.Method,
-                context.Request.Path,
-                context.Request.Host.Value);
-
-            await WriteErrorAsync(context, "Could not resolve tenant from request.");
-            return;
-        }
-
         try
         {
+            var tenantId = await tenantIdResolver.ResolveTenantIdAsync(context, context.RequestAborted);
+            if (tenantId is null)
+            {
+                logger.LogWarning(
+                    "No tenant could be resolved for {Method} {Path} (Host={Host})",
+                    context.Request.Method,
+                    context.Request.Path,
+                    context.Request.Host.Value);
+
+                await WriteErrorAsync(context, "Could not resolve tenant from request.");
+                return;
+            }
+
             var tenantConfig = await tenantConfigurationLoader.LoadAsync(tenantId.Value, context.RequestAborted);
 
             var configuration = new ConfigurationBuilder()
@@ -67,9 +67,16 @@ public sealed class TenantConfigurationMiddleware(
                 await next(context);
             }
         }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        {
+            logger.LogDebug(
+                "Tenant configuration load canceled because the client aborted {Method} {Path}",
+                context.Request.Method,
+                context.Request.Path);
+        }
         catch (HttpRequestException ex)
         {
-            logger.LogError(ex, "Failed to load tenant configuration for tenant {TenantId}", tenantId);
+            logger.LogError(ex, "Failed to load tenant configuration from platform API");
             await WriteErrorAsync(context, "Failed to load tenant configuration from platform API.");
         }
     }

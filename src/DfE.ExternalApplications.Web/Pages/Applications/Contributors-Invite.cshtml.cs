@@ -18,7 +18,7 @@ public class ContributorsInviteModel(
     IContributorService contributorService,
     IApplicationStateService applicationStateService,
     IContributorPatternService contributorPatternService,
-    IConfiguration configuration,
+    IRequestAppConfiguration requestConfiguration,
     //IApiErrorParser apiErrorParser,
     //IModelStateErrorHandler errorHandler,
     ILogger<ContributorsInviteModel> logger) : PageModel
@@ -117,7 +117,7 @@ public class ContributorsInviteModel(
 
     private async Task<IActionResult?> RedirectIfContributorPatternDisabledAsync(ApplicationDto? application = null)
     {
-        var templateId = HttpContext.Session.GetString("TemplateId") ?? configuration["Template:Id"] ?? string.Empty;
+        var templateId = HttpContext.Session.GetString("TemplateId") ?? requestConfiguration["Template:Id"] ?? string.Empty;
         if (await contributorPatternService.IsEnabledAsync(templateId, application))
         {
             return null;
