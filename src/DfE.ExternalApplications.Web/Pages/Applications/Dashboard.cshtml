@@ -1,10 +1,6 @@
 @page "/applications/dashboard"
 @using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums
-@using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response
-@using GovUk.Frontend.AspNetCore.TagHelpers
 @using Microsoft.AspNetCore.Authorization
-@using System.ComponentModel;
-@addTagHelper *, GovUK.Dfe.CoreLibs.Security
 @model DfE.ExternalApplications.Web.Pages.Applications.DashboardModel
 @inject IAuthorizationService AuthService
 @using DfE.ExternalApplications.Web.Tenancy
@@ -22,7 +18,7 @@
 
 <div class="govuk-grid-row">
     <div class="govuk-grid-column-full govuk-!-margin-bottom-6">
-        
+
         <h1 class="govuk-heading-xl govuk-!-margin-bottom-9">
             Your @AppTerminology.Plural
         </h1>
@@ -62,134 +58,115 @@
 
         @if (Model.FiltersEnabled)
         {
-        <details class="govuk-details application-listing__filters-container" data-module="govuk-details" @(showFiltersPanel ? "open" : null)>
-            <summary class="govuk-details__summary application-listing__filters-summary">
-                <span class="govuk-details__summary-text govuk-button govuk-button--secondary application-listing__filters-button" data-testid="filter-applications-button">
-                    Filter @AppTerminology.Plural
-                </span>
-            </summary>
-            <div class="govuk-details__text application-listing__filters-details">
-                <form method="get" action="/applications/dashboard">
-                    <div class="govuk-grid-row">
-                        <div class="govuk-grid-column-one-quarter">
-                            <div class="govuk-form-group">
-                                <h2 class="govuk-label-wrapper">
-                                    <label class="govuk-label govuk-label--m" for="search-reference">
-                                        Reference number
-                                    </label>
-                                </h2>
-                                <div id="search-reference-hint" class="govuk-hint">
-                                    Enter all or part of a reference number
+            <details class="govuk-details application-listing__filters-container" data-module="govuk-details" @(showFiltersPanel ? "open" : null)>
+                <summary class="govuk-details__summary application-listing__filters-summary">
+                    <span class="govuk-details__summary-text govuk-button govuk-button--secondary application-listing__filters-button" data-testid="filter-applications-button">
+                        Filter @AppTerminology.Plural
+                    </span>
+                </summary>
+                <div class="govuk-details__text application-listing__filters-details">
+                    <form method="get" action="/applications/dashboard">
+                        <div class="govuk-grid-row">
+                            <div class="govuk-grid-column-one-quarter">
+                                <div class="govuk-form-group">
+                                    <h2 class="govuk-label-wrapper">
+                                        <label class="govuk-label govuk-label--m" for="search-reference">
+                                            Reference number
+                                        </label>
+                                    </h2>
+                                    <div id="search-reference-hint" class="govuk-hint">
+                                        Enter all or part of a reference number
+                                    </div>
+                                    <input class="govuk-input" id="search-reference" name="searchReference"
+                                           type="search" value="@Model.SearchReference" autocomplete="off"
+                                           aria-describedby="search-reference-hint" data-testid="search-reference">
                                 </div>
-                                <input class="govuk-input" id="search-reference" name="searchReference"
-                                       type="search" value="@Model.SearchReference" autocomplete="off"
-                                       aria-describedby="search-reference-hint" data-testid="search-reference">
                             </div>
-                        </div>
 
-                        <div class="govuk-grid-column-one-quarter">
-                            <div class="govuk-form-group">
-                                <label class="govuk-label govuk-label--m" for="search-status">
-                                    Status
-                                </label>
-                                <select class="govuk-select" id="search-status" name="status" data-testid="search-status">
-                                    @if (Model.Status is null)
-                                    {
+                            <div class="govuk-grid-column-one-quarter">
+                                <div class="govuk-form-group">
+                                    <label class="govuk-label govuk-label--m" for="search-status">
+                                        Status
+                                    </label>
+                                    <select class="govuk-select" id="search-status" name="status" data-testid="search-status" asp-for="SelectedStatusFilter">
                                         <option value="" selected>All statuses</option>
-                                    }
-                                    else
-                                    {
-                                        <option value="">All statuses</option>
-                                    }
-                                    @if (Model.Status == ApplicationStatus.InProgress)
-                                    {
-                                        <option value="@((int)ApplicationStatus.InProgress)" selected>In progress</option>
-                                    }
-                                    else
-                                    {
-                                        <option value="@((int)ApplicationStatus.InProgress)">In progress</option>
-                                    }
-                                    @if (Model.Status == ApplicationStatus.Submitted)
-                                    {
-                                        <option value="@((int)ApplicationStatus.Submitted)" selected>Submitted</option>
-                                    }
-                                    else
-                                    {
-                                        <option value="@((int)ApplicationStatus.Submitted)">Submitted</option>
-                                    }
-                                </select>
+                                        @foreach (var status in Model.StatusFilters)
+                                        {
+                                            <option value="@status.Key">@status.Value</option>
+                                        }
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="govuk-grid-column-one-quarter">
+                                <div class="govuk-form-group @(ViewData.ModelState[nameof(Model.DateStartedTo)]?.Errors.Count > 0 ? "govuk-form-group--error" : null)">
+                                    <fieldset class="govuk-fieldset" aria-describedby="date-started-hint">
+                                        <legend class="govuk-fieldset__legend govuk-fieldset__legend--m">
+                                            Date started
+                                        </legend>
+                                        <div id="date-started-hint" class="govuk-hint">For example, 01 03 2024</div>
+                                        @if (ViewData.ModelState[nameof(Model.DateStartedTo)]?.Errors.Count > 0)
+                                        {
+                                            <span class="govuk-error-message">
+                                                <span class="govuk-visually-hidden">Error:</span>
+                                                @ViewData.ModelState[nameof(Model.DateStartedTo)]!.Errors[0].ErrorMessage
+                                            </span>
+                                        }
+                                        <label class="govuk-label" for="date-started-from">From</label>
+                                        <input class="govuk-input govuk-!-margin-bottom-2 @(ViewData.ModelState[nameof(Model.DateStartedTo)]?.Errors.Count > 0 ? "govuk-input--error" : null)"
+                                               id="date-started-from" name="dateStartedFrom" type="date"
+                                               value="@Model.DateStartedFrom" data-testid="date-started-from">
+                                        <label class="govuk-label" for="date-started-to">To</label>
+                                        <input class="govuk-input @(ViewData.ModelState[nameof(Model.DateStartedTo)]?.Errors.Count > 0 ? "govuk-input--error" : null)"
+                                               id="date-started-to" name="dateStartedTo" type="date"
+                                               value="@Model.DateStartedTo" data-testid="date-started-to">
+                                    </fieldset>
+                                </div>
+                            </div>
+
+                            <div class="govuk-grid-column-one-quarter">
+                                <div class="govuk-form-group @(ViewData.ModelState[nameof(Model.DateSubmittedTo)]?.Errors.Count > 0 ? "govuk-form-group--error" : null)">
+                                    <fieldset class="govuk-fieldset" aria-describedby="date-submitted-hint">
+                                        <legend class="govuk-fieldset__legend govuk-fieldset__legend--m">
+                                            Date submitted
+                                        </legend>
+                                        <div id="date-submitted-hint" class="govuk-hint">For example, 01 03 2024</div>
+                                        @if (ViewData.ModelState[nameof(Model.DateSubmittedTo)]?.Errors.Count > 0)
+                                        {
+                                            <span class="govuk-error-message">
+                                                <span class="govuk-visually-hidden">Error:</span>
+                                                @ViewData.ModelState[nameof(Model.DateSubmittedTo)]!.Errors[0].ErrorMessage
+                                            </span>
+                                        }
+                                        <label class="govuk-label" for="date-submitted-from">From</label>
+                                        <input class="govuk-input govuk-!-margin-bottom-2 @(ViewData.ModelState[nameof(Model.DateSubmittedTo)]?.Errors.Count > 0 ? "govuk-input--error" : null)"
+                                               id="date-submitted-from" name="dateSubmittedFrom" type="date"
+                                               value="@Model.DateSubmittedFrom" data-testid="date-submitted-from">
+                                        <label class="govuk-label" for="date-submitted-to">To</label>
+                                        <input class="govuk-input @(ViewData.ModelState[nameof(Model.DateSubmittedTo)]?.Errors.Count > 0 ? "govuk-input--error" : null)"
+                                               id="date-submitted-to" name="dateSubmittedTo" type="date"
+                                               value="@Model.DateSubmittedTo" data-testid="date-submitted-to">
+                                    </fieldset>
+                                </div>
                             </div>
                         </div>
 
-                        <div class="govuk-grid-column-one-quarter">
-                            <div class="govuk-form-group @(ViewData.ModelState[nameof(Model.DateStartedTo)]?.Errors.Count > 0 ? "govuk-form-group--error" : null)">
-                                <fieldset class="govuk-fieldset" aria-describedby="date-started-hint">
-                                    <legend class="govuk-fieldset__legend govuk-fieldset__legend--m">
-                                        Date started
-                                    </legend>
-                                    <div id="date-started-hint" class="govuk-hint">For example, 01 03 2024</div>
-                                    @if (ViewData.ModelState[nameof(Model.DateStartedTo)]?.Errors.Count > 0)
+                        <div class="govuk-grid-row">
+                            <div class="govuk-grid-column-full">
+                                <div class="govuk-button-group">
+                                    <button class="govuk-button govuk-button--secondary" type="submit" data-module="govuk-button" data-testid="apply-filters">
+                                        Apply filters
+                                    </button>
+                                    @if (Model.IsSearchActive)
                                     {
-                                        <span class="govuk-error-message">
-                                            <span class="govuk-visually-hidden">Error:</span>
-                                            @ViewData.ModelState[nameof(Model.DateStartedTo)]!.Errors[0].ErrorMessage
-                                        </span>
+                                        <a class="govuk-link" href="/applications/dashboard" data-testid="clear-filters">Clear filters</a>
                                     }
-                                    <label class="govuk-label" for="date-started-from">From</label>
-                                    <input class="govuk-input govuk-!-margin-bottom-2 @(ViewData.ModelState[nameof(Model.DateStartedTo)]?.Errors.Count > 0 ? "govuk-input--error" : null)"
-                                           id="date-started-from" name="dateStartedFrom" type="date"
-                                           value="@Model.DateStartedFrom" data-testid="date-started-from">
-                                    <label class="govuk-label" for="date-started-to">To</label>
-                                    <input class="govuk-input @(ViewData.ModelState[nameof(Model.DateStartedTo)]?.Errors.Count > 0 ? "govuk-input--error" : null)"
-                                           id="date-started-to" name="dateStartedTo" type="date"
-                                           value="@Model.DateStartedTo" data-testid="date-started-to">
-                                </fieldset>
+                                </div>
                             </div>
                         </div>
-
-                        <div class="govuk-grid-column-one-quarter">
-                            <div class="govuk-form-group @(ViewData.ModelState[nameof(Model.DateSubmittedTo)]?.Errors.Count > 0 ? "govuk-form-group--error" : null)">
-                                <fieldset class="govuk-fieldset" aria-describedby="date-submitted-hint">
-                                    <legend class="govuk-fieldset__legend govuk-fieldset__legend--m">
-                                        Date submitted
-                                    </legend>
-                                    <div id="date-submitted-hint" class="govuk-hint">For example, 01 03 2024</div>
-                                    @if (ViewData.ModelState[nameof(Model.DateSubmittedTo)]?.Errors.Count > 0)
-                                    {
-                                        <span class="govuk-error-message">
-                                            <span class="govuk-visually-hidden">Error:</span>
-                                            @ViewData.ModelState[nameof(Model.DateSubmittedTo)]!.Errors[0].ErrorMessage
-                                        </span>
-                                    }
-                                    <label class="govuk-label" for="date-submitted-from">From</label>
-                                    <input class="govuk-input govuk-!-margin-bottom-2 @(ViewData.ModelState[nameof(Model.DateSubmittedTo)]?.Errors.Count > 0 ? "govuk-input--error" : null)"
-                                           id="date-submitted-from" name="dateSubmittedFrom" type="date"
-                                           value="@Model.DateSubmittedFrom" data-testid="date-submitted-from">
-                                    <label class="govuk-label" for="date-submitted-to">To</label>
-                                    <input class="govuk-input @(ViewData.ModelState[nameof(Model.DateSubmittedTo)]?.Errors.Count > 0 ? "govuk-input--error" : null)"
-                                           id="date-submitted-to" name="dateSubmittedTo" type="date"
-                                           value="@Model.DateSubmittedTo" data-testid="date-submitted-to">
-                                </fieldset>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="govuk-grid-row">
-                        <div class="govuk-grid-column-full">
-                            <div class="govuk-button-group">
-                                <button class="govuk-button govuk-button--secondary" type="submit" data-module="govuk-button" data-testid="apply-filters">
-                                    Apply filters
-                                </button>
-                                @if (Model.IsSearchActive)
-                                {
-                                    <a class="govuk-link" href="/applications/dashboard" data-testid="clear-filters">Clear filters</a>
-                                }
-                            </div>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </details>
+                    </form>
+                </div>
+            </details>
         }
 
         <div class="govuk-!-margin-bottom-6"></div>
@@ -222,13 +199,9 @@
                 <tbody class="govuk-table__body">
                     @foreach (var app in Model.Applications)
                     {
-                        var action = app.CalculatedStatus == ApplicationStatus.Submitted ? $"View {AppTerminology.Singular}" : $"Continue {AppTerminology.Singular}";
-                        var statusClass = app.CalculatedStatus == ApplicationStatus.Submitted ? "govuk-tag--green" :
-                            app.CalculatedStatus == ApplicationStatus.InProgress ? "govuk-tag--blue" : "govuk-tag--grey";
-
-                        var appStatusInfo = @app.CalculatedStatus.GetType().GetField(@app.CalculatedStatus.ToString());
-                        var descriptionAttributes = (DescriptionAttribute[])appStatusInfo!.GetCustomAttributes(typeof(DescriptionAttribute), false);
-                        var appStatusDescription = descriptionAttributes.Length > 0 ? descriptionAttributes[0].Description : @app.CalculatedStatus.ToString();
+                        var action = app.CalculatedStatus.Key == ApplicationStatus.Submitted ? $"View {AppTerminology.Singular}" : $"Continue {AppTerminology.Singular}";
+                        var statusClass = app.CalculatedStatus.Key == ApplicationStatus.Submitted ? "govuk-tag--green" :
+                            app.CalculatedStatus.Key == ApplicationStatus.InProgress ? "govuk-tag--blue" : "govuk-tag--grey";
 
                         <tr class="govuk-table__row">
                             <td class="govuk-table__cell">@app.ApplicationReference</td>
@@ -238,7 +211,7 @@
                             </td>
                             <td class="govuk-table__cell">
                                 <strong class="govuk-tag @statusClass">
-                                    @appStatusDescription
+                                    @app.CalculatedStatus.Value
                                 </strong>
                             </td>
                             <td class="govuk-table__cell">

@@ -85,6 +85,11 @@ namespace DfE.ExternalApplications.Web.Pages.Admin
             return RedirectToPage("/Admin/TemplateManager");
         }
 
+        public IActionResult OnPostGoToCustomStatusLabelOverrides()
+        {
+            return RedirectToPage("/Admin/CustomStatusLabelOverrides");
+        }
+
         private async Task LoadTemplateInformationAsync(bool afterSessionClear = false)
         {
             try
