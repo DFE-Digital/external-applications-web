@@ -306,31 +306,89 @@ builder.Services.Configure<GzipCompressionProviderOptions>(options =>
 
 builder.Services.Configure<TokenRefreshSettings>(configuration.GetSection("TokenRefresh"));
 
+OpenIdConnectEvents CreateEntraSsoEvents() => new()
+{
+    OnMessageReceived = context =>
+    {
+        if (platformBootstrapEnabled)
+        {
+            TenantAwareEntraSsoConfigurator.ApplyTenantSettings(context.HttpContext, context.Options);
+        }
+
+        return Task.CompletedTask;
+    },
+
+    OnRedirectToIdentityProvider = async context =>
+    {
+        if (platformBootstrapEnabled)
+        {
+            // Must rewrite ProtocolMessage — Options.ClientId alone is too late for the authorize URL.
+            await TenantAwareEntraSsoConfigurator.ApplyProtocolMessageAsync(context);
+        }
+    },
+
+    OnRedirectToIdentityProviderForSignOut = async context =>
+    {
+        if (platformBootstrapEnabled)
+        {
+            await TenantAwareEntraSsoConfigurator.ApplyProtocolMessageAsync(context);
+        }
+    },
+
+    OnRemoteFailure = context =>
+    {
+        var error = context.Failure?.Message ?? "Unknown error";
+
+        if (error.Contains("message.State", StringComparison.OrdinalIgnoreCase)
+            || context.Request.Path.StartsWithSegments("/signout-callback-entra"))
+        {
+            context.Response.Redirect("/");
+            context.HandleResponse();
+            return Task.CompletedTask;
+        }
+
+        return Task.CompletedTask;
+    },
+
+    OnAuthenticationFailed = context =>
+    {
+        context.HandleResponse();
+        context.Response.Redirect("/error?message=" + Uri.EscapeDataString(context.Exception.Message));
+        return Task.CompletedTask;
+    },
+
+    OnSignedOutCallbackRedirect = context =>
+    {
+        context.HttpContext.Session.Clear();
+        return Task.CompletedTask;
+    }
+};
+
 // Register both schemes once, and use a dynamic scheme provider to pick per-request
-builder.Services
+var authenticationBuilder = builder.Services
     .AddAuthentication()
     .AddCookie()
     .AddCustomOpenIdConnect(configuration, sectionName: "DfESignIn", new OpenIdConnectEvents
     {
-        OnRedirectToIdentityProvider = context =>
+        OnMessageReceived = context =>
         {
+            // Callback (/signin-oidc) must use the same tenant ClientId/audience as the challenge.
             if (platformBootstrapEnabled)
             {
                 TenantAwareOpenIdConnectConfigurator.ApplyTenantSettings(context.HttpContext, context.Options);
-
-                var tenantSection = TenantAwareOpenIdConnectConfigurator.GetTenantSignInSection(context.HttpContext);
-                if (!string.IsNullOrEmpty(tenantSection?["RedirectUri"]))
-                {
-                    context.ProtocolMessage.RedirectUri = tenantSection["RedirectUri"];
-                }
-
-                if (!string.IsNullOrEmpty(tenantSection?["Prompt"]))
-                {
-                    context.ProtocolMessage.Prompt = tenantSection["Prompt"];
-                }
             }
 
             return Task.CompletedTask;
+        },
+
+        OnRedirectToIdentityProvider = async context =>
+        {
+            if (platformBootstrapEnabled)
+            {
+                // Rewrite ProtocolMessage ClientId/RedirectUri — Options alone is too late and
+                // leaves a previous tenant's client_id (e.g. RSDExternalApps) on first hop to LSRP.
+                await TenantAwareOpenIdConnectConfigurator.ApplyProtocolMessageAsync(context);
+            }
         },
 
         OnRemoteFailure = context =>
@@ -355,10 +413,14 @@ builder.Services
             return Task.CompletedTask;
         },
 
-        OnRedirectToIdentityProviderForSignOut = context =>
+        OnRedirectToIdentityProviderForSignOut = async context =>
         {
+            if (platformBootstrapEnabled)
+            {
+                await TenantAwareOpenIdConnectConfigurator.ApplyProtocolMessageAsync(context);
+            }
+
             DfESignInOidcPublicUrls.ApplyPostLogoutRedirectUri(context, configuration);
-            return Task.CompletedTask;
         },
 
         OnSignedOutCallbackRedirect = context =>
@@ -372,36 +434,21 @@ builder.Services
         options => { })
     .AddScheme<InternalServiceAuthenticationSchemeOptions, InternalServiceAuthenticationHandler>(
         InternalServiceAuthenticationHandler.SchemeName,
-        options => { })
-    .AddEntraSso(configuration, sectionName: EntraSsoDefaults.ConfigurationSection, new OpenIdConnectEvents
-    {
-        OnRemoteFailure = context =>
-        {
-            var error = context.Failure?.Message ?? "Unknown error";
+        options => { });
 
-            if (error.Contains("message.State", StringComparison.OrdinalIgnoreCase))
-            {
-                context.Response.Redirect("/");
-                context.HandleResponse();
-                return Task.CompletedTask;
-            }
-
-            return Task.CompletedTask;
-        },
-
-        OnAuthenticationFailed = context =>
-        {
-            context.HandleResponse();
-            context.Response.Redirect("/error?message=" + Uri.EscapeDataString(context.Exception.Message));
-            return Task.CompletedTask;
-        },
-
-        OnSignedOutCallbackRedirect = context =>
-        {
-            context.HttpContext.Session.Clear();
-            return Task.CompletedTask;
-        }
-    });
+// Platform bootstrap keeps host EntraSso.Enabled=false, but RGVisits enables Entra per tenant.
+// Always register the Entra scheme under bootstrap so challenges can switch at runtime.
+if (platformBootstrapEnabled)
+{
+    authenticationBuilder.AddPlatformBootstrapEntraSso(configuration, CreateEntraSsoEvents());
+}
+else
+{
+    authenticationBuilder.AddEntraSso(
+        configuration,
+        sectionName: EntraSsoDefaults.ConfigurationSection,
+        CreateEntraSsoEvents());
+}
 
 // Use DynamicAuthenticationSchemeProvider to route per request
 // Checks for Internal Service Auth (forwarder pattern)

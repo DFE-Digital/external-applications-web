@@ -1,5 +1,9 @@
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.Extensions.Configuration;
+using Microsoft.IdentityModel.Protocols;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using Microsoft.IdentityModel.Tokens;
+using AspNetOpenIdConnectOptions = Microsoft.AspNetCore.Authentication.OpenIdConnect.OpenIdConnectOptions;
 
 namespace DfE.ExternalApplications.Web.Security;
 
@@ -10,24 +14,39 @@ public static class TenantAwareOpenIdConnectConfigurator
 {
     /// <summary>
     /// Overlays tenant-specific DfE Sign-In settings onto the active OIDC options instance.
+    /// Must run on both challenge (<c>OnRedirectToIdentityProvider</c>) and callback
+    /// (<c>OnMessageReceived</c>) so ClientId / audience match the id_token.
     /// </summary>
-    public static void ApplyTenantSettings(HttpContext httpContext, OpenIdConnectOptions options)
+    public static void ApplyTenantSettings(HttpContext httpContext, AspNetOpenIdConnectOptions options)
     {
-        var tenantContext = httpContext.RequestServices.GetService<Tenancy.ITenantRequestContext>();
-        var section = tenantContext?.TenantConfiguration?.GetSection("DfESignIn");
-        if (section?.Exists() != true)
+        var section = GetTenantSignInSection(httpContext);
+        if (section is null)
         {
             return;
         }
 
         if (!string.IsNullOrWhiteSpace(section["Authority"]))
         {
-            options.Authority = section["Authority"];
+            var authority = section["Authority"]!.TrimEnd('/');
+            if (!string.Equals(options.Authority, authority, StringComparison.OrdinalIgnoreCase))
+            {
+                options.Authority = authority;
+                options.MetadataAddress = $"{authority}/.well-known/openid-configuration";
+                options.Configuration = null;
+                options.ConfigurationManager = new ConfigurationManager<OpenIdConnectConfiguration>(
+                    options.MetadataAddress,
+                    new OpenIdConnectConfigurationRetriever(),
+                    new HttpDocumentRetriever { RequireHttps = options.RequireHttpsMetadata });
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(section["ClientId"]))
         {
             options.ClientId = section["ClientId"];
+            // id_token aud is the client id; startup options still hold the bootstrap/Transfers audience.
+            options.TokenValidationParameters.ValidAudience = section["ClientId"];
+            options.TokenValidationParameters.ValidAudiences = [section["ClientId"]!];
+            options.TokenValidationParameters.ValidateAudience = true;
         }
 
         if (!string.IsNullOrWhiteSpace(section["ClientSecret"]))
@@ -48,6 +67,64 @@ public static class TenantAwareOpenIdConnectConfigurator
         if (!string.IsNullOrWhiteSpace(section["RedirectUri"]))
         {
             options.CallbackPath = ExtractCallbackPath(section["RedirectUri"]);
+        }
+    }
+
+    /// <summary>
+    /// Applies tenant DfE Sign-In settings to the outbound OIDC protocol message.
+    /// Required because ASP.NET Core copies <c>Options.ClientId</c> into
+    /// <see cref="RedirectContext.ProtocolMessage"/> before this event runs — after switching
+    /// hosts, Options may still hold another tenant's ClientId (e.g. Transfers
+    /// <c>RSDExternalApps</c> with LSRP <c>redirect_uri</c>).
+    /// </summary>
+    public static async Task ApplyProtocolMessageAsync(RedirectContext context)
+    {
+        ApplyTenantSettings(context.HttpContext, context.Options);
+
+        var section = GetTenantSignInSection(context.HttpContext);
+        if (section is null)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(section["ClientId"]))
+        {
+            context.ProtocolMessage.ClientId = section["ClientId"];
+        }
+
+        if (!string.IsNullOrWhiteSpace(section["RedirectUri"]))
+        {
+            context.ProtocolMessage.RedirectUri = section["RedirectUri"];
+        }
+
+        if (!string.IsNullOrWhiteSpace(section["Prompt"]))
+        {
+            context.ProtocolMessage.Prompt = section["Prompt"];
+        }
+
+        var scopes = section.GetSection("Scopes").Get<string[]>();
+        if (scopes?.Length > 0)
+        {
+            context.ProtocolMessage.Scope = string.Join(' ', scopes);
+        }
+
+        if (context.Options.ConfigurationManager is not null)
+        {
+            var configuration = await context.Options.ConfigurationManager
+                .GetConfigurationAsync(context.HttpContext.RequestAborted);
+            context.Options.Configuration = configuration;
+
+            if (context.ProtocolMessage.RequestType == OpenIdConnectRequestType.Logout)
+            {
+                if (!string.IsNullOrWhiteSpace(configuration.EndSessionEndpoint))
+                {
+                    context.ProtocolMessage.IssuerAddress = configuration.EndSessionEndpoint;
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(configuration.AuthorizationEndpoint))
+            {
+                context.ProtocolMessage.IssuerAddress = configuration.AuthorizationEndpoint;
+            }
         }
     }
 

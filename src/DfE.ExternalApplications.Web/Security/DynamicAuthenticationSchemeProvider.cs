@@ -1,14 +1,10 @@
 using DfE.ExternalApplications.Web.Authentication;
 using GovUK.Dfe.CoreLibs.Security.Configurations;
 using GovUK.Dfe.CoreLibs.Security.EntraSso;
-using GovUK.Dfe.CoreLibs.Security.Interfaces;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace DfE.ExternalApplications.Web.Security;
 
@@ -17,42 +13,26 @@ namespace DfE.ExternalApplications.Web.Security;
 /// Priority order:
 /// 1. If X-Service-Email header present: Uses Internal Service Auth (header-based forwarder)
 /// 2. If TestAuthentication.Enabled is true: Uses Test scheme for all
-/// 3. If EntraSso.Enabled is true: Uses Entra SSO scheme
+/// 3. If tenant (or host) EntraSso.Enabled is true: Uses Entra SSO scheme
 /// 4. Otherwise: Uses DfE Sign-In OIDC (Cookies + OIDC challenge/sign-out)
 /// </summary>
 public class DynamicAuthenticationSchemeProvider(
     IOptions<AuthenticationOptions> options,
     IHttpContextAccessor httpContextAccessor,
     IOptions<TestAuthenticationOptions> testAuthOptions,
-    IOptions<EntraSsoOptions> entraSsoOptions,
-    IConfiguration configuration)
+    IOptions<EntraSsoOptions> entraSsoOptions)
     : AuthenticationSchemeProvider(options)
 {
-    private bool IsTestAuthGloballyEnabled()
-    {
-        return testAuthOptions.Value.Enabled;
-    }
-
-    private bool ShouldUseTestAuth()
-    {
-        if (IsTestAuthGloballyEnabled())
-        {
-            return true;
-        }
-
-        return false;
-    }
+    private bool IsTestAuthGloballyEnabled() => testAuthOptions.Value.Enabled;
 
     private bool IsEntraSsoEnabled()
-    {
-        return entraSsoOptions.Value.Enabled;
-    }
+        => TenantAuthSchemeSelector.IsEntraSsoEnabled(httpContextAccessor.HttpContext, entraSsoOptions);
 
     private bool IsInternalServiceRequest()
     {
         var httpContext = httpContextAccessor.HttpContext;
         if (httpContext == null) return false;
-        
+
         return httpContext.Request.Headers.ContainsKey("x-service-email");
     }
 
@@ -69,12 +49,12 @@ public class DynamicAuthenticationSchemeProvider(
         {
             return GetSchemeAsync(InternalServiceAuthenticationHandler.SchemeName);
         }
-        
-        if (ShouldUseTestAuth())
+
+        if (IsTestAuthGloballyEnabled())
         {
             return GetSchemeAsync(TestAuthenticationHandler.SchemeName);
         }
-        
+
         return GetSchemeAsync(CookieAuthenticationDefaults.AuthenticationScheme);
     }
 
@@ -84,12 +64,12 @@ public class DynamicAuthenticationSchemeProvider(
         {
             return GetSchemeAsync(InternalServiceAuthenticationHandler.SchemeName);
         }
-        
-        if (ShouldUseTestAuth())
+
+        if (IsTestAuthGloballyEnabled())
         {
             return GetSchemeAsync(TestAuthenticationHandler.SchemeName);
         }
-        
+
         return GetSchemeAsync(GetDefaultIdpScheme());
     }
 
@@ -99,12 +79,12 @@ public class DynamicAuthenticationSchemeProvider(
         {
             return GetSchemeAsync(InternalServiceAuthenticationHandler.SchemeName);
         }
-        
-        if (ShouldUseTestAuth())
+
+        if (IsTestAuthGloballyEnabled())
         {
             return GetSchemeAsync(TestAuthenticationHandler.SchemeName);
         }
-        
+
         return GetSchemeAsync(GetDefaultIdpScheme());
     }
 
@@ -115,7 +95,7 @@ public class DynamicAuthenticationSchemeProvider(
 
     public override Task<AuthenticationScheme?> GetDefaultSignOutSchemeAsync()
     {
-        if (ShouldUseTestAuth())
+        if (IsTestAuthGloballyEnabled())
         {
             return GetSchemeAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         }

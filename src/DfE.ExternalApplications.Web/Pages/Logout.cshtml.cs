@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
 using GovUK.Dfe.CoreLibs.Security.Configurations;
 using GovUK.Dfe.CoreLibs.Security.EntraSso;
+using DfE.ExternalApplications.Web.Security;
 using DfE.ExternalApplications.Web.Services;
 using System.Diagnostics.CodeAnalysis;
 
@@ -47,7 +48,7 @@ public class LogoutModel(
             // state for the /signout-callback-oidc round trip. Clearing early causes 403 on callback.
             var signOutProperties = new AuthenticationProperties { RedirectUri = "/" };
 
-            if (entraSsoOptions.Value.Enabled)
+            if (TenantAuthSchemeSelector.IsEntraSsoEnabled(HttpContext, entraSsoOptions))
             {
                 logger.LogInformation("Signing out from Entra SSO authentication");
 
@@ -71,4 +72,4 @@ public class LogoutModel(
             return Page();
         }
     }
-} 
+}

@@ -19,9 +19,10 @@ public sealed class HostTemplateMiddleware(
             var mappings = configuration.GetSection("Template:HostMappings").Get<Dictionary<string, string>>() ?? [];
             string? templateId = null;
 
+            // Exact host match only. Do not use Contains — "lsrp.localhost" would match "localhost".
             foreach (var kvp in mappings)
             {
-                if (host.Contains(kvp.Key, StringComparison.OrdinalIgnoreCase))
+                if (host.Equals(kvp.Key, StringComparison.OrdinalIgnoreCase))
                 {
                     templateId = kvp.Value;
                     break;
