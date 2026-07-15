@@ -22,18 +22,22 @@ public sealed class TenantOptionsAccessor<TOptions>(
     {
         get
         {
-            var options = new TOptions();
-            hostConfiguration.GetSection(sectionName).Bind(options);
-
             var tenantContext = httpContextAccessor.HttpContext?.RequestServices
                 .GetService<ITenantRequestContext>();
             var tenantSection = tenantContext?.TenantConfiguration?.GetSection(sectionName);
-            if (tenantSection?.Exists() == true)
+
+            // Prefer tenant section when present. Binding host then tenant appends list items
+            // (e.g. InternalServiceAuth:Services), which breaks per-tenant credential isolation.
+            if (tenantSection?.Exists() == true && tenantSection.GetChildren().Any())
             {
-                tenantSection.Bind(options);
+                var tenantOptions = new TOptions();
+                tenantSection.Bind(tenantOptions);
+                return tenantOptions;
             }
 
-            return options;
+            var hostOptions = new TOptions();
+            hostConfiguration.GetSection(sectionName).Bind(hostOptions);
+            return hostOptions;
         }
     }
 }

@@ -2,8 +2,10 @@ using DfE.ExternalApplications.Application.Interfaces;
 using DfE.ExternalApplications.Application.Options;
 using DfE.ExternalApplications.Web.Configuration;
 using DfE.ExternalApplications.Web.Security;
+using DfE.ExternalApplications.Web.Services;
 using DfE.ExternalApplications.Web.Tenancy;
 using GovUK.Dfe.ExternalApplications.Api.Client.Settings;
+using GovUK.Dfe.CoreLibs.Security.Configurations;
 using GovUK.Dfe.CoreLibs.Security.TokenRefresh.Configuration;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
@@ -28,6 +30,7 @@ public static class TenantAwareServiceCollectionExtensions
         services.AddScoped<TenantAppConfiguration>();
         services.AddScoped<ITenantAppConfiguration>(sp => sp.GetRequiredService<TenantAppConfiguration>());
         services.AddScoped<IRequestAppConfiguration>(sp => sp.GetRequiredService<TenantAppConfiguration>());
+        services.AddSingleton<IInternalServiceAuthOptionsResolver, InternalServiceAuthOptionsResolver>();
 
         var bootstrap = configuration.GetSection(PlatformBootstrapOptions.SectionName).Get<PlatformBootstrapOptions>();
         if (bootstrap is not { Enabled: true })
@@ -60,6 +63,7 @@ public static class TenantAwareServiceCollectionExtensions
         AddTenantOptions<DashboardOptions>(services, "Dashboard");
         AddTenantOptions<ApplicationSubmissionOptions>(services, "ApplicationSubmission");
         AddTenantOptions<TokenRefreshSettings>(services, "TokenRefresh");
+        AddTenantOptions<InternalServiceAuthOptions>(services, InternalServiceAuthOptions.SectionName);
 
         return services;
     }
