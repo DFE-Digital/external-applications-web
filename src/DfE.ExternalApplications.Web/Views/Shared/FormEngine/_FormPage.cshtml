@@ -137,8 +137,10 @@
                 <div class="govuk-body">@Html.Raw(hintHtml)</div>
             }
 
-            @foreach (var field in Model.CurrentPage.Fields.OrderBy(f => f.Order).Where(f => !Model.IsFieldHidden(f.FieldId)))
+            @* Render all fields (including conditionally hidden) so client-side logic can show/hide without a postback *@
+            @foreach (var field in Model.CurrentPage.Fields.OrderBy(f => f.Order))
             {
+                var isConditionallyHidden = Model.IsFieldHidden(field.FieldId);
                 var hasData = Model.Data.TryGetValue(field.FieldId, out var val);
                 var selectedValues = field.Type == "checkboxes" ? CheckboxValueNormalizer.Normalize(hasData ? val : null) : Array.Empty<string>();
                 var currentValue = hasData ? val?.ToString() ?? String.Empty : String.Empty;
@@ -156,7 +158,12 @@
                field.ComplexField == null ||
                !ComplexFieldConfigurationService.GetConfiguration(field.ComplexField.Id).FieldType.Equals("upload", StringComparison.OrdinalIgnoreCase))
                 {
-                    @await FieldRenderer.RenderFieldAsync(field, "Data", currentValue, selectedValues, errorMessage, Model.CurrentTask, Model.CurrentPage)
+                    <div class="form-field-container"
+                         data-field-container="@field.FieldId"
+                         data-conditional-hidden="@(isConditionallyHidden ? "true" : "false")"
+                         style="@(isConditionallyHidden ? "display: none;" : null)">
+                        @await FieldRenderer.RenderFieldAsync(field, "Data", currentValue, selectedValues, errorMessage, Model.CurrentTask, Model.CurrentPage)
+                    </div>
                 }
             }
 
@@ -215,7 +222,12 @@
     }
 }
 
-@* Conditional Logic Scripts (temporarily disabled if not present on template) *@
+@if (Model.Template?.ConditionalLogic?.Any() == true)
+{
+    <script id="conditional-logic-rules" type="application/json">
+        @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Template.ConditionalLogic))
+    </script>
+}
 
 @if (Model.Data?.Any() == true)
 {
