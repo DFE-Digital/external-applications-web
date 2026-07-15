@@ -14,7 +14,11 @@ namespace DfE.ExternalApplications.Web.Controllers
         INotificationsClient notificationsClient,
         IRequestAppConfiguration requestConfiguration) : ControllerBase
     {
-        private string ApplicationContext => requestConfiguration["ApplicationName"] ?? "Transfers";
+        private string ApplicationContext =>
+            requestConfiguration["ApplicationName"]
+            ?? requestConfiguration["TenantName"]
+            ?? throw new InvalidOperationException(
+                "ApplicationName (or TenantName) is required in tenant configuration for notifications.");
 
         [HttpGet("unread")]
         public async Task<ActionResult<IReadOnlyCollection<NotificationDto>>> GetUnreadAsync(CancellationToken cancellationToken)

@@ -62,7 +62,10 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         private readonly INavigationHistoryService _navigationHistoryService = navigationHistoryService;
         private readonly IApplicationSubmissionOrchestrator _applicationSubmissionOrchestrator = applicationSubmissionOrchestrator;
         private readonly IRequestAppConfiguration _requestConfiguration = requestConfiguration;
-        private string ApplicationContext => _requestConfiguration["ApplicationName"] ?? "Transfers";
+        private string ApplicationContext =>
+            _requestConfiguration["ApplicationName"]
+            ?? _requestConfiguration["TenantName"]
+            ?? "platform";
 
         [BindProperty(SupportsGet = false)] public Dictionary<string, object> Data { get; set; } = new();
 

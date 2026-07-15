@@ -50,75 +50,54 @@ var platformBootstrap = builder.Configuration
     .Get<PlatformBootstrapOptions>();
 var platformBootstrapEnabled = platformBootstrap?.Enabled ?? false;
 
-// Load application-specific configuration from configurations/{APPLICATION_NAME}/ folder
-var applicationName = Environment.GetEnvironmentVariable("APPLICATION_NAME") ?? "Transfers";
-var environment = builder.Environment.EnvironmentName;
-
+// Path 3: single platform artefact. Tenant settings come from TenantConfig (API), not
+// configurations/{APPLICATION_NAME}/ folders. Folder-based packaging is migration-only
+// (see Import-WebTenantConfig.ps1) and is no longer loaded at runtime.
 if (!platformBootstrapEnabled)
 {
-    // Determine the configurations folder path
-    // The configurations folder is inside the Web project: src/DfE.ExternalApplications.Web/configurations/{APPLICATION_NAME}
-    var configurationsPath = Path.Combine(builder.Environment.ContentRootPath, "configurations", applicationName);
+    throw new InvalidOperationException(
+        "PlatformBootstrap:Enabled must be true. Per-application configurations/ folders " +
+        "are no longer loaded at runtime. Import tenant settings into TenantConfig and enable platform bootstrap.");
+}
 
-    var baseAppsettingsPath = Path.Combine(configurationsPath, "appsettings.json");
-    var envAppsettingsPath = Path.Combine(configurationsPath, $"appsettings.{environment}.json");
+Console.WriteLine("[Configuration] Platform bootstrap enabled - tenant settings load from TenantConfig API.");
 
-    if (Directory.Exists(configurationsPath) && File.Exists(baseAppsettingsPath))
+// Flatten local host infrastructure secrets in Development/Local (Service Bus, Redis, etc.).
+// Prefer LOCAL_HOST_SECRETS_SECTION, then Platform, then legacy APPLICATION_NAME / Transfers.
+if (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Local"))
+{
+    builder.Configuration.AddUserSecrets(typeof(Program).Assembly, optional: true);
+    ApplyHostInfrastructureUserSecrets(builder.Configuration);
+}
+
+static void ApplyHostInfrastructureUserSecrets(ConfigurationManager config)
+{
+    var sectionCandidates = new[]
     {
-        // Clear existing JSON configuration sources and use folder-based configs
-        // This ensures folder-based configs REPLACE default appsettings, not merge with them
-        var sourcesToRemove = builder.Configuration.Sources
-            .Where(s => s.GetType().Name.Contains("Json"))
-            .ToList();
+        Environment.GetEnvironmentVariable("LOCAL_HOST_SECRETS_SECTION"),
+        "Platform",
+        Environment.GetEnvironmentVariable("APPLICATION_NAME"),
+        "Transfers"
+    }.Where(static s => !string.IsNullOrWhiteSpace(s))
+     .Distinct(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var source in sourcesToRemove)
+    foreach (var sectionName in sectionCandidates)
+    {
+        if (TryFlattenUserSecretsSection(config, sectionName!))
         {
-            builder.Configuration.Sources.Remove(source);
+            return;
         }
-
-        // Add folder-based configuration
-        builder.Configuration
-            .AddJsonFile(baseAppsettingsPath, optional: false, reloadOnChange: true)
-            .AddJsonFile(envAppsettingsPath, optional: true, reloadOnChange: true);
-
-        Console.WriteLine($"[Configuration] Application: {applicationName}");
-        Console.WriteLine($"[Configuration] Environment: {environment}");
-        Console.WriteLine($"[Configuration] Path: {configurationsPath}");
-    }
-    else
-    {
-        Console.WriteLine($"[Configuration] WARNING: Folder-based configuration not found at {configurationsPath}");
-        Console.WriteLine($"[Configuration] Using default appsettings from project directory.");
     }
 
-    // Load application-specific user secrets in Development environment
-    if (builder.Environment.IsDevelopment())
-    {
-        builder.Configuration.AddUserSecrets(typeof(Program).Assembly, optional: true);
-        ApplyApplicationUserSecrets(builder.Configuration, applicationName);
-    }
-}
-else
-{
-    Console.WriteLine("[Configuration] Platform bootstrap enabled - skipping folder-based configuration.");
-
-    // Still flatten APPLICATION_NAME user secrets in Development for local infrastructure
-    // (Service Bus, Redis, etc.) that is registered at startup and is not yet fully
-    // driven from TenantConfig host settings.
-    if (builder.Environment.IsDevelopment())
-    {
-        builder.Configuration.AddUserSecrets(typeof(Program).Assembly, optional: true);
-        ApplyApplicationUserSecrets(builder.Configuration, applicationName);
-    }
+    Console.WriteLine("[Configuration] No Platform/host user-secrets section found for local infrastructure.");
 }
 
-static void ApplyApplicationUserSecrets(ConfigurationManager config, string applicationName)
+static bool TryFlattenUserSecretsSection(ConfigurationManager config, string sectionName)
 {
-    var appSecretsSection = config.GetSection(applicationName);
-    if (!appSecretsSection.Exists())
+    var appSecretsSection = config.GetSection(sectionName);
+    if (!appSecretsSection.Exists() || !appSecretsSection.GetChildren().Any())
     {
-        Console.WriteLine($"[Configuration] No application-specific secrets found for: {applicationName}");
-        return;
+        return false;
     }
 
     foreach (var secret in appSecretsSection.GetChildren())
@@ -131,7 +110,8 @@ static void ApplyApplicationUserSecrets(ConfigurationManager config, string appl
         }
     }
 
-    Console.WriteLine($"[Configuration] User secrets loaded for application: {applicationName}");
+    Console.WriteLine($"[Configuration] Host infrastructure user secrets loaded from section: {sectionName}");
+    return true;
 }
 
 // Helper method to bind nested configuration sections
@@ -585,8 +565,11 @@ builder.Services.AddDfEMassTransit(
     configureAzureServiceBus: (context, cfg) =>
     {
         cfg.UseJsonSerializer();
-        // Azure Service Bus specific configuration
-        cfg.SubscriptionEndpoint<ScanResultEvent>($"extweb-{configuration["ApplicationName"] ?? "platform"}", e =>
+
+        // Path 3: one shared subscription for the platform Web artefact (all tenants).
+        // Prefix is environment-configurable; suffix identifies the topic purpose.
+        var subscriptionPrefix = configuration["MassTransit:SubscriptionPrefix"] ?? "extweb";
+        cfg.SubscriptionEndpoint<ScanResultEvent>($"{subscriptionPrefix}-scan-result", e =>
         {
             e.UseMessageRetry(r =>
             {

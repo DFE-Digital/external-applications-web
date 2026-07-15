@@ -29,8 +29,6 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
         IConfiguration configuration,
         ILogger<ScanResultConsumer> logger) : IConsumer<ScanResultEvent>
     {
-        private readonly string _applicationName = configuration["ApplicationName"] ?? "Transfers";
-
         public async Task Consume(ConsumeContext<ScanResultEvent> context)
         {
             var scanResult = context.Message;
@@ -71,7 +69,7 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
             // Check if the file is infected
             if (IsInfected(scanResult))
             {
-                await HandleInfectedFileAsync(scanResult);
+                await HandleInfectedFileAsync(scanResult, ResolveNotificationContext(scanResult, context));
             }
             else if (scanResult.Outcome == VirusScanOutcome.Clean)
             {
@@ -102,7 +100,7 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
         /// <summary>
         /// Handles an infected file by cleaning it up and notifying the user
         /// </summary>
-        private async Task HandleInfectedFileAsync(ScanResultEvent scanResult)
+        private async Task HandleInfectedFileAsync(ScanResultEvent scanResult, string notificationContext)
         {
             try
             {
@@ -224,7 +222,8 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
                         applicationId ?? Guid.Empty,
                         originalFileName,
                         scanResult.MalwareName!,
-                        new Guid(userId));
+                        new Guid(userId),
+                        notificationContext);
                 }
 
                 logger.LogInformation(
@@ -693,6 +692,36 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
         }
 
         /// <summary>
+        /// Resolves the notification context for a multi-tenant platform host.
+        /// Prefer message metadata, then MassTransit tenant headers — never host APPLICATION_NAME.
+        /// </summary>
+        private static string ResolveNotificationContext(ScanResultEvent scanResult, ConsumeContext context)
+        {
+            if (scanResult.Metadata is not null)
+            {
+                foreach (var key in new[] { "ApplicationName", "TenantName", "applicationName", "tenantName" })
+                {
+                    if (scanResult.Metadata.TryGetValue(key, out var value))
+                    {
+                        var text = value?.ToString();
+                        if (!string.IsNullOrWhiteSpace(text))
+                        {
+                            return text;
+                        }
+                    }
+                }
+            }
+
+            var tenantName = context.Headers.Get<string>("TenantName");
+            if (!string.IsNullOrWhiteSpace(tenantName))
+            {
+                return tenantName!;
+            }
+
+            return "platform";
+        }
+
+        /// <summary>
         /// Creates a user notification about the infected file
         /// </summary>
         private async Task CreateMalwareNotificationAsync(
@@ -700,7 +729,8 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
             Guid applicationId,
             string? fileName,
             string malwareName,
-            Guid? userId)
+            Guid? userId,
+            string notificationContext)
         {
             try
             {
@@ -708,7 +738,7 @@ namespace DfE.ExternalApplications.Infrastructure.Consumers
                 {
                     Message = $"The selected file '{fileName}' contains a virus called [{malwareName}]. We have deleted the file. Upload a new one.",
                     Category = "malware-detection",
-                    Context = _applicationName,
+                    Context = notificationContext,
                     Type = NotificationType.Error,
                     AutoDismiss = false,
                     Metadata = new Dictionary<string, object>

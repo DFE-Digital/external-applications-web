@@ -1,54 +1,47 @@
 {
   "profiles": {
-    "Transfers-http": {
+    "Platform-https": {
       "commandName": "Project",
       "launchBrowser": true,
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "APPLICATION_NAME": "Transfers"
-      },
-      "dotnetRunMessages": true,
-      "applicationUrl": "http://localhost:5210"
-    },
-    "Transfers-https": {
-      "commandName": "Project",
-      "launchBrowser": true,
-      "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development",
-        "APPLICATION_NAME": "Transfers"
+        "LOCAL_HOST_SECRETS_SECTION": "Transfers"
       },
       "dotnetRunMessages": true,
       "applicationUrl": "https://localhost:7020;http://localhost:5210"
     },
-    "Lsrp-http": {
+    "Transfers-https": {
       "commandName": "Project",
       "launchBrowser": true,
+      "launchUrl": "https://localhost:7020",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "APPLICATION_NAME": "Lsrp"
+        "LOCAL_HOST_SECRETS_SECTION": "Transfers"
       },
       "dotnetRunMessages": true,
-      "applicationUrl": "http://localhost:5211"
+      "applicationUrl": "https://localhost:7020;http://localhost:5210"
     },
     "Lsrp-https": {
       "commandName": "Project",
       "launchBrowser": true,
+      "launchUrl": "https://lsrp.localhost:7020",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "APPLICATION_NAME": "Lsrp"
+        "LOCAL_HOST_SECRETS_SECTION": "Transfers"
       },
       "dotnetRunMessages": true,
-      "applicationUrl": "https://localhost:7020;http://localhost:5211"
+      "applicationUrl": "https://lsrp.localhost:7020;http://lsrp.localhost:5211"
     },
     "Visits-https": {
       "commandName": "Project",
       "launchBrowser": true,
+      "launchUrl": "https://rgvisits.localhost:7020",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "APPLICATION_NAME": "RGVisits"
+        "LOCAL_HOST_SECRETS_SECTION": "Transfers"
       },
       "dotnetRunMessages": true,
-      "applicationUrl": "https://localhost:7020;http://localhost:5211"
+      "applicationUrl": "https://rgvisits.localhost:7020;http://rgvisits.localhost:5211"
     },
     "https-Local": {
       "commandName": "Project",
@@ -56,7 +49,7 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Local",
         "DOTNET_ENVIRONMENT": "Development",
-        "APPLICATION_NAME": "RGVisits",
+        "LOCAL_HOST_SECRETS_SECTION": "Transfers",
         "GITHUB_ACTIONS": "true"
       },
       "dotnetRunMessages": true,
@@ -67,7 +60,7 @@
       "launchBrowser": true,
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "APPLICATION_NAME": "Transfers"
+        "LOCAL_HOST_SECRETS_SECTION": "Transfers"
       }
     },
     "Container (Dockerfile)": {
