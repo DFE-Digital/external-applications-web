@@ -24,13 +24,14 @@ public sealed class ComplexFieldConfigurationService(
             var configurations = complexFieldsSection.Get<List<ComplexFieldConfiguration>>();
             if (configurations != null)
             {
-                var config = configurations.FirstOrDefault(c => c.Id == complexFieldId);
+                var config = SelectBestConfiguration(configurations, complexFieldId);
                 if (config != null)
                 {
+                    NormalizeFieldType(config);
                     ApplySharedApiKeyFallback(config, configurations, configuration);
                     logger.LogDebug(
-                        "Loaded complex field configuration for {ComplexFieldId}: Endpoint={Endpoint}, AllowMultiple={AllowMultiple}, MinLength={MinLength}, HasApiKey={HasApiKey}",
-                        complexFieldId, config.ApiEndpoint, config.AllowMultiple, config.MinLength, !string.IsNullOrEmpty(config.ApiKey));
+                        "Loaded complex field configuration for {ComplexFieldId}: FieldType={FieldType}, Endpoint={Endpoint}, AllowMultiple={AllowMultiple}, MinLength={MinLength}, HasApiKey={HasApiKey}",
+                        complexFieldId, config.FieldType, config.ApiEndpoint, config.AllowMultiple, config.MinLength, !string.IsNullOrEmpty(config.ApiKey));
                     return config;
                 }
             }
@@ -42,7 +43,9 @@ public sealed class ComplexFieldConfigurationService(
         if (!configSection.Exists())
         {
             logger.LogWarning("Complex field configuration not found for ID: {ComplexFieldId}", complexFieldId);
-            return new ComplexFieldConfiguration { Id = complexFieldId };
+            var missing = new ComplexFieldConfiguration { Id = complexFieldId };
+            NormalizeFieldType(missing);
+            return missing;
         }
 
         var fieldConfiguration = new ComplexFieldConfiguration
@@ -50,13 +53,15 @@ public sealed class ComplexFieldConfigurationService(
             Id = complexFieldId,
             ApiEndpoint = configSection["ApiEndpoint"] ?? string.Empty,
             ApiKey = configSection["ApiKey"] ?? string.Empty,
-            FieldType = configSection["FieldType"] ?? "autocomplete",
+            FieldType = configSection["FieldType"] ?? string.Empty,
             AllowMultiple = bool.TryParse(configSection["AllowMultiple"], out var allowMultiple) && allowMultiple,
             MinLength = int.TryParse(configSection["MinLength"], out var minLength) ? minLength : 3,
             Placeholder = configSection["Placeholder"] ?? "Start typing to search...",
             MaxSelections = int.TryParse(configSection["MaxSelections"], out var maxSelections) ? maxSelections : 0,
             Label = configSection["Label"] ?? "Item"
         };
+
+        NormalizeFieldType(fieldConfiguration);
 
         foreach (var child in configSection.GetChildren())
         {
@@ -78,10 +83,99 @@ public sealed class ComplexFieldConfigurationService(
         }
 
         logger.LogDebug(
-            "Loaded complex field configuration for {ComplexFieldId}: Endpoint={Endpoint}, AllowMultiple={AllowMultiple}, MinLength={MinLength}, HasApiKey={HasApiKey}",
-            complexFieldId, fieldConfiguration.ApiEndpoint, fieldConfiguration.AllowMultiple, fieldConfiguration.MinLength, !string.IsNullOrEmpty(fieldConfiguration.ApiKey));
+            "Loaded complex field configuration for {ComplexFieldId}: FieldType={FieldType}, Endpoint={Endpoint}, AllowMultiple={AllowMultiple}, MinLength={MinLength}, HasApiKey={HasApiKey}",
+            complexFieldId, fieldConfiguration.FieldType, fieldConfiguration.ApiEndpoint, fieldConfiguration.AllowMultiple, fieldConfiguration.MinLength, !string.IsNullOrEmpty(fieldConfiguration.ApiKey));
 
         return fieldConfiguration;
+    }
+
+    /// <inheritdoc />
+    public bool HasConfiguration(string complexFieldId)
+    {
+        var configuration = requestConfiguration.Current;
+        var complexFieldsSection = configuration.GetSection("FormEngine:ComplexFields");
+        if (complexFieldsSection.Exists())
+        {
+            var configurations = complexFieldsSection.Get<List<ComplexFieldConfiguration>>();
+            if (configurations != null)
+            {
+                return configurations.Any(c => c.Id == complexFieldId);
+            }
+        }
+
+        var configSection = configuration.GetSection($"FormEngine:ComplexFields:{complexFieldId}");
+        return configSection.Exists();
+    }
+
+    /// <summary>
+    /// Host + tenant configuration merge can leave the same complex-field Id at multiple indexes
+    /// (e.g. tenant entry without FieldType and host baseline with FieldType=upload). Prefer the
+    /// richest definition so upload fields are not downgraded to autocomplete.
+    /// </summary>
+    private static ComplexFieldConfiguration? SelectBestConfiguration(
+        IEnumerable<ComplexFieldConfiguration> configurations,
+        string complexFieldId)
+    {
+        return configurations
+            .Where(c => string.Equals(c.Id, complexFieldId, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(ScoreConfiguration)
+            .FirstOrDefault();
+    }
+
+    private static int ScoreConfiguration(ComplexFieldConfiguration config)
+    {
+        var score = 0;
+
+        if (!string.IsNullOrWhiteSpace(config.FieldType))
+        {
+            score += 10;
+            if (config.FieldType.Equals("upload", StringComparison.OrdinalIgnoreCase))
+            {
+                score += 20;
+            }
+            else if (config.FieldType.Equals("composite", StringComparison.OrdinalIgnoreCase))
+            {
+                score += 15;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(config.ApiEndpoint))
+        {
+            score += 5;
+        }
+
+        if (!string.IsNullOrWhiteSpace(config.ApiKey))
+        {
+            score += 2;
+        }
+
+        if (config.AllowMultiple)
+        {
+            score += 1;
+        }
+
+        return score;
+    }
+
+    /// <summary>
+    /// Ensures known upload fields keep FieldType=upload when config omitted it
+    /// (defaults / incomplete tenant settings previously rendered autocomplete search).
+    /// </summary>
+    private static void NormalizeFieldType(ComplexFieldConfiguration config)
+    {
+        if (string.Equals(config.Id, "UploadDocumentsComplexField", StringComparison.OrdinalIgnoreCase)
+            && (string.IsNullOrWhiteSpace(config.FieldType)
+                || (config.FieldType.Equals("autocomplete", StringComparison.OrdinalIgnoreCase)
+                    && string.IsNullOrWhiteSpace(config.ApiEndpoint))))
+        {
+            config.FieldType = "upload";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(config.FieldType))
+        {
+            config.FieldType = "autocomplete";
+        }
     }
 
     /// <summary>
@@ -103,23 +197,5 @@ public sealed class ComplexFieldConfigurationService(
             .FirstOrDefault()
             ?? configuration["FormEngine:AcademiesApiKey"]
             ?? string.Empty;
-    }
-
-    /// <inheritdoc />
-    public bool HasConfiguration(string complexFieldId)
-    {
-        var configuration = requestConfiguration.Current;
-        var complexFieldsSection = configuration.GetSection("FormEngine:ComplexFields");
-        if (complexFieldsSection.Exists())
-        {
-            var configurations = complexFieldsSection.Get<List<ComplexFieldConfiguration>>();
-            if (configurations != null)
-            {
-                return configurations.Any(c => c.Id == complexFieldId);
-            }
-        }
-
-        var configSection = configuration.GetSection($"FormEngine:ComplexFields:{complexFieldId}");
-        return configSection.Exists();
     }
 }

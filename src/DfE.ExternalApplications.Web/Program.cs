@@ -234,13 +234,11 @@ builder.Services.AddControllers(options =>
     options.Filters.Add<ExternalApiMvcExceptionFilter>();
     
     // Add confirmation interceptor filter globally
-    //options.Filters.Add<DfE.ExternalApplications.Web.Filters.ConfirmationInterceptorFilter>();
 });
 
 builder.Services.AddHttpContextAccessor();
 
 // Register Cypress authentication services using CoreLibs pattern
-//builder.Services.AddKeyedScoped<ICustomRequestChecker, ExternalAppsCypressRequestChecker>("cypress");
 builder.Services.AddKeyedScoped<ICustomRequestChecker, InternalAuthRequestChecker>("internal");
 
 // Add confirmation interceptor filter globally for all MVC actions
