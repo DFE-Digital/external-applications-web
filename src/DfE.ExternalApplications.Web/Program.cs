@@ -50,20 +50,18 @@ var platformBootstrap = builder.Configuration
     .Get<PlatformBootstrapOptions>();
 var platformBootstrapEnabled = platformBootstrap?.Enabled ?? false;
 
-// Path 3: single platform artefact. Tenant settings come from TenantConfig (API), not
-// configurations/{APPLICATION_NAME}/ folders. Folder-based packaging is migration-only
-// (see Import-WebTenantConfig.ps1) and is no longer loaded at runtime.
+// Path 3: tenant settings come from TenantConfig (API) via platform bootstrap.
+// Legacy configurations/{APPLICATION_NAME}/ folders are not loaded at runtime.
 if (!platformBootstrapEnabled)
 {
     throw new InvalidOperationException(
-        "PlatformBootstrap:Enabled must be true. Per-application configurations/ folders " +
-        "are no longer loaded at runtime. Import tenant settings into TenantConfig and enable platform bootstrap.");
+        "PlatformBootstrap:Enabled must be true. Import tenant settings into TenantConfig and enable platform bootstrap.");
 }
 
 Console.WriteLine("[Configuration] Platform bootstrap enabled - tenant settings load from TenantConfig API.");
 
 // Flatten local host infrastructure secrets in Development/Local (Service Bus, Redis, etc.).
-// Prefer LOCAL_HOST_SECRETS_SECTION, then Platform, then legacy APPLICATION_NAME / Transfers.
+// Prefer LOCAL_HOST_SECRETS_SECTION, then Platform, then Transfers (legacy user-secrets section name).
 if (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Local"))
 {
     builder.Configuration.AddUserSecrets(typeof(Program).Assembly, optional: true);
@@ -76,7 +74,6 @@ static void ApplyHostInfrastructureUserSecrets(ConfigurationManager config)
     {
         Environment.GetEnvironmentVariable("LOCAL_HOST_SECRETS_SECTION"),
         "Platform",
-        Environment.GetEnvironmentVariable("APPLICATION_NAME"),
         "Transfers"
     }.Where(static s => !string.IsNullOrWhiteSpace(s))
      .Distinct(StringComparer.OrdinalIgnoreCase);
