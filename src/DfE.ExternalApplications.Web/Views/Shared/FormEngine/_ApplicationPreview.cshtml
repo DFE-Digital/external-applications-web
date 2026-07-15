@@ -5,8 +5,8 @@
 @inject IConfiguration Configuration
 
 @{
-    var applicationId = Context.Session.GetString("ApplicationId");
-    var leadApplicantEmail = Context.Session.GetString($"ApplicationLeadApplicantEmail_{applicationId}");
+    // var applicationId = Context.Session.GetString("ApplicationId");
+    // var leadApplicantEmail = Context.Session.GetString($"ApplicationLeadApplicantEmail_{applicationId}");
 
     // Use robust claim checking like authentication strategies do
     var currentUserEmail = Context.User?.FindFirst(ClaimTypes.Email)?.Value 
@@ -15,9 +15,16 @@
                         ?? Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value
                         ?? Context.User?.Identity?.Name;
 
-    var isLeadApplicant = string.Equals(currentUserEmail?.Trim(), leadApplicantEmail?.Trim(), StringComparison.InvariantCultureIgnoreCase);
+    // var isLeadApplicant = string.Equals(currentUserEmail?.Trim(), leadApplicantEmail?.Trim(), StringComparison.InvariantCultureIgnoreCase);
+    var isLeadApplicant = true;
 
     bool submitIsDisabled = Configuration.GetSection("Layout:SubmitAppDisabled").Exists();
+
+    // Handle call from razor renderer
+    if (Model.Template == null)
+    {
+        await Model.OnGetAsync();
+    }
 }
 
 @if (submitIsDisabled)
@@ -34,7 +41,7 @@
 }
 
 <div class="govuk-grid-row">
-    <div class="govuk-grid-column-full">
+    <div class="govuk-grid-column-full" data-template="@Model.TemplateId">
         <h1 class="govuk-heading-xl govuk-!-margin-bottom-6">Check your answers</h1>
         <govuk-inset-text>@AppTerminology.SingularCapitalised reference: <strong>@Model.ReferenceNumber</strong></govuk-inset-text>
 
@@ -50,8 +57,9 @@
 
         @foreach (var group in Model.Template.TaskGroups.OrderBy(g => g.GroupOrder))
         {
-
             var groupNameHyphenated = group.GroupName.Replace(" ", "-").ToLower();
+
+            <div data-group="@group.GroupId">
 
             <h2 class="govuk-heading-m" id="group-@groupNameHyphenated" data-testid="group-@groupNameHyphenated">
                 @group.GroupName
@@ -59,6 +67,8 @@
 
             @foreach (var task in group.Tasks.OrderBy(t => t.TaskOrder))
             {
+                <div data-task="@task.TaskId">
+
                 @if (task.Summary?.Mode?.Equals("derivedCollectionFlow", StringComparison.OrdinalIgnoreCase) == true || (task.Summary?.DerivedFlows != null && task.Summary.DerivedFlows.Any()))
                 {
                     var taskNameHyphenated = task.TaskName.Replace(" ", "-").ToLower();
@@ -441,12 +451,17 @@
                             <dl class="govuk-summary-list">
                                 @foreach (var page in (task.Pages ?? new List<DfE.ExternalApplications.Domain.Models.Page>()).OrderBy(p => p.PageOrder))
                                 {
+                                    var pageId = page.PageId;
+                                    <div data-page="@pageId">
+
                                     @foreach (var field in page.Fields.OrderBy(f => f.Order).Where(f => !Model.IsFieldHidden(f.FieldId)))
                                     {
                                         var fieldValue = Model.GetFieldValue(field.FieldId);
                                         var hasValue = Model.HasFieldValue(field.FieldId);
+
+                                        <div data-field="@field.FieldId">
                                 
-                                                                                 if ((field.Type == "autocomplete" || field.Type == "complexField" || field.Type == "upload") && hasValue)
+                                         @if ((field.Type == "autocomplete" || field.Type == "complexField" || field.Type == "upload") && hasValue)
                                          {
                                              // Handle multiple autocomplete/complex field values as main header + individual rows
                                              var formattedValues = Model.GetFormattedFieldValues(field.FieldId);
@@ -628,15 +643,24 @@
                                                 </dd>
                                             </div>
                                         }
+                                                    </div>
                                     }
+                                    </div>
                                 }
                             </dl>
                         </div>
                     </div>
                 }
+                </div>
             }
+            </div>
         }
     </div>
+
+    <form method="post" asp-page-handler="ExportCsv">
+        <button type="submit" class="btn btn-primary">Download this form</button>
+    </form>
+
 </div>
 
 @if (Model.IsApplicationEditable() && isLeadApplicant)

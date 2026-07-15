@@ -47,7 +47,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         ILogger<RenderFormModel> logger,
         INavigationHistoryService navigationHistoryService,
         IApplicationSubmissionOrchestrator applicationSubmissionOrchestrator,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IRazorViewRenderer viewRenderer)
         : BaseFormEngineModel(renderer, applicationResponseService, fieldFormattingService, templateManagementService,
             applicationStateService, formStateManager, formNavigationService, formDataManager, formValidationOrchestrator, formConfigurationService, logger)
     {
@@ -1848,6 +1849,15 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
         }
 
+        public async Task<IActionResult> OnPostExportCsvAsync()
+        {
+            //var html = await viewRenderer.RenderViewToHtmlAsync("/Views/Shared/FormEngine/_ApplicationPreview.cshtml", this); // error!
+            //var actionContext = new ActionContext(HttpContext, RouteData, new PageActionDescriptor());
+            var html = await viewRenderer.RenderPartialToStringAsync("/Views/Shared/FormEngine/_ApplicationPreview.cshtml", this, PageContext);
+
+            // TODO SP: generate CSV from HTML using data attributes and return as file download
+            return Content(html);
+        }
 
 
         private static bool TryParseFlowRoute(string pageId, out string flowId, out string instanceId, out string flowPageId)
