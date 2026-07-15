@@ -2488,35 +2488,14 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             }
         }
 
-        /// <summary>
-        /// Check if a field should be hidden based on conditional logic
-        /// </summary>
-        /// <param name="fieldId">The field ID to check</param>
-        /// <returns>True if the field should be hidden</returns>
-        public bool IsFieldHidden(string fieldId)
+        /// <inheritdoc />
+        public override bool IsFieldHidden(string fieldId)
         {
-            if (ConditionalState == null)
-            {
-                // If no conditional state but field has conditional logic rules, hide it by default
-                if (Template?.ConditionalLogic != null && HasFieldConditionalLogic(fieldId))
-                {
-                    return true;
-                }
-                return false;
-            }
-
-            if (ConditionalState.FieldVisibility.TryGetValue(fieldId, out var isVisible))
-            {
+            if (ConditionalState?.FieldVisibility.TryGetValue(fieldId, out var isVisible) == true)
                 return !isVisible;
-            }
-            
-            // Check if field has conditional logic rules - if so, hide by default until conditions are met
-            if (Template?.ConditionalLogic != null && HasFieldConditionalLogic(fieldId))
-            {
-                return true;
-            }
-            
-            return false;
+
+            // Targets of show-rules stay hidden until conditions are evaluated/met
+            return HasFieldConditionalLogic(fieldId);
         }
 
         /// <summary>
