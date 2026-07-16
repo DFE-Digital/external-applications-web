@@ -14,7 +14,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="Azure.Identity" Version="1.17.1" />
-		<PackageReference Include="GovUK.Dfe.CoreLibs.Security" Version="1.1.27-prerelease-4" />
+		<PackageReference Include="GovUK.Dfe.CoreLibs.Security" Version="1.1.28-prerelease.26" />
 		<PackageReference Include="GovUk.Frontend.AspNetCore" Version="3.2.2" />
 		<PackageReference Include="HtmlSanitizer" Version="9.0.892" />
 		<PackageReference Include="Markdig" Version="0.42.0" />
