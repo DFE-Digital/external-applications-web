@@ -1,6 +1,11 @@
-# Apply to transfer an academy – External Applications Web
+# External Applications Web
 
-This repository contains the Razor Pages frontend for submitting applications to transfer academies into another trust. It uses a Clean Architecture layout (Domain ➜ Application ➜ Infrastructure ➜ Web) and drives every screen from JSON form templates delivered by the External Applications API. Template-driven pages, conditional logic, file uploads, and contributor management are all orchestrated in the web layer while persistence and validation live in the API.
+This repository contains the Razor Pages frontend for services using the EAT forms engine. It uses a Clean Architecture layout (Domain ➜ Application ➜ Infrastructure ➜ Web) and drives every screen from JSON form templates delivered by the External Applications API. Template-driven pages, conditional logic, file uploads, and contributor management are all orchestrated in the web layer while persistence and validation live in the API.
+
+## Latest Deployment Matrix
+
+<!-- DEPLOYMENT_MATRIX_START -->
+<!-- DEPLOYMENT_MATRIX_END -->
 
 ## Features
 - 🧩 Template-driven form engine: tasks/pages/fields come from template schemas fetched via `ITemplatesClient` and parsed into domain models.

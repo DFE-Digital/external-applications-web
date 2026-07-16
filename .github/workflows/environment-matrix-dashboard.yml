@@ -10,81 +10,29 @@ concurrency:
 
 jobs:
   generate-dashboard:
+    if: github.event_name == 'workflow_dispatch' || github.event.deployment_status.state == 'success'
     runs-on: ubuntu-latest
 
     permissions:
-      contents: none
+      contents: write
       deployments: read
 
     steps:
+      - uses: actions/checkout@v4
+  
       - name: Generate Matrix Table
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOSITORY: ${{ github.repository }}
+        run: python3 scripts/generate_environment_matrix.py
+
+      - name: Commit README update
         run: |
-          cat << 'EOF' > generate_matrix.py
-          import json
-          import subprocess
-          import re
-          import os
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          repository = os.environ["REPOSITORY"]
-          stages = ["development", "test", "production"]
+          git add README.md
 
-          # Fetch deployments, newest first.
-          cmd = f"gh api repos/{repository}/deployments?per_page=100"
-          res = subprocess.check_output(cmd, shell=True).decode("utf-8")
-          deployments = json.loads(res)
+          git diff --cached --quiet || git commit -m "Update deployment matrix"
 
-          deployments.sort(
-              key=lambda x: x.get("created_at", ""),
-              reverse=True
-          )
-
-          matrix = {}
-
-          for deployment in deployments:
-              env_name = deployment.get("environment", "")
-
-              # Matches "application-environment"
-              # Example: transfers-development
-              match = re.match(
-                  r"^(.*?)-(development|test|production)$",
-                  env_name,
-                  re.IGNORECASE
-              )
-
-              if not match:
-                  continue
-
-              app = match.group(1).upper()
-              stage = match.group(2).lower()
-              ref = deployment.get("ref", "unknown")
-
-              if app not in matrix:
-                  matrix[app] = {s: "-" for s in stages}
-
-              # Keep the latest deployment per app/environment.
-              if matrix[app][stage] == "-":
-                  matrix[app][stage] = f"`{ref}`"
-
-          markdown = [
-              "## 🏢 Deployment Matrix Dashboard",
-              "",
-              "| Application | 🛠️ Development | 🧪 Test | 🚀 Production |",
-              "| :--- | :---: | :---: | :---: |"
-          ]
-
-          for app in sorted(matrix.keys()):
-              markdown.append(
-                  f"| **{app}** | {matrix[app]['development']} | {matrix[app]['test']} | {matrix[app]['production']} |"
-              )
-
-          if not matrix:
-              markdown.append("| _No deployments found_ | - | - | - |")
-
-          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
-              f.write("\n".join(markdown))
-          EOF
-
-          python3 generate_matrix.py
+          git push
