@@ -12,49 +12,24 @@ namespace DfE.ExternalApplications.Web.Services
 {
     public class RazorViewRenderer(IRazorViewEngine viewEngine, ITempDataProvider tempDataProvider, IServiceProvider serviceProvider) : IRazorViewRenderer
     {
-        public async Task<string> RenderViewToHtmlAsync<TModel>(string partialName, TModel model)
-        {
-            var actionContext = GetActionContext();
-            var view = FindView(actionContext, partialName);
-            using var output = new StringWriter();
-            var viewContext = new ViewContext(
-                actionContext,
-                view,
-                new ViewDataDictionary<TModel>(metadataProvider: new EmptyModelMetadataProvider(), modelState: new ModelStateDictionary()) { Model = model },
-                new TempDataDictionary(actionContext.HttpContext, tempDataProvider),
-                output,
-                new HtmlHelperOptions()
-            );
-            await view.RenderAsync(viewContext);
-            return output.ToString();
-        }
-
-
         public async Task<string> RenderPartialToStringAsync<TModel>(string partialName, TModel model, PageContext pageContext)
         {
             var actionContext = GetActionContext();
             var partial = FindView(actionContext, partialName);
-            using (var output = new StringWriter())
-            {
-                var viewContext = new ViewContext(
-                    //actionContext,
-                    pageContext,
-                    partial,
-                    new ViewDataDictionary<TModel>(
-                        metadataProvider: new EmptyModelMetadataProvider(),
-                        modelState: new ModelStateDictionary())
-                    {
-                        Model = model
-                    },
-                    new TempDataDictionary(
-                        actionContext.HttpContext,
-                        tempDataProvider),
-                    output,
-                    new HtmlHelperOptions()
-                );
-                await partial.RenderAsync(viewContext);
-                return output.ToString();
-            }
+            using var output = new StringWriter();
+            var viewContext = new ViewContext(
+                pageContext,
+                partial,
+                new ViewDataDictionary<TModel>(metadataProvider: new EmptyModelMetadataProvider(), modelState: new ModelStateDictionary())
+                {
+                    Model = model
+                },
+                new TempDataDictionary(actionContext.HttpContext, tempDataProvider),
+                output,
+                new HtmlHelperOptions()
+            );
+            await partial.RenderAsync(viewContext);
+            return output.ToString();
         }
 
 

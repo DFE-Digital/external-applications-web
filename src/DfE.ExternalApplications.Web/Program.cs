@@ -477,6 +477,7 @@ builder.Services.AddKeyedScoped<IApplicationSubmittedHandler, NoOpApplicationSub
 builder.Services.AddScoped<IApplicationSubmissionOrchestrator, ApplicationSubmissionOrchestrator>();
 
 builder.Services.AddScoped<IRazorViewRenderer, RazorViewRenderer>();
+builder.Services.AddScoped<IApplicationCsvGenerator, ApplicationCsvGenerator>();
 
 builder.Services.AddDfEMassTransit(
     configuration,

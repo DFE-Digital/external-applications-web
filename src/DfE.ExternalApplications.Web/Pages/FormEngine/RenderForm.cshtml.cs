@@ -48,7 +48,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         INavigationHistoryService navigationHistoryService,
         IApplicationSubmissionOrchestrator applicationSubmissionOrchestrator,
         IConfiguration configuration,
-        IRazorViewRenderer viewRenderer)
+        IRazorViewRenderer viewRenderer,
+        IApplicationCsvGenerator csvGenerator)
         : BaseFormEngineModel(renderer, applicationResponseService, fieldFormattingService, templateManagementService,
             applicationStateService, formStateManager, formNavigationService, formDataManager, formValidationOrchestrator, formConfigurationService, logger)
     {
@@ -1851,12 +1852,14 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         public async Task<IActionResult> OnPostExportCsvAsync()
         {
-            //var html = await viewRenderer.RenderViewToHtmlAsync("/Views/Shared/FormEngine/_ApplicationPreview.cshtml", this); // error!
-            //var actionContext = new ActionContext(HttpContext, RouteData, new PageActionDescriptor());
             var html = await viewRenderer.RenderPartialToStringAsync("/Views/Shared/FormEngine/_ApplicationPreview.cshtml", this, PageContext);
-
-            // TODO SP: generate CSV from HTML using data attributes and return as file download
-            return Content(html);
+            string? json = csvGenerator.GenerateJson(html);
+            using var stream = new MemoryStream();
+            var writer = new StreamWriter(stream);
+            writer.Write(json);
+            writer.Flush();
+            stream.Position = 0;
+            return File(stream, "application/json", "application.json"); // TODO app ref in name
         }
 
 

@@ -5,6 +5,5 @@ namespace DfE.ExternalApplications.Web.Interfaces
     public interface IRazorViewRenderer
     {
         Task<string> RenderPartialToStringAsync<TModel>(string partialName, TModel model, PageContext pageContext);
-        Task<string> RenderViewToHtmlAsync<TModel>(string partialName, TModel model);
     }
 }
