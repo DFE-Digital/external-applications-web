@@ -46,6 +46,18 @@ namespace DfE.ExternalApplications.Web.Pages.Admin
 
         public async Task<IActionResult> OnGetAsync()
         {
+            if (TempData["AdminSuccess"] is string successMessage)
+            {
+                ShowSuccess = true;
+                SuccessMessage = successMessage;
+            }
+
+            if (TempData["AdminError"] is string errorMessage)
+            {
+                HasError = true;
+                ErrorMessage = errorMessage;
+            }
+
             DsiToken = await httpContextAccessor.HttpContext?.GetTokenAsync("id_token")!;
             
             UserToken = tokenStore.GetToken();
@@ -93,29 +105,40 @@ namespace DfE.ExternalApplications.Web.Pages.Admin
             return RedirectToPage("/Admin/CustomStatusLabelOverrides");
         }
 
-        public async Task<IActionResult> OnPostSetLiveAsync(Guid templateId, bool isLive)
+        public Task<IActionResult> OnPostMakeLiveAsync(Guid templateId)
+            => SetTemplateLiveAsync(templateId, isLive: true);
+
+        public Task<IActionResult> OnPostMakeNotLiveAsync(Guid templateId)
+            => SetTemplateLiveAsync(templateId, isLive: false);
+
+        private async Task<IActionResult> SetTemplateLiveAsync(Guid templateId, bool isLive)
         {
             try
             {
+                logger.LogInformation(
+                    "Setting template {TemplateId} live status to {IsLive}",
+                    templateId,
+                    isLive);
+
                 await templatesClient.SetTemplateLiveAsync(
                     templateId,
                     new SetTemplateLiveRequest { IsLive = isLive });
 
-                ShowSuccess = true;
-                SuccessMessage = isLive
+                TempData["AdminSuccess"] = isLive
                     ? "Template is now live for end users."
                     : "Template is no longer live for end users.";
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Failed to set live status for template {TemplateId}", templateId);
-                HasError = true;
-                ErrorMessage = "Failed to update template live status. Please try again.";
+                logger.LogError(
+                    ex,
+                    "Failed to set live status to {IsLive} for template {TemplateId}",
+                    isLive,
+                    templateId);
+                TempData["AdminError"] = "Failed to update template live status. Please try again.";
             }
 
-            await LoadTenantTemplatesAsync();
-            await LoadTemplateInformationAsync();
-            return Page();
+            return RedirectToPage();
         }
 
         public async Task<IActionResult> OnPostOpenTemplateAsync(Guid templateId)
@@ -132,7 +155,8 @@ namespace DfE.ExternalApplications.Web.Pages.Admin
                     return Page();
                 }
 
-                templateSelectionService.SelectTemplate(HttpContext, templateId);
+                var template = templates.First(t => t.TemplateId == templateId);
+                templateSelectionService.SelectTemplate(HttpContext, template);
                 return RedirectToPage("/Applications/Dashboard");
             }
             catch (Exception ex)

@@ -314,9 +314,9 @@ OpenIdConnectEvents CreateEntraSsoEvents() => new()
     {
         var error = context.Failure?.Message ?? "Unknown error";
 
-        if (error.Contains("message.State", StringComparison.OrdinalIgnoreCase)
-            || context.Request.Path.StartsWithSegments("/signout-callback-entra"))
+        if (IsRecoverableOidcRemoteFailure(error, context.Request.Path, "/signout-callback-entra"))
         {
+            context.HttpContext.Session.Clear();
             context.Response.Redirect("/");
             context.HandleResponse();
             return Task.CompletedTask;
@@ -370,9 +370,9 @@ var authenticationBuilder = builder.Services
         {
             var error = context.Failure?.Message ?? "Unknown error";
 
-            if (error.Contains("message.State", StringComparison.OrdinalIgnoreCase)
-                || context.Request.Path.StartsWithSegments("/signout-callback-oidc"))
+            if (IsRecoverableOidcRemoteFailure(error, context.Request.Path, "/signout-callback-oidc", "/signin-oidc"))
             {
+                context.HttpContext.Session.Clear();
                 context.Response.Redirect("/");
                 context.HandleResponse();
                 return Task.CompletedTask;
@@ -633,7 +633,6 @@ app.UseRouting();
 app.UseCookiePolicy();
 
 app.UseSession();
-app.UseHostTemplateResolution();
 
 app.UseStatusCodePages(ctx =>
 {
@@ -677,4 +676,22 @@ await app.RunAsync();
 
 
 [ExcludeFromCodeCoverage]
-public static partial class Program { }
+public static partial class Program
+{
+    /// <summary>
+    /// Treats common post-logout OIDC failures (missing correlation/state) as successful sign-out.
+    /// </summary>
+    internal static bool IsRecoverableOidcRemoteFailure(
+        string error,
+        PathString requestPath,
+        params string[] recoverablePaths)
+    {
+        if (error.Contains("message.State", StringComparison.OrdinalIgnoreCase)
+            || error.Contains("Correlation failed", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return recoverablePaths.Any(path => requestPath.StartsWithSegments(path));
+    }
+}

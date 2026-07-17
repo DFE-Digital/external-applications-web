@@ -92,7 +92,10 @@ public static class TenantAwareOpenIdConnectConfigurator
             context.ProtocolMessage.ClientId = section["ClientId"];
         }
 
-        if (!string.IsNullOrWhiteSpace(section["RedirectUri"]))
+        // RedirectUri is for authorize/login only. Setting it during logout can send the IdP
+        // back to /signin-oidc and cause "Correlation failed" on the remote login handler.
+        if (context.ProtocolMessage.RequestType != OpenIdConnectRequestType.Logout &&
+            !string.IsNullOrWhiteSpace(section["RedirectUri"]))
         {
             context.ProtocolMessage.RedirectUri = section["RedirectUri"];
         }

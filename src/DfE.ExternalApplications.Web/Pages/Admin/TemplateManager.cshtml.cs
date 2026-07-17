@@ -1,5 +1,7 @@
 using DfE.ExternalApplications.Application.Interfaces;
 using DfE.ExternalApplications.Domain.Models;
+using DfE.ExternalApplications.Web.Services;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -20,12 +22,14 @@ namespace DfE.ExternalApplications.Web.Pages.Admin;
 public class TemplateManagerModel(
     IFormTemplateProvider formTemplateProvider,
     ITemplatesClient templatesClient,
+    ITemplateSelectionService templateSelectionService,
     ICacheService<IMemoryCacheType> cacheService,
     ITemplateValidationService templateValidationService,
     ILogger<TemplateManagerModel> logger) : PageModel
 {
     private readonly IFormTemplateProvider _formTemplateProvider = formTemplateProvider;
     private readonly ITemplatesClient _templatesClient = templatesClient;
+    private readonly ITemplateSelectionService _templateSelectionService = templateSelectionService;
     private readonly ICacheService<IMemoryCacheType> _cacheService = cacheService;
     private readonly ITemplateValidationService _templateValidationService = templateValidationService;
     private readonly ILogger<TemplateManagerModel> _logger = logger;
@@ -38,6 +42,12 @@ public class TemplateManagerModel(
     public string ErrorMessage { get; set; } = string.Empty;
     public bool ShowSuccess { get; set; }
     public bool ShowCacheCleared { get; set; }
+    public bool ShowCreated { get; set; }
+    public IReadOnlyList<TemplateDto> TenantTemplates { get; private set; } = [];
+    public TemplateDto? SelectedTemplate { get; private set; }
+
+    [BindProperty]
+    public Guid? SelectedTemplateId { get; set; }
 
     [BindProperty]
     [Required(ErrorMessage = "Version number is required")]
@@ -47,7 +57,12 @@ public class TemplateManagerModel(
     [Required(ErrorMessage = "JSON schema is required")]
     public string? NewSchema { get; set; }
 
-    public async Task<IActionResult> OnGetAsync(bool showForm = false, bool success = false, bool cleared = false, string? suggestedVersion = null)
+    public async Task<IActionResult> OnGetAsync(
+        bool showForm = false,
+        bool success = false,
+        bool cleared = false,
+        bool created = false,
+        string? suggestedVersion = null)
     {
         try
         {
@@ -57,15 +72,16 @@ public class TemplateManagerModel(
             ShowAddVersionForm = showForm;
             ShowSuccess = success;
             ShowCacheCleared = cleared;
+            ShowCreated = created;
 
-            var templateId = HttpContext.Session.GetString("TemplateId");
-            if (string.IsNullOrEmpty(templateId))
+            await LoadTenantTemplatesAsync();
+            var templateId = ResolveSelectedTemplateId();
+            if (templateId is null)
             {
-                _logger.LogWarning("TemplateId not found in session.");
-                return RedirectToPage("/Applications/Dashboard");
+                return Page();
             }
 
-            await LoadTemplateDataAsync(templateId);
+            await LoadTemplateDataAsync(templateId.Value);
             
             // If a suggested version is provided, use it to pre-populate the NewVersion field
             if (!string.IsNullOrEmpty(suggestedVersion))
@@ -89,26 +105,26 @@ public class TemplateManagerModel(
 
     public async Task<IActionResult> OnPostAsync()
     {
-        var templateId = HttpContext.Session.GetString("TemplateId");
-        if (string.IsNullOrEmpty(templateId))
+        await LoadTenantTemplatesAsync();
+        var templateId = ResolveSelectedTemplateId();
+        if (templateId is null)
         {
-            _logger.LogWarning("TemplateId not found in session during post.");
-            return RedirectToPage("/Applications/Dashboard");
+            ModelState.AddModelError(string.Empty, "Select a template.");
+            return Page();
         }
 
         if (!ValidateInput())
         {
             ShowAddVersionForm = true;
-            await LoadTemplateDataAsync(templateId);
+            await LoadTemplateDataAsync(templateId.Value);
             return Page();
         }
 
-
-        await CreateNewTemplateVersionAsync(templateId);
+        await CreateNewTemplateVersionAsync(templateId.Value.ToString());
 
         await Task.Delay(2000);
 
-        await InvalidateTemplateCacheAsync(templateId);
+        await InvalidateTemplateCacheAsync(templateId.Value.ToString());
 
         _logger.LogInformation("Successfully created template version {NewVersion} for {TemplateId}",
             NewVersion, templateId);
@@ -117,13 +133,30 @@ public class TemplateManagerModel(
 
 }
 
+    public async Task<IActionResult> OnPostSelectTemplateAsync(CancellationToken cancellationToken)
+    {
+        await LoadTenantTemplatesAsync(cancellationToken);
+
+        if (SelectedTemplateId is null ||
+            TenantTemplates.All(template => template.TemplateId != SelectedTemplateId.Value))
+        {
+            ModelState.AddModelError(nameof(SelectedTemplateId), "Select a template for this tenant.");
+            return Page();
+        }
+
+        var template = TenantTemplates.First(item => item.TemplateId == SelectedTemplateId.Value);
+        _templateSelectionService.SelectTemplate(HttpContext, template);
+        return RedirectToPage();
+    }
+
     public async Task<IActionResult> OnPostShowAddFormAsync()
     {
         // Pre-populate the NewVersion field with auto-incremented version
-        var templateId = HttpContext.Session.GetString("TemplateId");
-        if (!string.IsNullOrEmpty(templateId))
+        await LoadTenantTemplatesAsync();
+        var templateId = ResolveSelectedTemplateId();
+        if (templateId is not null)
         {
-            await LoadTemplateDataAsync(templateId);
+            await LoadTemplateDataAsync(templateId.Value);
             
             if (!string.IsNullOrEmpty(CurrentVersionNumber))
             {
@@ -220,24 +253,36 @@ public class TemplateManagerModel(
         }
     }
 
-    private async Task LoadTemplateDataAsync(string templateId)
+    private async Task LoadTemplateDataAsync(Guid templateId)
     {
         try
         {
             _logger.LogDebug("Loading template data for {TemplateId}", templateId);
-            
-            var apiResponse = await _templatesClient.GetLatestTemplateSchemaAsync(new Guid(templateId));
+
+            SelectedTemplate = TenantTemplates.First(template => template.TemplateId == templateId);
+            SelectedTemplateId = templateId;
+
+            if (string.IsNullOrWhiteSpace(SelectedTemplate.LatestVersionNumber))
+            {
+                CurrentVersionNumber = null;
+                CurrentTemplate = null;
+                CurrentTemplateJson = null;
+                return;
+            }
+
+            var apiResponse = await _templatesClient.GetLatestTemplateSchemaAsync(templateId);
             CurrentVersionNumber = apiResponse.VersionNumber;
             
             _logger.LogDebug("API returned template version {VersionNumber} for {TemplateId}", 
                 CurrentVersionNumber, templateId);
             
             // Clear cache before loading to ensure we get the latest template
-            var cacheKey = $"FormTemplate_{CacheKeyHelper.GenerateHashedCacheKey(templateId)}";
+            var templateIdText = templateId.ToString();
+            var cacheKey = $"FormTemplate_{CacheKeyHelper.GenerateHashedCacheKey(templateIdText)}";
             _cacheService.Remove(cacheKey);
             _logger.LogDebug("Cleared template cache for {TemplateId} to ensure latest version is loaded", templateId);
             
-            CurrentTemplate = await _formTemplateProvider.GetTemplateAsync(templateId);
+            CurrentTemplate = await _formTemplateProvider.GetTemplateAsync(templateIdText);
             if (CurrentTemplate != null)
             {
                 var options = new JsonSerializerOptions { WriteIndented = true };
@@ -253,6 +298,34 @@ public class TemplateManagerModel(
             HasError = true;
             ErrorMessage = "There was an error loading the template data.";
         }
+    }
+
+    private async Task LoadTenantTemplatesAsync(CancellationToken cancellationToken = default)
+    {
+        TenantTemplates = await _templateSelectionService.GetSelectableTemplatesAsync(cancellationToken);
+    }
+
+    private Guid? ResolveSelectedTemplateId()
+    {
+        var sessionTemplateId = _templateSelectionService.GetSelectedTemplateId(HttpContext);
+        if (Guid.TryParse(sessionTemplateId, out var selectedId) &&
+            TenantTemplates.Any(template => template.TemplateId == selectedId))
+        {
+            SelectedTemplateId = selectedId;
+            SelectedTemplate = TenantTemplates.First(template => template.TemplateId == selectedId);
+            return selectedId;
+        }
+
+        var firstTemplate = TenantTemplates.FirstOrDefault();
+        if (firstTemplate is null)
+        {
+            return null;
+        }
+
+        _templateSelectionService.SelectTemplate(HttpContext, firstTemplate);
+        SelectedTemplateId = firstTemplate.TemplateId;
+        SelectedTemplate = firstTemplate;
+        return firstTemplate.TemplateId;
     }
 
     private bool ValidateInput()

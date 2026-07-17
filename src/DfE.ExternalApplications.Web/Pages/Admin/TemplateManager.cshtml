@@ -11,6 +11,45 @@
     <div class="govuk-grid-column-full">
         <h1 class="govuk-heading-xl">@ViewData["Title"]</h1>
 
+        @if (Model.TenantTemplates.Count > 0)
+        {
+            <form method="post" asp-page-handler="SelectTemplate" class="govuk-!-margin-bottom-6">
+                <div class="govuk-form-group @(ViewData.ModelState[nameof(Model.SelectedTemplateId)]?.Errors.Any() == true ? "govuk-form-group--error" : "")">
+                    <label class="govuk-label govuk-label--m" asp-for="SelectedTemplateId">
+                        Choose a template to manage
+                    </label>
+                    @if (ViewData.ModelState[nameof(Model.SelectedTemplateId)]?.Errors.FirstOrDefault() is { } selectionError)
+                    {
+                        <p class="govuk-error-message">
+                            <span class="govuk-visually-hidden">Error:</span> @selectionError.ErrorMessage
+                        </p>
+                    }
+                    <select class="govuk-select" asp-for="SelectedTemplateId">
+                        @foreach (var template in Model.TenantTemplates)
+                        {
+                            <option value="@template.TemplateId">
+                                @template.Name (@(template.IsLive ? "Live" : "Not live"))
+                            </option>
+                        }
+                    </select>
+                </div>
+                <button class="govuk-button govuk-button--secondary" type="submit">Open template</button>
+            </form>
+        }
+
+        @if (Model.ShowCreated)
+        {
+            <div class="govuk-notification-banner govuk-notification-banner--success" role="alert">
+                <div class="govuk-notification-banner__header">
+                    <h2 class="govuk-notification-banner__title">Success</h2>
+                </div>
+                <div class="govuk-notification-banner__content">
+                    <h3 class="govuk-notification-banner__heading">Template created</h3>
+                    <p class="govuk-body">The template is not live. Add its first version below.</p>
+                </div>
+            </div>
+        }
+
         @if (Model.ShowSuccess)
         {
             <div class="govuk-notification-banner govuk-notification-banner--success" role="alert" aria-labelledby="govuk-notification-banner-title" data-module="govuk-notification-banner">
@@ -68,7 +107,7 @@
             </div>
         }
 
-        @if (!Model.ShowAddVersionForm && Model.CurrentTemplate != null)
+        @if (!Model.ShowAddVersionForm && Model.SelectedTemplate != null)
         {
             <dl class="govuk-summary-list">
                 <div class="govuk-summary-list__row">
@@ -76,7 +115,7 @@
                         Template ID
                     </dt>
                     <dd class="govuk-summary-list__value">
-                        @Model.CurrentTemplate.TemplateId
+                        @Model.SelectedTemplate.TemplateId
                     </dd>
                 </div>
                 <div class="govuk-summary-list__row">
@@ -84,7 +123,7 @@
                         Template Name
                     </dt>
                     <dd class="govuk-summary-list__value">
-                        @Model.CurrentTemplate.TemplateName
+                        @Model.SelectedTemplate.Name
                     </dd>
                 </div>
                 <div class="govuk-summary-list__row">
@@ -92,7 +131,7 @@
                         Current Version
                     </dt>
                     <dd class="govuk-summary-list__value">
-                        @Model.CurrentVersionNumber
+                        @(Model.CurrentVersionNumber ?? "No versions")
                     </dd>
                 </div>
             </dl>
@@ -101,10 +140,13 @@
                 <button class="govuk-button govuk-!-margin-bottom-6" type="submit" id="add-new-template-version-button">Add New Template Version</button>
             </form>
             
-            <h2 class="govuk-heading-m">Current Schema</h2>
-            <div class="govuk-form-group">
-                <textarea class="govuk-textarea" id="current-schema" name="current-schema" rows="20" readonly>@Model.CurrentTemplateJson</textarea>
-            </div>
+            @if (Model.CurrentTemplate != null)
+            {
+                <h2 class="govuk-heading-m">Current Schema</h2>
+                <div class="govuk-form-group">
+                    <textarea class="govuk-textarea" id="current-schema" name="current-schema" rows="20" readonly>@Model.CurrentTemplateJson</textarea>
+                </div>
+            }
         }
 
         @if (showForm)
@@ -180,9 +222,10 @@
             </form>
         }
 
-        @if (!Model.ShowAddVersionForm && Model.CurrentTemplate == null && !Model.HasError)
+        @if (!Model.ShowAddVersionForm && Model.SelectedTemplate == null && !Model.HasError)
         {
-            <p class="govuk-body">No template loaded.</p>
+            <p class="govuk-body">There are no templates for this tenant.</p>
+            <a asp-page="/Admin/CreateTemplate" class="govuk-button">Create a new template</a>
         }
     </div>
 </div> 

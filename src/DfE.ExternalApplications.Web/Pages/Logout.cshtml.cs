@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -43,9 +42,10 @@ public class LogoutModel(
                 return Redirect("/");
             }
 
-            // Do not clear session or sign out the cookie scheme before OIDC sign-out.
-            // The OIDC handler signs out the cookie (SignOutScheme) and preserves correlation
-            // state for the /signout-callback-oidc round trip. Clearing early causes 403 on callback.
+            // Sign out only the remote scheme. Its SignOutScheme clears the auth cookie after
+            // the IdP round-trip, which preserves the OIDC correlation cookie needed for
+            // /signout-callback-oidc (or Entra equivalent). Clearing cookies first causes
+            // "Correlation failed" when the IdP returns.
             var signOutProperties = new AuthenticationProperties { RedirectUri = "/" };
 
             if (TenantAuthSchemeSelector.IsEntraSsoEnabled(HttpContext, entraSsoOptions))
@@ -54,7 +54,6 @@ public class LogoutModel(
 
                 return SignOut(
                     signOutProperties,
-                    CookieAuthenticationDefaults.AuthenticationScheme,
                     EntraSsoDefaults.AuthenticationScheme);
             }
 
@@ -62,7 +61,6 @@ public class LogoutModel(
 
             return SignOut(
                 signOutProperties,
-                CookieAuthenticationDefaults.AuthenticationScheme,
                 OpenIdConnectDefaults.AuthenticationScheme);
         }
         catch (Exception ex)

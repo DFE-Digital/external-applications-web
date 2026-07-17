@@ -5,6 +5,7 @@
 @inject IAuthorizationService AuthService
 @inject Microsoft.ApplicationInsights.AspNetCore.JavaScriptSnippet JavaScriptSnippet
 @inject ITenantAppConfiguration AppConfig
+@inject DfE.ExternalApplications.Web.Services.ITemplateSelectionService TemplateSelectionService
 
 @{
     Layout = "_GovUkPageTemplate";
@@ -118,7 +119,21 @@
         // Determine banner color based on token status
         var bannerColor = isTokenExpiringSoon ? "#f47738" : "#FFE3AA";
         var textColor = isTokenExpiringSoon ? "white" : "black";
+        var isTemplatePreview =
+            Context.Request.Path.StartsWithSegments("/applications", StringComparison.OrdinalIgnoreCase) &&
+            TemplateSelectionService.IsPreviewSelection(Context);
+        var previewTemplateName = TemplateSelectionService.GetSelectedTemplateName(Context);
     }
+    @if (isTemplatePreview && !string.IsNullOrWhiteSpace(previewTemplateName))
+    {
+        <div class="environment-banner govuk-!-font-weight-bold govuk-!-font-size-19"
+             style="background-color: #f47738; color: white; text-align: left; padding: 8px;">
+            <div class="govuk-width-container">
+                THIS IS A PREVIEW OF @previewTemplateName
+            </div>
+        </div>
+    }
+
     @if (!currentEnvironment.Equals("Production", StringComparison.OrdinalIgnoreCase))
     {
         <div class="environment-banner govuk-link govuk-link--no-underline govuk-!-font-weight-regular govuk-!-font-size-19" style="background-color: @bannerColor; color: @textColor; text-align: left; padding: 8px;">

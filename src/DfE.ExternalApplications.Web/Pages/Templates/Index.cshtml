@@ -44,7 +44,7 @@
         {
             <p class="govuk-body">
                 Select the application template you want to work with.
-                @if (Model.IsAdmin)
+                @if (Model.IsAdmin && !Model.LiveOnly)
                 {
                     <text>Non-live templates are available to you for preview before going live.</text>
                 }
@@ -86,6 +86,7 @@
                                 <form method="post" asp-page-handler="Select">
                                     <input type="hidden" name="templateId" value="@template.TemplateId" />
                                     <input type="hidden" asp-for="ReturnUrl" />
+                                    <input type="hidden" asp-for="LiveOnly" />
                                     <button type="submit" class="govuk-button govuk-!-margin-bottom-0">
                                         @(template.IsLive ? "Open dashboard" : "Preview dashboard")
                                     </button>

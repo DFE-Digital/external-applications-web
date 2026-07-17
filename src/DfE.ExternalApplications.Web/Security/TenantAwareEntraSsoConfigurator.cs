@@ -146,7 +146,10 @@ public static class TenantAwareEntraSsoConfigurator
             context.ProtocolMessage.ClientId = section["ClientId"];
         }
 
-        if (!string.IsNullOrWhiteSpace(section["RedirectUri"]))
+        // RedirectUri is for authorize/login only. Setting it during logout can send the IdP
+        // back to /signin-oidc and cause "Correlation failed" on the remote login handler.
+        if (context.ProtocolMessage.RequestType != OpenIdConnectRequestType.Logout &&
+            !string.IsNullOrWhiteSpace(section["RedirectUri"]))
         {
             context.ProtocolMessage.RedirectUri = section["RedirectUri"];
         }
@@ -163,15 +166,17 @@ public static class TenantAwareEntraSsoConfigurator
             var configuration = await context.Options.ConfigurationManager
                 .GetConfigurationAsync(context.HttpContext.RequestAborted);
             context.Options.Configuration = configuration;
-            if (!string.IsNullOrWhiteSpace(configuration.AuthorizationEndpoint))
+
+            if (context.ProtocolMessage.RequestType == OpenIdConnectRequestType.Logout)
+            {
+                if (!string.IsNullOrWhiteSpace(configuration.EndSessionEndpoint))
+                {
+                    context.ProtocolMessage.IssuerAddress = configuration.EndSessionEndpoint;
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(configuration.AuthorizationEndpoint))
             {
                 context.ProtocolMessage.IssuerAddress = configuration.AuthorizationEndpoint;
-            }
-
-            if (context.ProtocolMessage.RequestType == OpenIdConnectRequestType.Logout &&
-                !string.IsNullOrWhiteSpace(configuration.EndSessionEndpoint))
-            {
-                context.ProtocolMessage.IssuerAddress = configuration.EndSessionEndpoint;
             }
         }
     }

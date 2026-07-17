@@ -24,6 +24,12 @@ public sealed class IndexModel(
     [BindProperty(SupportsGet = true)]
     public string? ReturnUrl { get; set; }
 
+    /// <summary>
+    /// When true, only live templates are shown for post-login selection.
+    /// </summary>
+    [BindProperty(SupportsGet = true)]
+    public bool LiveOnly { get; set; }
+
     /// <summary>True when the caller is an Admin.</summary>
     public bool IsAdmin { get; private set; }
 
@@ -34,10 +40,14 @@ public sealed class IndexModel(
     {
         IsAdmin = User.IsInRole("Admin");
         Templates = await templateSelectionService.GetSelectableTemplatesAsync(cancellationToken);
-
-        if (Templates.Count == 1 && !IsAdmin)
+        if (LiveOnly)
         {
-            templateSelectionService.SelectTemplate(HttpContext, Templates[0].TemplateId);
+            Templates = Templates.Where(template => template.IsLive).ToList();
+        }
+
+        if (Templates.Count == 1 && (LiveOnly || !IsAdmin))
+        {
+            templateSelectionService.SelectTemplate(HttpContext, Templates[0]);
             return Redirect(GetSafeReturnUrl());
         }
 
@@ -48,6 +58,10 @@ public sealed class IndexModel(
     {
         IsAdmin = User.IsInRole("Admin");
         Templates = await templateSelectionService.GetSelectableTemplatesAsync(cancellationToken);
+        if (LiveOnly)
+        {
+            Templates = Templates.Where(template => template.IsLive).ToList();
+        }
 
         if (Templates.All(t => t.TemplateId != templateId))
         {
@@ -56,7 +70,8 @@ public sealed class IndexModel(
             return Page();
         }
 
-        templateSelectionService.SelectTemplate(HttpContext, templateId);
+        var template = Templates.First(item => item.TemplateId == templateId);
+        templateSelectionService.SelectTemplate(HttpContext, template);
         return Redirect(GetSafeReturnUrl());
     }
 

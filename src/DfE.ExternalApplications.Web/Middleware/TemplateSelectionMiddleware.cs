@@ -4,8 +4,8 @@ using DfE.ExternalApplications.Web.Services;
 namespace DfE.ExternalApplications.Web.Middleware;
 
 /// <summary>
-/// Ensures an authenticated user has a valid session template before entering application routes.
-/// Auto-selects when exactly one template is available; otherwise redirects to the chooser.
+/// Ensures an authenticated user has a valid live template before entering application routes.
+/// Admins may also enter an explicitly selected non-live template as a preview.
 /// </summary>
 public sealed class TemplateSelectionMiddleware(
     RequestDelegate next,
@@ -25,19 +25,30 @@ public sealed class TemplateSelectionMiddleware(
         try
         {
             var templates = await templateSelectionService.GetSelectableTemplatesAsync(context.RequestAborted);
+            var liveTemplates = templates.Where(template => template.IsLive).ToList();
+            var selectedId = templateSelectionService.GetSelectedTemplateId(context);
+            var selectedTemplate = Guid.TryParse(selectedId, out var parsedSelectedId)
+                ? templates.FirstOrDefault(template => template.TemplateId == parsedSelectedId)
+                : null;
 
-            if (templateSelectionService.HasValidSelection(context, templates))
+            var isExplicitAdminPreview =
+                context.User.IsInRole("Admin") &&
+                selectedTemplate is { IsLive: false } &&
+                templateSelectionService.IsPreviewSelection(context);
+
+            if (isExplicitAdminPreview)
             {
+                templateSelectionService.SelectTemplate(context, selectedTemplate!);
                 await next(context);
                 return;
             }
 
-            if (templates.Count == 1)
+            if (liveTemplates.Count == 1)
             {
-                templateSelectionService.SelectTemplate(context, templates[0].TemplateId);
+                templateSelectionService.SelectTemplate(context, liveTemplates[0]);
                 logger.LogDebug(
-                    "Auto-selected sole accessible template {TemplateId}",
-                    templates[0].TemplateId);
+                    "Auto-selected sole live template {TemplateId}",
+                    liveTemplates[0].TemplateId);
 
                 if (IsRoot(context.Request.Path))
                 {
@@ -49,11 +60,21 @@ public sealed class TemplateSelectionMiddleware(
                 return;
             }
 
-            // 0 or many templates — send the user to the chooser (empty state or pick list).
-            var returnUrl = context.Request.Path + context.Request.QueryString;
-            var target = templates.Count == 0
-                ? TemplatesPath.Value!
-                : $"{TemplatesPath.Value}?returnUrl={Uri.EscapeDataString(returnUrl)}";
+            if (liveTemplates.Count > 1 &&
+                selectedTemplate is { IsLive: true } &&
+                !IsRoot(context.Request.Path))
+            {
+                templateSelectionService.SelectTemplate(context, selectedTemplate);
+                await next(context);
+                return;
+            }
+
+            // 0 or many live templates — send the user to the live-template chooser.
+            var returnUrl = IsRoot(context.Request.Path)
+                ? DashboardPath.Value!
+                : context.Request.Path + context.Request.QueryString;
+            var target =
+                $"{TemplatesPath.Value}?liveOnly=true&returnUrl={Uri.EscapeDataString(returnUrl)}";
 
             context.Response.Redirect(target);
         }

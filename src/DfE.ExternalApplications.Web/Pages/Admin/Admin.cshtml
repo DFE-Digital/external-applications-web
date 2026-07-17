@@ -84,13 +84,24 @@
                                                     @(template.IsLive ? "Open" : "Preview")
                                                 </button>
                                             </form>
-                                            <form method="post" asp-page-handler="SetLive" style="display: inline;">
-                                                <input type="hidden" name="templateId" value="@template.TemplateId" />
-                                                <input type="hidden" name="isLive" value="@(!template.IsLive)" />
-                                                <button type="submit" class="govuk-button @(template.IsLive ? "govuk-button--warning" : "") govuk-!-margin-bottom-0">
-                                                    @(template.IsLive ? "Make not live" : "Make live")
-                                                </button>
-                                            </form>
+                                            @if (template.IsLive)
+                                            {
+                                                <form method="post" asp-page-handler="MakeNotLive" style="display: inline;">
+                                                    <input type="hidden" name="templateId" value="@template.TemplateId" />
+                                                    <button type="submit" class="govuk-button govuk-button--warning govuk-!-margin-bottom-0">
+                                                        Make not live
+                                                    </button>
+                                                </form>
+                                            }
+                                            else
+                                            {
+                                                <form method="post" asp-page-handler="MakeLive" style="display: inline;">
+                                                    <input type="hidden" name="templateId" value="@template.TemplateId" />
+                                                    <button type="submit" class="govuk-button govuk-!-margin-bottom-0">
+                                                        Make live
+                                                    </button>
+                                                </form>
+                                            }
                                         </div>
                                     </td>
                                 </tr>
@@ -217,6 +228,10 @@
                     <a href="/templates" class="govuk-button govuk-button--secondary" data-module="govuk-button" id="go-to-templates-button">
                         Choose / preview templates
                     </a>
+
+                    <a asp-page="/Admin/CreateTemplate" class="govuk-button" data-module="govuk-button" id="create-template-button">
+                        Create a new template
+                    </a>
                     
                     <form method="post" asp-page-handler="GoToTemplateManager" style="display: inline;">
                         <button type="submit" class="govuk-button" data-module="govuk-button" id="go-to-template-manager-button">
@@ -239,6 +254,9 @@
                     <p class="govuk-body">
                         <strong>Choose / preview templates:</strong> Open the template chooser to switch between this tenant's
                         live and non-live templates.
+                    </p>
+                    <p class="govuk-body">
+                        <strong>Create a new template:</strong> Create a draft template for this tenant, then add its first version.
                     </p>
                     <p class="govuk-body">
                         <strong>Template Manager:</strong> Navigate to the template manager to create new template versions 

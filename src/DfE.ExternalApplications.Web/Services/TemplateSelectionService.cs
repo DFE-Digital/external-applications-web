@@ -9,6 +9,8 @@ public sealed class TemplateSelectionService(
     ILogger<TemplateSelectionService> logger) : ITemplateSelectionService
 {
     private const string TemplateIdSessionKey = "TemplateId";
+    private const string TemplateNameSessionKey = "TemplateName";
+    private const string TemplateIsLiveSessionKey = "TemplateIsLive";
     private static readonly string[] ApplicationSessionKeysToClear =
     [
         "ApplicationId",
@@ -34,10 +36,10 @@ public sealed class TemplateSelectionService(
         => httpContext.Session.GetString(TemplateIdSessionKey);
 
     /// <inheritdoc />
-    public void SelectTemplate(HttpContext httpContext, Guid templateId)
+    public void SelectTemplate(HttpContext httpContext, TemplateDto template)
     {
         var previous = httpContext.Session.GetString(TemplateIdSessionKey);
-        var next = templateId.ToString();
+        var next = template.TemplateId.ToString();
 
         if (!string.Equals(previous, next, StringComparison.OrdinalIgnoreCase))
         {
@@ -45,7 +47,13 @@ public sealed class TemplateSelectionService(
         }
 
         httpContext.Session.SetString(TemplateIdSessionKey, next);
-        logger.LogInformation("Selected template {TemplateId} for session", next);
+        httpContext.Session.SetString(TemplateNameSessionKey, template.Name);
+        httpContext.Session.SetString(TemplateIsLiveSessionKey, template.IsLive.ToString());
+        logger.LogInformation(
+            "Selected template {TemplateId} ({TemplateName}, IsLive={IsLive}) for session",
+            next,
+            template.Name,
+            template.IsLive);
     }
 
     /// <inheritdoc />
@@ -59,6 +67,17 @@ public sealed class TemplateSelectionService(
 
         return templates.Any(t => t.TemplateId == selectedId);
     }
+
+    /// <inheritdoc />
+    public bool IsPreviewSelection(HttpContext httpContext)
+        => bool.TryParse(
+               httpContext.Session.GetString(TemplateIsLiveSessionKey),
+               out var isLive) &&
+           !isLive;
+
+    /// <inheritdoc />
+    public string? GetSelectedTemplateName(HttpContext httpContext)
+        => httpContext.Session.GetString(TemplateNameSessionKey);
 
     private static void ClearApplicationSessionState(ISession session)
     {

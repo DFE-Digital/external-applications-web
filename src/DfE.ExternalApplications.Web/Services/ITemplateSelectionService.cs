@@ -18,12 +18,23 @@ public interface ITemplateSelectionService
     string? GetSelectedTemplateId(HttpContext httpContext);
 
     /// <summary>
-    /// Sets the active template in session and clears application-scoped session state.
+    /// Sets the active template and its preview metadata in session, clearing
+    /// application-scoped state when the template changes.
     /// </summary>
-    void SelectTemplate(HttpContext httpContext, Guid templateId);
+    void SelectTemplate(HttpContext httpContext, TemplateDto template);
 
     /// <summary>
     /// Returns true when the session template is present in <paramref name="templates"/>.
     /// </summary>
     bool HasValidSelection(HttpContext httpContext, IReadOnlyList<TemplateDto> templates);
+
+    /// <summary>
+    /// Returns true when the selected template is a non-live Admin preview.
+    /// </summary>
+    bool IsPreviewSelection(HttpContext httpContext);
+
+    /// <summary>
+    /// Returns the selected template display name stored in session.
+    /// </summary>
+    string? GetSelectedTemplateName(HttpContext httpContext);
 }
