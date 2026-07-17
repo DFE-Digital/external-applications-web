@@ -95,11 +95,9 @@ public class DynamicAuthenticationSchemeProvider(
 
     public override Task<AuthenticationScheme?> GetDefaultSignOutSchemeAsync()
     {
-        if (IsTestAuthGloballyEnabled())
-        {
-            return GetSchemeAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-        }
-
-        return GetSchemeAsync(GetDefaultIdpScheme());
+        // Always the application cookie. Remote IdP sign-out is triggered explicitly
+        // (e.g. Logout page). Returning the IdP scheme here prevents cookie clearance
+        // when OIDC uses SignOutScheme / default sign-out.
+        return GetSchemeAsync(CookieAuthenticationDefaults.AuthenticationScheme);
     }
 }

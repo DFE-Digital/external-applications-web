@@ -146,32 +146,44 @@ public static class TenantAwareEntraSsoConfigurator
             context.ProtocolMessage.ClientId = section["ClientId"];
         }
 
+        // ASP.NET Core does not set RequestType=Logout before ForSignOut events; detect via
+        // post_logout_redirect_uri so we never overwrite end_session with authorize.
+        var isLogout = context.ProtocolMessage.RequestType == OpenIdConnectRequestType.Logout
+            || !string.IsNullOrEmpty(context.ProtocolMessage.PostLogoutRedirectUri);
+
         // RedirectUri is for authorize/login only. Setting it during logout can send the IdP
-        // back to /signin-oidc and cause "Correlation failed" on the remote login handler.
-        if (context.ProtocolMessage.RequestType != OpenIdConnectRequestType.Logout &&
-            !string.IsNullOrWhiteSpace(section["RedirectUri"]))
+        // back to the sign-in callback and cause silent re-login.
+        if (!isLogout && !string.IsNullOrWhiteSpace(section["RedirectUri"]))
         {
             context.ProtocolMessage.RedirectUri = section["RedirectUri"];
         }
 
-        var scopes = section.GetSection("Scopes").Get<string[]>();
-        if (scopes?.Length > 0)
+        if (!isLogout)
         {
-            context.ProtocolMessage.Scope = string.Join(' ', scopes);
+            var scopes = section.GetSection("Scopes").Get<string[]>();
+            if (scopes?.Length > 0)
+            {
+                context.ProtocolMessage.Scope = string.Join(' ', scopes);
+            }
         }
 
-        // Prefer AuthorizationEndpoint for the tenant Authority (not bootstrap /common).
+        // Prefer AuthorizationEndpoint / EndSessionEndpoint for the tenant Authority (not bootstrap /common).
         if (context.Options.ConfigurationManager is not null)
         {
             var configuration = await context.Options.ConfigurationManager
                 .GetConfigurationAsync(context.HttpContext.RequestAborted);
             context.Options.Configuration = configuration;
 
-            if (context.ProtocolMessage.RequestType == OpenIdConnectRequestType.Logout)
+            if (isLogout)
             {
                 if (!string.IsNullOrWhiteSpace(configuration.EndSessionEndpoint))
                 {
                     context.ProtocolMessage.IssuerAddress = configuration.EndSessionEndpoint;
+                }
+                else
+                {
+                    context.ProtocolMessage.IssuerAddress = BuildEntraLogoutEndpoint(context.Options.Authority)
+                        ?? context.ProtocolMessage.IssuerAddress;
                 }
             }
             else if (!string.IsNullOrWhiteSpace(configuration.AuthorizationEndpoint))
@@ -179,6 +191,27 @@ public static class TenantAwareEntraSsoConfigurator
                 context.ProtocolMessage.IssuerAddress = configuration.AuthorizationEndpoint;
             }
         }
+    }
+
+    /// <summary>
+    /// Builds the Entra ID logout endpoint from an authority such as
+    /// <c>https://login.microsoftonline.com/{tenant}/v2.0</c>.
+    /// </summary>
+    private static string? BuildEntraLogoutEndpoint(string? authority)
+    {
+        if (string.IsNullOrWhiteSpace(authority))
+        {
+            return null;
+        }
+
+        var trimmed = authority.TrimEnd('/');
+        const string v2Suffix = "/v2.0";
+        if (trimmed.EndsWith(v2Suffix, StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = trimmed[..^v2Suffix.Length];
+        }
+
+        return $"{trimmed}/oauth2/v2.0/logout";
     }
 
 }

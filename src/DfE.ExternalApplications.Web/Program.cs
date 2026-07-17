@@ -38,6 +38,7 @@ using MassTransit;
 using GovUK.Dfe.CoreLibs.Messaging.Contracts.Exceptions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using DfE.ExternalApplications.Web.Telemetry;
 using DfE.ExternalApplications.Web.Configuration;
 
@@ -304,25 +305,28 @@ OpenIdConnectEvents CreateEntraSsoEvents() => new()
 
     OnRedirectToIdentityProviderForSignOut = async context =>
     {
+        // Handler does not set RequestType; mark logout so tenant overlay keeps end_session.
+        context.ProtocolMessage.RequestType = OpenIdConnectRequestType.Logout;
+
         if (platformBootstrapEnabled)
         {
             await TenantAwareEntraSsoConfigurator.ApplyProtocolMessageAsync(context);
         }
+
+        DfESignInOidcPublicUrls.ApplyPostLogoutRedirectUri(context);
     },
 
-    OnRemoteFailure = context =>
+    OnRemoteFailure = async context =>
     {
         var error = context.Failure?.Message ?? "Unknown error";
 
         if (IsRecoverableOidcRemoteFailure(error, context.Request.Path, "/signout-callback-entra"))
         {
-            context.HttpContext.Session.Clear();
-            context.Response.Redirect("/");
+            await CompleteLocalSignOutAsync(context.HttpContext);
+            context.Response.Redirect(DfESignInOidcPublicUrls.BuildAbsoluteUrl(context.HttpContext, "/"));
             context.HandleResponse();
-            return Task.CompletedTask;
+            return;
         }
-
-        return Task.CompletedTask;
     },
 
     OnAuthenticationFailed = context =>
@@ -332,10 +336,9 @@ OpenIdConnectEvents CreateEntraSsoEvents() => new()
         return Task.CompletedTask;
     },
 
-    OnSignedOutCallbackRedirect = context =>
+    OnSignedOutCallbackRedirect = async context =>
     {
-        context.HttpContext.Session.Clear();
-        return Task.CompletedTask;
+        await CompleteLocalSignOutAsync(context.HttpContext);
     }
 };
 
@@ -366,19 +369,17 @@ var authenticationBuilder = builder.Services
             }
         },
 
-        OnRemoteFailure = context =>
+        OnRemoteFailure = async context =>
         {
             var error = context.Failure?.Message ?? "Unknown error";
 
             if (IsRecoverableOidcRemoteFailure(error, context.Request.Path, "/signout-callback-oidc", "/signin-oidc"))
             {
-                context.HttpContext.Session.Clear();
-                context.Response.Redirect("/");
+                await CompleteLocalSignOutAsync(context.HttpContext);
+                context.Response.Redirect(DfESignInOidcPublicUrls.BuildAbsoluteUrl(context.HttpContext, "/"));
                 context.HandleResponse();
-                return Task.CompletedTask;
+                return;
             }
-
-            return Task.CompletedTask;
         },
 
         OnAuthenticationFailed = context =>
@@ -390,18 +391,19 @@ var authenticationBuilder = builder.Services
 
         OnRedirectToIdentityProviderForSignOut = async context =>
         {
+            context.ProtocolMessage.RequestType = OpenIdConnectRequestType.Logout;
+
             if (platformBootstrapEnabled)
             {
                 await TenantAwareOpenIdConnectConfigurator.ApplyProtocolMessageAsync(context);
             }
 
-            DfESignInOidcPublicUrls.ApplyPostLogoutRedirectUri(context, configuration);
+            DfESignInOidcPublicUrls.ApplyPostLogoutRedirectUri(context);
         },
 
-        OnSignedOutCallbackRedirect = context =>
+        OnSignedOutCallbackRedirect = async context =>
         {
-            context.HttpContext.Session.Clear();
-            return Task.CompletedTask;
+            await CompleteLocalSignOutAsync(context.HttpContext);
         }
     })
     .AddScheme<TestAuthenticationSchemeOptions, TestAuthenticationHandler>(
@@ -429,6 +431,30 @@ else
 // Checks for Internal Service Auth (forwarder pattern)
 // Then Test Auth, then OIDC
 builder.Services.AddSingleton<IAuthenticationSchemeProvider, DynamicAuthenticationSchemeProvider>();
+
+// OIDC SignOutScheme must be the app cookie — the handler does not clear the cookie itself
+// on the sign-out callback. Also ensure SignedOutCallbackPath is never left null by config bind.
+builder.Services.PostConfigure<Microsoft.AspNetCore.Authentication.OpenIdConnect.OpenIdConnectOptions>(
+    OpenIdConnectDefaults.AuthenticationScheme,
+    options =>
+    {
+        options.SignOutScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+        if (!options.SignedOutCallbackPath.HasValue)
+        {
+            options.SignedOutCallbackPath = "/signout-callback-oidc";
+        }
+    });
+
+builder.Services.PostConfigure<Microsoft.AspNetCore.Authentication.OpenIdConnect.OpenIdConnectOptions>(
+    EntraSsoDefaults.AuthenticationScheme,
+    options =>
+    {
+        options.SignOutScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+        if (!options.SignedOutCallbackPath.HasValue)
+        {
+            options.SignedOutCallbackPath = "/signout-callback-entra";
+        }
+    });
 
 builder.Services
     .AddApplicationAuthorization(
@@ -678,6 +704,15 @@ await app.RunAsync();
 [ExcludeFromCodeCoverage]
 public static partial class Program
 {
+    /// <summary>
+    /// Clears the local auth cookie and session after IdP sign-out (or recoverable failure).
+    /// </summary>
+    internal static async Task CompleteLocalSignOutAsync(HttpContext httpContext)
+    {
+        await httpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        httpContext.Session.Clear();
+    }
+
     /// <summary>
     /// Treats common post-logout OIDC failures (missing correlation/state) as successful sign-out.
     /// </summary>

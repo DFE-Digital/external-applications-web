@@ -1,41 +1,54 @@
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
-using Microsoft.Extensions.Configuration;
 
 namespace DfE.ExternalApplications.Web.Security;
 
 /// <summary>
-/// Builds DfE Sign-In OIDC URLs using the public origin from tenant or host configuration.
+/// Builds OIDC public callback URLs from the current request host (tenant origin).
 /// </summary>
 internal static class DfESignInOidcPublicUrls
 {
     /// <summary>
-    /// Sets post-logout redirect URI using tenant DfE Sign-In settings when available.
+    /// Sets <c>post_logout_redirect_uri</c> to the signed-out callback on the
+    /// current request origin so multi-tenant hosts (e.g. rgvisits.localhost)
+    /// are not redirected to the bootstrap Transfers host (localhost).
     /// </summary>
-    public static void ApplyPostLogoutRedirectUri(RedirectContext context, IConfiguration hostConfiguration)
+    public static void ApplyPostLogoutRedirectUri(
+        RedirectContext context,
+        string? signedOutCallbackPath = null)
     {
-        var section = TenantAwareOpenIdConnectConfigurator.GetTenantSignInSection(context.HttpContext)
-            ?? hostConfiguration.GetSection("DfESignIn");
-
-        var signInRedirect = section["RedirectUri"];
-        if (string.IsNullOrWhiteSpace(signInRedirect)
-            || !Uri.TryCreate(signInRedirect, UriKind.Absolute, out var signInUri))
+        var path = signedOutCallbackPath;
+        if (string.IsNullOrWhiteSpace(path))
         {
-            return;
+            path = context.Options.SignedOutCallbackPath.HasValue
+                ? context.Options.SignedOutCallbackPath.Value
+                : "/signout-callback-oidc";
         }
 
-        var signedOutPath = section["SignedOutCallbackPath"];
-        if (string.IsNullOrWhiteSpace(signedOutPath))
+        if (!path.StartsWith('/'))
         {
-            signedOutPath = "/signout-callback-oidc";
+            path = "/" + path;
         }
 
-        if (!signedOutPath.StartsWith('/'))
+        context.ProtocolMessage.PostLogoutRedirectUri = BuildAbsoluteUrl(context.HttpContext, path);
+    }
+
+    /// <summary>
+    /// Builds an absolute URL on the current request origin (scheme + host + port).
+    /// </summary>
+    public static string BuildAbsoluteUrl(HttpContext httpContext, string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
         {
-            signedOutPath = "/" + signedOutPath;
+            path = "/";
+        }
+        else if (!path.StartsWith('/'))
+        {
+            path = "/" + path;
         }
 
-        var port = signInUri.IsDefaultPort ? -1 : signInUri.Port;
-        var builder = new UriBuilder(signInUri.Scheme, signInUri.Host, port, signedOutPath);
-        context.ProtocolMessage.PostLogoutRedirectUri = builder.Uri.AbsoluteUri;
+        var request = httpContext.Request;
+        var port = request.Host.Port ?? -1;
+        var builder = new UriBuilder(request.Scheme, request.Host.Host, port, path);
+        return builder.Uri.AbsoluteUri;
     }
 }

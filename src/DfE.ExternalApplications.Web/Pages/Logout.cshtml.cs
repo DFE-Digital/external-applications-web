@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -39,14 +40,16 @@ public class LogoutModel(
                 logger.LogInformation("Signing out from test authentication");
                 HttpContext.Session.Clear();
                 await testAuthenticationService.SignOutAsync(HttpContext);
-                return Redirect("/");
+                return Redirect(DfESignInOidcPublicUrls.BuildAbsoluteUrl(HttpContext, "/"));
             }
 
-            // Sign out only the remote scheme. Its SignOutScheme clears the auth cookie after
-            // the IdP round-trip, which preserves the OIDC correlation cookie needed for
-            // /signout-callback-oidc (or Entra equivalent). Clearing cookies first causes
-            // "Correlation failed" when the IdP returns.
-            var signOutProperties = new AuthenticationProperties { RedirectUri = "/" };
+            // Cookie must be signed out explicitly — OIDC HandleSignOutCallbackAsync does not
+            // clear it. RedirectUri must stay on the current tenant host (not bootstrap localhost).
+            //
+            // Entra needs id_token_hint from the cookie auth ticket, so sign out the remote
+            // scheme first (reads the token), then clear the cookie in the same response.
+            var homeUrl = DfESignInOidcPublicUrls.BuildAbsoluteUrl(HttpContext, "/");
+            var signOutProperties = new AuthenticationProperties { RedirectUri = homeUrl };
 
             if (TenantAuthSchemeSelector.IsEntraSsoEnabled(HttpContext, entraSsoOptions))
             {
@@ -54,13 +57,15 @@ public class LogoutModel(
 
                 return SignOut(
                     signOutProperties,
-                    EntraSsoDefaults.AuthenticationScheme);
+                    EntraSsoDefaults.AuthenticationScheme,
+                    CookieAuthenticationDefaults.AuthenticationScheme);
             }
 
             logger.LogInformation("Signing out from DfE Sign-In OIDC authentication");
 
             return SignOut(
                 signOutProperties,
+                CookieAuthenticationDefaults.AuthenticationScheme,
                 OpenIdConnectDefaults.AuthenticationScheme);
         }
         catch (Exception ex)
