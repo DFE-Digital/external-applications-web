@@ -489,6 +489,7 @@ builder.Services.AddScoped<IConditionalLogicOrchestrator, ConditionalLogicOrches
 builder.Services.AddScoped<IDerivedCollectionFlowService, DerivedCollectionFlowService>();
 
 builder.Services.AddScoped<IAutocompleteService, AutocompleteService>();
+builder.Services.AddScoped<ITemplateSelectionService, TemplateSelectionService>();
 builder.Services.AddScoped<IComplexFieldConfigurationService, ComplexFieldConfigurationService>();
 builder.Services.AddScoped<IComplexFieldRendererFactory, ComplexFieldRendererFactory>();
 builder.Services.AddScoped<IComplexFieldRenderer, AutocompleteComplexFieldRenderer>();
@@ -655,11 +656,12 @@ app.UseTokenManagementMiddleware();
 app.UseActivityBasedTokenRefresh(); // Session management: idle timeout 30min, absolute timeout 8hr, token refresh at 30min remaining
 app.UsePermissionsCache();
 app.UseAuthorization();
+app.UseTemplateSelection();
 
 app.MapRazorPages();
 app.MapControllers();
 
-// Redirect root to Dashboard
+// Landing goes through template selection gate (middleware) then dashboard.
 app.MapGet("/", context =>
 {
     context.Response.Redirect("/applications/dashboard");

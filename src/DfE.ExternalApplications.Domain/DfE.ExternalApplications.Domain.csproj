@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="GovUK.Dfe.CoreLibs.Contracts" Version="1.0.75" />
+    <ProjectReference Include="..\..\..\DfE.CoreLibs\src\GovUK.Dfe.CoreLibs.Contracts\GovUK.Dfe.CoreLibs.Contracts.csproj" />
   </ItemGroup>
 
 </Project>

@@ -2,13 +2,15 @@ using GovUK.Dfe.CoreLibs.Caching.Helpers;
 using GovUK.Dfe.CoreLibs.Caching.Interfaces;
 using DfE.ExternalApplications.Application.Interfaces;
 using DfE.ExternalApplications.Domain.Models;
+using DfE.ExternalApplications.Web.Services;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Diagnostics.CodeAnalysis;
-using System.Net.Http;
 using Microsoft.AspNetCore.Authentication;
 using Task = System.Threading.Tasks.Task;
 using GovUK.Dfe.ExternalApplications.Api.Client.Security;
@@ -20,6 +22,7 @@ namespace DfE.ExternalApplications.Web.Pages.Admin
     public class AdminModel(
         IFormTemplateProvider templateProvider,
         ITemplatesClient templatesClient,
+        ITemplateSelectionService templateSelectionService,
         ICacheService<IMemoryCacheType> cacheService,
         IHttpContextAccessor httpContextAccessor,
         IInternalUserTokenStore tokenStore,
@@ -39,6 +42,7 @@ namespace DfE.ExternalApplications.Web.Pages.Admin
         public string? TestToken { get; set; }
         public string? DsiToken { get; set; }
         public string? UserToken { get; set; }
+        public IReadOnlyList<TemplateDto> TenantTemplates { get; private set; } = [];
 
         public async Task<IActionResult> OnGetAsync()
         {
@@ -46,6 +50,7 @@ namespace DfE.ExternalApplications.Web.Pages.Admin
             
             UserToken = tokenStore.GetToken();
 
+            await LoadTenantTemplatesAsync();
             await LoadTemplateInformationAsync();
             return Page();
         }
@@ -54,10 +59,8 @@ namespace DfE.ExternalApplications.Web.Pages.Admin
         {
             try
             {
-                // Clear all session data
                 HttpContext.Session.Clear();
                 
-                // Clear template cache
                 if (!string.IsNullOrEmpty(TemplateCacheKey))
                 {
                     cacheService.Remove(TemplateCacheKey);
@@ -90,11 +93,76 @@ namespace DfE.ExternalApplications.Web.Pages.Admin
             return RedirectToPage("/Admin/CustomStatusLabelOverrides");
         }
 
+        public async Task<IActionResult> OnPostSetLiveAsync(Guid templateId, bool isLive)
+        {
+            try
+            {
+                await templatesClient.SetTemplateLiveAsync(
+                    templateId,
+                    new SetTemplateLiveRequest { IsLive = isLive });
+
+                ShowSuccess = true;
+                SuccessMessage = isLive
+                    ? "Template is now live for end users."
+                    : "Template is no longer live for end users.";
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to set live status for template {TemplateId}", templateId);
+                HasError = true;
+                ErrorMessage = "Failed to update template live status. Please try again.";
+            }
+
+            await LoadTenantTemplatesAsync();
+            await LoadTemplateInformationAsync();
+            return Page();
+        }
+
+        public async Task<IActionResult> OnPostOpenTemplateAsync(Guid templateId)
+        {
+            try
+            {
+                var templates = await templateSelectionService.GetSelectableTemplatesAsync();
+                if (templates.All(t => t.TemplateId != templateId))
+                {
+                    HasError = true;
+                    ErrorMessage = "Template was not found in the tenant catalogue.";
+                    await LoadTenantTemplatesAsync();
+                    await LoadTemplateInformationAsync();
+                    return Page();
+                }
+
+                templateSelectionService.SelectTemplate(HttpContext, templateId);
+                return RedirectToPage("/Applications/Dashboard");
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to open template {TemplateId}", templateId);
+                HasError = true;
+                ErrorMessage = "Failed to open template. Please try again.";
+                await LoadTenantTemplatesAsync();
+                await LoadTemplateInformationAsync();
+                return Page();
+            }
+        }
+
+        private async Task LoadTenantTemplatesAsync()
+        {
+            try
+            {
+                TenantTemplates = await templateSelectionService.GetSelectableTemplatesAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to load tenant templates for admin page");
+                TenantTemplates = [];
+            }
+        }
+
         private async Task LoadTemplateInformationAsync(bool afterSessionClear = false)
         {
             try
             {
-                // retrieve the test token
                 TestToken = HttpContext.Session.GetString("TestAuth:Token");
 
                 TemplateId = HttpContext.Session.GetString("TemplateId");
@@ -104,15 +172,11 @@ namespace DfE.ExternalApplications.Web.Pages.Admin
 
                 if (string.IsNullOrEmpty(TemplateId))
                 {
-                    HasError = true;
-                    ErrorMessage = "No template ID found in session. Please navigate from the main application.";
                     return;
                 }
 
-                // Generate the cache key using the same logic as FormTemplateProvider
                 TemplateCacheKey = $"FormTemplate_{CacheKeyHelper.GenerateHashedCacheKey(TemplateId)}";
 
-                // Load template information
                 var template = await templateProvider.GetTemplateAsync(TemplateId);
                 if (template != null)
                 {
@@ -121,7 +185,6 @@ namespace DfE.ExternalApplications.Web.Pages.Admin
                     TaskGroupCount = template.TaskGroups?.Count ?? 0;
                 }
 
-                // Get current template version from API
                 var templateResponse = await templatesClient.GetLatestTemplateSchemaAsync(new Guid(TemplateId));
                 CurrentTemplateVersion = templateResponse?.VersionNumber;
 
@@ -139,7 +202,6 @@ namespace DfE.ExternalApplications.Web.Pages.Admin
         {
             var sessionKeys = new List<string>();
             
-            // Get common session keys
             var commonKeys = new[]
             {
                 "TemplateId",
@@ -169,22 +231,17 @@ namespace DfE.ExternalApplications.Web.Pages.Admin
 
             try
             {
-                // Check if template is cached by trying to get it without calling the factory method
-                // We'll use a flag to track if the factory method was called
                 var factoryCalled = false;
                 
-                var cachedTemplate = await cacheService.GetOrAddAsync<FormTemplate>(
+                await cacheService.GetOrAddAsync<FormTemplate>(
                     TemplateCacheKey,
                     async () =>
                     {
                         factoryCalled = true;
-                        // Return null to indicate cache miss without actually caching anything
                         return null!;
                     },
                     nameof(GetCacheStatusAsync));
 
-                // If factory wasn't called, the item was already cached
-                // If factory was called, the item wasn't in cache
                 return !factoryCalled ? "Template cached" : "Template not in cache";
             }
             catch
@@ -193,4 +250,4 @@ namespace DfE.ExternalApplications.Web.Pages.Admin
             }
         }
     }
-} 
+}

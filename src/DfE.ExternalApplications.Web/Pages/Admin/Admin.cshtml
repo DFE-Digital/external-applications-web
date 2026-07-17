@@ -32,7 +32,76 @@
             </div>
         }
 
-        @if (!Model.HasError)
+        <div class="govuk-summary-card">
+            <div class="govuk-summary-card__title-wrapper">
+                <h2 class="govuk-summary-card__title">Tenant templates</h2>
+            </div>
+            <div class="govuk-summary-card__content">
+                <p class="govuk-body">
+                    Set which templates are live for end users. You can open non-live templates to preview them before going live.
+                </p>
+                @if (Model.TenantTemplates.Count == 0)
+                {
+                    <p class="govuk-body">No templates found in this tenant.</p>
+                }
+                else
+                {
+                    <table class="govuk-table">
+                        <thead class="govuk-table__head">
+                            <tr class="govuk-table__row">
+                                <th scope="col" class="govuk-table__header">Name</th>
+                                <th scope="col" class="govuk-table__header">Status</th>
+                                <th scope="col" class="govuk-table__header">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="govuk-table__body">
+                            @foreach (var template in Model.TenantTemplates)
+                            {
+                                <tr class="govuk-table__row">
+                                    <td class="govuk-table__cell">
+                                        @template.Name
+                                        @if (!string.IsNullOrWhiteSpace(template.LatestVersionNumber))
+                                        {
+                                            <br />
+                                            <span class="govuk-hint govuk-!-margin-bottom-0">Version @template.LatestVersionNumber</span>
+                                        }
+                                    </td>
+                                    <td class="govuk-table__cell">
+                                        @if (template.IsLive)
+                                        {
+                                            <strong class="govuk-tag govuk-tag--green">Live</strong>
+                                        }
+                                        else
+                                        {
+                                            <strong class="govuk-tag govuk-tag--grey">Not live</strong>
+                                        }
+                                    </td>
+                                    <td class="govuk-table__cell">
+                                        <div class="govuk-button-group">
+                                            <form method="post" asp-page-handler="OpenTemplate" style="display: inline;">
+                                                <input type="hidden" name="templateId" value="@template.TemplateId" />
+                                                <button type="submit" class="govuk-button govuk-button--secondary govuk-!-margin-bottom-0">
+                                                    @(template.IsLive ? "Open" : "Preview")
+                                                </button>
+                                            </form>
+                                            <form method="post" asp-page-handler="SetLive" style="display: inline;">
+                                                <input type="hidden" name="templateId" value="@template.TemplateId" />
+                                                <input type="hidden" name="isLive" value="@(!template.IsLive)" />
+                                                <button type="submit" class="govuk-button @(template.IsLive ? "govuk-button--warning" : "") govuk-!-margin-bottom-0">
+                                                    @(template.IsLive ? "Make not live" : "Make live")
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(Model.TemplateId))
         {
             <!-- Current Template Information -->
             <div class="govuk-summary-card">
@@ -144,6 +213,10 @@
                             Clear All Sessions & Caches
                         </button>
                     </form>
+
+                    <a href="/templates" class="govuk-button govuk-button--secondary" data-module="govuk-button" id="go-to-templates-button">
+                        Choose / preview templates
+                    </a>
                     
                     <form method="post" asp-page-handler="GoToTemplateManager" style="display: inline;">
                         <button type="submit" class="govuk-button" data-module="govuk-button" id="go-to-template-manager-button">
@@ -152,7 +225,7 @@
                     </form>
 
                     <form method="post" asp-page-handler="GoToCustomStatusLabelOverrides" style="display: inline;">
-                        <button type="submit" class="govuk-button" data-module="govuk-button" id="go-to-template-manager-button">
+                        <button type="submit" class="govuk-button" data-module="govuk-button" id="go-to-custom-status-button">
                             Override Custom Status Labels
                         </button>
                     </form>
@@ -162,6 +235,10 @@
                     <p class="govuk-body">
                         <strong>Clear All Sessions & Caches:</strong> This will remove all session data and template caches. 
                         You may need to navigate back to the main application and select a template to continue working.
+                    </p>
+                    <p class="govuk-body">
+                        <strong>Choose / preview templates:</strong> Open the template chooser to switch between this tenant's
+                        live and non-live templates.
                     </p>
                     <p class="govuk-body">
                         <strong>Template Manager:</strong> Navigate to the template manager to create new template versions 
