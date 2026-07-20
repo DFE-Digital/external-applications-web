@@ -1,0 +1,15 @@
+{
+  "starting-year": {
+    "value": "2027",
+    "completed": true
+  },
+  "end-year": {
+    "value": "2030",
+    "completed": true
+  },
+  "local-authority-name": {
+    "value": "Test Local Authority",
+    "completed": true
+  }
+
+}

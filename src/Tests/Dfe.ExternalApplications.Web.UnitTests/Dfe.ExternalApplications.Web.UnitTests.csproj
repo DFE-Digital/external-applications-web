@@ -26,4 +26,10 @@
         <Using Include="Xunit" />
     </ItemGroup>
 
+    <ItemGroup>
+      <None Update="Services\application-data.json">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+    </ItemGroup>
+
 </Project>

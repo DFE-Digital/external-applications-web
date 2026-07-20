@@ -43,5 +43,67 @@ namespace Dfe.ExternalApplications.Web.UnitTests.Services
             // Additional assertions can be added to verify the content of the stream
             testOutput.WriteLine(result);
         }
+
+        //[Fact]
+        //public void Generate()
+        //{
+        //    string json = @"
+        //    {
+        //      ""starting-year"": {
+        //        ""value"": ""2027"",
+        //        ""completed"": true
+        //      },
+        //      ""end-year"": {
+        //        ""value"": ""2030"",
+        //        ""completed"": true
+        //      }
+        //    ";
+
+        //    IEnumerable<string> csv = generator.Generate2("app-ref-1", json);
+
+        //    Assert.True(csv.Any(), "CSV generation failed, result is empty.");
+        //    Assert.Equal(2, csv.Count());
+
+        //    string csvHeader = csv.ElementAt(0);
+        //    Assert.Equal("Application reference, starting-year, end-year", csvHeader);
+
+        //    string csvData = csv.ElementAt(1);
+        //    Assert.Equal("app-ref-1, 2027, 2030", csvData);
+        //}
+
+
+        [Fact]
+        public void Generate2()
+        {
+            //string json = @"
+            //  {
+            //      ""local-authority-name"": {
+            //        ""value"": ""Test Local Authority"",
+            //        ""completed"": true
+            //      }
+            //  },
+            //  {
+            //        ""integrated-board-name"": {
+            //        ""value"": ""Test Integrated Board"",
+            //        ""completed"": true
+            //      }
+            //  }
+            //";
+            string json = File.ReadAllText(@"Services\application-data.json");
+
+            string csv = generator.Generate2("app-ref-1", json);
+
+            Assert.False(string.IsNullOrEmpty(csv), "CSV generation failed, result is empty.");
+            testOutput.WriteLine(csv);
+
+            //Assert.Equal(2, csv.Count());
+
+            //string csvHeader = csv.ElementAt(0);
+            //Assert.Equal("Application reference, local-authority-name, integrated-board-name", csvHeader);
+
+            //string csvData = csv.ElementAt(1);
+            //Assert.Equal("app-ref-1, Test Local Authority, Test Integrated Board", csvData);
+
+        }
     }
 }

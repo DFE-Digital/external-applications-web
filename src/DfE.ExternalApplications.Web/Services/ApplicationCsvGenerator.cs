@@ -1,6 +1,10 @@
 ﻿using DfE.ExternalApplications.Web.Interfaces;
 using HtmlAgilityPack;
+using SuperConvert.Extensions;
+using System.Dynamic;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace DfE.ExternalApplications.Web.Services
 {
@@ -21,6 +25,69 @@ namespace DfE.ExternalApplications.Web.Services
             }
 
             return new MemoryStream();
+        }
+
+        public string Generate2(string applicationReference, string applicationData)
+        {
+            // flatten application response body into a CSV format
+            //var csvHeader = "Application reference, starting-year, end-year";
+            var csvHeader = string.Empty;
+
+            //var csvData = "app-ref-1, 2027, 2030";
+            byte[] csvBytes = applicationData.ToCsv(',');
+            //var csvData = Encoding.UTF8.GetString(csvBytes);
+            var csvData = string.Empty;
+            //var x = new JsonObject(applicationData);
+            //JsonObject userObject = new JsonObject
+            //{
+            //    ["Name"] = "Alice",
+            //    ["Age"] = 30,
+            //    ["IsActive"] = true
+            //};
+
+            List<string> csvHeaders = [];
+            List<string> csvItems = [];
+            dynamic? obj = JsonSerializer.Deserialize<ExpandoObject>(applicationData);
+            if (obj == null) return string.Empty;
+
+            foreach (var kvp in obj)
+            {
+                //if (csvHeader.Length > 0)
+                //{
+                //    csvHeader += ", ";
+                //}
+                //csvHeader += kvp.Key;
+                //csvHeaders.Add(kvp.Key);
+                // TODO value may be a nested object, so we need to handle that case
+                if (kvp.Value is JsonElement jsonElement && jsonElement.ValueKind == JsonValueKind.Object)
+                {
+                    // Handle nested object
+                    // nestedKvp[0] is value
+                    // nestedKvp[1] is completed
+                    //foreach (var nestedKvp in jsonElement.EnumerateObject())
+                    //{
+                    //    //csvHeaders.Add($"{kvp.Key}.{nestedKvp.Name}");
+                    //    csvItems.Add(nestedKvp.Value.ToString());
+                    //}
+                    JsonElement.ObjectEnumerator nestedObjects = jsonElement.EnumerateObject();
+                    JsonElement value = nestedObjects.FirstOrDefault(x => x.Name == "value").Value;
+                    JsonElement completed = nestedObjects.FirstOrDefault(x => x.Name == "completed").Value;
+                    csvHeaders.Add($"{kvp.Key}.value");
+                    csvItems.Add(value.ToString());
+                    csvHeaders.Add($"{kvp.Key}.completed");
+                    csvItems.Add(completed.ToString());
+                }
+                else
+                {
+                    csvHeaders.Add(kvp.Key);
+                    csvItems.Add(kvp.Value?.ToString() ?? string.Empty);
+                }
+            }
+
+            //return $"{csvHeader}{Environment.NewLine}{csvData}";
+            csvHeader = string.Join(", ", csvHeaders);
+            csvData = string.Join(", ", csvItems);
+            return $"{csvHeader}{Environment.NewLine}{csvData}";
         }
 
         public string? GenerateJson(string html)
