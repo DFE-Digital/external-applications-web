@@ -10,6 +10,14 @@
   "local-authority-name": {
     "value": "Test Local Authority",
     "completed": true
+  },
+  "integrated-board-name": {
+    "value": "Test Integrated Board",
+    "completed": true
+  },
+  "upload-blueprint-supporting-evidence": {
+    "value": "[{\"id\":\"1f6475d5-7e3e-4f3b-b34c-a543ad49371c\",\"applicationId\":\"67708b10-a406-4f67-a5d9-2fa212e7c121\",\"uploadedBy\":\"00000000-0000-0000-0000-000000000001\",\"uploadedByUser\":null,\"name\":\"Upload Test.png\",\"description\":\"FileDescription\",\"originalFileName\":\"Upload Test.png\",\"fileName\":\"8876cbe82e813060ee1532e03e5cd900.png\",\"fileSize\":7928,\"uploadedOn\":\"2026-07-09T10:32:53.4880739\"}]",
+    "completed": true
   }
 
 }

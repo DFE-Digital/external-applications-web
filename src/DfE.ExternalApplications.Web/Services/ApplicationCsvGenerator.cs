@@ -1,16 +1,21 @@
 ﻿using DfE.ExternalApplications.Web.Interfaces;
 using HtmlAgilityPack;
-using SuperConvert.Extensions;
+using System.Diagnostics;
 using System.Dynamic;
-using System.Text;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 
 namespace DfE.ExternalApplications.Web.Services
 {
     public class ApplicationCsvGenerator : IApplicationCsvGenerator
     {
         private readonly JsonSerializerOptions serializerOptions = new() { WriteIndented = true };
+
+        private enum FieldType
+        {
+            String,
+            Object,
+            Array
+        }
 
         public Stream? Generate(string html)
         {
@@ -29,51 +34,56 @@ namespace DfE.ExternalApplications.Web.Services
 
         public string Generate2(string applicationReference, string applicationData)
         {
-            // flatten application response body into a CSV format
-            //var csvHeader = "Application reference, starting-year, end-year";
-            var csvHeader = string.Empty;
-
-            //var csvData = "app-ref-1, 2027, 2030";
-            byte[] csvBytes = applicationData.ToCsv(',');
-            //var csvData = Encoding.UTF8.GetString(csvBytes);
-            var csvData = string.Empty;
-            //var x = new JsonObject(applicationData);
-            //JsonObject userObject = new JsonObject
-            //{
-            //    ["Name"] = "Alice",
-            //    ["Age"] = 30,
-            //    ["IsActive"] = true
-            //};
-
-            List<string> csvHeaders = [];
-            List<string> csvItems = [];
             dynamic? obj = JsonSerializer.Deserialize<ExpandoObject>(applicationData);
             if (obj == null) return string.Empty;
 
+            // flatten application response body into a CSV format
+            List<string> csvHeaders = [];
+            List<string> csvItems = [];
+
             foreach (var kvp in obj)
             {
-                //if (csvHeader.Length > 0)
-                //{
-                //    csvHeader += ", ";
-                //}
-                //csvHeader += kvp.Key;
-                //csvHeaders.Add(kvp.Key);
-                // TODO value may be a nested object, so we need to handle that case
+                CsvWriter fieldWriter = new(csvHeaders, csvItems, kvp);
+                FieldType? fieldType = null;
                 if (kvp.Value is JsonElement jsonElement && jsonElement.ValueKind == JsonValueKind.Object)
                 {
-                    // Handle nested object
-                    // nestedKvp[0] is value
-                    // nestedKvp[1] is completed
-                    //foreach (var nestedKvp in jsonElement.EnumerateObject())
-                    //{
-                    //    //csvHeaders.Add($"{kvp.Key}.{nestedKvp.Name}");
-                    //    csvItems.Add(nestedKvp.Value.ToString());
-                    //}
                     JsonElement.ObjectEnumerator nestedObjects = jsonElement.EnumerateObject();
                     JsonElement value = nestedObjects.FirstOrDefault(x => x.Name == "value").Value;
+                    var valueString = value.ToString();
+                    if (valueString.StartsWith('[') && valueString.EndsWith(']'))
+                    {
+                        fieldType = FieldType.Array;
+                        // TODO parse specific objects - move to own class/method
+                        if (valueString.Contains("fileName"))
+                        {
+                            IEnumerable<JsonElement> objects = JsonSerializer.Deserialize<IEnumerable<JsonElement>>(valueString)!;
+                            Debug.WriteLine($"{objects.Count()} file upload objects");
+                            foreach (JsonElement obj2 in objects)
+                            {
+                                JsonElement.ObjectEnumerator nestedObjects2 = obj2.EnumerateObject();
+                                JsonElement originalFileName = nestedObjects2.FirstOrDefault(x => x.Name == "originalFileName").Value;
+                                JsonElement description = nestedObjects2.FirstOrDefault(x => x.Name == "description").Value;
+                                JsonElement fileSize = nestedObjects2.FirstOrDefault(x => x.Name == "fileSize").Value;
+                                JsonElement uploadedBy = nestedObjects2.FirstOrDefault(x => x.Name == "uploadedBy").Value;
+                                JsonElement uploadedByUser = nestedObjects2.FirstOrDefault(x => x.Name == "uploadedByUser").Value;
+                                JsonElement uploadedOn = nestedObjects2.FirstOrDefault(x => x.Name == "uploadedOn").Value;
+                                Debug.WriteLine($"{kvp.Key}.value - originalFileName: {originalFileName}, fileSize: {fileSize}.");
+                                fieldWriter.AddField("value.originalFileName", originalFileName);
+                                fieldWriter.AddField("value.fileSize", fileSize);
+                                fieldWriter.AddField("value.description", description);
+                                fieldWriter.AddField("value.uploadedByUser", uploadedByUser);
+                                fieldWriter.AddField("value.uploadedBy", uploadedBy);
+                                fieldWriter.AddField("value.uploadedOn", uploadedOn);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        fieldType = FieldType.Object;
+                        csvHeaders.Add($"{kvp.Key}.value");
+                        csvItems.Add(valueString);
+                    }
                     JsonElement completed = nestedObjects.FirstOrDefault(x => x.Name == "completed").Value;
-                    csvHeaders.Add($"{kvp.Key}.value");
-                    csvItems.Add(value.ToString());
                     csvHeaders.Add($"{kvp.Key}.completed");
                     csvItems.Add(completed.ToString());
                 }
@@ -84,9 +94,8 @@ namespace DfE.ExternalApplications.Web.Services
                 }
             }
 
-            //return $"{csvHeader}{Environment.NewLine}{csvData}";
-            csvHeader = string.Join(", ", csvHeaders);
-            csvData = string.Join(", ", csvItems);
+            var csvHeader = string.Join(", ", csvHeaders);
+            var csvData = string.Join(", ", csvItems);
             return $"{csvHeader}{Environment.NewLine}{csvData}";
         }
 
@@ -140,6 +149,15 @@ namespace DfE.ExternalApplications.Web.Services
             templateData.Groups = groups;
 
             return JsonSerializer.Serialize(templateData, serializerOptions);
+        }
+    }
+
+    internal class CsvWriter(List<string> csvHeaders, List<string> csvItems, dynamic kvp)
+    {
+        internal void AddField(string columnName, JsonElement element)
+        {
+            csvHeaders.Add($"{kvp.Key}.{columnName}");
+            csvItems.Add(element.ToString());
         }
     }
 
