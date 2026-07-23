@@ -1,7 +1,5 @@
 ﻿using DfE.ExternalApplications.Web.Interfaces;
-using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using HtmlAgilityPack;
-using Newtonsoft.Json.Linq;
 using System.Diagnostics;
 using System.Dynamic;
 using System.Text.Json;
@@ -37,10 +35,10 @@ namespace DfE.ExternalApplications.Web.Services
 
             foreach (var kvp in obj)
             {
-                if (kvp.Value is JsonElement jsonElement && jsonElement.ValueKind == JsonValueKind.Object)
+                if (kvp.Value is JsonElement element && element.ValueKind == JsonValueKind.Object)
                 {
-                    FieldExporter fieldExporter = FieldExporterFactory.Create(jsonElement);
-                    fieldExporter.Export(kvp, csv);
+                    FieldExporter fieldExporter = FieldExporterFactory.Create(element);
+                    fieldExporter.Export(kvp.Key, element, csv);
                 }
                 else
                 {
@@ -109,101 +107,82 @@ namespace DfE.ExternalApplications.Web.Services
             private static readonly List<FieldExporter> exporters =
             [
                 new ComplexFieldExporter(),
-                new FileUploadFieldExporter(),
                 new SimpleFieldExporter()
             ];
 
-            public static FieldExporter Create(JsonElement jsonElement)
+            public static FieldExporter Create(JsonElement element)
             {
-                return exporters.FirstOrDefault(exporter => exporter.CanExport(jsonElement)) ?? throw new Exception("Unknown field type");
+                return exporters.Single(x => x.CanExport(element));
             }
         }
 
         public abstract class FieldExporter
         {
-            public abstract bool CanExport(JsonElement value);
+            public abstract bool CanExport(JsonElement field);
 
-            public abstract void Export(dynamic kvp, Csv csv);
+            public abstract void Export(string field, JsonElement element, Csv csv);
+
+            protected bool IsArray(JsonElement field)
+            {
+                JsonElement.ObjectEnumerator nestedObjects = field.EnumerateObject();
+                JsonElement value = nestedObjects.FirstOrDefault(x => x.Name == "value").Value;
+                var json = value.ToString();
+                return json.StartsWith('[') && json.EndsWith(']');
+            }
         }
 
         public class SimpleFieldExporter : FieldExporter
         {
-            public override bool CanExport(JsonElement value) => true; // HACK: for now, assume any field that is not a complex or file upload field is a simple field
-
-            public override void Export(dynamic kvp, Csv csv)
+            public override bool CanExport(JsonElement field)
             {
-                if (kvp.Value is not JsonElement jsonElement || jsonElement.ValueKind != JsonValueKind.Object)
+                return !IsArray(field);
+            }
+
+            public override void Export(string field, JsonElement element, Csv csv)
+            {
+                if (element.ValueKind != JsonValueKind.Object)
                 {
                     return;
                 }
 
-                JsonElement.ObjectEnumerator nestedObjects = jsonElement.EnumerateObject();
+                JsonElement.ObjectEnumerator nestedObjects = element.EnumerateObject();
                 JsonElement value = nestedObjects.FirstOrDefault(x => x.Name == "value").Value;
-                csv.AddItem($"{kvp.Key}.value", value.ToString());
+                csv.AddItem($"{field}.value", value.ToString());
                 JsonElement completed = nestedObjects.FirstOrDefault(x => x.Name == "completed").Value;
-                csv.AddItem($"{kvp.Key}.completed", completed.ToString());
+                csv.AddItem($"{field}.completed", completed.ToString());
             }
         }
 
         public class ComplexFieldExporter : FieldExporter
         {
-            public override bool CanExport(JsonElement value)
+            public override bool CanExport(JsonElement field)
             {
-                // TODO implement logic to determine if this exporter can handle the given JSON structure
-                return false;
+                return IsArray(field);
             }
 
-            public override void Export(dynamic kvp, Csv csv)
+            public override void Export(string field, JsonElement element, Csv csv)
             {
-                throw new NotImplementedException();
-            }
-        }
-
-        public class FileUploadFieldExporter : FieldExporter
-        {
-            public override bool CanExport(JsonElement jsonElement)
-            {
-                JsonElement.ObjectEnumerator nestedObjects = jsonElement.EnumerateObject();
-                JsonElement value = nestedObjects.FirstOrDefault(x => x.Name == "value").Value;
-                var valueString = value.ToString();
-                if (valueString.StartsWith('[') && valueString.EndsWith(']') && valueString.Contains("fileName"))
-                {
-                    return true;
-                }
-
-                return false;
-            }
-
-            public override void Export(dynamic kvp, Csv csv)
-            {
-                if (kvp.Value is not JsonElement jsonElement || jsonElement.ValueKind != JsonValueKind.Object)
+                if (element.ValueKind != JsonValueKind.Object)
                 {
                     return;
                 }
 
-                JsonElement.ObjectEnumerator nestedObjects = jsonElement.EnumerateObject();
+                JsonElement.ObjectEnumerator nestedObjects = element.EnumerateObject();
                 JsonElement value = nestedObjects.FirstOrDefault(x => x.Name == "value").Value;
                 var valueString = value.ToString();
                 IEnumerable<JsonElement> objects = JsonSerializer.Deserialize<IEnumerable<JsonElement>>(valueString)!;
                 Debug.WriteLine($"{objects.Count()} file upload objects");
-                foreach (JsonElement obj2 in objects)
+                foreach (var (obj2, index) in objects.Select((value, i) => (value, i)))
                 {
                     JsonElement.ObjectEnumerator nestedObjects2 = obj2.EnumerateObject();
-                    JsonElement originalFileName = nestedObjects2.FirstOrDefault(x => x.Name == "originalFileName").Value;
-                    JsonElement description = nestedObjects2.FirstOrDefault(x => x.Name == "description").Value;
-                    JsonElement fileSize = nestedObjects2.FirstOrDefault(x => x.Name == "fileSize").Value;
-                    JsonElement uploadedBy = nestedObjects2.FirstOrDefault(x => x.Name == "uploadedBy").Value;
-                    JsonElement uploadedByUser = nestedObjects2.FirstOrDefault(x => x.Name == "uploadedByUser").Value;
-                    JsonElement uploadedOn = nestedObjects2.FirstOrDefault(x => x.Name == "uploadedOn").Value;
-                    Debug.WriteLine($"{kvp.Key}.value - originalFileName: {originalFileName}, fileSize: {fileSize}.");
-                    var prefix = $"{kvp.Key}.value";
-                    csv.AddItem($"{prefix}.originalFileName", originalFileName.ToString());
-                    csv.AddItem($"{prefix}.description", description.ToString());
-                    csv.AddItem($"{prefix}.fileSize", fileSize.ToString());
-                    csv.AddItem($"{prefix}.uploadedBy", uploadedBy.ToString());
-                    csv.AddItem($"{prefix}.uploadedByUser", uploadedByUser.ToString());
-                    csv.AddItem($"{prefix}.uploadedOn", uploadedOn.ToString());
+                    foreach (var kvp in nestedObjects2)
+                    {
+                        var prefix = $"{field}.value[{index}]";
+                        csv.AddItem($"{prefix}.{kvp.Name}", kvp.Value.ToString());
+                    }
                 }
+                JsonElement completed = nestedObjects.FirstOrDefault(x => x.Name == "completed").Value;
+                csv.AddItem($"{field}.completed", completed.ToString());
             }
         }
 
