@@ -10,6 +10,7 @@ namespace DfE.ExternalApplications.Web.Controllers;
 /// Diagnostics endpoints for migration helpers (e.g. dumping in-memory config as TenantConfig SQL).
 /// </summary>
 [Route("diagnostics")]
+[Authorize(Roles = "Admin")]
 [ExcludeFromCodeCoverage]
 public class DiagnosticsController(
     IConfiguration configuration,
@@ -17,12 +18,11 @@ public class DiagnosticsController(
 {
     /// <summary>
     /// Dumps in-memory Web configuration as TenantConfig SQL (plaintext, no DB write).
-    /// Enable with Diagnostics:ExportTenantConfigSqlEnabled=true.
+    /// Requires Admin role. Enable with Diagnostics:ExportTenantConfigSqlEnabled=true.
     /// Optional: ?tenantId=... to override the default APPLICATION_NAME → tenant GUID map.
     /// SQL is written to the container console and returned as text/plain.
     /// </summary>
     [HttpGet("export-tenant-config-sql")]
-    [AllowAnonymous]
     public IActionResult ExportTenantConfigSql([FromQuery] Guid? tenantId = null)
     {
         if (!configuration.GetValue("Diagnostics:ExportTenantConfigSqlEnabled", false))
