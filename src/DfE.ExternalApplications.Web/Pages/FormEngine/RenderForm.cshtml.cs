@@ -1852,16 +1852,8 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         public async Task<IActionResult> OnPostExportCsvAsync()
         {
-            var html = await viewRenderer.RenderPartialToStringAsync("/Views/Shared/FormEngine/_ApplicationPreview.cshtml", this, PageContext);
-            string? json = csvGenerator.GenerateJson(html);
-            using var stream = new MemoryStream();
-            var writer = new StreamWriter(stream);
-            writer.Write(json);
-            writer.Flush();
-            stream.Position = 0;
-            return File(stream, "application/json", "application.json"); // TODO app ref in name
+            throw new NotImplementedException("CSV export is not implemented yet");
         }
-
 
         private static bool TryParseFlowRoute(string pageId, out string flowId, out string instanceId, out string flowPageId)
         {

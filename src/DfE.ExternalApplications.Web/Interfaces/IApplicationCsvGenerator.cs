@@ -2,7 +2,6 @@
 {
     public interface IApplicationCsvGenerator
     {
-        Stream? Generate(string html);
-        string? GenerateJson(string html);
+        string Generate(string applicationReference, string applicationData);
     }
 }
