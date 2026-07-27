@@ -72,7 +72,8 @@ jobs:
         uses: DFE-Digital/rsd-github-actions/.github/actions/validate-packages@v1
         with:
           environment: ${{ needs.set-env.outputs.environment }}
-
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          
   build-import-deploy:
     name: Deploy ${{ needs.set-env.outputs.application }} to ${{ needs.set-env.outputs.environment }}
     runs-on: ubuntu-24.04
