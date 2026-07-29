@@ -1,6 +1,3 @@
 {
-  "field1": {
-    "value": "field1 val",
-    "completed": true
-  }
+  "field1": "field1 val"
 }

@@ -12,15 +12,51 @@ namespace Dfe.ExternalApplications.Web.UnitTests.Services
         [Fact]
         public void GenerateCsv()
         {
-            // TODO test collection field type: year-1-delivery-plan/year-1-workstreams?
             string json = File.ReadAllText(@"Services\application-data.json");
+            var fields = JsonSerializer.Deserialize<IDictionary<string, object>>(json)!;
 
-            string csv = generator.Generate("app-ref-1", json);
+            const string appRef = "app-ref-1";
+            Csv csv = generator.Generate(appRef, fields);
 
-            Assert.False(string.IsNullOrEmpty(csv), "CSV generation failed, result is empty.");
-            testOutput.WriteLine(csv);
+            Assert.NotNull(csv);
+            Assert.True(csv.Count != 0);
+            testOutput.WriteLine(csv.Export());
 
-            // TODO check csv fields
+            Assert.Equal(32, csv.Count);
+            CsvChecker checker = new(csv, "");
+            var index = 0;
+            checker.CheckField(index++, "application-reference", appRef);
+            checker.CheckField(index++, "starting-year", "2027");
+            checker.CheckField(index++, "year-1-workstreams[0].workstream-name", "Workstream 1");
+            checker.CheckField(index++, "year-1-workstreams[0].id", "bed844ca-2ece-4f11-9d69-b62831d8dd7a");
+            checker.CheckField(index++, "year-1-workstreams[0].workstream-building-blocks-coverage", "Strengthening inclusion across mainstream settings");
+            checker.CheckField(index++, "year-1-workstreams[0].workstream-outcomes", "Outcome 1");
+            checker.CheckField(index++, "year-1-workstreams[0].workstream-success-measures", "Success 1");
+            checker.CheckField(index++, "year-1-workstreams[0].workstream-responsible-lead", "responsible lead 1");
+            checker.CheckField(index++, "year-1-workstreams[0].workstream-q2-plan-what-milestones-will-enable-you", "Quarter 2 milestones ");
+            checker.CheckField(index++, "year-1-workstreams[0].workstream-q2-plan-where-do-you-expect-your-data-to-be", "Quarter 2 Where data ");
+            checker.CheckField(index++, "year-1-workstreams[0].workstream-q2-plan-projected-investment-spend", "Quarter 2 projected investment spend 1");
+            checker.CheckField(index++, "year-1-workstreams[0].workstream-q3-plan-what-milestones-will-enable-you", "Quarter 3 milestones 1");
+            checker.CheckField(index++, "year-1-workstreams[0].workstream-q3-plan-where-do-you-expect-your-data-to-be", "Quarter 3 Where do you expect your data 1");
+            checker.CheckField(index++, "year-1-workstreams[0].workstream-q3-plan-projected-investment-spend", "Quarter 3  projected investment spend 1");
+            checker.CheckField(index++, "year-1-workstreams[0].workstream-q4-plan-what-milestones-will-enable-you", "Quarter 4 milestones ");
+            checker.CheckField(index++, "year-1-workstreams[0].workstream-q4-plan-where-do-you-expect-your-data-to-be", "Quarter 4 Where do you expect your data 1");
+            checker.CheckField(index++, "year-1-workstreams[0].workstream-q4-plan-projected-investment-spend", "Quarter 4 projected investment spend 1");
+            checker.CheckField(index++, "year-1-workstreams[1].workstream-name", "Workstream 2");
+            checker.CheckField(index++, "year-1-workstreams[1].id", "23c927fe-2a2c-48e9-ac5e-99a5a7084253");
+            checker.CheckField(index++, "year-1-workstreams[1].workstream-building-blocks-coverage", "Access to specialist support and placements");
+            checker.CheckField(index++, "year-1-workstreams[1].workstream-outcomes", "Outcomes 2");
+            checker.CheckField(index++, "year-1-workstreams[1].workstream-success-measures", "Success 2");
+            checker.CheckField(index++, "year-1-workstreams[1].workstream-responsible-lead", "responsible lead 2");
+            checker.CheckField(index++, "year-1-workstreams[1].workstream-q2-plan-what-milestones-will-enable-you", "Quarter 2 milestones 2");
+            checker.CheckField(index++, "year-1-workstreams[1].workstream-q2-plan-where-do-you-expect-your-data-to-be", "Quarter 2 Where do you expect your data 2");
+            checker.CheckField(index++, "year-1-workstreams[1].workstream-q2-plan-projected-investment-spend", "Quarter 2 projected investment spend 2");
+            checker.CheckField(index++, "year-1-workstreams[1].workstream-q3-plan-what-milestones-will-enable-you", "Quarter 3 milestones 2");
+            checker.CheckField(index++, "year-1-workstreams[1].workstream-q3-plan-where-do-you-expect-your-data-to-be", "Quarter 3 Where do you expect your data 2");
+            checker.CheckField(index++, "year-1-workstreams[1].workstream-q3-plan-projected-investment-spend", "Quarter 3 projected investment spend 2");
+            checker.CheckField(index++, "year-1-workstreams[1].workstream-q4-plan-what-milestones-will-enable-you", "Quarter 4 milestones 2");
+            checker.CheckField(index++, "year-1-workstreams[1].workstream-q4-plan-where-do-you-expect-your-data-to-be", "Quarter 4 Where do you expect your data 2");
+            checker.CheckField(index++, "year-1-workstreams[1].workstream-q4-plan-projected-investment-spend", "Quarter 4 projected investment spend 2");
         }
 
         [Fact]
@@ -31,7 +67,7 @@ namespace Dfe.ExternalApplications.Web.UnitTests.Services
             var fields = JsonSerializer.Deserialize<IDictionary<string, object>>(json)!;
             var field = fields.Single();
 
-            FieldExporter fieldExporter = FieldExporterFactory.Create((JsonElement)field.Value);
+            FieldExporter fieldExporter = FieldExporterFactory.Create(field.Value.ToString()!);
 
             Assert.NotNull(fieldExporter);
             Assert.IsType<SimpleFieldExporter>(fieldExporter);
@@ -47,16 +83,13 @@ namespace Dfe.ExternalApplications.Web.UnitTests.Services
             var field = fields.Single();
 
             SimpleFieldExporter exporter = new();
-            exporter.Export(fields.Single().Key, (JsonElement)field.Value, csv);
+            exporter.Export(field.Key, field.Value.ToString()!, csv);
 
             testOutput.WriteLine(csv.Export());
 
-            Assert.Equal(2, csv.Headers.Count);
-            Assert.Equal(2, csv.Items.Count);
-            Assert.Equal("field1.value", csv.Headers.ElementAt(0));
-            Assert.Equal("field1 val", csv.Items.ElementAt(0));
-            Assert.Equal("field1.completed", csv.Headers.ElementAt(1));
-            Assert.Equal("True", csv.Items.ElementAt(1));
+            Assert.Equal(1, csv.Count);
+            CsvChecker checker = new(csv, "");
+            checker.CheckField(0, "field1", "field1 val");
         }
 
         /* Defintion of a complex field? For example, file upload, collection flow (workstreams).
@@ -73,10 +106,7 @@ namespace Dfe.ExternalApplications.Web.UnitTests.Services
         public void FieldExporterFactory_Create_Complex()
         {
             string json = File.ReadAllText(@"Services\complex-data.json");
-            var fields = JsonSerializer.Deserialize<IDictionary<string, object>>(json)!;
-            var field = fields.Single();
-
-            FieldExporter fieldExporter = FieldExporterFactory.Create((JsonElement)field.Value);
+            FieldExporter fieldExporter = FieldExporterFactory.Create(json);
             Assert.NotNull(fieldExporter);
             Assert.IsType<ComplexFieldExporter>(fieldExporter);
         }
@@ -85,36 +115,32 @@ namespace Dfe.ExternalApplications.Web.UnitTests.Services
         public void ComplexFieldExporter()
         {
             string json = File.ReadAllText(@"Services\complex-data.json");
-            IDictionary<string, object> fields = JsonSerializer.Deserialize<IDictionary<string, object>>(json)!;
             Csv csv = new();
-            foreach (var field in fields)
-            {
-                ComplexFieldExporter exporter = new();
-                exporter.Export(field.Key, (JsonElement)field.Value, csv);
-            }
+            const string fieldName = "test";
+            ComplexFieldExporter exporter = new();
+            exporter.Export(fieldName, json, csv);
 
-            testOutput.WriteLine($"CSV has {csv.Headers.Count} fields");
+            testOutput.WriteLine($"CSV has {csv.Count} fields");
             testOutput.WriteLine(csv.Export());
 
-            Assert.Equal(4, csv.Headers.Count);
-            CsvChecker checker = new(csv, "fieldlist");
+            Assert.Equal(3, csv.Count);
+            CsvChecker checker = new(csv, fieldName);
             short index = 0;
-            checker.CheckField(index++, ".value[0].field1a", "field1a val");
-            checker.CheckField(index++, ".value[0].field1b", "field1b val");
-            checker.CheckField(index++, ".value[1].field2a", "field2a val");
-            checker.CheckField(index, ".completed", "True");
+            checker.CheckField(index++, "[0].field1a", "field1a val");
+            checker.CheckField(index++, "[0].field1b", "field1b val");
+            checker.CheckField(index++, "[1].field2a", "field2a val");
         }
 
     }
 
     internal class CsvChecker(Csv csv, string prefix)
     {
-        internal void CheckField(short index, string header, string item)
+        internal void CheckField(int index, string header, string item)
         {
             var expectedHeader = $"{prefix}{header}";
-            var actualHeader = csv.Headers.ElementAt(index);
+            var actualHeader = csv.Header(index);
             Assert.Equal(expectedHeader, actualHeader);
-            var actualItem = csv.Items.ElementAt(index);
+            var actualItem = csv.Item(index);
             Assert.Equal(item, actualItem);
         }
     }

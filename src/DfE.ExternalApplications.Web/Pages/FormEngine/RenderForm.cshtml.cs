@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.AspNetCore.Mvc;
 using StackExchange.Redis;
 using System.Diagnostics.CodeAnalysis;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -48,7 +49,6 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         INavigationHistoryService navigationHistoryService,
         IApplicationSubmissionOrchestrator applicationSubmissionOrchestrator,
         IConfiguration configuration,
-        IRazorViewRenderer viewRenderer,
         IApplicationCsvGenerator csvGenerator)
         : BaseFormEngineModel(renderer, applicationResponseService, fieldFormattingService, templateManagementService,
             applicationStateService, formStateManager, formNavigationService, formDataManager, formValidationOrchestrator, formConfigurationService, logger)
@@ -1852,7 +1852,10 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
 
         public async Task<IActionResult> OnPostExportCsvAsync()
         {
-            throw new NotImplementedException("CSV export is not implemented yet");
+            LoadFormDataFromSession();
+            var csv = csvGenerator.Generate(ReferenceNumber, FormData);
+            var bytes = Encoding.UTF8.GetBytes(csv.Export());
+            return File(bytes, "text/csv", $"{ReferenceNumber}.csv");
         }
 
         private static bool TryParseFlowRoute(string pageId, out string flowId, out string instanceId, out string flowPageId)

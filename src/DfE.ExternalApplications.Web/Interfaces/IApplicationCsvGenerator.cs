@@ -1,7 +1,9 @@
-﻿namespace DfE.ExternalApplications.Web.Interfaces
+﻿using static DfE.ExternalApplications.Web.Services.ApplicationCsvGenerator;
+
+namespace DfE.ExternalApplications.Web.Interfaces
 {
     public interface IApplicationCsvGenerator
     {
-        string Generate(string applicationReference, string applicationData);
+        Csv Generate(string appRef, IDictionary<string, object> fields);
     }
 }

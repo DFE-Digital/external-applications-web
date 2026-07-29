@@ -1,35 +1,28 @@
 ﻿using DfE.ExternalApplications.Web.Interfaces;
-using System.Diagnostics;
-using System.Dynamic;
 using System.Text.Json;
 
 namespace DfE.ExternalApplications.Web.Services
 {
+    // TODO move nested classes into separate files, and place all in a subfolder.
+
     public class ApplicationCsvGenerator : IApplicationCsvGenerator
     {
-        public string Generate(string applicationReference, string applicationData)
+        public Csv Generate(string appRef, IDictionary<string, object> fields)
         {
-            dynamic? obj = JsonSerializer.Deserialize<ExpandoObject>(applicationData);
-            if (obj == null) return string.Empty;
-
-            // flatten application response body into a CSV format
             Csv csv = new();
-
-            foreach (var kvp in obj)
+            csv.AddItem("application-reference", appRef);
+            foreach (var field in fields)
             {
-                if (kvp.Value is JsonElement element && element.ValueKind == JsonValueKind.Object)
+                var value = field.Value?.ToString() ?? string.Empty;
+                if (string.IsNullOrEmpty(value))
                 {
-                    FieldExporter fieldExporter = FieldExporterFactory.Create(element);
-                    fieldExporter.Export(kvp.Key, element, csv);
+                    continue;
                 }
-                else
-                {
-                    // TODO is this the right approach for non-object values? Should we just skip them or handle them differently?
-                    csv.AddItem(kvp.Key, kvp.Value?.ToString() ?? string.Empty);
-                }
-            }
 
-            return csv.Export();
+                FieldExporter fieldExporter = FieldExporterFactory.Create(value);
+                fieldExporter.Export(field.Key, value, csv);
+            }
+            return csv;
         }
 
         public static class FieldExporterFactory
@@ -42,97 +35,109 @@ namespace DfE.ExternalApplications.Web.Services
 
             public static FieldExporter Create(JsonElement element)
             {
-                return exporters.Single(x => x.CanExport(element));
+                return exporters.Single(x => x.CanExport(element.ToString()));
+            }
+
+            public static FieldExporter Create(string value)
+            {
+                var isJsonObject = value.StartsWith('{') && value.EndsWith('}');
+                var isJsonArray = value.StartsWith('[') && value.EndsWith(']');
+                if (!isJsonObject && !isJsonArray)
+                {
+                    return new SimpleFieldExporter();
+                }
+
+                JsonElement element = JsonDocument.Parse(value).RootElement;
+                return exporters.Single(x => x.CanExport(element.ToString()));
             }
         }
 
         public abstract class FieldExporter
         {
-            public abstract bool CanExport(JsonElement field);
+            public abstract bool CanExport(string field);
 
-            public abstract void Export(string field, JsonElement element, Csv csv);
-
-            protected bool IsArray(JsonElement field)
-            {
-                JsonElement.ObjectEnumerator nestedObjects = field.EnumerateObject();
-                JsonElement value = nestedObjects.FirstOrDefault(x => x.Name == "value").Value;
-                var json = value.ToString();
-                return json.StartsWith('[') && json.EndsWith(']');
-            }
+            public abstract void Export(string key, string value, Csv csv);
         }
 
         public class SimpleFieldExporter : FieldExporter
         {
-            public override bool CanExport(JsonElement field)
+            public override bool CanExport(string field)
             {
-                return !IsArray(field);
+                var isJsonObject = field.StartsWith('{') && field.EndsWith('}');
+                var isJsonArray = field.StartsWith('[') && field.EndsWith(']');
+                return !isJsonObject && !isJsonArray;
             }
 
-            public override void Export(string field, JsonElement element, Csv csv)
+            public override void Export(string key, string value, Csv csv)
             {
-                if (element.ValueKind != JsonValueKind.Object)
-                {
-                    return;
-                }
-
-                JsonElement.ObjectEnumerator nestedObjects = element.EnumerateObject();
-                JsonElement value = nestedObjects.FirstOrDefault(x => x.Name == "value").Value;
-                csv.AddItem($"{field}.value", value.ToString());
-                JsonElement completed = nestedObjects.FirstOrDefault(x => x.Name == "completed").Value;
-                csv.AddItem($"{field}.completed", completed.ToString());
+                csv.AddItem(key, value);
             }
         }
 
         public class ComplexFieldExporter : FieldExporter
         {
-            public override bool CanExport(JsonElement field)
+            public override bool CanExport(string field)
             {
-                return IsArray(field);
+                return field.StartsWith('[') && field.EndsWith(']');
             }
 
-            public override void Export(string field, JsonElement element, Csv csv)
+            public override void Export(string key, string value, Csv csv)
             {
-                if (element.ValueKind != JsonValueKind.Object)
+                JsonElement element = JsonDocument.Parse(value).RootElement;
+                if (element.ValueKind != JsonValueKind.Array)
                 {
                     return;
                 }
 
-                JsonElement.ObjectEnumerator nestedObjects = element.EnumerateObject();
-                JsonElement value = nestedObjects.FirstOrDefault(x => x.Name == "value").Value;
-                var valueString = value.ToString();
-                IEnumerable<JsonElement> objects = JsonSerializer.Deserialize<IEnumerable<JsonElement>>(valueString)!;
-                Debug.WriteLine($"{objects.Count()} file upload objects");
-                foreach (var (obj2, index) in objects.Select((value, i) => (value, i)))
+                JsonElement.ArrayEnumerator items = element.EnumerateArray();
+                var index = 0;
+                foreach (var item in items)
                 {
-                    JsonElement.ObjectEnumerator nestedObjects2 = obj2.EnumerateObject();
-                    foreach (var kvp in nestedObjects2)
+                    if (item.ValueKind != JsonValueKind.Object)
                     {
-                        var prefix = $"{field}.value[{index}]";
-                        csv.AddItem($"{prefix}.{kvp.Name}", kvp.Value.ToString());
+                        continue;
                     }
+                    JsonElement.ObjectEnumerator nestedObjects = item.EnumerateObject();
+                    foreach (var nested in nestedObjects)
+                    {
+                        csv.AddItem($"{key}[{index}].{nested.Name}", nested.Value.ToString());
+                    }
+                    index++;
                 }
-                JsonElement completed = nestedObjects.FirstOrDefault(x => x.Name == "completed").Value;
-                csv.AddItem($"{field}.completed", completed.ToString());
             }
         }
 
         public class Csv
         {
-            public List<string> Headers { get; internal set; } = [];
-            public List<string> Items { get; internal set; } = [];
+            private readonly List<string> headers = [];
+            private readonly List<string> items = [];
+
+            public int Count => headers.Count;
 
             internal void AddItem(string header, string item)
             {
-                Headers.Add(header);
-                Items.Add(item);
+                headers.Add(header);
+                items.Add(item);
             }
 
             public string Export()
             {
-                if (Headers.Count != Items.Count) throw new InvalidOperationException("Headers and Items must have the same count.");
-                var csvHeader = string.Join(", ", Headers);
-                var csvData = string.Join(", ", Items);
+                if (headers.Count != items.Count) throw new InvalidOperationException("Headers and Items must have the same count.");
+                var csvHeader = string.Join(", ", headers);
+                var csvData = string.Join(", ", items);
                 return $"{csvHeader}{Environment.NewLine}{csvData}";
+            }
+
+            public IEnumerable<char>? Header(int index)
+            {
+                if (index < 0 || index >= headers.Count) throw new ArgumentOutOfRangeException(nameof(index));
+                return headers[index];
+            }
+
+            public IEnumerable<char>? Item(int index)
+            {
+                if (index < 0 || index >= items.Count) throw new ArgumentOutOfRangeException(nameof(index));
+                return items[index];
             }
         }
     }
