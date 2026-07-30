@@ -26,4 +26,10 @@
         <Using Include="Xunit" />
     </ItemGroup>
 
+    <ItemGroup>
+      <None Update="Services\application.xlsx">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+    </ItemGroup>
+
 </Project>
