@@ -68,7 +68,9 @@ public class ApplicationResponseService(
                 var currentStatus = session.GetString(statusKey);
                 
                 // Only update if not already submitted
-                if (string.IsNullOrEmpty(currentStatus) || currentStatus.Equals("InProgress", StringComparison.OrdinalIgnoreCase))
+                if (string.IsNullOrEmpty(currentStatus)
+                    || currentStatus.Equals("Created", StringComparison.OrdinalIgnoreCase)
+                    || currentStatus.Equals("InProgress", StringComparison.OrdinalIgnoreCase))
                 {
                     // Update session status to InProgress
                     session.SetString(statusKey, "InProgress");
