@@ -201,3 +201,7 @@ All notable changes to this service will be documented in this file.
 ## [1.4.1]
 ### Notes
 - Accessibility issue with override custom application status form fixed
+
+## [1.4.2]
+### Notes
+- Fixed issue where new users would get read-only applications
