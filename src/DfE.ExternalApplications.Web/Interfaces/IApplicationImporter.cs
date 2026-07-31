@@ -4,6 +4,6 @@ namespace DfE.ExternalApplications.Web.Interfaces
 {
     public interface IApplicationImporter
     {
-        ApplicationImportResult ImportSpreadsheet(Guid templateId, Stream stream);
+        Task<ApplicationImportResult> ImportSpreadsheet(Guid templateId, Stream stream);
     }
 }
