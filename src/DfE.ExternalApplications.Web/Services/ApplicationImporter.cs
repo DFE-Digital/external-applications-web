@@ -89,10 +89,17 @@ namespace DfE.ExternalApplications.Web.Services
                 return new ApplicationImportResult { Errors = [$"Template not found ({templateId})"] };
             }
 
-            Dictionary<string, string>? fields = GetSpreadsheetFields(stream, out string? error);
-            if (fields == null)
+            // TODO get spreadsheet data using mapping
+            Dictionary<string, string> mapping = new()
             {
-                return new ApplicationImportResult { Errors = [ $"Failed to get spreadsheet fields: {error}" ] };
+                { "B1", "start-year" },
+                { "B2", "end-year" },
+                { "B3", "local-authority" }
+            };
+            IDictionary<string, string?>? fields = GetSpreadsheetFields2(stream, "Sheet1", mapping, out IList<string> errors);
+            if (fields == null || fields.Count == 0)
+            {
+                return new ApplicationImportResult { Errors = [ $"Failed to get spreadsheet fields: {string.Join(", ", errors)}" ] };
             }
 
             ApplicationImport applicationImport = BuildApplicationImport(fields, template);
@@ -101,41 +108,98 @@ namespace DfE.ExternalApplications.Web.Services
                 return new ApplicationImportResult { Errors = applicationImport.Errors };
             }
 
-            CreateApplicationRequest request = new()
-            {
-                TemplateId = templateId,
-                InitialResponseBody = applicationImport.ResponseBody!
-            };
-            ApplicationDto? application = SaveApplication(request);
-
-            return new ApplicationImportResult { ApplicationId = application?.ApplicationId, Success = application != null, FieldCount = fields.Count };
+            return new ApplicationImportResult { Success = true, FieldCount = fields.Count };
         }
 
-        private ApplicationDto SaveApplication(CreateApplicationRequest request)
+        private static Dictionary<string, string?>? GetSpreadsheetFields2(FileStream stream, string sheet, Dictionary<string, string> mapping, out IList<string> errors)
         {
-            throw new NotImplementedException();
+            using SpreadsheetDocument document = SpreadsheetDocument.Open(stream, false);
+
+            WorkbookPart? wbPart = document.WorkbookPart;
+
+            errors = [];
+
+            Sheet? theSheet = wbPart?.Workbook?.Descendants<Sheet>().Where(s => s.Name == sheet).FirstOrDefault();
+            if (theSheet is null || theSheet.Id is null)
+            {
+                errors.Add($"Sheet '{sheet}' not found in the spreadsheet.");
+                return default;
+            }
+
+            WorksheetPart wsPart = (WorksheetPart)wbPart!.GetPartById(theSheet.Id!);
+
+            Dictionary<string, string?> fields = [];
+
+            foreach (var kvp in mapping)
+            {
+                Cell? theCell = wsPart.Worksheet?.Descendants<Cell>()?.Where(c => c.CellReference == kvp.Key).FirstOrDefault();
+                if (theCell is null)
+                {
+                    errors.Add($"Cell '{kvp.Key}' not found in the worksheet.");
+                    continue;
+                }
+                string? cellValue;
+                if (theCell is null || theCell.InnerText.Length < 0)
+                {
+                    fields.Add(kvp.Key, null);
+                    continue;
+                }
+                cellValue = theCell.InnerText;
+                if (theCell.DataType is not null)
+                {
+                    if (theCell.DataType.Value == CellValues.SharedString)
+                    {
+                        var stringTable = wbPart.GetPartsOfType<SharedStringTablePart>().FirstOrDefault();
+                        if (stringTable is not null)
+                        {
+                            cellValue = stringTable.SharedStringTable!.ElementAt(int.Parse(cellValue)).InnerText;
+                        }
+                    }
+                    else if (theCell.DataType.Value == CellValues.Boolean)
+                    {
+                        cellValue = cellValue switch
+                        {
+                            "0" => "FALSE",
+                            _ => "TRUE",
+                        };
+                    }
+                }
+
+                Debug.WriteLine($"Cell {kvp.Key}: {cellValue}");
+                fields.Add(kvp.Key, cellValue);
+            }
+
+            return fields;
         }
 
-        private static ApplicationImport BuildApplicationImport(Dictionary<string, string> spreadsheetFields, FormTemplate formTemplate)
+        private static ApplicationImport BuildApplicationImport(IDictionary<string, string?> fields, FormTemplate template)
         {
             Dictionary<string, string> fieldMapping = []; // TODO get from template or external source
 
             List<string> warnings = [];
             List<string> errors = [];
             List<dynamic> responseFields = [];
-            foreach (var field in spreadsheetFields)
+            foreach (var field in fields)
             {
-                if (!fieldMapping.ContainsKey(field.Key))
-                {
-                    warnings.Add($"No mapping found for field '{field.Key}'");
-                    continue;
-                }
-                KeyValuePair<string, string> matchedField = spreadsheetFields!.SingleOrDefault(f => formTemplate.TaskGroups.Any(tg => tg.Tasks.Any(t => t.Pages!.Any(page => page.Fields.Any(field => field.FieldId == f.Key)))));
-                if (matchedField.Equals(default(KeyValuePair<string, string>)))
+                var matchedField = template.TaskGroups
+                    .SelectMany(tg => tg.Tasks)
+                    .SelectMany(t => t.Pages!)
+                    .SelectMany(p => p.Fields)
+                    .FirstOrDefault(f => f.FieldId == field.Key);
+
+                if (matchedField == null)
                 {
                     errors.Add($"No single matching field found in the template for field '{field.Key}'"); 
                     continue;
                 }
+
+                // TODO construct the response field JSON based on the matched field and its value
+                var responseField = new
+                {
+                    FieldId = field.Key,
+                    Value = field.Value
+                };
+                responseFields.Add(responseField);
             }
 
             // TODO construct the response body JSON based on the matched fields and their values
@@ -203,15 +267,14 @@ namespace DfE.ExternalApplications.Web.Services
 
         private IEnumerable<string> GetCellValues(Row dataRow)
         {
-            var dataCellValues = new List<string>();
-            foreach (var c in dataRow.Elements<Cell>())
+            List<string> dataCellValues = [];
+            foreach (Cell c in dataRow.Elements<Cell>())
             {
                 if (c.CellValue == null)
                 {
                     Debug.WriteLine($"Cell is empty.");
                     continue;
                 }
-
                 string cellValue;
                 if ((c.DataType != null) && (c.DataType == CellValues.SharedString))
                 {
@@ -223,6 +286,7 @@ namespace DfE.ExternalApplications.Web.Services
                 {
                     cellValue = c.CellValue.Text;
                 }
+                Debug.WriteLine($"Processing cell: {c.CellReference}, DataType: {c.DataType}, CellValue: {cellValue}");
                 dataCellValues.Add(cellValue);
             }
             return [.. dataCellValues];

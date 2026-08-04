@@ -64,9 +64,9 @@ namespace Dfe.ExternalApplications.Web.UnitTests.Services
         public async System.Threading.Tasks.Task TestImportApplication2()
         {
             var templateId = Guid.Parse("00000000-0000-0000-0000-000000000001");
-            using FileStream fileStream = new(@"Services\application.xlsx", FileMode.Open);
+            using FileStream fileStream = new(@"Services\application2.xlsx", FileMode.Open);
 
-            FormTemplate formTemplate = CreateFormTemplate(templateId);
+            FormTemplate formTemplate = CreateFormTemplate2(templateId);
 
             mockTemplateManagementService.Setup(s => s.LoadTemplateAsync(templateId.ToString()))
                 .ReturnsAsync(formTemplate);
@@ -77,10 +77,7 @@ namespace Dfe.ExternalApplications.Web.UnitTests.Services
             mockApplicationsClient.Setup(s => s.SubmitApplicationAsync(applicationId))
                 .ReturnsAsync(new ApplicationDto { Status = ApplicationStatus.Submitted });
 
-            Dictionary<string, string> mapping = new()
-            {
-                { "application-reference", "TaskGroup1/Task1/Page1/application-reference" }
-            };
+            // TODO what should import return for use in 'check your answers' page (Views\Shared\FormEngine\_ApplicationPreview.cshtml)? RenderFormModel
             ApplicationImportResult result = await applicationImporter.ImportSpreadsheet2(templateId, fileStream);
 
             Assert.NotNull(result);
@@ -90,7 +87,52 @@ namespace Dfe.ExternalApplications.Web.UnitTests.Services
             }
             Assert.True(result.Success);
             Assert.Null(result.Errors);
-            Assert.Equal(4, result.FieldCount);
+            Assert.Equal(3, result.FieldCount);
+        }
+
+        private FormTemplate CreateFormTemplate2(Guid templateId)
+        {
+            return new()
+            {
+                TemplateId = templateId.ToString(),
+                TemplateName = "Test Template",
+                Description = "Test Description",
+                TaskGroups =
+                [
+                    new() {
+                        GroupId = "TaskGroup1",
+                        GroupName = "Task Group 1",
+                        GroupOrder = 1,
+                        GroupStatus = "OK",
+                        Tasks =
+                        [
+                            new()
+                            {
+                                TaskId = "Task1",
+                                TaskName = "Task 1",
+                                TaskOrder = 1,
+                                TaskStatusString = "OK",
+                                Pages =
+                                [
+                                    new() {
+                                        PageId = "Page1",
+                                        Description = "Page One",
+                                        Slug = "page-1",
+                                        Title = "Page 1",
+                                        PageOrder = 1,
+                                        Fields =
+                                        [
+                                            new() { FieldId = "B1", Order = 1, Type = "string", Label = new Label{ Value = "start-year" } },
+                                            new() { FieldId = "B2", Order = 2, Type = "string", Label = new Label{ Value = "end-year" } },
+                                            new() { FieldId = "B3", Order = 3, Type = "string", Label = new Label{ Value = "local-authority" } }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            };
         }
 
         [Fact]
