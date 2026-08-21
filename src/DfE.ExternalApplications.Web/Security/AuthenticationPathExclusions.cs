@@ -1,8 +1,8 @@
 namespace DfE.ExternalApplications.Web.Security;
 
 /// <summary>
-/// Paths used by OIDC sign-in/sign-out that must not trigger permission loading,
-/// status-code rewrites, or other authenticated middleware side effects.
+/// Paths that must not trigger permission loading, status-code rewrites,
+/// or other authenticated middleware side effects.
 /// </summary>
 internal static class AuthenticationPathExclusions
 {
@@ -12,11 +12,39 @@ internal static class AuthenticationPathExclusions
         "/signout-callback-oidc",
         "/signin-entra",
         "/signout-callback-entra",
-        "/Logout"
+        "/Logout",
+        "/health",
+        "/assets",
+        "/css",
+        "/js",
+        "/lib",
+        "/favicon",
+        "/govuk-frontend",
+        "/_framework",
+        "/_content"
+    ];
+
+    private static readonly string[] StaticFileExtensions =
+    [
+        ".js",
+        ".css",
+        ".map",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".svg",
+        ".ico",
+        ".woff",
+        ".woff2",
+        ".ttf",
+        ".eot",
+        ".json"
     ];
 
     /// <summary>
-    /// Returns true when the request path is an authentication callback or logout endpoint.
+    /// Returns true when the request path is an authentication callback, logout,
+    /// health check, or static asset that should skip permission middleware.
     /// </summary>
     public static bool ShouldSkip(PathString path)
     {
@@ -30,6 +58,14 @@ internal static class AuthenticationPathExclusions
         foreach (var excluded in Paths)
         {
             if (pathValue.StartsWith(excluded, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        foreach (var extension in StaticFileExtensions)
+        {
+            if (pathValue.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }

@@ -35,8 +35,8 @@ public static class UserPermissionsCache
     }
 
     /// <summary>
-    /// Loads the latest permissions from the API and stores them in the in-memory cache.
-    /// The API maintains its own Redis cache, which is invalidated when contributors are invited.
+    /// Returns cached permissions when present; otherwise loads them from the API and stores them.
+    /// Call <see cref="Invalidate"/> when permissions change (for example after creating an application).
     /// </summary>
     public static async Task<UserAuthorizationDto?> RefreshAsync(
         IMemoryCache cache,
@@ -57,7 +57,10 @@ public static class UserPermissionsCache
         }
 
         var cacheKey = GetCacheKey(user);
-        Invalidate(cache, user);
+        if (cache.TryGetValue(cacheKey, out UserAuthorizationDto? cached) && cached is not null)
+        {
+            return cached;
+        }
 
         try
         {
