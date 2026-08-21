@@ -148,7 +148,8 @@ namespace DfE.ExternalApplications.Web.Pages.Shared
         /// </summary>
         public bool IsUserAdmin()
         {
-            return HttpContext?.User?.IsInRole("Admin") == true
+            return (HttpContext?.User?.IsInRole("Admin") == true
+                    || HttpContext?.User?.IsInRole("SuperAdmin") == true)
                 && !IsServiceAuthenticated();
         }
 

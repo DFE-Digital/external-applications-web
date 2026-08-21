@@ -210,3 +210,8 @@ All notable changes to this service will be documented in this file.
 ## [1.4.4]
 ### Notes
 - Updated Auth path Exclusions
+
+
+## [1.4.5]
+### Notes
+- Added SuperAdmin as Admin alias 

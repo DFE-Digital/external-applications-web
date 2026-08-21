@@ -10,7 +10,7 @@ namespace DfE.ExternalApplications.Web.Controllers;
 /// Diagnostics endpoints for migration helpers (e.g. dumping in-memory config as TenantConfig SQL).
 /// </summary>
 [Route("diagnostics")]
-[Authorize(Roles = "Admin")]
+[Authorize(Roles = "Admin, SuperAdmin")]
 [ExcludeFromCodeCoverage]
 public class DiagnosticsController(
     IConfiguration configuration,

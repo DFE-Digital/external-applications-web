@@ -18,7 +18,7 @@ using Task = System.Threading.Tasks.Task;
 namespace DfE.ExternalApplications.Web.Pages.Admin
 {
     [ExcludeFromCodeCoverage]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin, SuperAdmin")]
     public class CustomStatusLabelOverridesModel(
         IApplicationStatusService applicationStatusService,
         IFormTemplateProvider formTemplateProvider,

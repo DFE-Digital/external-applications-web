@@ -178,7 +178,7 @@
                             Menu
                         </button>
                         <ul class="govuk-service-navigation__list" id="navigation">
-                            @if (User.IsInRole("Admin"))
+                            @if (User.IsInRole("Admin") || User.IsInRole("SuperAdmin"))
                             {
                                 <li class="govuk-service-navigation__item">
                                     <a class="govuk-service-navigation__link app-badge-container" href="/admin" style="position: relative;">

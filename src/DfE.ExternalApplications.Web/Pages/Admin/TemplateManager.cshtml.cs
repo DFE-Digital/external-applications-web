@@ -14,7 +14,7 @@ using GovUK.Dfe.CoreLibs.Caching.Helpers;
 
 namespace DfE.ExternalApplications.Web.Pages.Admin;
 
-[Authorize(Roles = "Admin")]
+[Authorize(Roles = "Admin, SuperAdmin")]
 [RequestSizeLimit(52_428_800)]
 [RequestFormLimits(ValueLengthLimit = 52_428_800, ValueCountLimit = 1000)]
 public class TemplateManagerModel(

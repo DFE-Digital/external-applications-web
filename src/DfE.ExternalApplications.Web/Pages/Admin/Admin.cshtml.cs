@@ -16,7 +16,7 @@ using GovUK.Dfe.ExternalApplications.Api.Client.Security;
 namespace DfE.ExternalApplications.Web.Pages.Admin
 {
     [ExcludeFromCodeCoverage]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin, SuperAdmin")]
     public class AdminModel(
         IFormTemplateProvider templateProvider,
         ITemplatesClient templatesClient,

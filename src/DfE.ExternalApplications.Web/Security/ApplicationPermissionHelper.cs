@@ -24,7 +24,7 @@ public static class ApplicationPermissionHelper
             return false;
         }
 
-        if (user.IsInRole("Admin"))
+        if (user.IsInRole("Admin") || user.IsInRole("SuperAdmin"))
         {
             return true;
         }

@@ -12,7 +12,7 @@ using static DfE.ExternalApplications.Web.Pages.Applications.DashboardModel;
 
 namespace DfE.ExternalApplications.Web.Pages.Applications;
 
-[Authorize(Roles = "Admin, Caseworker")]
+[Authorize(Roles = "Admin, SuperAdmin, Caseworker")]
 public class IndexModel(
     IApplicationsClient applicationsClient,
     IApplicationStatusService applicationStatusService,
