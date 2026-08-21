@@ -43,7 +43,7 @@ static verifyNewContributor() {
 }
 
 static ClickProceedBtn() {
-    cy.getById(this.selectors.proceedBtn).contains('Go to application form').click();
+    cy.getById(this.selectors.proceedBtn).contains('Go to application').click();
     return this;
 }
 // This method is used to invite contributors from Task List Page

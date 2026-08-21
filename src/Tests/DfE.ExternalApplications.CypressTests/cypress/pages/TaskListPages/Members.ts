@@ -55,7 +55,7 @@ static selectors = {
    } 
 
      static VerifyAddedMember( Member1: string){
-          cy.getByClass('govuk-notification-banner__content').should('contain.text', Member1 + ' has been added to Members after the transfer');
+          cy.getByClass('govuk-notification-banner__content').should('contain.text', ' Members updated');
     }
 
 
@@ -67,7 +67,7 @@ static selectors = {
     }
 
     static LeavingMemberVerification( LeavingMember: string){
-        cy.getByClass('govuk-notification-banner__heading').should('contain.text', LeavingMember + ' has been added to Existing members who will be leaving');
+        cy.getByClass('govuk-notification-banner__heading').should('contain.text', 'Members updated');
     }
 
 

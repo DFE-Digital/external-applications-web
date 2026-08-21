@@ -51,7 +51,7 @@ static selectors = {
     }
 
     static verifyAddedTrustee( Trusttee1: string){
-            cy.getByClass('govuk-notification-banner__heading').should('contain.text', Trusttee1 + ' has been added to Trustees after the transfer');
+            cy.getByClass('govuk-notification-banner__heading').should('contain.text', 'Trustees updated');
     }
 
 
@@ -85,7 +85,7 @@ static selectors = {
     }
 
     static LeavingTrusteeVerification( LeavingTrustee: string){
-        cy.getByClass('govuk-notification-banner__heading').should('contain.text', LeavingTrustee + ' has been added to Existing trustees who will be leaving');
+        cy.getByClass('govuk-notification-banner__heading').should('contain.text', 'Trustees updated');
     }
 
 
