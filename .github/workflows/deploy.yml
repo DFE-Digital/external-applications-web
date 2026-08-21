@@ -127,3 +127,17 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID || '' }}
           AZURE_SUBSCRIPTION: ${{ secrets.AZURE_SUBSCRIPTION_ID || '' }}
           AZURE_ACA_CLIENT_ID: ${{ secrets.ACA_CLIENT_ID || '' }}
+
+  playwright-tests:
+    name: Run Playwright Tests
+    needs: [set-env, build-import-deploy]
+    if: |
+      endsWith(needs.set-env.outputs.environment, '-development') ||
+      endsWith(needs.set-env.outputs.environment, '-test')
+    uses: ./.github/workflows/playwright-tests.yml
+    with:
+      application: ${{ needs.set-env.outputs.application }}
+      environment: ${{ needs.set-env.outputs.environment }}
+    secrets:
+      SERVICE_API_KEY: ${{ secrets.SERVICE_API_KEY }}
+      TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
