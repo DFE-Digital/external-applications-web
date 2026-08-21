@@ -205,3 +205,8 @@ All notable changes to this service will be documented in this file.
 ## [1.4.2]
 ### Notes
 - Fixed issue where new users would get read-only applications
+
+
+## [1.4.4]
+### Notes
+- Updated Auth path Exclusions
