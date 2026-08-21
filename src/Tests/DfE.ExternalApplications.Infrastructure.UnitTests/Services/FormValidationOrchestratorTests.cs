@@ -328,4 +328,38 @@ public class FormValidationOrchestratorTests
 
         return _orchestrator.ValidateField(field, sanitisedText, formData, modelState, fieldKey, formTemplate);
     }
+
+    [Fact]
+    public void ValidatePage_skips_hidden_required_fields()
+    {
+        var requiredValidation = _fixture.Build<ValidationRule>()
+            .With(v => v.Type, "required")
+            .Without(v => v.Condition)
+            .With(v => v.Message, "This field is required")
+            .Create();
+        var visibleField = _fixture.Build<Field>()
+            .With(f => f.FieldId, "visible")
+            .With(f => f.Type, "text")
+            .With(f => f.Validations, [requiredValidation])
+            .Create();
+        var hiddenField = _fixture.Build<Field>()
+            .With(f => f.FieldId, "hidden")
+            .With(f => f.Type, "text")
+            .With(f => f.Validations, [requiredValidation])
+            .Create();
+        var page = _fixture.Build<Page>()
+            .With(p => p.Fields, [visibleField, hiddenField])
+            .Create();
+        var data = new Dictionary<string, object>
+        {
+            ["visible"] = "answered",
+            ["hidden"] = ""
+        };
+        var modelState = new ModelStateDictionary();
+
+        var result = _orchestrator.ValidatePage(page, data, modelState, isFieldHidden: id => id == "hidden");
+
+        Assert.True(result);
+        Assert.False(modelState.ContainsKey("hidden"));
+    }
 }

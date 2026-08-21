@@ -37,8 +37,9 @@ namespace DfE.ExternalApplications.Infrastructure.Services
         /// <param name="data">The form data</param>
         /// <param name="modelState">The model state to add errors to</param>
         /// <param name="template">Optional template for field requirement policy</param>
+        /// <param name="isFieldHidden">Optional predicate; hidden fields are skipped</param>
         /// <returns>True if validation passes</returns>
-        public bool ValidatePage(Page page, Dictionary<string, object> data, ModelStateDictionary modelState, FormTemplate? template = null)
+        public bool ValidatePage(Page page, Dictionary<string, object> data, ModelStateDictionary modelState, FormTemplate? template = null, Func<string, bool>? isFieldHidden = null)
         {
             if (page?.Fields == null)
             {
@@ -48,6 +49,9 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             var isValid = true;
             foreach (var field in page.Fields)
             {
+                if (isFieldHidden?.Invoke(field.FieldId) == true)
+                    continue;
+
                 var key = field.FieldId;
                 data.TryGetValue(key, out var rawValue);
 
@@ -119,7 +123,7 @@ namespace DfE.ExternalApplications.Infrastructure.Services
             {
                 foreach (var task in group.Tasks)
                 {
-                    if (!ValidateTask(task, data, modelState))
+                    if (!ValidateTask(task, data, modelState, template))
                     {
                         isValid = false;
                     }

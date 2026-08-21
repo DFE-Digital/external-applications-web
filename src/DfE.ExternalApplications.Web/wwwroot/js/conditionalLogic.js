@@ -13,6 +13,7 @@ class ConditionalLogicEngine {
             values: {}
         };
         this.debounceTimers = {};
+        this._listenersBound = false;
     }
 
     /**
@@ -27,8 +28,8 @@ class ConditionalLogicEngine {
         // Bind event listeners to form fields
         this.bindFormEventListeners();
         
-        // Apply initial conditional logic
-        this.evaluateAllRules();
+        // Apply initial conditional logic (including A→B→C cascades)
+        this.evaluateAllRulesWithCascade();
         
         console.log(`Conditional Logic Engine initialized with ${this.rules.length} rules`);
     }
@@ -37,6 +38,9 @@ class ConditionalLogicEngine {
      * Bind event listeners to form fields
      */
     bindFormEventListeners() {
+        if (this._listenersBound) return;
+        this._listenersBound = true;
+
         document.addEventListener('change', (event) => {
             if (event.target.matches('input, select, textarea')) {
                 this.handleFieldChange(event.target);
@@ -59,7 +63,7 @@ class ConditionalLogicEngine {
         if (!fieldId) return;
 
         this.updateFormData(fieldId, this.getFieldValue(field));
-        this.evaluateTriggeredRules(fieldId);
+        this.evaluateAllRulesWithCascade();
     }
 
     /**
@@ -70,16 +74,14 @@ class ConditionalLogicEngine {
         const fieldId = this.extractFieldId(field);
         if (!fieldId) return;
 
-        // Clear existing timer
         if (this.debounceTimers[fieldId]) {
             clearTimeout(this.debounceTimers[fieldId]);
         }
 
-        // Set new timer
         this.debounceTimers[fieldId] = setTimeout(() => {
             this.updateFormData(fieldId, this.getFieldValue(field));
-            this.evaluateTriggeredRules(fieldId);
-        }, 300); // Default debounce time
+            this.evaluateAllRulesWithCascade();
+        }, 300);
     }
 
     /**
@@ -167,63 +169,32 @@ class ConditionalLogicEngine {
     }
 
     /**
-     * Evaluate rules triggered by a specific field
-     * @param {string} fieldId - The field that triggered the evaluation
+     * Re-evaluate rules until visibility stabilises, ignoring values of hidden fields
+     * so stale answers cannot keep downstream fields visible (A→B→C cascades).
      */
-    evaluateTriggeredRules(fieldId) {
-        const triggeredRules = this.rules.filter(rule => 
-            rule.enabled && this.ruleReferencesField(rule, fieldId)
+    evaluateAllRulesWithCascade() {
+        const fieldCount = Math.max(
+            1,
+            document.querySelectorAll('[data-field-container], [data-field-id]').length,
+            Object.keys(this.formData).length
         );
 
-        const actions = [];
+        for (let iteration = 0; iteration < fieldCount; iteration++) {
+            this.evaluateAllRules();
 
-        for (const rule of triggeredRules) {
-            try {
-                if (this.evaluateRule(rule)) {
-                    actions.push(...rule.affectedElements.map(element => ({
-                        element,
-                        ruleId: rule.id,
-                        priority: rule.priority || 100
-                    })));
-                }
-            } catch (error) {
-                console.error(`Error evaluating triggered rule ${rule.id}:`, error);
+            let suppressed = false;
+            for (const [fieldId, isVisible] of Object.entries(this.fieldStates.visibility)) {
+                if (isVisible) continue;
+
+                const value = this.formData[fieldId];
+                if (value === null || value === undefined || String(value).trim() === '') continue;
+
+                this.formData[fieldId] = '';
+                suppressed = true;
             }
+
+            if (!suppressed) break;
         }
-
-        // Sort by priority and apply actions
-        actions.sort((a, b) => a.priority - b.priority);
-        this.applyActions(actions);
-    }
-
-    /**
-     * Check if a rule references a specific field
-     * @param {Object} rule - The conditional logic rule
-     * @param {string} fieldId - The field ID to check
-     * @returns {boolean} - True if the rule references the field
-     */
-    ruleReferencesField(rule, fieldId) {
-        return this.conditionGroupReferencesField(rule.conditionGroup, fieldId);
-    }
-
-    /**
-     * Check if a condition group references a specific field
-     * @param {Object} conditionGroup - The condition group
-     * @param {string} fieldId - The field ID to check
-     * @returns {boolean} - True if the condition group references the field
-     */
-    conditionGroupReferencesField(conditionGroup, fieldId) {
-        if (!conditionGroup.conditions) return false;
-
-        return conditionGroup.conditions.some(condition => {
-            if (condition.triggerField === fieldId) {
-                return true;
-            }
-            if (condition.conditions) {
-                return this.conditionGroupReferencesField({ conditions: condition.conditions }, fieldId);
-            }
-            return false;
-        });
     }
 
     /**
@@ -337,20 +308,45 @@ class ConditionalLogicEngine {
     }
 
     /**
-     * Reset field states to default
+     * Field IDs that are targets of enabled "show" rules (start hidden until conditions are met).
+     */
+    getShowTargetFieldIds() {
+        const showTargets = new Set();
+        for (const rule of this.rules) {
+            if (!rule.enabled || !rule.affectedElements) continue;
+            for (const element of rule.affectedElements) {
+                const action = (element.action || '').toLowerCase();
+                const elementType = (element.elementType || '').toLowerCase();
+                if (action === 'show' && (elementType === 'field' || elementType === '')) {
+                    showTargets.add(element.elementId);
+                }
+            }
+        }
+        return showTargets;
+    }
+
+    /**
+     * Reset field states to default.
+     * Fields that are targets of "show" rules start hidden (matches server-side defaults).
      */
     resetFieldStates() {
-        // Get all form fields and set default states
-        const fields = document.querySelectorAll('input, select, textarea');
-        
-        fields.forEach(field => {
+        const showTargets = this.getShowTargetFieldIds();
+
+        this.fieldStates.visibility = {};
+        this.fieldStates.enabled = {};
+
+        document.querySelectorAll('input, select, textarea').forEach(field => {
             const fieldId = this.extractFieldId(field);
-            if (fieldId) {
-                this.fieldStates.visibility[fieldId] = true;
-                this.fieldStates.enabled[fieldId] = true;
-                // Don't reset required state as it should come from the original field definition
-            }
+            if (!fieldId) return;
+            this.fieldStates.visibility[fieldId] = !showTargets.has(fieldId);
+            this.fieldStates.enabled[fieldId] = true;
         });
+
+        for (const fieldId of showTargets) {
+            if (!(fieldId in this.fieldStates.visibility)) {
+                this.fieldStates.visibility[fieldId] = false;
+            }
+        }
     }
 
     /**
@@ -564,8 +560,17 @@ class ConditionalLogicEngine {
      * @returns {HTMLElement|null} - The container element
      */
     getFieldContainer(fieldElement) {
+        const fieldId = this.extractFieldId(fieldElement);
+        if (fieldId) {
+            const explicitContainer = document.querySelector(`[data-field-container="${fieldId}"]`);
+            if (explicitContainer) {
+                return explicitContainer;
+            }
+        }
+
         // Look for common form field container classes
         const containerSelectors = [
+            '.form-field-container',
             '.govuk-form-group',
             '.form-group',
             '.field-container',
@@ -684,25 +689,28 @@ window.conditionalLogicEngine = new ConditionalLogicEngine();
 
 // Auto-initialize if rules are provided in the page
 document.addEventListener('DOMContentLoaded', () => {
-    // Look for conditional logic rules in the page
+    let rules = [];
+    let formData = {};
+
     const rulesScript = document.getElementById('conditional-logic-rules');
     if (rulesScript && rulesScript.textContent) {
         try {
-            const rules = JSON.parse(rulesScript.textContent);
-            window.conditionalLogicEngine.initialize(rules);
+            rules = JSON.parse(rulesScript.textContent);
         } catch (error) {
             console.error('Failed to parse conditional logic rules:', error);
         }
     }
 
-    // Look for initial form data
     const formDataScript = document.getElementById('initial-form-data');
     if (formDataScript && formDataScript.textContent) {
         try {
-            const formData = JSON.parse(formDataScript.textContent);
-            window.conditionalLogicEngine.initialize(window.conditionalLogicEngine.rules, formData);
+            formData = JSON.parse(formDataScript.textContent);
         } catch (error) {
             console.error('Failed to parse initial form data:', error);
         }
+    }
+
+    if (rules.length > 0) {
+        window.conditionalLogicEngine.initialize(rules, formData);
     }
 });
