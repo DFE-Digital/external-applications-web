@@ -15,58 +15,80 @@ namespace DfE.ExternalApplications.Web.Controllers
         private readonly string _context = configuration["ApplicationName"] ?? "Transfers";
 
         [HttpGet("unread")]
-        public async Task<ActionResult<IReadOnlyCollection<NotificationDto>>> GetUnreadAsync(CancellationToken cancellationToken)
-        {
-            var items = await notificationsClient.GetUnreadNotificationsAsync(_context, null, cancellationToken);
-            return Ok(items);
-        }
+        public Task<IActionResult> GetUnreadAsync(CancellationToken cancellationToken) =>
+            ExecuteAsync(() => notificationsClient.GetUnreadNotificationsAsync(_context, null, cancellationToken));
 
         [HttpGet("all")]
-        public async Task<ActionResult<IReadOnlyCollection<NotificationDto>>> GetAllAsync(CancellationToken cancellationToken)
-        {
-            var items = await notificationsClient.GetAllNotificationsAsync(_context, null, cancellationToken);
-            return Ok(items);
-        }
+        public Task<IActionResult> GetAllAsync(CancellationToken cancellationToken) =>
+            ExecuteAsync(() => notificationsClient.GetAllNotificationsAsync(_context, null, cancellationToken));
 
         [ValidateAntiForgeryToken]
         [HttpPost("read/{id}")]
-        public async Task<IActionResult> MarkAsReadAsync([FromRoute] string id, CancellationToken cancellationToken)
-        {
-            var ok = await notificationsClient.MarkNotificationAsReadAsync(id, cancellationToken);
-            return ok ? Ok() : Problem(statusCode: 500);
-        }
+        public Task<IActionResult> MarkAsReadAsync([FromRoute] string id, CancellationToken cancellationToken) =>
+            ExecuteAsync(async () =>
+            {
+                var ok = await notificationsClient.MarkNotificationAsReadAsync(id, cancellationToken);
+                return ok;
+            });
 
         [ValidateAntiForgeryToken]
         [HttpPost("read-all")]
-        public async Task<IActionResult> MarkAllAsReadAsync(CancellationToken cancellationToken)
-        {
-            var ok = await notificationsClient.MarkAllNotificationsAsReadAsync(_context, null, cancellationToken);
-            return ok ? Ok() : Problem(statusCode: 500);
-        }
+        public Task<IActionResult> MarkAllAsReadAsync(CancellationToken cancellationToken) =>
+            ExecuteAsync(async () =>
+            {
+                var ok = await notificationsClient.MarkAllNotificationsAsReadAsync(_context, null, cancellationToken);
+                return ok;
+            });
 
         [ValidateAntiForgeryToken]
         [HttpPost("remove/{id}")]
-        public async Task<IActionResult> RemoveAsync([FromRoute] string id, CancellationToken cancellationToken)
-        {
-            var ok = await notificationsClient.RemoveNotificationAsync(id, cancellationToken);
-            return ok ? Ok() : Problem(statusCode: 500);
-        }
+        public Task<IActionResult> RemoveAsync([FromRoute] string id, CancellationToken cancellationToken) =>
+            ExecuteAsync(async () =>
+            {
+                var ok = await notificationsClient.RemoveNotificationAsync(id, cancellationToken);
+                return ok;
+            });
 
         [ValidateAntiForgeryToken]
         [HttpPost("clear")]
-        public async Task<IActionResult> ClearAllAsync(CancellationToken cancellationToken)
-        {
-            var ok = await notificationsClient.ClearNotificationsByContextAsync(_context, cancellationToken);
-            return ok ? Ok() : Problem(statusCode: 500);
-        }
+        public Task<IActionResult> ClearAllAsync(CancellationToken cancellationToken) =>
+            ExecuteAsync(async () =>
+            {
+                var ok = await notificationsClient.ClearNotificationsByContextAsync(_context, cancellationToken);
+                return ok;
+            });
 
         [ValidateAntiForgeryToken]
         [HttpPost("create")]
-        public async Task<ActionResult<NotificationDto>> CreateAsync([FromBody] AddNotificationRequest request, CancellationToken cancellationToken)
+        public Task<IActionResult> CreateAsync([FromBody] AddNotificationRequest request, CancellationToken cancellationToken)
         {
             request.Context = _context;
-            var created = await notificationsClient.CreateNotificationAsync(request, cancellationToken);
-            return Ok(created);
+            return ExecuteAsync(() => notificationsClient.CreateNotificationAsync(request, cancellationToken));
+        }
+
+        private async Task<IActionResult> ExecuteAsync<T>(Func<Task<T>> action)
+        {
+            try
+            {
+                return Ok(await action());
+            }
+            catch (ExternalApplicationsException ex) when (ex.StatusCode is 401 or 403)
+            {
+                return StatusCode(ex.StatusCode, new { message = ex.Message });
+            }
+        }
+
+        private async Task<IActionResult> ExecuteAsync(Func<Task<bool>> action)
+        {
+            try
+            {
+                var ok = await action();
+                return ok ? Ok() : Problem(statusCode: 500);
+            }
+            catch (ExternalApplicationsException ex) when (ex.StatusCode is 401 or 403)
+            {
+                return StatusCode(ex.StatusCode, new { message = ex.Message });
+            }
         }
     }
 }

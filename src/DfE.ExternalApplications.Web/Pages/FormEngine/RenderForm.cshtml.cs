@@ -38,7 +38,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         IFileUploadService fileUploadService,
         IApplicationsClient applicationsClient,
         IConditionalLogicOrchestrator conditionalLogicOrchestrator,
-        INotificationsClient notificationsClient,
+        INotificationPublisher notificationPublisher,
         IFormErrorStore formErrorStore,
         IComplexFieldConfigurationService complexFieldConfigurationService,
         IDerivedCollectionFlowService derivedCollectionFlowService,
@@ -53,7 +53,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
     {
         private readonly IApplicationsClient _applicationsClient = applicationsClient;
         private readonly IConditionalLogicOrchestrator _conditionalLogicOrchestrator = conditionalLogicOrchestrator;
-        private readonly INotificationsClient _notificationsClient = notificationsClient;
+        private readonly INotificationPublisher _notificationPublisher = notificationPublisher;
         private readonly IFormErrorStore _formErrorStore = formErrorStore;
         private readonly IComplexFieldConfigurationService _complexFieldConfigurationService = complexFieldConfigurationService;
         private readonly IDerivedCollectionFlowService _derivedCollectionFlowService = derivedCollectionFlowService;
@@ -2910,7 +2910,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
                     AutoDismiss = false,
                     AutoDismissSeconds = 5
                 };
-                await _notificationsClient.CreateNotificationAsync(addRequest);
+                await _notificationPublisher.TryCreateAsync(addRequest);
 
                 
                 // Redirect back if we have return URL
@@ -3065,7 +3065,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             {
                 //  Send notification for successful delete
                 addRequest.Message = SuccessMessage;
-                await _notificationsClient.CreateNotificationAsync(addRequest);
+                await _notificationPublisher.TryCreateAsync(addRequest);
 
                 
                 return Redirect(returnUrl);
