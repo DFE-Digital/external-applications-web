@@ -255,6 +255,9 @@ builder.Services.Configure<Microsoft.AspNetCore.Mvc.MvcOptions>(options =>
 // Add hybrid caching (Memory + Redis) with automatic session support
 builder.Services.AddHybridCaching(builder.Configuration);
 
+// Share the Data Protection key ring in Redis so session/auth cookies unprotect on any replica.
+builder.Services.AddSharedDataProtection();
+
 // Configure session with timeout settings to prevent hanging/blocking
 builder.Services.AddSession(options =>
 {
@@ -542,7 +545,10 @@ else
     app.UseExceptionHandler("/Error/ServerError");
 }
 
-app.UseHttpsRedirection();
+// Health probes (Container Apps / Front Door) often use HTTP; do not redirect them to HTTPS.
+app.UseWhen(
+    static context => !AuthenticationPathExclusions.IsHealthProbe(context.Request.Path),
+    static branch => branch.UseHttpsRedirection());
 app.UseResponseCompression();
 
 app.UseStaticFiles();
@@ -558,8 +564,13 @@ app.UseStaticFiles(new StaticFileOptions
 app.UseRouting();
 app.UseCookiePolicy();
 
-app.UseSession();
-app.UseHostTemplateResolution();
+app.UseWhen(
+    static context => !AuthenticationPathExclusions.IsHealthProbe(context.Request.Path),
+    static branch =>
+    {
+        branch.UseSession();
+        branch.UseHostTemplateResolution();
+    });
 
 app.UseStatusCodePages(ctx =>
 {
@@ -585,6 +596,13 @@ app.UseAuthorization();
 
 app.MapRazorPages();
 app.MapControllers();
+
+app.MapGet("/health", () => Results.Text("Healthy", "text/plain"))
+    .AllowAnonymous();
+app.MapGet("/healthz", () => Results.Text("Healthy", "text/plain"))
+    .AllowAnonymous();
+app.MapGet("/liveness", () => Results.Text("Healthy", "text/plain"))
+    .AllowAnonymous();
 
 // Redirect root to Dashboard
 app.MapGet("/", context =>

@@ -14,6 +14,9 @@ internal static class AuthenticationPathExclusions
         "/signout-callback-entra",
         "/Logout",
         "/health",
+        "/healthz",
+        "/liveness",
+        "/readiness",
         "/assets",
         "/css",
         "/js",
@@ -43,6 +46,23 @@ internal static class AuthenticationPathExclusions
     ];
 
     /// <summary>
+    /// Returns true when the path is a liveness/readiness probe used by Container Apps or Front Door.
+    /// </summary>
+    public static bool IsHealthProbe(PathString path)
+    {
+        if (!path.HasValue)
+        {
+            return false;
+        }
+
+        var value = path.Value!;
+        return value.Equals("/health", StringComparison.OrdinalIgnoreCase)
+               || value.Equals("/healthz", StringComparison.OrdinalIgnoreCase)
+               || value.Equals("/liveness", StringComparison.OrdinalIgnoreCase)
+               || value.Equals("/readiness", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     /// Returns true when the request path is an authentication callback, logout,
     /// health check, or static asset that should skip permission middleware.
     /// </summary>
@@ -51,6 +71,11 @@ internal static class AuthenticationPathExclusions
         if (!path.HasValue)
         {
             return false;
+        }
+
+        if (IsHealthProbe(path))
+        {
+            return true;
         }
 
         var pathValue = path.Value!;
