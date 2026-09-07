@@ -19,33 +19,53 @@ public class ConditionalLogicOrchestrator(
 
         try
         {
-            
             if (template.ConditionalLogic == null || !template.ConditionalLogic.Any())
             {
-                // No conditional logic defined, return default state
                 InitializeDefaultState(template, state);
                 return state;
             }
 
-
-            // Evaluate all conditional logic rules
-            var result = conditionalLogicEngine.EvaluateRules(template.ConditionalLogic, formData, context);
-            state.EvaluationResult = result;
-
-
-            // Initialize with default state
-            InitializeDefaultState(template, state);
-
-            // Apply actions from conditional logic
-            await ApplyActionsAsync(result.Actions, state, template, formData);
+            // Hidden fields must not drive downstream rules (A→B→C cascades).
+            var effectiveFormData = new Dictionary<string, object>(formData, StringComparer.OrdinalIgnoreCase);
+            state = await EvaluateUntilStableAsync(template, effectiveFormData, context);
 
             logger.LogDebug("Applied conditional logic for template '{TemplateId}', {RuleCount} rules evaluated",
-                template.TemplateId, result.EvaluatedRules.Count);
+                template.TemplateId, state.EvaluationResult?.EvaluatedRules.Count ?? 0);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error applying conditional logic for template '{TemplateId}'", template.TemplateId);
         }
+
+        return state;
+    }
+
+    /// <summary>
+    /// Re-evaluates rules until visibility stabilises, clearing values of hidden fields between passes
+    /// so stale answers cannot keep dependent fields visible.
+    /// </summary>
+    private async Task<FormConditionalState> EvaluateUntilStableAsync(
+        FormTemplate template,
+        Dictionary<string, object> effectiveFormData,
+        ConditionalLogicContext? context)
+    {
+        var maxIterations = Math.Max(1, GetAllFields(template).Count);
+        FormConditionalState state = new();
+
+        for (var iteration = 0; iteration < maxIterations; iteration++)
+        {
+            var result = conditionalLogicEngine.EvaluateRules(template.ConditionalLogic!, effectiveFormData, context);
+            state = new FormConditionalState { EvaluationResult = result };
+            InitializeDefaultState(template, state);
+            await ApplyActionsAsync(result.Actions, state, template, effectiveFormData);
+
+            if (!SuppressHiddenFieldValues(state, effectiveFormData))
+                return state;
+        }
+
+        logger.LogWarning(
+            "Conditional logic for template '{TemplateId}' did not stabilise after {MaxIterations} iterations; check for circular visibility rules",
+            template.TemplateId, maxIterations);
 
         return state;
     }
@@ -248,6 +268,28 @@ public class ConditionalLogicOrchestrator(
     }
 
     #region Private Helper Methods
+
+    private static bool SuppressHiddenFieldValues(FormConditionalState state, Dictionary<string, object> effectiveFormData)
+    {
+        var changed = false;
+
+        foreach (var kvp in state.FieldVisibility)
+        {
+            var shouldContinue = kvp.Value || !effectiveFormData.TryGetValue(kvp.Key, out var value) || IsEmptyValue(value);
+
+            if (shouldContinue) continue;
+
+            effectiveFormData[kvp.Key] = string.Empty;
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private static bool IsEmptyValue(object? value)
+    {
+        return value == null || string.IsNullOrWhiteSpace(value.ToString());
+    }
 
     private void InitializeDefaultState(FormTemplate template, FormConditionalState state)
     {

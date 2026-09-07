@@ -109,22 +109,21 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
         }
 
         /// <summary>
-        /// Validates the current page using the validation orchestrator
+        /// Whether a field is hidden by conditional logic. Override in derived models that evaluate rules.
         /// </summary>
-        /// <param name="page">The page to validate</param>
-        /// <param name="data">The form data</param>
-        /// <returns>True if validation passes</returns>
+        public virtual bool IsFieldHidden(string fieldId) => false;
+
+        /// <summary>
+        /// Validates the current page using the validation orchestrator, skipping hidden fields.
+        /// </summary>
         protected bool ValidateCurrentPage(Domain.Models.Page page, Dictionary<string, object> data)
         {
-            return _formValidationOrchestrator.ValidatePage(page, data, ModelState, Template);
+            return _formValidationOrchestrator.ValidatePage(page, data, ModelState, Template, IsFieldHidden);
         }
 
         /// <summary>
         /// Validates the current task using the validation orchestrator
         /// </summary>
-        /// <param name="task">The task to validate</param>
-        /// <param name="data">The form data</param>
-        /// <returns>True if validation passes</returns>
         protected bool ValidateCurrentTask(Domain.Models.Task task, Dictionary<string, object> data)
         {
             return _formValidationOrchestrator.ValidateTask(task, data, ModelState, Template);
