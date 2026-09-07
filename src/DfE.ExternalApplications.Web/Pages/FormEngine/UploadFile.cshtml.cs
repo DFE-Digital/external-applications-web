@@ -2,8 +2,9 @@ using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using DfE.ExternalApplications.Application.Interfaces;
-using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
 using DfE.ExternalApplications.Web.Interfaces;
+using GovUK.Dfe.ExternalApplications.Api.Client.Contracts;
+
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -14,7 +15,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
     public class UploadFileModel(
         IFileUploadService fileUploadService,
         IApplicationResponseService applicationResponseService,
-        INotificationsClient notificationsClient,
+        INotificationPublisher notificationPublisher,
         IFormErrorStore formErrorStore)
         : PageModel
     {
@@ -126,7 +127,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             if (!string.IsNullOrEmpty(ReturnUrl))
             {
                 addRequest.Message = SuccessMessage;
-                await notificationsClient.CreateNotificationAsync(addRequest);
+                await notificationPublisher.TryCreateAsync(addRequest);
                 return Redirect(ReturnUrl);
             }
 
@@ -198,7 +199,7 @@ namespace DfE.ExternalApplications.Web.Pages.FormEngine
             if (!string.IsNullOrEmpty(ReturnUrl))
             {
                 addRequest.Message = SuccessMessage;
-                await notificationsClient.CreateNotificationAsync(addRequest);
+                await notificationPublisher.TryCreateAsync(addRequest);
                 return Redirect(ReturnUrl);
             }
 

@@ -303,6 +303,11 @@ namespace DfE.ExternalApplications.Web.Filters
                 return false;
             }
 
+            if (IsNotificationPermissionDenied(apiMessage))
+            {
+                return false;
+            }
+
             if (statusCode == 401 && IsAuthenticationFailureMessage(apiMessage))
             {
                 return false;
@@ -369,6 +374,9 @@ namespace DfE.ExternalApplications.Web.Filters
             message?.Contains("token", StringComparison.OrdinalIgnoreCase) == true
             || message?.Contains("expired", StringComparison.OrdinalIgnoreCase) == true
             || message?.Contains("unauthorized", StringComparison.OrdinalIgnoreCase) == true;
+
+        private static bool IsNotificationPermissionDenied(string? message) =>
+            message?.Contains("notification", StringComparison.OrdinalIgnoreCase) == true;
 
         private static bool IsApplicationRequest(PathString path)
         {

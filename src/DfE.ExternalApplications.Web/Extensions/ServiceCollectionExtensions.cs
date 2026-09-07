@@ -66,6 +66,7 @@ namespace DfE.ExternalApplications.Web.Extensions
 
             // Feedback services
             services.AddScoped<IFeedbackService, FeedbackService>();
+            services.AddScoped<INotificationPublisher, NotificationPublisher>();
 
             return services;
         }

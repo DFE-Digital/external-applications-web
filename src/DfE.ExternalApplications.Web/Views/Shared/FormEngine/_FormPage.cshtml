@@ -8,6 +8,11 @@
 @inject DfE.ExternalApplications.Application.Interfaces.IComplexFieldConfigurationService ComplexFieldConfigurationService
 @inject DfE.ExternalApplications.Application.Interfaces.IFormNavigationService Nav
 
+@if (Model.CurrentPage?.Fields == null)
+{
+    return;
+}
+
 @{
     bool hasUploadField = Model.CurrentPage.Fields.Any(f =>
         f.Type == "complexField" &&
