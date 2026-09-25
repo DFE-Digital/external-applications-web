@@ -12,6 +12,7 @@ locals {
   registry_use_managed_identity                 = var.registry_use_managed_identity
   registry_managed_identity_assign_role         = var.registry_managed_identity_assign_role
   registry_server                               = var.registry_server
+  enable_main_container                         = var.enable_main_container
   image_name                                    = var.image_name
   container_command                             = var.container_command
   container_secret_environment_variables        = var.container_secret_environment_variables

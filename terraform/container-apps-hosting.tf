@@ -1,5 +1,5 @@
 module "azure_container_apps_hosting" {
-  source = "github.com/DFE-Digital/terraform-azurerm-container-apps-hosting?ref=v2.8.1"
+  source = "github.com/DFE-Digital/terraform-azurerm-container-apps-hosting?ref=v2.11.0"
 
   environment    = local.environment
   project_name   = local.project_name
@@ -21,6 +21,7 @@ module "azure_container_apps_hosting" {
   dns_txt_records      = local.dns_txt_records
   dns_mx_records       = local.dns_mx_records
 
+  enable_main_container                  = local.enable_main_container
   image_name                             = local.image_name
   container_command                      = local.container_command
   container_secret_environment_variables = local.container_secret_environment_variables
