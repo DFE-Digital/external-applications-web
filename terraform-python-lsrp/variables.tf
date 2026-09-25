@@ -126,6 +126,12 @@ variable "registry_managed_identity_assign_role" {
   default     = false
 }
 
+variable "enable_main_container" {
+  description = "Enable main container"
+  type        = bool
+  default     = true
+}
+
 variable "image_name" {
   description = "Image name"
   type        = string
