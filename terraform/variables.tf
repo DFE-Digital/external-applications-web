@@ -405,3 +405,9 @@ variable "linux_function_apps" {
     })), {})
   }))
 }
+
+variable "enable_main_container" {
+  description = "Enable main container"
+  type        = bool
+  default     = true
+}
