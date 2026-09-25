@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using AutoFixture;
 using AutoFixture.AutoNSubstitute;
 using DfE.ExternalApplications.Application.Interfaces;
@@ -50,12 +51,24 @@ public class RenderFormModelTests
         _navigationHistoryService = _fixture.Create<INavigationHistoryService>();
         _fixture.Register(() => _navigationHistoryService);
 
+        var conditionalLogicOrchestrator = _fixture.Create<IConditionalLogicOrchestrator>();
+        conditionalLogicOrchestrator
+            .ApplyConditionalLogicAsync(Arg.Any<FormTemplate>(), Arg.Any<Dictionary<string, object>>(), Arg.Any<ConditionalLogicContext>())
+            .Returns(new FormConditionalState());
+        _fixture.Register(() => conditionalLogicOrchestrator);
+
         var request = _fixture.Create<HttpRequest>();
         request.Path = PathString.Empty;
         request.QueryString = QueryString.Empty;
+        request.Form = new FormCollection(new Dictionary<string, StringValues>());
         _fixture.Register(() => request);
 
         _model = _fixture.Create<RenderFormModel>();
+        _model.ConditionalState = null;
+
+        // OnPost paths require write access; Admin short-circuits IsApplicationEditable().
+        var identity = new ClaimsIdentity([new Claim(ClaimTypes.Role, "Admin")], authenticationType: "Test");
+        _model.HttpContext.User = new ClaimsPrincipal(identity);
     }
 
     [Theory]
@@ -149,20 +162,23 @@ public class RenderFormModelTests
     }
 
     [Fact]
-    public async Task OnPostPageAsync_when_collection_item_is_added_then_all_fields_are_available_for_success_message()
+    public async Task OnPostPageAsync_when_collection_item_is_added_then_success_message_uses_task_title()
     {
         var flowId = _fixture.Create<string>();
         var instanceId = _fixture.Create<string>();
         var flowPageId = _fixture.Create<string>();
+        var taskName = "Some Data";
 
         _model.ReferenceNumber = _fixture.Create<string>();
         _model.TaskId = _fixture.Create<string>();
         _model.CurrentPageId = $"flow/{flowId}/{instanceId}/{flowPageId}";
 
+        var page = _fixture.Build<PageModel>()
+            .With(p => p.PageId, flowPageId)
+            .Create();
         var flow = _fixture.Build<MultiCollectionFlowConfiguration>()
             .With(f => f.FlowId, flowId)
-            .With(f => f.AddItemMessage, "{firstField} has been added")
-            .With(f => f.UpdateItemMessage, "{firstField} has been updated")
+            .With(f => f.Pages, [page])
             .Create();
         var summary = _fixture.Build<TaskSummaryConfiguration>()
             .With(s => s.Flows, [flow])
@@ -170,6 +186,7 @@ public class RenderFormModelTests
         var task = _fixture
             .Build<TaskModel>()
             .With(t => t.TaskId, _model.TaskId)
+            .With(t => t.TaskName, taskName)
             .With(t => t.Summary, summary)
             .Create();
         _fixture.Register(() => task);
@@ -182,27 +199,27 @@ public class RenderFormModelTests
 
         await _model.OnPostPageAsync();
         
-        Assert.NotEqual("{firstField} has been updated", _model.SuccessMessage);
-        Assert.DoesNotContain("{firstField}", _model.SuccessMessage);
-        Assert.NotEqual("Some Data has been updated", _model.SuccessMessage);
-        Assert.Equal("Some Data has been added", _model.SuccessMessage);
+        Assert.Equal($"{taskName} updated", _model.SuccessMessage);
     }
 
     [Fact]
-    public async Task OnPostPageAsync_when_collection_item_is_updated_then_all_fields_are_available_for_success_message()
+    public async Task OnPostPageAsync_when_collection_item_is_updated_then_success_message_uses_task_title()
     {
         var flowId = _fixture.Create<string>();
         var instanceId = _fixture.Create<string>();
         var flowPageId = _fixture.Create<string>();
+        var taskName = "Some Data";
 
         _model.ReferenceNumber = _fixture.Create<string>();
         _model.TaskId = _fixture.Create<string>();
         _model.CurrentPageId = $"flow/{flowId}/{instanceId}/{flowPageId}";
 
+        var page = _fixture.Build<PageModel>()
+            .With(p => p.PageId, flowPageId)
+            .Create();
         var flow = _fixture.Build<MultiCollectionFlowConfiguration>()
             .With(f => f.FlowId, flowId)
-            .With(f => f.AddItemMessage, "{firstField} has been added")
-            .With(f => f.UpdateItemMessage, "{firstField} has been updated")
+            .With(f => f.Pages, [page])
             .Create();
         var summary = _fixture.Build<TaskSummaryConfiguration>()
             .With(s => s.Flows, [flow])
@@ -210,6 +227,7 @@ public class RenderFormModelTests
         var task = _fixture
             .Build<TaskModel>()
             .With(t => t.TaskId, _model.TaskId)
+            .With(t => t.TaskName, taskName)
             .With(t => t.Summary, summary)
             .Create();
         _fixture.Register(() => task);
@@ -224,10 +242,7 @@ public class RenderFormModelTests
 
         await _model.OnPostPageAsync();
         
-        Assert.NotEqual("{firstField} has been added", _model.SuccessMessage);
-        Assert.DoesNotContain("{firstField}", _model.SuccessMessage);
-        Assert.NotEqual("Some Data has been added", _model.SuccessMessage);
-        Assert.Equal("Some Data has been updated", _model.SuccessMessage);
+        Assert.Equal($"{taskName} updated", _model.SuccessMessage);
     }
 
     [Theory]
@@ -236,9 +251,10 @@ public class RenderFormModelTests
     [InlineData("<script>alert('hello')</script>", "&lt;script&gt;alert(&#x27;hello&#x27;)&lt;/script&gt;")]
     public async Task OnPostPageAsync_sanitises_form_data(string formValue, string expectedSavedData)
     {
-        var request = _fixture.Create<HttpRequest>();
-        request.Form = new FormCollection(new Dictionary<string, StringValues> { { "Data[someField]", formValue } });
-        _fixture.Register(() => request);
+        _model.HttpContext.Request.Form = new FormCollection(new Dictionary<string, StringValues>
+        {
+            { "Data[someField]", formValue }
+        });
 
         await _model.OnPostPageAsync();
 

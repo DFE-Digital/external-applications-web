@@ -14,8 +14,9 @@ namespace DfE.ExternalApplications.Application.Interfaces
         /// <param name="data">The form data</param>
         /// <param name="modelState">The model state to add errors to</param>
         /// <param name="template">Optional template for field requirement policy</param>
+        /// <param name="isFieldHidden">Optional predicate; hidden fields are skipped</param>
         /// <returns>True if validation passes</returns>
-        bool ValidatePage(Domain.Models.Page page, Dictionary<string, object> data, ModelStateDictionary modelState, Domain.Models.FormTemplate? template = null);
+        bool ValidatePage(Domain.Models.Page page, Dictionary<string, object> data, ModelStateDictionary modelState, Domain.Models.FormTemplate? template = null, Func<string, bool>? isFieldHidden = null);
         
         /// <summary>
         /// Validates a single task
